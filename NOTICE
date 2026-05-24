@@ -1,0 +1,10 @@
+RCQ Android — third-party attributions.
+
+This file will list vendored / linked dependencies and their licenses
+once the first build lands. Expected entries include (non-exhaustive):
+
+  - libsignal-client (Signal Messenger LLC) — AGPL-3.0
+  - androidx.* — Apache-2.0
+  - Jetpack Compose — Apache-2.0
+
+Until then, this notice is a placeholder.
