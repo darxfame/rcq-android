@@ -1,0 +1,305 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    package="com.rcq.messenger"
+4    android:versionCode="1"
+5    android:versionName="1.0.0" >
+6
+7    <uses-sdk
+8        android:minSdkVersion="26"
+9        android:targetSdkVersion="34" />
+10
+11    <!-- Network permissions -->
+12    <uses-permission android:name="android.permission.INTERNET" />
+12-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:6:5-67
+12-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:6:22-64
+13    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+13-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:7:5-79
+13-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:7:22-76
+14
+15    <!-- Storage -->
+16    <uses-permission
+16-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:10:5-11:38
+17        android:name="android.permission.READ_EXTERNAL_STORAGE"
+17-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:10:22-77
+18        android:maxSdkVersion="32" />
+18-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:11:9-35
+19    <uses-permission
+19-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:12:5-14:40
+20        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+20-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:12:22-78
+21        android:maxSdkVersion="28" />
+21-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:13:9-35
+22    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+22-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:15:5-76
+22-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:15:22-73
+23    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+23-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:16:5-75
+23-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:16:22-72
+24    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+24-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:17:5-75
+24-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:17:22-72
+25
+26    <!-- Location -->
+27    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+27-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:20:5-79
+27-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:20:22-76
+28    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+28-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:21:5-81
+28-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:21:22-78
+29    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+29-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:22:5-85
+29-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:22:22-82
+30
+31    <!-- Camera & Microphone -->
+32    <uses-permission android:name="android.permission.CAMERA" />
+32-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:25:5-65
+32-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:25:22-62
+33    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+33-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:26:5-71
+33-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:26:22-68
+34
+35    <!-- Notifications -->
+36    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+36-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:29:5-77
+36-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:29:22-74
+37    <uses-permission android:name="android.permission.VIBRATE" />
+37-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:30:5-66
+37-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:30:22-63
+38
+39    <!-- Foreground Service -->
+40    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+40-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:33:5-77
+40-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:33:22-74
+41    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+41-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:34:5-92
+41-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:34:22-89
+42    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+42-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:35:5-88
+42-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:35:22-85
+43
+44    <!-- Wake lock -->
+45    <uses-permission android:name="android.permission.WAKE_LOCK" />
+45-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:38:5-68
+45-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:38:22-65
+46
+47    <!-- Biometric -->
+48    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+48-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:41:5-72
+48-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:41:22-69
+49
+50    <!-- Call -->
+51    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+51-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:44:5-75
+51-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:44:22-72
+52    <uses-permission android:name="android.permission.MANAGE_OWN_CALLS" />
+52-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:45:5-75
+52-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:45:22-72
+53
+54    <!-- Bluetooth -->
+55    <uses-permission android:name="android.permission.BLUETOOTH" />
+55-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:48:5-68
+55-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:48:22-65
+56    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+56-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:49:5-76
+56-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:49:22-73
+57
+58    <!-- suppress DeprecatedClassUsageInspection -->
+59    <uses-permission android:name="android.permission.USE_FINGERPRINT" />
+59-->[androidx.biometric:biometric:1.1.0] /Users/artemkochegizov/.gradle/caches/transforms-4/22eea0633aea6f18146ee13730933a23/transformed/biometric-1.1.0/AndroidManifest.xml:27:5-74
+59-->[androidx.biometric:biometric:1.1.0] /Users/artemkochegizov/.gradle/caches/transforms-4/22eea0633aea6f18146ee13730933a23/transformed/biometric-1.1.0/AndroidManifest.xml:27:22-71
+60
+61    <permission
+61-->[androidx.core:core:1.12.0] /Users/artemkochegizov/.gradle/caches/transforms-4/da2a27d2651b4cd95cf5a8627ba1b3d9/transformed/core-1.12.0/AndroidManifest.xml:22:5-24:47
+62        android:name="com.rcq.messenger.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+62-->[androidx.core:core:1.12.0] /Users/artemkochegizov/.gradle/caches/transforms-4/da2a27d2651b4cd95cf5a8627ba1b3d9/transformed/core-1.12.0/AndroidManifest.xml:23:9-81
+63        android:protectionLevel="signature" />
+63-->[androidx.core:core:1.12.0] /Users/artemkochegizov/.gradle/caches/transforms-4/da2a27d2651b4cd95cf5a8627ba1b3d9/transformed/core-1.12.0/AndroidManifest.xml:24:9-44
+64
+65    <uses-permission android:name="com.rcq.messenger.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
+65-->[androidx.core:core:1.12.0] /Users/artemkochegizov/.gradle/caches/transforms-4/da2a27d2651b4cd95cf5a8627ba1b3d9/transformed/core-1.12.0/AndroidManifest.xml:26:5-97
+65-->[androidx.core:core:1.12.0] /Users/artemkochegizov/.gradle/caches/transforms-4/da2a27d2651b4cd95cf5a8627ba1b3d9/transformed/core-1.12.0/AndroidManifest.xml:26:22-94
+66
+67    <application
+67-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:51:5-93:19
+68        android:name="com.rcq.messenger.RCQApplication"
+68-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:52:9-39
+69        android:allowBackup="false"
+69-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:53:9-36
+70        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
+70-->[androidx.core:core:1.12.0] /Users/artemkochegizov/.gradle/caches/transforms-4/da2a27d2651b4cd95cf5a8627ba1b3d9/transformed/core-1.12.0/AndroidManifest.xml:28:18-86
+71        android:dataExtractionRules="@xml/data_extraction_rules"
+71-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:54:9-65
+72        android:debuggable="true"
+73        android:extractNativeLibs="false"
+74        android:fullBackupContent="false"
+74-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:55:9-42
+75        android:icon="@mipmap/ic_launcher"
+75-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:56:9-43
+76        android:label="@string/app_name"
+76-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:57:9-41
+77        android:roundIcon="@mipmap/ic_launcher_round"
+77-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:58:9-54
+78        android:supportsRtl="true"
+78-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:59:9-35
+79        android:theme="@style/Theme.RCQ"
+79-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:60:9-41
+80        android:usesCleartextTraffic="false" >
+80-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:61:9-45
+81        <activity
+81-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:64:9-73:20
+82            android:name="com.rcq.messenger.ui.MainActivity"
+82-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:65:13-44
+83            android:exported="true"
+83-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:66:13-36
+84            android:launchMode="singleTask"
+84-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:67:13-44
+85            android:theme="@style/Theme.RCQ" >
+85-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:68:13-45
+86            <intent-filter>
+86-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:69:13-72:29
+87                <action android:name="android.intent.action.MAIN" />
+87-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:70:17-69
+87-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:70:25-66
+88
+89                <category android:name="android.intent.category.LAUNCHER" />
+89-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:71:17-77
+89-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:71:27-74
+90            </intent-filter>
+91        </activity>
+92
+93        <!-- WebSocket Service -->
+94        <service
+94-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:76:9-79:56
+95            android:name="com.rcq.messenger.service.WebSocketService"
+95-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:77:13-53
+96            android:exported="false"
+96-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:78:13-37
+97            android:foregroundServiceType="dataSync" />
+97-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:79:13-53
+98
+99        <!-- Call Service -->
+100        <service
+100-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:82:9-85:58
+101            android:name="com.rcq.messenger.service.CallService"
+101-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:83:13-48
+102            android:exported="false"
+102-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:84:13-37
+103            android:foregroundServiceType="microphone" />
+103-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:85:13-55
+104
+105        <!-- Audio Room Service -->
+106        <service
+106-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:88:9-91:61
+107            android:name="com.rcq.messenger.service.AudioRoomService"
+107-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:89:13-53
+108            android:exported="false"
+108-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:90:13-37
+109            android:foregroundServiceType="mediaPlayback" />
+109-->/Users/artemkochegizov/DFAProject/KiloCode/RCQ/android/app/src/main/AndroidManifest.xml:91:13-58
+110
+111        <activity
+111-->[com.google.android.gms:play-services-base:18.1.0] /Users/artemkochegizov/.gradle/caches/transforms-4/b6a56f5b3d4fdd577f137ec62bd25983/transformed/jetified-play-services-base-18.1.0/AndroidManifest.xml:20:9-22:45
+112            android:name="com.google.android.gms.common.api.GoogleApiActivity"
+112-->[com.google.android.gms:play-services-base:18.1.0] /Users/artemkochegizov/.gradle/caches/transforms-4/b6a56f5b3d4fdd577f137ec62bd25983/transformed/jetified-play-services-base-18.1.0/AndroidManifest.xml:20:19-85
+113            android:exported="false"
+113-->[com.google.android.gms:play-services-base:18.1.0] /Users/artemkochegizov/.gradle/caches/transforms-4/b6a56f5b3d4fdd577f137ec62bd25983/transformed/jetified-play-services-base-18.1.0/AndroidManifest.xml:22:19-43
+114            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+114-->[com.google.android.gms:play-services-base:18.1.0] /Users/artemkochegizov/.gradle/caches/transforms-4/b6a56f5b3d4fdd577f137ec62bd25983/transformed/jetified-play-services-base-18.1.0/AndroidManifest.xml:21:19-78
+115
+116        <meta-data
+116-->[com.google.android.gms:play-services-basement:18.1.0] /Users/artemkochegizov/.gradle/caches/transforms-4/875f6f602f02931e148d1dcf3a6802e2/transformed/jetified-play-services-basement-18.1.0/AndroidManifest.xml:21:9-23:69
+117            android:name="com.google.android.gms.version"
+117-->[com.google.android.gms:play-services-basement:18.1.0] /Users/artemkochegizov/.gradle/caches/transforms-4/875f6f602f02931e148d1dcf3a6802e2/transformed/jetified-play-services-basement-18.1.0/AndroidManifest.xml:22:13-58
+118            android:value="@integer/google_play_services_version" />
+118-->[com.google.android.gms:play-services-basement:18.1.0] /Users/artemkochegizov/.gradle/caches/transforms-4/875f6f602f02931e148d1dcf3a6802e2/transformed/jetified-play-services-basement-18.1.0/AndroidManifest.xml:23:13-66
+119
+120        <activity
+120-->[androidx.compose.ui:ui-tooling-android:1.6.1] /Users/artemkochegizov/.gradle/caches/transforms-4/610d54cb0341f173b8ab7ad1b81fa63c/transformed/jetified-ui-tooling-release/AndroidManifest.xml:23:9-25:39
+121            android:name="androidx.compose.ui.tooling.PreviewActivity"
+121-->[androidx.compose.ui:ui-tooling-android:1.6.1] /Users/artemkochegizov/.gradle/caches/transforms-4/610d54cb0341f173b8ab7ad1b81fa63c/transformed/jetified-ui-tooling-release/AndroidManifest.xml:24:13-71
+122            android:exported="true" />
+122-->[androidx.compose.ui:ui-tooling-android:1.6.1] /Users/artemkochegizov/.gradle/caches/transforms-4/610d54cb0341f173b8ab7ad1b81fa63c/transformed/jetified-ui-tooling-release/AndroidManifest.xml:25:13-36
+123        <activity
+123-->[androidx.compose.ui:ui-test-manifest:1.6.1] /Users/artemkochegizov/.gradle/caches/transforms-4/ebebbbebdcc63c26ea9be8ffdd85d2f6/transformed/jetified-ui-test-manifest-1.6.1/AndroidManifest.xml:23:9-25:39
+124            android:name="androidx.activity.ComponentActivity"
+124-->[androidx.compose.ui:ui-test-manifest:1.6.1] /Users/artemkochegizov/.gradle/caches/transforms-4/ebebbbebdcc63c26ea9be8ffdd85d2f6/transformed/jetified-ui-test-manifest-1.6.1/AndroidManifest.xml:24:13-63
+125            android:exported="true" />
+125-->[androidx.compose.ui:ui-test-manifest:1.6.1] /Users/artemkochegizov/.gradle/caches/transforms-4/ebebbbebdcc63c26ea9be8ffdd85d2f6/transformed/jetified-ui-test-manifest-1.6.1/AndroidManifest.xml:25:13-36
+126
+127        <provider
+127-->[androidx.emoji2:emoji2:1.3.0] /Users/artemkochegizov/.gradle/caches/transforms-4/597817d265c589760fcfa63bac3f120c/transformed/jetified-emoji2-1.3.0/AndroidManifest.xml:24:9-32:20
+128            android:name="androidx.startup.InitializationProvider"
+128-->[androidx.emoji2:emoji2:1.3.0] /Users/artemkochegizov/.gradle/caches/transforms-4/597817d265c589760fcfa63bac3f120c/transformed/jetified-emoji2-1.3.0/AndroidManifest.xml:25:13-67
+129            android:authorities="com.rcq.messenger.androidx-startup"
+129-->[androidx.emoji2:emoji2:1.3.0] /Users/artemkochegizov/.gradle/caches/transforms-4/597817d265c589760fcfa63bac3f120c/transformed/jetified-emoji2-1.3.0/AndroidManifest.xml:26:13-68
+130            android:exported="false" >
+130-->[androidx.emoji2:emoji2:1.3.0] /Users/artemkochegizov/.gradle/caches/transforms-4/597817d265c589760fcfa63bac3f120c/transformed/jetified-emoji2-1.3.0/AndroidManifest.xml:27:13-37
+131            <meta-data
+131-->[androidx.emoji2:emoji2:1.3.0] /Users/artemkochegizov/.gradle/caches/transforms-4/597817d265c589760fcfa63bac3f120c/transformed/jetified-emoji2-1.3.0/AndroidManifest.xml:29:13-31:52
+132                android:name="androidx.emoji2.text.EmojiCompatInitializer"
+132-->[androidx.emoji2:emoji2:1.3.0] /Users/artemkochegizov/.gradle/caches/transforms-4/597817d265c589760fcfa63bac3f120c/transformed/jetified-emoji2-1.3.0/AndroidManifest.xml:30:17-75
+133                android:value="androidx.startup" />
+133-->[androidx.emoji2:emoji2:1.3.0] /Users/artemkochegizov/.gradle/caches/transforms-4/597817d265c589760fcfa63bac3f120c/transformed/jetified-emoji2-1.3.0/AndroidManifest.xml:31:17-49
+134            <meta-data
+134-->[androidx.lifecycle:lifecycle-process:2.7.0] /Users/artemkochegizov/.gradle/caches/transforms-4/f88ee73cdf5227c87d6082a11c1fb8df/transformed/jetified-lifecycle-process-2.7.0/AndroidManifest.xml:29:13-31:52
+135                android:name="androidx.lifecycle.ProcessLifecycleInitializer"
+135-->[androidx.lifecycle:lifecycle-process:2.7.0] /Users/artemkochegizov/.gradle/caches/transforms-4/f88ee73cdf5227c87d6082a11c1fb8df/transformed/jetified-lifecycle-process-2.7.0/AndroidManifest.xml:30:17-78
+136                android:value="androidx.startup" />
+136-->[androidx.lifecycle:lifecycle-process:2.7.0] /Users/artemkochegizov/.gradle/caches/transforms-4/f88ee73cdf5227c87d6082a11c1fb8df/transformed/jetified-lifecycle-process-2.7.0/AndroidManifest.xml:31:17-49
+137            <meta-data
+137-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/artemkochegizov/.gradle/caches/transforms-4/8dfdfb6f94ba8145ab923c45816e0904/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:29:13-31:52
+138                android:name="androidx.profileinstaller.ProfileInstallerInitializer"
+138-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/artemkochegizov/.gradle/caches/transforms-4/8dfdfb6f94ba8145ab923c45816e0904/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:30:17-85
+139                android:value="androidx.startup" />
+139-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/artemkochegizov/.gradle/caches/transforms-4/8dfdfb6f94ba8145ab923c45816e0904/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:31:17-49
+140        </provider>
+141
+142        <service
+142-->[androidx.room:room-runtime:2.6.1] /Users/artemkochegizov/.gradle/caches/transforms-4/4e2727c634335fbf19f7b833de8cf455/transformed/room-runtime-2.6.1/AndroidManifest.xml:24:9-28:63
+143            android:name="androidx.room.MultiInstanceInvalidationService"
+143-->[androidx.room:room-runtime:2.6.1] /Users/artemkochegizov/.gradle/caches/transforms-4/4e2727c634335fbf19f7b833de8cf455/transformed/room-runtime-2.6.1/AndroidManifest.xml:25:13-74
+144            android:directBootAware="true"
+144-->[androidx.room:room-runtime:2.6.1] /Users/artemkochegizov/.gradle/caches/transforms-4/4e2727c634335fbf19f7b833de8cf455/transformed/room-runtime-2.6.1/AndroidManifest.xml:26:13-43
+145            android:exported="false" />
+145-->[androidx.room:room-runtime:2.6.1] /Users/artemkochegizov/.gradle/caches/transforms-4/4e2727c634335fbf19f7b833de8cf455/transformed/room-runtime-2.6.1/AndroidManifest.xml:27:13-37
+146
+147        <receiver
+147-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/artemkochegizov/.gradle/caches/transforms-4/8dfdfb6f94ba8145ab923c45816e0904/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:34:9-52:20
+148            android:name="androidx.profileinstaller.ProfileInstallReceiver"
+148-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/artemkochegizov/.gradle/caches/transforms-4/8dfdfb6f94ba8145ab923c45816e0904/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:35:13-76
+149            android:directBootAware="false"
+149-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/artemkochegizov/.gradle/caches/transforms-4/8dfdfb6f94ba8145ab923c45816e0904/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:36:13-44
+150            android:enabled="true"
+150-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/artemkochegizov/.gradle/caches/transforms-4/8dfdfb6f94ba8145ab923c45816e0904/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:37:13-35
+151            android:exported="true"
+151-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/artemkochegizov/.gradle/caches/transforms-4/8dfdfb6f94ba8145ab923c45816e0904/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:38:13-36
+152            android:permission="android.permission.DUMP" >
+152-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/artemkochegizov/.gradle/caches/transforms-4/8dfdfb6f94ba8145ab923c45816e0904/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:39:13-57
+153            <intent-filter>
+153-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/artemkochegizov/.gradle/caches/transforms-4/8dfdfb6f94ba8145ab923c45816e0904/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:40:13-42:29
+154                <action android:name="androidx.profileinstaller.action.INSTALL_PROFILE" />
+154-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/artemkochegizov/.gradle/caches/transforms-4/8dfdfb6f94ba8145ab923c45816e0904/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:41:17-91
+154-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/artemkochegizov/.gradle/caches/transforms-4/8dfdfb6f94ba8145ab923c45816e0904/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:41:25-88
+155            </intent-filter>
+156            <intent-filter>
+156-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/artemkochegizov/.gradle/caches/transforms-4/8dfdfb6f94ba8145ab923c45816e0904/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:43:13-45:29
+157                <action android:name="androidx.profileinstaller.action.SKIP_FILE" />
+157-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/artemkochegizov/.gradle/caches/transforms-4/8dfdfb6f94ba8145ab923c45816e0904/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:44:17-85
+157-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/artemkochegizov/.gradle/caches/transforms-4/8dfdfb6f94ba8145ab923c45816e0904/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:44:25-82
+158            </intent-filter>
+159            <intent-filter>
+159-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/artemkochegizov/.gradle/caches/transforms-4/8dfdfb6f94ba8145ab923c45816e0904/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:46:13-48:29
+160                <action android:name="androidx.profileinstaller.action.SAVE_PROFILE" />
+160-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/artemkochegizov/.gradle/caches/transforms-4/8dfdfb6f94ba8145ab923c45816e0904/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:47:17-88
+160-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/artemkochegizov/.gradle/caches/transforms-4/8dfdfb6f94ba8145ab923c45816e0904/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:47:25-85
+161            </intent-filter>
+162            <intent-filter>
+162-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/artemkochegizov/.gradle/caches/transforms-4/8dfdfb6f94ba8145ab923c45816e0904/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:49:13-51:29
+163                <action android:name="androidx.profileinstaller.action.BENCHMARK_OPERATION" />
+163-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/artemkochegizov/.gradle/caches/transforms-4/8dfdfb6f94ba8145ab923c45816e0904/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:50:17-95
+163-->[androidx.profileinstaller:profileinstaller:1.3.1] /Users/artemkochegizov/.gradle/caches/transforms-4/8dfdfb6f94ba8145ab923c45816e0904/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:50:25-92
+164            </intent-filter>
+165        </receiver>
+166    </application>
+167
+168</manifest>

@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Primary Colors -->
+    <color name="primary">#6366F1</color>
+    <color name="primary_variant">#4F46E5</color>
+    <color name="on_primary">#FFFFFF</color>
+
+    <!-- Secondary Colors -->
+    <color name="secondary">#EC4899</color>
+    <color name="secondary_variant">#DB2777</color>
+    <color name="on_secondary">#FFFFFF</color>
+
+    <!-- Background Colors -->
+    <color name="background">#0F0F0F</color>
+    <color name="surface">#1A1A1A</color>
+    <color name="surface_variant">#262626</color>
+    <color name="on_background">#FFFFFF</color>
+    <color name="on_surface">#FFFFFF</color>
+
+    <!-- Text Colors -->
+    <color name="text_primary">#FFFFFF</color>
+    <color name="text_secondary">#A1A1AA</color>
+    <color name="text_tertiary">#71717A</color>
+
+    <!-- Status Colors -->
+    <color name="success">#22C55E</color>
+    <color name="error">#EF4444</color>
+    <color name="warning">#F59E0B</color>
+    <color name="info">#3B82F6</color>
+
+    <!-- Chat Colors -->
+    <color name="message_sent">#6366F1</color>
+    <color name="message_received">#262626</color>
+    <color name="message_background">#1A1A1A</color>
+
+    <!-- Online Status -->
+    <color name="online">#22C55E</color>
+    <color name="offline">#71717A</color>
+    <color name="typing">#F59E0B</color>
+
+    <!-- Game Colors -->
+    <color name="crash_red">#EF4444</color>
+    <color name="crash_green">#22C55E</color>
+    <color name="hilo_high">#F59E0B</color>
+    <color name="hilo_low">#3B82F6</color>
+</resources>

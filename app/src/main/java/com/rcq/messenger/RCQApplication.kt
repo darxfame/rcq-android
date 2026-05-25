@@ -1,0 +1,18 @@
+package com.rcq.messenger
+
+import android.app.Application
+import dagger.hilt.android.HiltAndroidApp
+
+@HiltAndroidApp
+class RCQApplication : Application() {
+
+    override fun onCreate() {
+        super.onCreate()
+        instance = this
+    }
+
+    companion object {
+        lateinit var instance: RCQApplication
+            private set
+    }
+}
