@@ -236,6 +236,16 @@ interface RCQApiService {
     // Presence
     @POST("presence/status")
     suspend fun updatePresence(@Body request: PresenceUpdateRequest): Response<Unit>
+
+    // Signal Protocol E2EE - Pre-Key Management
+    @POST("crypto/register-keys")
+    suspend fun uploadPreKeys(@Body request: UploadPreKeysRequest): Response<UploadPreKeysResponse>
+
+    @GET("crypto/keys/{uin}")
+    suspend fun fetchPreKeyBundle(@Path("uin") uin: Long): Response<PreKeyBundleResponse>
+
+    @POST("crypto/keys/refresh")
+    suspend fun refreshPreKeys(@Body request: RefreshPreKeysRequest): Response<Unit>
 }
 
 // Request/Response classes
@@ -362,4 +372,45 @@ data class ContactRequest(
     val nickname: String,
     @kotlinx.serialization.SerialName("avatar_url") val avatarUrl: String? = null,
     @kotlinx.serialization.SerialName("state") val status: String = "pending"
+)
+
+// Signal Protocol E2EE Data Classes
+@kotlinx.serialization.Serializable
+data class UploadPreKeysRequest(
+    val preKeys: List<PreKeyData>,
+    val signedPreKey: SignedPreKeyData,
+    val identityKey: String
+)
+
+@kotlinx.serialization.Serializable
+data class PreKeyData(
+    val id: Int,
+    val key: String // Base64-encoded public key
+)
+
+@kotlinx.serialization.Serializable
+data class SignedPreKeyData(
+    val id: Int,
+    val key: String, // Base64-encoded public key
+    val signature: String // Base64-encoded signature
+)
+
+@kotlinx.serialization.Serializable
+data class UploadPreKeysResponse(
+    val success: Boolean,
+    val message: String? = null
+)
+
+@kotlinx.serialization.Serializable
+data class PreKeyBundleResponse(
+    val registrationId: Int,
+    val deviceId: Int,
+    val preKey: PreKeyData?,
+    val signedPreKey: SignedPreKeyData,
+    val identityKey: String
+)
+
+@kotlinx.serialization.Serializable
+data class RefreshPreKeysRequest(
+    val preKeys: List<PreKeyData>
 )
