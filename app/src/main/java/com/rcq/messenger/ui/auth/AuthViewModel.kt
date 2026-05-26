@@ -10,7 +10,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rcq.messenger.crypto.CryptoService
-import com.rcq.messenger.crypto.RegistrationBundle
+import com.rcq.messenger.crypto.CryptoService.RegistrationBundle
 import com.rcq.messenger.data.api.RCQApiService
 import com.rcq.messenger.data.api.RegisterRequest
 import com.rcq.messenger.di.PreferencesKeys
@@ -27,7 +27,8 @@ class AuthViewModel @Inject constructor(
     private val api: RCQApiService,
     private val dataStore: DataStore<Preferences>,
     @ApplicationContext private val context: Context,
-    private val webSocketService: com.rcq.messenger.data.websocket.WebSocketService
+    private val webSocketManager: com.rcq.messenger.data.ws.WebSocketManager,
+    private val cryptoService: CryptoService
 ) : ViewModel() {
 
     private val _authState = MutableStateFlow<AuthState>(AuthState.Loading)
@@ -100,7 +101,7 @@ class AuthViewModel @Inject constructor(
 
             try {
                 // Generate registration bundle (identity + signing keys)
-                val bundle = CryptoService.generateRegistrationBundle()
+                val bundle = cryptoService.generateRegistrationBundle()
                 _pendingBundle.value = bundle
 
                 // Register with server

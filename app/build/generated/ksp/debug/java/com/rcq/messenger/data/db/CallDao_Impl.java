@@ -1,7 +1,9 @@
 package com.rcq.messenger.data.db;
 
 import android.database.Cursor;
+import android.os.CancellationSignal;
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.room.CoroutinesRoom;
 import androidx.room.EntityDeletionOrUpdateAdapter;
 import androidx.room.EntityInsertionAdapter;
@@ -10,6 +12,7 @@ import androidx.room.RoomSQLiteQuery;
 import androidx.room.util.CursorUtil;
 import androidx.room.util.DBUtil;
 import androidx.sqlite.db.SupportSQLiteStatement;
+import com.rcq.messenger.domain.model.CallEntity;
 import java.lang.Class;
 import java.lang.Exception;
 import java.lang.Long;
@@ -33,7 +36,9 @@ public final class CallDao_Impl implements CallDao {
 
   private final EntityInsertionAdapter<CallEntity> __insertionAdapterOfCallEntity;
 
-  private final EntityDeletionOrUpdateAdapter<CallEntity> __updateAdapterOfCallEntity;
+  private final RoomTypeConverters __roomTypeConverters = new RoomTypeConverters();
+
+  private final EntityDeletionOrUpdateAdapter<CallEntity> __deletionAdapterOfCallEntity;
 
   public CallDao_Impl(@NonNull final RoomDatabase __db) {
     this.__db = __db;
@@ -41,7 +46,7 @@ public final class CallDao_Impl implements CallDao {
       @Override
       @NonNull
       protected String createQuery() {
-        return "INSERT OR REPLACE INTO `calls` (`id`,`type`,`targetId`,`targetNickname`,`targetAvatar`,`initiatorId`,`status`,`startedAt`,`endedAt`,`duration`) VALUES (?,?,?,?,?,?,?,?,?,?)";
+        return "INSERT OR REPLACE INTO `calls` (`id`,`type`,`status`,`participantIds`,`initiatorId`,`startTime`,`endTime`,`duration`,`isGroupCall`) VALUES (?,?,?,?,?,?,?,?,?)";
       }
 
       @Override
@@ -49,61 +54,32 @@ public final class CallDao_Impl implements CallDao {
           @NonNull final CallEntity entity) {
         statement.bindString(1, entity.getId());
         statement.bindString(2, entity.getType());
-        statement.bindLong(3, entity.getTargetId());
-        statement.bindString(4, entity.getTargetNickname());
-        if (entity.getTargetAvatar() == null) {
-          statement.bindNull(5);
+        statement.bindString(3, entity.getStatus());
+        final String _tmp = __roomTypeConverters.fromListLong(entity.getParticipantIds());
+        statement.bindString(4, _tmp);
+        statement.bindLong(5, entity.getInitiatorId());
+        statement.bindLong(6, entity.getStartTime());
+        if (entity.getEndTime() == null) {
+          statement.bindNull(7);
         } else {
-          statement.bindString(5, entity.getTargetAvatar());
+          statement.bindLong(7, entity.getEndTime());
         }
-        statement.bindLong(6, entity.getInitiatorId());
-        statement.bindString(7, entity.getStatus());
-        if (entity.getStartedAt() == null) {
-          statement.bindNull(8);
-        } else {
-          statement.bindLong(8, entity.getStartedAt());
-        }
-        if (entity.getEndedAt() == null) {
-          statement.bindNull(9);
-        } else {
-          statement.bindLong(9, entity.getEndedAt());
-        }
-        statement.bindLong(10, entity.getDuration());
+        statement.bindLong(8, entity.getDuration());
+        final int _tmp_1 = entity.isGroupCall() ? 1 : 0;
+        statement.bindLong(9, _tmp_1);
       }
     };
-    this.__updateAdapterOfCallEntity = new EntityDeletionOrUpdateAdapter<CallEntity>(__db) {
+    this.__deletionAdapterOfCallEntity = new EntityDeletionOrUpdateAdapter<CallEntity>(__db) {
       @Override
       @NonNull
       protected String createQuery() {
-        return "UPDATE OR ABORT `calls` SET `id` = ?,`type` = ?,`targetId` = ?,`targetNickname` = ?,`targetAvatar` = ?,`initiatorId` = ?,`status` = ?,`startedAt` = ?,`endedAt` = ?,`duration` = ? WHERE `id` = ?";
+        return "DELETE FROM `calls` WHERE `id` = ?";
       }
 
       @Override
       protected void bind(@NonNull final SupportSQLiteStatement statement,
           @NonNull final CallEntity entity) {
         statement.bindString(1, entity.getId());
-        statement.bindString(2, entity.getType());
-        statement.bindLong(3, entity.getTargetId());
-        statement.bindString(4, entity.getTargetNickname());
-        if (entity.getTargetAvatar() == null) {
-          statement.bindNull(5);
-        } else {
-          statement.bindString(5, entity.getTargetAvatar());
-        }
-        statement.bindLong(6, entity.getInitiatorId());
-        statement.bindString(7, entity.getStatus());
-        if (entity.getStartedAt() == null) {
-          statement.bindNull(8);
-        } else {
-          statement.bindLong(8, entity.getStartedAt());
-        }
-        if (entity.getEndedAt() == null) {
-          statement.bindNull(9);
-        } else {
-          statement.bindLong(9, entity.getEndedAt());
-        }
-        statement.bindLong(10, entity.getDuration());
-        statement.bindString(11, entity.getId());
       }
     };
   }
@@ -127,14 +103,15 @@ public final class CallDao_Impl implements CallDao {
   }
 
   @Override
-  public Object updateCall(final CallEntity call, final Continuation<? super Unit> $completion) {
+  public Object insertCalls(final List<CallEntity> calls,
+      final Continuation<? super Unit> $completion) {
     return CoroutinesRoom.execute(__db, true, new Callable<Unit>() {
       @Override
       @NonNull
       public Unit call() throws Exception {
         __db.beginTransaction();
         try {
-          __updateAdapterOfCallEntity.handle(call);
+          __insertionAdapterOfCallEntity.insert(calls);
           __db.setTransactionSuccessful();
           return Unit.INSTANCE;
         } finally {
@@ -145,11 +122,27 @@ public final class CallDao_Impl implements CallDao {
   }
 
   @Override
-  public Flow<List<CallEntity>> getCalls(final int limit) {
-    final String _sql = "SELECT * FROM calls ORDER BY startedAt DESC LIMIT ?";
-    final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 1);
-    int _argIndex = 1;
-    _statement.bindLong(_argIndex, limit);
+  public Object deleteCall(final CallEntity call, final Continuation<? super Unit> $completion) {
+    return CoroutinesRoom.execute(__db, true, new Callable<Unit>() {
+      @Override
+      @NonNull
+      public Unit call() throws Exception {
+        __db.beginTransaction();
+        try {
+          __deletionAdapterOfCallEntity.handle(call);
+          __db.setTransactionSuccessful();
+          return Unit.INSTANCE;
+        } finally {
+          __db.endTransaction();
+        }
+      }
+    }, $completion);
+  }
+
+  @Override
+  public Flow<List<CallEntity>> getCalls() {
+    final String _sql = "SELECT * FROM calls ORDER BY startTime DESC";
+    final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 0);
     return CoroutinesRoom.createFlow(__db, false, new String[] {"calls"}, new Callable<List<CallEntity>>() {
       @Override
       @NonNull
@@ -158,14 +151,13 @@ public final class CallDao_Impl implements CallDao {
         try {
           final int _cursorIndexOfId = CursorUtil.getColumnIndexOrThrow(_cursor, "id");
           final int _cursorIndexOfType = CursorUtil.getColumnIndexOrThrow(_cursor, "type");
-          final int _cursorIndexOfTargetId = CursorUtil.getColumnIndexOrThrow(_cursor, "targetId");
-          final int _cursorIndexOfTargetNickname = CursorUtil.getColumnIndexOrThrow(_cursor, "targetNickname");
-          final int _cursorIndexOfTargetAvatar = CursorUtil.getColumnIndexOrThrow(_cursor, "targetAvatar");
-          final int _cursorIndexOfInitiatorId = CursorUtil.getColumnIndexOrThrow(_cursor, "initiatorId");
           final int _cursorIndexOfStatus = CursorUtil.getColumnIndexOrThrow(_cursor, "status");
-          final int _cursorIndexOfStartedAt = CursorUtil.getColumnIndexOrThrow(_cursor, "startedAt");
-          final int _cursorIndexOfEndedAt = CursorUtil.getColumnIndexOrThrow(_cursor, "endedAt");
+          final int _cursorIndexOfParticipantIds = CursorUtil.getColumnIndexOrThrow(_cursor, "participantIds");
+          final int _cursorIndexOfInitiatorId = CursorUtil.getColumnIndexOrThrow(_cursor, "initiatorId");
+          final int _cursorIndexOfStartTime = CursorUtil.getColumnIndexOrThrow(_cursor, "startTime");
+          final int _cursorIndexOfEndTime = CursorUtil.getColumnIndexOrThrow(_cursor, "endTime");
           final int _cursorIndexOfDuration = CursorUtil.getColumnIndexOrThrow(_cursor, "duration");
+          final int _cursorIndexOfIsGroupCall = CursorUtil.getColumnIndexOrThrow(_cursor, "isGroupCall");
           final List<CallEntity> _result = new ArrayList<CallEntity>(_cursor.getCount());
           while (_cursor.moveToNext()) {
             final CallEntity _item;
@@ -173,35 +165,29 @@ public final class CallDao_Impl implements CallDao {
             _tmpId = _cursor.getString(_cursorIndexOfId);
             final String _tmpType;
             _tmpType = _cursor.getString(_cursorIndexOfType);
-            final long _tmpTargetId;
-            _tmpTargetId = _cursor.getLong(_cursorIndexOfTargetId);
-            final String _tmpTargetNickname;
-            _tmpTargetNickname = _cursor.getString(_cursorIndexOfTargetNickname);
-            final String _tmpTargetAvatar;
-            if (_cursor.isNull(_cursorIndexOfTargetAvatar)) {
-              _tmpTargetAvatar = null;
-            } else {
-              _tmpTargetAvatar = _cursor.getString(_cursorIndexOfTargetAvatar);
-            }
-            final long _tmpInitiatorId;
-            _tmpInitiatorId = _cursor.getLong(_cursorIndexOfInitiatorId);
             final String _tmpStatus;
             _tmpStatus = _cursor.getString(_cursorIndexOfStatus);
-            final Long _tmpStartedAt;
-            if (_cursor.isNull(_cursorIndexOfStartedAt)) {
-              _tmpStartedAt = null;
+            final List<Long> _tmpParticipantIds;
+            final String _tmp;
+            _tmp = _cursor.getString(_cursorIndexOfParticipantIds);
+            _tmpParticipantIds = __roomTypeConverters.toListLong(_tmp);
+            final long _tmpInitiatorId;
+            _tmpInitiatorId = _cursor.getLong(_cursorIndexOfInitiatorId);
+            final long _tmpStartTime;
+            _tmpStartTime = _cursor.getLong(_cursorIndexOfStartTime);
+            final Long _tmpEndTime;
+            if (_cursor.isNull(_cursorIndexOfEndTime)) {
+              _tmpEndTime = null;
             } else {
-              _tmpStartedAt = _cursor.getLong(_cursorIndexOfStartedAt);
-            }
-            final Long _tmpEndedAt;
-            if (_cursor.isNull(_cursorIndexOfEndedAt)) {
-              _tmpEndedAt = null;
-            } else {
-              _tmpEndedAt = _cursor.getLong(_cursorIndexOfEndedAt);
+              _tmpEndTime = _cursor.getLong(_cursorIndexOfEndTime);
             }
             final long _tmpDuration;
             _tmpDuration = _cursor.getLong(_cursorIndexOfDuration);
-            _item = new CallEntity(_tmpId,_tmpType,_tmpTargetId,_tmpTargetNickname,_tmpTargetAvatar,_tmpInitiatorId,_tmpStatus,_tmpStartedAt,_tmpEndedAt,_tmpDuration);
+            final boolean _tmpIsGroupCall;
+            final int _tmp_1;
+            _tmp_1 = _cursor.getInt(_cursorIndexOfIsGroupCall);
+            _tmpIsGroupCall = _tmp_1 != 0;
+            _item = new CallEntity(_tmpId,_tmpType,_tmpStatus,_tmpParticipantIds,_tmpInitiatorId,_tmpStartTime,_tmpEndTime,_tmpDuration,_tmpIsGroupCall);
             _result.add(_item);
           }
           return _result;
@@ -218,74 +204,66 @@ public final class CallDao_Impl implements CallDao {
   }
 
   @Override
-  public Flow<List<CallEntity>> getMissedCalls() {
-    final String _sql = "SELECT * FROM calls WHERE status = 'MISSED' ORDER BY startedAt DESC";
-    final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 0);
-    return CoroutinesRoom.createFlow(__db, false, new String[] {"calls"}, new Callable<List<CallEntity>>() {
+  public Object getCall(final String id, final Continuation<? super CallEntity> $completion) {
+    final String _sql = "SELECT * FROM calls WHERE id = ?";
+    final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 1);
+    int _argIndex = 1;
+    _statement.bindString(_argIndex, id);
+    final CancellationSignal _cancellationSignal = DBUtil.createCancellationSignal();
+    return CoroutinesRoom.execute(__db, false, _cancellationSignal, new Callable<CallEntity>() {
       @Override
-      @NonNull
-      public List<CallEntity> call() throws Exception {
+      @Nullable
+      public CallEntity call() throws Exception {
         final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
         try {
           final int _cursorIndexOfId = CursorUtil.getColumnIndexOrThrow(_cursor, "id");
           final int _cursorIndexOfType = CursorUtil.getColumnIndexOrThrow(_cursor, "type");
-          final int _cursorIndexOfTargetId = CursorUtil.getColumnIndexOrThrow(_cursor, "targetId");
-          final int _cursorIndexOfTargetNickname = CursorUtil.getColumnIndexOrThrow(_cursor, "targetNickname");
-          final int _cursorIndexOfTargetAvatar = CursorUtil.getColumnIndexOrThrow(_cursor, "targetAvatar");
-          final int _cursorIndexOfInitiatorId = CursorUtil.getColumnIndexOrThrow(_cursor, "initiatorId");
           final int _cursorIndexOfStatus = CursorUtil.getColumnIndexOrThrow(_cursor, "status");
-          final int _cursorIndexOfStartedAt = CursorUtil.getColumnIndexOrThrow(_cursor, "startedAt");
-          final int _cursorIndexOfEndedAt = CursorUtil.getColumnIndexOrThrow(_cursor, "endedAt");
+          final int _cursorIndexOfParticipantIds = CursorUtil.getColumnIndexOrThrow(_cursor, "participantIds");
+          final int _cursorIndexOfInitiatorId = CursorUtil.getColumnIndexOrThrow(_cursor, "initiatorId");
+          final int _cursorIndexOfStartTime = CursorUtil.getColumnIndexOrThrow(_cursor, "startTime");
+          final int _cursorIndexOfEndTime = CursorUtil.getColumnIndexOrThrow(_cursor, "endTime");
           final int _cursorIndexOfDuration = CursorUtil.getColumnIndexOrThrow(_cursor, "duration");
-          final List<CallEntity> _result = new ArrayList<CallEntity>(_cursor.getCount());
-          while (_cursor.moveToNext()) {
-            final CallEntity _item;
+          final int _cursorIndexOfIsGroupCall = CursorUtil.getColumnIndexOrThrow(_cursor, "isGroupCall");
+          final CallEntity _result;
+          if (_cursor.moveToFirst()) {
             final String _tmpId;
             _tmpId = _cursor.getString(_cursorIndexOfId);
             final String _tmpType;
             _tmpType = _cursor.getString(_cursorIndexOfType);
-            final long _tmpTargetId;
-            _tmpTargetId = _cursor.getLong(_cursorIndexOfTargetId);
-            final String _tmpTargetNickname;
-            _tmpTargetNickname = _cursor.getString(_cursorIndexOfTargetNickname);
-            final String _tmpTargetAvatar;
-            if (_cursor.isNull(_cursorIndexOfTargetAvatar)) {
-              _tmpTargetAvatar = null;
-            } else {
-              _tmpTargetAvatar = _cursor.getString(_cursorIndexOfTargetAvatar);
-            }
-            final long _tmpInitiatorId;
-            _tmpInitiatorId = _cursor.getLong(_cursorIndexOfInitiatorId);
             final String _tmpStatus;
             _tmpStatus = _cursor.getString(_cursorIndexOfStatus);
-            final Long _tmpStartedAt;
-            if (_cursor.isNull(_cursorIndexOfStartedAt)) {
-              _tmpStartedAt = null;
+            final List<Long> _tmpParticipantIds;
+            final String _tmp;
+            _tmp = _cursor.getString(_cursorIndexOfParticipantIds);
+            _tmpParticipantIds = __roomTypeConverters.toListLong(_tmp);
+            final long _tmpInitiatorId;
+            _tmpInitiatorId = _cursor.getLong(_cursorIndexOfInitiatorId);
+            final long _tmpStartTime;
+            _tmpStartTime = _cursor.getLong(_cursorIndexOfStartTime);
+            final Long _tmpEndTime;
+            if (_cursor.isNull(_cursorIndexOfEndTime)) {
+              _tmpEndTime = null;
             } else {
-              _tmpStartedAt = _cursor.getLong(_cursorIndexOfStartedAt);
-            }
-            final Long _tmpEndedAt;
-            if (_cursor.isNull(_cursorIndexOfEndedAt)) {
-              _tmpEndedAt = null;
-            } else {
-              _tmpEndedAt = _cursor.getLong(_cursorIndexOfEndedAt);
+              _tmpEndTime = _cursor.getLong(_cursorIndexOfEndTime);
             }
             final long _tmpDuration;
             _tmpDuration = _cursor.getLong(_cursorIndexOfDuration);
-            _item = new CallEntity(_tmpId,_tmpType,_tmpTargetId,_tmpTargetNickname,_tmpTargetAvatar,_tmpInitiatorId,_tmpStatus,_tmpStartedAt,_tmpEndedAt,_tmpDuration);
-            _result.add(_item);
+            final boolean _tmpIsGroupCall;
+            final int _tmp_1;
+            _tmp_1 = _cursor.getInt(_cursorIndexOfIsGroupCall);
+            _tmpIsGroupCall = _tmp_1 != 0;
+            _result = new CallEntity(_tmpId,_tmpType,_tmpStatus,_tmpParticipantIds,_tmpInitiatorId,_tmpStartTime,_tmpEndTime,_tmpDuration,_tmpIsGroupCall);
+          } else {
+            _result = null;
           }
           return _result;
         } finally {
           _cursor.close();
+          _statement.release();
         }
       }
-
-      @Override
-      protected void finalize() {
-        _statement.release();
-      }
-    });
+    }, $completion);
   }
 
   @NonNull

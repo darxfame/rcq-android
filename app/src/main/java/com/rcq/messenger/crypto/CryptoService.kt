@@ -66,6 +66,27 @@ class CryptoService @Inject constructor(
         )
     }
 
+    /**
+     * Generate registration bundle for new user registration
+     */
+    fun generateRegistrationBundle(): RegistrationBundle {
+        val identityKey = getIdentityKey()
+        val preKeys = sessionManager.generatePreKeys()
+        val signedPreKey = sessionManager.generateSignedPreKey()
+
+        return RegistrationBundle(
+            identityKey = identityKey,
+            preKeys = preKeys,
+            signedPreKey = signedPreKey
+        )
+    }
+
+    data class RegistrationBundle(
+        val identityKey: String,
+        val preKeys: List<String>,
+        val signedPreKey: String
+    )
+
     data class EncryptedMessage(
         val ciphertext: String, // Base64-encoded encrypted content
         val signalType: Int // Signal Protocol message type (1=PreKey, 2=Whisper)

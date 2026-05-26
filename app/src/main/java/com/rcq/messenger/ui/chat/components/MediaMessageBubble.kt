@@ -13,6 +13,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import com.rcq.messenger.ui.theme.IMAGE
+import com.rcq.messenger.ui.theme.TextOnPrimary
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -62,8 +64,8 @@ fun MediaMessageBubble(
             Column(
                 horizontalAlignment = if (isOwnMessage) Alignment.End else Alignment.Start
             ) {
-                when (message.kind) {
-                    MessageKind.IMAGE -> {
+                when (message.type) {
+                    "image" -> {
                         ImageMessageContent(
                             message = message,
                             isOwnMessage = isOwnMessage,

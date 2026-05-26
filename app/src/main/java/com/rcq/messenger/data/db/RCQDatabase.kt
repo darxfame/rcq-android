@@ -4,6 +4,14 @@ import androidx.room.*
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.rcq.messenger.domain.model.*
+import com.rcq.messenger.data.db.UserDao
+import com.rcq.messenger.data.db.ContactDao
+import com.rcq.messenger.data.db.ChatDao
+import com.rcq.messenger.data.db.MessageDao
+import com.rcq.messenger.data.db.GroupDao
+import com.rcq.messenger.data.db.StoryDao
+import com.rcq.messenger.data.db.CallDao
+import com.rcq.messenger.data.db.PetDao
 
 @Database(
     entities = [

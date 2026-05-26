@@ -23,6 +23,10 @@ val OnSurface = Color(0xFFFFFFFF)
 val TextPrimary = Color(0xFFFFFFFF)
 val TextSecondary = Color(0xFFA1A1AA)
 val TextTertiary = Color(0xFF71717A)
+val TextOnPrimary = Color(0xFFFFFFFF) // Alias for OnPrimary
+
+// Media Types
+val IMAGE = Color(0xFF3B82F6) // Blue for image indicators
 
 // Status Colors
 val Success = Color(0xFF22C55E)

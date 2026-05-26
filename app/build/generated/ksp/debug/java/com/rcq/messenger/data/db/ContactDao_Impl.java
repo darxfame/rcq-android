@@ -13,6 +13,7 @@ import androidx.room.SharedSQLiteStatement;
 import androidx.room.util.CursorUtil;
 import androidx.room.util.DBUtil;
 import androidx.sqlite.db.SupportSQLiteStatement;
+import com.rcq.messenger.domain.model.ContactEntity;
 import java.lang.Class;
 import java.lang.Exception;
 import java.lang.Object;
@@ -49,7 +50,7 @@ public final class ContactDao_Impl implements ContactDao {
       @Override
       @NonNull
       protected String createQuery() {
-        return "INSERT OR REPLACE INTO `contacts` (`userId`,`nickname`,`avatarUrl`,`status`,`lastSeen`,`isBlocked`,`isFavorite`,`notificationSound`,`customNickname`,`lastMessagePreview`,`lastMessageTime`) VALUES (?,?,?,?,?,?,?,?,?,?,?)";
+        return "INSERT OR REPLACE INTO `contacts` (`userId`,`nickname`,`isBlocked`,`isFavorite`,`addedAt`) VALUES (?,?,?,?,?)";
       }
 
       @Override
@@ -57,37 +58,11 @@ public final class ContactDao_Impl implements ContactDao {
           @NonNull final ContactEntity entity) {
         statement.bindLong(1, entity.getUserId());
         statement.bindString(2, entity.getNickname());
-        if (entity.getAvatarUrl() == null) {
-          statement.bindNull(3);
-        } else {
-          statement.bindString(3, entity.getAvatarUrl());
-        }
-        statement.bindString(4, entity.getStatus());
-        if (entity.getLastSeen() == null) {
-          statement.bindNull(5);
-        } else {
-          statement.bindString(5, entity.getLastSeen());
-        }
         final int _tmp = entity.isBlocked() ? 1 : 0;
-        statement.bindLong(6, _tmp);
+        statement.bindLong(3, _tmp);
         final int _tmp_1 = entity.isFavorite() ? 1 : 0;
-        statement.bindLong(7, _tmp_1);
-        if (entity.getNotificationSound() == null) {
-          statement.bindNull(8);
-        } else {
-          statement.bindString(8, entity.getNotificationSound());
-        }
-        if (entity.getCustomNickname() == null) {
-          statement.bindNull(9);
-        } else {
-          statement.bindString(9, entity.getCustomNickname());
-        }
-        if (entity.getLastMessagePreview() == null) {
-          statement.bindNull(10);
-        } else {
-          statement.bindString(10, entity.getLastMessagePreview());
-        }
-        statement.bindLong(11, entity.getLastMessageTime());
+        statement.bindLong(4, _tmp_1);
+        statement.bindLong(5, entity.getAddedAt());
       }
     };
     this.__deletionAdapterOfContactEntity = new EntityDeletionOrUpdateAdapter<ContactEntity>(__db) {
@@ -271,15 +246,9 @@ public final class ContactDao_Impl implements ContactDao {
         try {
           final int _cursorIndexOfUserId = CursorUtil.getColumnIndexOrThrow(_cursor, "userId");
           final int _cursorIndexOfNickname = CursorUtil.getColumnIndexOrThrow(_cursor, "nickname");
-          final int _cursorIndexOfAvatarUrl = CursorUtil.getColumnIndexOrThrow(_cursor, "avatarUrl");
-          final int _cursorIndexOfStatus = CursorUtil.getColumnIndexOrThrow(_cursor, "status");
-          final int _cursorIndexOfLastSeen = CursorUtil.getColumnIndexOrThrow(_cursor, "lastSeen");
           final int _cursorIndexOfIsBlocked = CursorUtil.getColumnIndexOrThrow(_cursor, "isBlocked");
           final int _cursorIndexOfIsFavorite = CursorUtil.getColumnIndexOrThrow(_cursor, "isFavorite");
-          final int _cursorIndexOfNotificationSound = CursorUtil.getColumnIndexOrThrow(_cursor, "notificationSound");
-          final int _cursorIndexOfCustomNickname = CursorUtil.getColumnIndexOrThrow(_cursor, "customNickname");
-          final int _cursorIndexOfLastMessagePreview = CursorUtil.getColumnIndexOrThrow(_cursor, "lastMessagePreview");
-          final int _cursorIndexOfLastMessageTime = CursorUtil.getColumnIndexOrThrow(_cursor, "lastMessageTime");
+          final int _cursorIndexOfAddedAt = CursorUtil.getColumnIndexOrThrow(_cursor, "addedAt");
           final List<ContactEntity> _result = new ArrayList<ContactEntity>(_cursor.getCount());
           while (_cursor.moveToNext()) {
             final ContactEntity _item;
@@ -287,20 +256,6 @@ public final class ContactDao_Impl implements ContactDao {
             _tmpUserId = _cursor.getLong(_cursorIndexOfUserId);
             final String _tmpNickname;
             _tmpNickname = _cursor.getString(_cursorIndexOfNickname);
-            final String _tmpAvatarUrl;
-            if (_cursor.isNull(_cursorIndexOfAvatarUrl)) {
-              _tmpAvatarUrl = null;
-            } else {
-              _tmpAvatarUrl = _cursor.getString(_cursorIndexOfAvatarUrl);
-            }
-            final String _tmpStatus;
-            _tmpStatus = _cursor.getString(_cursorIndexOfStatus);
-            final String _tmpLastSeen;
-            if (_cursor.isNull(_cursorIndexOfLastSeen)) {
-              _tmpLastSeen = null;
-            } else {
-              _tmpLastSeen = _cursor.getString(_cursorIndexOfLastSeen);
-            }
             final boolean _tmpIsBlocked;
             final int _tmp;
             _tmp = _cursor.getInt(_cursorIndexOfIsBlocked);
@@ -309,27 +264,9 @@ public final class ContactDao_Impl implements ContactDao {
             final int _tmp_1;
             _tmp_1 = _cursor.getInt(_cursorIndexOfIsFavorite);
             _tmpIsFavorite = _tmp_1 != 0;
-            final String _tmpNotificationSound;
-            if (_cursor.isNull(_cursorIndexOfNotificationSound)) {
-              _tmpNotificationSound = null;
-            } else {
-              _tmpNotificationSound = _cursor.getString(_cursorIndexOfNotificationSound);
-            }
-            final String _tmpCustomNickname;
-            if (_cursor.isNull(_cursorIndexOfCustomNickname)) {
-              _tmpCustomNickname = null;
-            } else {
-              _tmpCustomNickname = _cursor.getString(_cursorIndexOfCustomNickname);
-            }
-            final String _tmpLastMessagePreview;
-            if (_cursor.isNull(_cursorIndexOfLastMessagePreview)) {
-              _tmpLastMessagePreview = null;
-            } else {
-              _tmpLastMessagePreview = _cursor.getString(_cursorIndexOfLastMessagePreview);
-            }
-            final long _tmpLastMessageTime;
-            _tmpLastMessageTime = _cursor.getLong(_cursorIndexOfLastMessageTime);
-            _item = new ContactEntity(_tmpUserId,_tmpNickname,_tmpAvatarUrl,_tmpStatus,_tmpLastSeen,_tmpIsBlocked,_tmpIsFavorite,_tmpNotificationSound,_tmpCustomNickname,_tmpLastMessagePreview,_tmpLastMessageTime);
+            final long _tmpAddedAt;
+            _tmpAddedAt = _cursor.getLong(_cursorIndexOfAddedAt);
+            _item = new ContactEntity(_tmpUserId,_tmpNickname,_tmpIsBlocked,_tmpIsFavorite,_tmpAddedAt);
             _result.add(_item);
           }
           return _result;
@@ -357,15 +294,9 @@ public final class ContactDao_Impl implements ContactDao {
         try {
           final int _cursorIndexOfUserId = CursorUtil.getColumnIndexOrThrow(_cursor, "userId");
           final int _cursorIndexOfNickname = CursorUtil.getColumnIndexOrThrow(_cursor, "nickname");
-          final int _cursorIndexOfAvatarUrl = CursorUtil.getColumnIndexOrThrow(_cursor, "avatarUrl");
-          final int _cursorIndexOfStatus = CursorUtil.getColumnIndexOrThrow(_cursor, "status");
-          final int _cursorIndexOfLastSeen = CursorUtil.getColumnIndexOrThrow(_cursor, "lastSeen");
           final int _cursorIndexOfIsBlocked = CursorUtil.getColumnIndexOrThrow(_cursor, "isBlocked");
           final int _cursorIndexOfIsFavorite = CursorUtil.getColumnIndexOrThrow(_cursor, "isFavorite");
-          final int _cursorIndexOfNotificationSound = CursorUtil.getColumnIndexOrThrow(_cursor, "notificationSound");
-          final int _cursorIndexOfCustomNickname = CursorUtil.getColumnIndexOrThrow(_cursor, "customNickname");
-          final int _cursorIndexOfLastMessagePreview = CursorUtil.getColumnIndexOrThrow(_cursor, "lastMessagePreview");
-          final int _cursorIndexOfLastMessageTime = CursorUtil.getColumnIndexOrThrow(_cursor, "lastMessageTime");
+          final int _cursorIndexOfAddedAt = CursorUtil.getColumnIndexOrThrow(_cursor, "addedAt");
           final List<ContactEntity> _result = new ArrayList<ContactEntity>(_cursor.getCount());
           while (_cursor.moveToNext()) {
             final ContactEntity _item;
@@ -373,20 +304,6 @@ public final class ContactDao_Impl implements ContactDao {
             _tmpUserId = _cursor.getLong(_cursorIndexOfUserId);
             final String _tmpNickname;
             _tmpNickname = _cursor.getString(_cursorIndexOfNickname);
-            final String _tmpAvatarUrl;
-            if (_cursor.isNull(_cursorIndexOfAvatarUrl)) {
-              _tmpAvatarUrl = null;
-            } else {
-              _tmpAvatarUrl = _cursor.getString(_cursorIndexOfAvatarUrl);
-            }
-            final String _tmpStatus;
-            _tmpStatus = _cursor.getString(_cursorIndexOfStatus);
-            final String _tmpLastSeen;
-            if (_cursor.isNull(_cursorIndexOfLastSeen)) {
-              _tmpLastSeen = null;
-            } else {
-              _tmpLastSeen = _cursor.getString(_cursorIndexOfLastSeen);
-            }
             final boolean _tmpIsBlocked;
             final int _tmp;
             _tmp = _cursor.getInt(_cursorIndexOfIsBlocked);
@@ -395,27 +312,9 @@ public final class ContactDao_Impl implements ContactDao {
             final int _tmp_1;
             _tmp_1 = _cursor.getInt(_cursorIndexOfIsFavorite);
             _tmpIsFavorite = _tmp_1 != 0;
-            final String _tmpNotificationSound;
-            if (_cursor.isNull(_cursorIndexOfNotificationSound)) {
-              _tmpNotificationSound = null;
-            } else {
-              _tmpNotificationSound = _cursor.getString(_cursorIndexOfNotificationSound);
-            }
-            final String _tmpCustomNickname;
-            if (_cursor.isNull(_cursorIndexOfCustomNickname)) {
-              _tmpCustomNickname = null;
-            } else {
-              _tmpCustomNickname = _cursor.getString(_cursorIndexOfCustomNickname);
-            }
-            final String _tmpLastMessagePreview;
-            if (_cursor.isNull(_cursorIndexOfLastMessagePreview)) {
-              _tmpLastMessagePreview = null;
-            } else {
-              _tmpLastMessagePreview = _cursor.getString(_cursorIndexOfLastMessagePreview);
-            }
-            final long _tmpLastMessageTime;
-            _tmpLastMessageTime = _cursor.getLong(_cursorIndexOfLastMessageTime);
-            _item = new ContactEntity(_tmpUserId,_tmpNickname,_tmpAvatarUrl,_tmpStatus,_tmpLastSeen,_tmpIsBlocked,_tmpIsFavorite,_tmpNotificationSound,_tmpCustomNickname,_tmpLastMessagePreview,_tmpLastMessageTime);
+            final long _tmpAddedAt;
+            _tmpAddedAt = _cursor.getLong(_cursorIndexOfAddedAt);
+            _item = new ContactEntity(_tmpUserId,_tmpNickname,_tmpIsBlocked,_tmpIsFavorite,_tmpAddedAt);
             _result.add(_item);
           }
           return _result;
@@ -443,15 +342,9 @@ public final class ContactDao_Impl implements ContactDao {
         try {
           final int _cursorIndexOfUserId = CursorUtil.getColumnIndexOrThrow(_cursor, "userId");
           final int _cursorIndexOfNickname = CursorUtil.getColumnIndexOrThrow(_cursor, "nickname");
-          final int _cursorIndexOfAvatarUrl = CursorUtil.getColumnIndexOrThrow(_cursor, "avatarUrl");
-          final int _cursorIndexOfStatus = CursorUtil.getColumnIndexOrThrow(_cursor, "status");
-          final int _cursorIndexOfLastSeen = CursorUtil.getColumnIndexOrThrow(_cursor, "lastSeen");
           final int _cursorIndexOfIsBlocked = CursorUtil.getColumnIndexOrThrow(_cursor, "isBlocked");
           final int _cursorIndexOfIsFavorite = CursorUtil.getColumnIndexOrThrow(_cursor, "isFavorite");
-          final int _cursorIndexOfNotificationSound = CursorUtil.getColumnIndexOrThrow(_cursor, "notificationSound");
-          final int _cursorIndexOfCustomNickname = CursorUtil.getColumnIndexOrThrow(_cursor, "customNickname");
-          final int _cursorIndexOfLastMessagePreview = CursorUtil.getColumnIndexOrThrow(_cursor, "lastMessagePreview");
-          final int _cursorIndexOfLastMessageTime = CursorUtil.getColumnIndexOrThrow(_cursor, "lastMessageTime");
+          final int _cursorIndexOfAddedAt = CursorUtil.getColumnIndexOrThrow(_cursor, "addedAt");
           final List<ContactEntity> _result = new ArrayList<ContactEntity>(_cursor.getCount());
           while (_cursor.moveToNext()) {
             final ContactEntity _item;
@@ -459,20 +352,6 @@ public final class ContactDao_Impl implements ContactDao {
             _tmpUserId = _cursor.getLong(_cursorIndexOfUserId);
             final String _tmpNickname;
             _tmpNickname = _cursor.getString(_cursorIndexOfNickname);
-            final String _tmpAvatarUrl;
-            if (_cursor.isNull(_cursorIndexOfAvatarUrl)) {
-              _tmpAvatarUrl = null;
-            } else {
-              _tmpAvatarUrl = _cursor.getString(_cursorIndexOfAvatarUrl);
-            }
-            final String _tmpStatus;
-            _tmpStatus = _cursor.getString(_cursorIndexOfStatus);
-            final String _tmpLastSeen;
-            if (_cursor.isNull(_cursorIndexOfLastSeen)) {
-              _tmpLastSeen = null;
-            } else {
-              _tmpLastSeen = _cursor.getString(_cursorIndexOfLastSeen);
-            }
             final boolean _tmpIsBlocked;
             final int _tmp;
             _tmp = _cursor.getInt(_cursorIndexOfIsBlocked);
@@ -481,27 +360,9 @@ public final class ContactDao_Impl implements ContactDao {
             final int _tmp_1;
             _tmp_1 = _cursor.getInt(_cursorIndexOfIsFavorite);
             _tmpIsFavorite = _tmp_1 != 0;
-            final String _tmpNotificationSound;
-            if (_cursor.isNull(_cursorIndexOfNotificationSound)) {
-              _tmpNotificationSound = null;
-            } else {
-              _tmpNotificationSound = _cursor.getString(_cursorIndexOfNotificationSound);
-            }
-            final String _tmpCustomNickname;
-            if (_cursor.isNull(_cursorIndexOfCustomNickname)) {
-              _tmpCustomNickname = null;
-            } else {
-              _tmpCustomNickname = _cursor.getString(_cursorIndexOfCustomNickname);
-            }
-            final String _tmpLastMessagePreview;
-            if (_cursor.isNull(_cursorIndexOfLastMessagePreview)) {
-              _tmpLastMessagePreview = null;
-            } else {
-              _tmpLastMessagePreview = _cursor.getString(_cursorIndexOfLastMessagePreview);
-            }
-            final long _tmpLastMessageTime;
-            _tmpLastMessageTime = _cursor.getLong(_cursorIndexOfLastMessageTime);
-            _item = new ContactEntity(_tmpUserId,_tmpNickname,_tmpAvatarUrl,_tmpStatus,_tmpLastSeen,_tmpIsBlocked,_tmpIsFavorite,_tmpNotificationSound,_tmpCustomNickname,_tmpLastMessagePreview,_tmpLastMessageTime);
+            final long _tmpAddedAt;
+            _tmpAddedAt = _cursor.getLong(_cursorIndexOfAddedAt);
+            _item = new ContactEntity(_tmpUserId,_tmpNickname,_tmpIsBlocked,_tmpIsFavorite,_tmpAddedAt);
             _result.add(_item);
           }
           return _result;
@@ -533,35 +394,15 @@ public final class ContactDao_Impl implements ContactDao {
         try {
           final int _cursorIndexOfUserId = CursorUtil.getColumnIndexOrThrow(_cursor, "userId");
           final int _cursorIndexOfNickname = CursorUtil.getColumnIndexOrThrow(_cursor, "nickname");
-          final int _cursorIndexOfAvatarUrl = CursorUtil.getColumnIndexOrThrow(_cursor, "avatarUrl");
-          final int _cursorIndexOfStatus = CursorUtil.getColumnIndexOrThrow(_cursor, "status");
-          final int _cursorIndexOfLastSeen = CursorUtil.getColumnIndexOrThrow(_cursor, "lastSeen");
           final int _cursorIndexOfIsBlocked = CursorUtil.getColumnIndexOrThrow(_cursor, "isBlocked");
           final int _cursorIndexOfIsFavorite = CursorUtil.getColumnIndexOrThrow(_cursor, "isFavorite");
-          final int _cursorIndexOfNotificationSound = CursorUtil.getColumnIndexOrThrow(_cursor, "notificationSound");
-          final int _cursorIndexOfCustomNickname = CursorUtil.getColumnIndexOrThrow(_cursor, "customNickname");
-          final int _cursorIndexOfLastMessagePreview = CursorUtil.getColumnIndexOrThrow(_cursor, "lastMessagePreview");
-          final int _cursorIndexOfLastMessageTime = CursorUtil.getColumnIndexOrThrow(_cursor, "lastMessageTime");
+          final int _cursorIndexOfAddedAt = CursorUtil.getColumnIndexOrThrow(_cursor, "addedAt");
           final ContactEntity _result;
           if (_cursor.moveToFirst()) {
             final long _tmpUserId;
             _tmpUserId = _cursor.getLong(_cursorIndexOfUserId);
             final String _tmpNickname;
             _tmpNickname = _cursor.getString(_cursorIndexOfNickname);
-            final String _tmpAvatarUrl;
-            if (_cursor.isNull(_cursorIndexOfAvatarUrl)) {
-              _tmpAvatarUrl = null;
-            } else {
-              _tmpAvatarUrl = _cursor.getString(_cursorIndexOfAvatarUrl);
-            }
-            final String _tmpStatus;
-            _tmpStatus = _cursor.getString(_cursorIndexOfStatus);
-            final String _tmpLastSeen;
-            if (_cursor.isNull(_cursorIndexOfLastSeen)) {
-              _tmpLastSeen = null;
-            } else {
-              _tmpLastSeen = _cursor.getString(_cursorIndexOfLastSeen);
-            }
             final boolean _tmpIsBlocked;
             final int _tmp;
             _tmp = _cursor.getInt(_cursorIndexOfIsBlocked);
@@ -570,27 +411,9 @@ public final class ContactDao_Impl implements ContactDao {
             final int _tmp_1;
             _tmp_1 = _cursor.getInt(_cursorIndexOfIsFavorite);
             _tmpIsFavorite = _tmp_1 != 0;
-            final String _tmpNotificationSound;
-            if (_cursor.isNull(_cursorIndexOfNotificationSound)) {
-              _tmpNotificationSound = null;
-            } else {
-              _tmpNotificationSound = _cursor.getString(_cursorIndexOfNotificationSound);
-            }
-            final String _tmpCustomNickname;
-            if (_cursor.isNull(_cursorIndexOfCustomNickname)) {
-              _tmpCustomNickname = null;
-            } else {
-              _tmpCustomNickname = _cursor.getString(_cursorIndexOfCustomNickname);
-            }
-            final String _tmpLastMessagePreview;
-            if (_cursor.isNull(_cursorIndexOfLastMessagePreview)) {
-              _tmpLastMessagePreview = null;
-            } else {
-              _tmpLastMessagePreview = _cursor.getString(_cursorIndexOfLastMessagePreview);
-            }
-            final long _tmpLastMessageTime;
-            _tmpLastMessageTime = _cursor.getLong(_cursorIndexOfLastMessageTime);
-            _result = new ContactEntity(_tmpUserId,_tmpNickname,_tmpAvatarUrl,_tmpStatus,_tmpLastSeen,_tmpIsBlocked,_tmpIsFavorite,_tmpNotificationSound,_tmpCustomNickname,_tmpLastMessagePreview,_tmpLastMessageTime);
+            final long _tmpAddedAt;
+            _tmpAddedAt = _cursor.getLong(_cursorIndexOfAddedAt);
+            _result = new ContactEntity(_tmpUserId,_tmpNickname,_tmpIsBlocked,_tmpIsFavorite,_tmpAddedAt);
           } else {
             _result = null;
           }

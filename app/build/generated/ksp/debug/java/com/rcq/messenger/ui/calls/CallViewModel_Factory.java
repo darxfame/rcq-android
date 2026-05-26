@@ -1,5 +1,6 @@
 package com.rcq.messenger.ui.calls;
 
+import com.rcq.messenger.call.CallManager;
 import com.rcq.messenger.data.repository.ChatRepository;
 import dagger.internal.DaggerGenerated;
 import dagger.internal.Factory;
@@ -24,20 +25,25 @@ import javax.inject.Provider;
 public final class CallViewModel_Factory implements Factory<CallViewModel> {
   private final Provider<ChatRepository> chatRepositoryProvider;
 
-  public CallViewModel_Factory(Provider<ChatRepository> chatRepositoryProvider) {
+  private final Provider<CallManager> callManagerProvider;
+
+  public CallViewModel_Factory(Provider<ChatRepository> chatRepositoryProvider,
+      Provider<CallManager> callManagerProvider) {
     this.chatRepositoryProvider = chatRepositoryProvider;
+    this.callManagerProvider = callManagerProvider;
   }
 
   @Override
   public CallViewModel get() {
-    return newInstance(chatRepositoryProvider.get());
+    return newInstance(chatRepositoryProvider.get(), callManagerProvider.get());
   }
 
-  public static CallViewModel_Factory create(Provider<ChatRepository> chatRepositoryProvider) {
-    return new CallViewModel_Factory(chatRepositoryProvider);
+  public static CallViewModel_Factory create(Provider<ChatRepository> chatRepositoryProvider,
+      Provider<CallManager> callManagerProvider) {
+    return new CallViewModel_Factory(chatRepositoryProvider, callManagerProvider);
   }
 
-  public static CallViewModel newInstance(ChatRepository chatRepository) {
-    return new CallViewModel(chatRepository);
+  public static CallViewModel newInstance(ChatRepository chatRepository, CallManager callManager) {
+    return new CallViewModel(chatRepository, callManager);
   }
 }

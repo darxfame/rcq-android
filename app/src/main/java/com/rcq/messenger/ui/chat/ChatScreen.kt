@@ -26,6 +26,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.rcq.messenger.domain.model.Message
 import com.rcq.messenger.domain.model.MessageStatus
 import com.rcq.messenger.domain.model.MessageKind
+import com.rcq.messenger.ui.chat.components.ReplyPreview
 import com.rcq.messenger.ui.theme.*
 import java.text.SimpleDateFormat
 import java.util.*
@@ -121,8 +122,9 @@ fun ChatScreen(
 
             replyTo?.let { reply ->
                 ReplyPreview(
-                    message = reply,
-                    onCancel = { viewModel.setReplyTo(null) }
+                    originalMessage = reply.content,
+                    originalSender = "User", // TODO: Get actual sender name
+                    onDismiss = { viewModel.setReplyTo(null) }
                 )
             }
 

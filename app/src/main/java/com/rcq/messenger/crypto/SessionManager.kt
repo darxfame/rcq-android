@@ -1,10 +1,14 @@
 package com.rcq.messenger.crypto
 
+import android.util.Base64
 import org.signal.libsignal.protocol.SessionCipher
 import org.signal.libsignal.protocol.SignalProtocolAddress
 import org.signal.libsignal.protocol.message.CiphertextMessage
 import org.signal.libsignal.protocol.message.PreKeySignalMessage
 import org.signal.libsignal.protocol.message.SignalMessage
+import org.signal.libsignal.protocol.state.PreKeyRecord
+import org.signal.libsignal.protocol.state.SignedPreKeyRecord
+import org.signal.libsignal.protocol.util.KeyHelper
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -44,5 +48,26 @@ class SessionManager @Inject constructor(
     fun deleteSession(recipientUin: Long) {
         val address = SignalProtocolAddress(recipientUin.toString(), 1)
         signalKeyStore.deleteSession(address)
+    }
+
+    /**
+     * Generate pre-keys for registration
+     */
+    fun generatePreKeys(): List<String> {
+        val preKeys = KeyHelper.generatePreKeys(1, 100)
+        return preKeys.map { preKey ->
+            Base64.encodeToString(preKey.serialize(), Base64.NO_WRAP)
+        }
+    }
+
+    /**
+     * Generate signed pre-key for registration
+     */
+    fun generateSignedPreKey(): String {
+        val signedPreKey = KeyHelper.generateSignedPreKey(
+            signalKeyStore.identityKeyPair,
+            1
+        )
+        return Base64.encodeToString(signedPreKey.serialize(), Base64.NO_WRAP)
     }
 }

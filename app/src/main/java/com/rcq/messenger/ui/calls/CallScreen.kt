@@ -136,7 +136,9 @@ fun CallScreen(
     val isSpeakerOn by viewModel.isSpeakerOn.collectAsState()
 
     LaunchedEffect(chatId) {
-        viewModel.startCall(chatId)
+        // TODO: Get target user ID from chat
+        val targetUin = 0L // Placeholder - should get from chat participants
+        viewModel.startCall(chatId, targetUin)
     }
 
     Box(

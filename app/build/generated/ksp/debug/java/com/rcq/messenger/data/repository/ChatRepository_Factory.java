@@ -1,5 +1,6 @@
 package com.rcq.messenger.data.repository;
 
+import com.rcq.messenger.crypto.CryptoService;
 import com.rcq.messenger.data.api.RCQApiService;
 import com.rcq.messenger.data.db.ChatDao;
 import com.rcq.messenger.data.db.MessageDao;
@@ -33,28 +34,33 @@ public final class ChatRepository_Factory implements Factory<ChatRepository> {
 
   private final Provider<WebSocketService> webSocketServiceProvider;
 
+  private final Provider<CryptoService> cryptoServiceProvider;
+
   public ChatRepository_Factory(Provider<RCQApiService> apiProvider,
       Provider<ChatDao> chatDaoProvider, Provider<MessageDao> messageDaoProvider,
-      Provider<WebSocketService> webSocketServiceProvider) {
+      Provider<WebSocketService> webSocketServiceProvider,
+      Provider<CryptoService> cryptoServiceProvider) {
     this.apiProvider = apiProvider;
     this.chatDaoProvider = chatDaoProvider;
     this.messageDaoProvider = messageDaoProvider;
     this.webSocketServiceProvider = webSocketServiceProvider;
+    this.cryptoServiceProvider = cryptoServiceProvider;
   }
 
   @Override
   public ChatRepository get() {
-    return newInstance(apiProvider.get(), chatDaoProvider.get(), messageDaoProvider.get(), webSocketServiceProvider.get());
+    return newInstance(apiProvider.get(), chatDaoProvider.get(), messageDaoProvider.get(), webSocketServiceProvider.get(), cryptoServiceProvider.get());
   }
 
   public static ChatRepository_Factory create(Provider<RCQApiService> apiProvider,
       Provider<ChatDao> chatDaoProvider, Provider<MessageDao> messageDaoProvider,
-      Provider<WebSocketService> webSocketServiceProvider) {
-    return new ChatRepository_Factory(apiProvider, chatDaoProvider, messageDaoProvider, webSocketServiceProvider);
+      Provider<WebSocketService> webSocketServiceProvider,
+      Provider<CryptoService> cryptoServiceProvider) {
+    return new ChatRepository_Factory(apiProvider, chatDaoProvider, messageDaoProvider, webSocketServiceProvider, cryptoServiceProvider);
   }
 
   public static ChatRepository newInstance(RCQApiService api, ChatDao chatDao,
-      MessageDao messageDao, WebSocketService webSocketService) {
-    return new ChatRepository(api, chatDao, messageDao, webSocketService);
+      MessageDao messageDao, WebSocketService webSocketService, CryptoService cryptoService) {
+    return new ChatRepository(api, chatDao, messageDao, webSocketService, cryptoService);
   }
 }

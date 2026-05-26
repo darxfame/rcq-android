@@ -182,10 +182,15 @@ private fun CallEntity.toDomain() = Call(
 )
 
 private fun Call.toEntity() = CallEntity(
-    id = id, type = type.name, targetId = targetId,
-    targetNickname = targetNickname, targetAvatar = targetAvatar,
-    initiatorId = initiatorId, status = status.name,
-    startedAt = startedAt, endedAt = endedAt, duration = duration
+    id = id,
+    type = type.name,
+    status = status.name,
+    participantIds = listOf(initiatorId), // Convert single target to list
+    initiatorId = initiatorId,
+    startTime = startedAt,
+    endTime = endedAt,
+    duration = duration,
+    isGroupCall = false
 )
 
 @Singleton
@@ -252,5 +257,5 @@ private fun StoryItem.toEntity(storyId: String) = StoryItemEntity(
     id = id, storyId = storyId, type = type.name,
     mediaUrl = mediaUrl, thumbnailUrl = thumbnailUrl,
     caption = caption, backgroundColor = backgroundColor,
-    duration = duration, createdAt = createdAt
+    duration = duration, timestamp = createdAt
 )

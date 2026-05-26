@@ -12,6 +12,7 @@ import androidx.room.RoomSQLiteQuery;
 import androidx.room.util.CursorUtil;
 import androidx.room.util.DBUtil;
 import androidx.sqlite.db.SupportSQLiteStatement;
+import com.rcq.messenger.domain.model.UserEntity;
 import java.lang.Class;
 import java.lang.Exception;
 import java.lang.Object;
@@ -42,43 +43,30 @@ public final class UserDao_Impl implements UserDao {
       @Override
       @NonNull
       protected String createQuery() {
-        return "INSERT OR REPLACE INTO `users` (`id`,`nickname`,`avatarUrl`,`status`,`lastSeen`,`bio`,`isBlocked`,`isFavorite`,`notificationSound`,`customNickname`,`tokens`,`isPremium`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)";
+        return "INSERT OR REPLACE INTO `users` (`id`,`username`,`displayName`,`avatarUrl`,`isOnline`,`lastSeen`,`publicKey`,`createdAt`,`updatedAt`) VALUES (?,?,?,?,?,?,?,?,?)";
       }
 
       @Override
       protected void bind(@NonNull final SupportSQLiteStatement statement,
           @NonNull final UserEntity entity) {
         statement.bindLong(1, entity.getId());
-        statement.bindString(2, entity.getNickname());
+        statement.bindString(2, entity.getUsername());
+        statement.bindString(3, entity.getDisplayName());
         if (entity.getAvatarUrl() == null) {
-          statement.bindNull(3);
+          statement.bindNull(4);
         } else {
-          statement.bindString(3, entity.getAvatarUrl());
+          statement.bindString(4, entity.getAvatarUrl());
         }
-        statement.bindString(4, entity.getStatus());
-        if (entity.getLastSeen() == null) {
-          statement.bindNull(5);
+        final int _tmp = entity.isOnline() ? 1 : 0;
+        statement.bindLong(5, _tmp);
+        statement.bindLong(6, entity.getLastSeen());
+        if (entity.getPublicKey() == null) {
+          statement.bindNull(7);
         } else {
-          statement.bindString(5, entity.getLastSeen());
+          statement.bindString(7, entity.getPublicKey());
         }
-        statement.bindString(6, entity.getBio());
-        final int _tmp = entity.isBlocked() ? 1 : 0;
-        statement.bindLong(7, _tmp);
-        final int _tmp_1 = entity.isFavorite() ? 1 : 0;
-        statement.bindLong(8, _tmp_1);
-        if (entity.getNotificationSound() == null) {
-          statement.bindNull(9);
-        } else {
-          statement.bindString(9, entity.getNotificationSound());
-        }
-        if (entity.getCustomNickname() == null) {
-          statement.bindNull(10);
-        } else {
-          statement.bindString(10, entity.getCustomNickname());
-        }
-        statement.bindLong(11, entity.getTokens());
-        final int _tmp_2 = entity.isPremium() ? 1 : 0;
-        statement.bindLong(12, _tmp_2);
+        statement.bindLong(8, entity.getCreatedAt());
+        statement.bindLong(9, entity.getUpdatedAt());
       }
     };
     this.__deletionAdapterOfUserEntity = new EntityDeletionOrUpdateAdapter<UserEntity>(__db) {
@@ -165,66 +153,45 @@ public final class UserDao_Impl implements UserDao {
         final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
         try {
           final int _cursorIndexOfId = CursorUtil.getColumnIndexOrThrow(_cursor, "id");
-          final int _cursorIndexOfNickname = CursorUtil.getColumnIndexOrThrow(_cursor, "nickname");
+          final int _cursorIndexOfUsername = CursorUtil.getColumnIndexOrThrow(_cursor, "username");
+          final int _cursorIndexOfDisplayName = CursorUtil.getColumnIndexOrThrow(_cursor, "displayName");
           final int _cursorIndexOfAvatarUrl = CursorUtil.getColumnIndexOrThrow(_cursor, "avatarUrl");
-          final int _cursorIndexOfStatus = CursorUtil.getColumnIndexOrThrow(_cursor, "status");
+          final int _cursorIndexOfIsOnline = CursorUtil.getColumnIndexOrThrow(_cursor, "isOnline");
           final int _cursorIndexOfLastSeen = CursorUtil.getColumnIndexOrThrow(_cursor, "lastSeen");
-          final int _cursorIndexOfBio = CursorUtil.getColumnIndexOrThrow(_cursor, "bio");
-          final int _cursorIndexOfIsBlocked = CursorUtil.getColumnIndexOrThrow(_cursor, "isBlocked");
-          final int _cursorIndexOfIsFavorite = CursorUtil.getColumnIndexOrThrow(_cursor, "isFavorite");
-          final int _cursorIndexOfNotificationSound = CursorUtil.getColumnIndexOrThrow(_cursor, "notificationSound");
-          final int _cursorIndexOfCustomNickname = CursorUtil.getColumnIndexOrThrow(_cursor, "customNickname");
-          final int _cursorIndexOfTokens = CursorUtil.getColumnIndexOrThrow(_cursor, "tokens");
-          final int _cursorIndexOfIsPremium = CursorUtil.getColumnIndexOrThrow(_cursor, "isPremium");
+          final int _cursorIndexOfPublicKey = CursorUtil.getColumnIndexOrThrow(_cursor, "publicKey");
+          final int _cursorIndexOfCreatedAt = CursorUtil.getColumnIndexOrThrow(_cursor, "createdAt");
+          final int _cursorIndexOfUpdatedAt = CursorUtil.getColumnIndexOrThrow(_cursor, "updatedAt");
           final UserEntity _result;
           if (_cursor.moveToFirst()) {
             final long _tmpId;
             _tmpId = _cursor.getLong(_cursorIndexOfId);
-            final String _tmpNickname;
-            _tmpNickname = _cursor.getString(_cursorIndexOfNickname);
+            final String _tmpUsername;
+            _tmpUsername = _cursor.getString(_cursorIndexOfUsername);
+            final String _tmpDisplayName;
+            _tmpDisplayName = _cursor.getString(_cursorIndexOfDisplayName);
             final String _tmpAvatarUrl;
             if (_cursor.isNull(_cursorIndexOfAvatarUrl)) {
               _tmpAvatarUrl = null;
             } else {
               _tmpAvatarUrl = _cursor.getString(_cursorIndexOfAvatarUrl);
             }
-            final String _tmpStatus;
-            _tmpStatus = _cursor.getString(_cursorIndexOfStatus);
-            final String _tmpLastSeen;
-            if (_cursor.isNull(_cursorIndexOfLastSeen)) {
-              _tmpLastSeen = null;
-            } else {
-              _tmpLastSeen = _cursor.getString(_cursorIndexOfLastSeen);
-            }
-            final String _tmpBio;
-            _tmpBio = _cursor.getString(_cursorIndexOfBio);
-            final boolean _tmpIsBlocked;
+            final boolean _tmpIsOnline;
             final int _tmp;
-            _tmp = _cursor.getInt(_cursorIndexOfIsBlocked);
-            _tmpIsBlocked = _tmp != 0;
-            final boolean _tmpIsFavorite;
-            final int _tmp_1;
-            _tmp_1 = _cursor.getInt(_cursorIndexOfIsFavorite);
-            _tmpIsFavorite = _tmp_1 != 0;
-            final String _tmpNotificationSound;
-            if (_cursor.isNull(_cursorIndexOfNotificationSound)) {
-              _tmpNotificationSound = null;
+            _tmp = _cursor.getInt(_cursorIndexOfIsOnline);
+            _tmpIsOnline = _tmp != 0;
+            final long _tmpLastSeen;
+            _tmpLastSeen = _cursor.getLong(_cursorIndexOfLastSeen);
+            final String _tmpPublicKey;
+            if (_cursor.isNull(_cursorIndexOfPublicKey)) {
+              _tmpPublicKey = null;
             } else {
-              _tmpNotificationSound = _cursor.getString(_cursorIndexOfNotificationSound);
+              _tmpPublicKey = _cursor.getString(_cursorIndexOfPublicKey);
             }
-            final String _tmpCustomNickname;
-            if (_cursor.isNull(_cursorIndexOfCustomNickname)) {
-              _tmpCustomNickname = null;
-            } else {
-              _tmpCustomNickname = _cursor.getString(_cursorIndexOfCustomNickname);
-            }
-            final long _tmpTokens;
-            _tmpTokens = _cursor.getLong(_cursorIndexOfTokens);
-            final boolean _tmpIsPremium;
-            final int _tmp_2;
-            _tmp_2 = _cursor.getInt(_cursorIndexOfIsPremium);
-            _tmpIsPremium = _tmp_2 != 0;
-            _result = new UserEntity(_tmpId,_tmpNickname,_tmpAvatarUrl,_tmpStatus,_tmpLastSeen,_tmpBio,_tmpIsBlocked,_tmpIsFavorite,_tmpNotificationSound,_tmpCustomNickname,_tmpTokens,_tmpIsPremium);
+            final long _tmpCreatedAt;
+            _tmpCreatedAt = _cursor.getLong(_cursorIndexOfCreatedAt);
+            final long _tmpUpdatedAt;
+            _tmpUpdatedAt = _cursor.getLong(_cursorIndexOfUpdatedAt);
+            _result = new UserEntity(_tmpId,_tmpUsername,_tmpDisplayName,_tmpAvatarUrl,_tmpIsOnline,_tmpLastSeen,_tmpPublicKey,_tmpCreatedAt,_tmpUpdatedAt);
           } else {
             _result = null;
           }
@@ -248,67 +215,46 @@ public final class UserDao_Impl implements UserDao {
         final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
         try {
           final int _cursorIndexOfId = CursorUtil.getColumnIndexOrThrow(_cursor, "id");
-          final int _cursorIndexOfNickname = CursorUtil.getColumnIndexOrThrow(_cursor, "nickname");
+          final int _cursorIndexOfUsername = CursorUtil.getColumnIndexOrThrow(_cursor, "username");
+          final int _cursorIndexOfDisplayName = CursorUtil.getColumnIndexOrThrow(_cursor, "displayName");
           final int _cursorIndexOfAvatarUrl = CursorUtil.getColumnIndexOrThrow(_cursor, "avatarUrl");
-          final int _cursorIndexOfStatus = CursorUtil.getColumnIndexOrThrow(_cursor, "status");
+          final int _cursorIndexOfIsOnline = CursorUtil.getColumnIndexOrThrow(_cursor, "isOnline");
           final int _cursorIndexOfLastSeen = CursorUtil.getColumnIndexOrThrow(_cursor, "lastSeen");
-          final int _cursorIndexOfBio = CursorUtil.getColumnIndexOrThrow(_cursor, "bio");
-          final int _cursorIndexOfIsBlocked = CursorUtil.getColumnIndexOrThrow(_cursor, "isBlocked");
-          final int _cursorIndexOfIsFavorite = CursorUtil.getColumnIndexOrThrow(_cursor, "isFavorite");
-          final int _cursorIndexOfNotificationSound = CursorUtil.getColumnIndexOrThrow(_cursor, "notificationSound");
-          final int _cursorIndexOfCustomNickname = CursorUtil.getColumnIndexOrThrow(_cursor, "customNickname");
-          final int _cursorIndexOfTokens = CursorUtil.getColumnIndexOrThrow(_cursor, "tokens");
-          final int _cursorIndexOfIsPremium = CursorUtil.getColumnIndexOrThrow(_cursor, "isPremium");
+          final int _cursorIndexOfPublicKey = CursorUtil.getColumnIndexOrThrow(_cursor, "publicKey");
+          final int _cursorIndexOfCreatedAt = CursorUtil.getColumnIndexOrThrow(_cursor, "createdAt");
+          final int _cursorIndexOfUpdatedAt = CursorUtil.getColumnIndexOrThrow(_cursor, "updatedAt");
           final List<UserEntity> _result = new ArrayList<UserEntity>(_cursor.getCount());
           while (_cursor.moveToNext()) {
             final UserEntity _item;
             final long _tmpId;
             _tmpId = _cursor.getLong(_cursorIndexOfId);
-            final String _tmpNickname;
-            _tmpNickname = _cursor.getString(_cursorIndexOfNickname);
+            final String _tmpUsername;
+            _tmpUsername = _cursor.getString(_cursorIndexOfUsername);
+            final String _tmpDisplayName;
+            _tmpDisplayName = _cursor.getString(_cursorIndexOfDisplayName);
             final String _tmpAvatarUrl;
             if (_cursor.isNull(_cursorIndexOfAvatarUrl)) {
               _tmpAvatarUrl = null;
             } else {
               _tmpAvatarUrl = _cursor.getString(_cursorIndexOfAvatarUrl);
             }
-            final String _tmpStatus;
-            _tmpStatus = _cursor.getString(_cursorIndexOfStatus);
-            final String _tmpLastSeen;
-            if (_cursor.isNull(_cursorIndexOfLastSeen)) {
-              _tmpLastSeen = null;
-            } else {
-              _tmpLastSeen = _cursor.getString(_cursorIndexOfLastSeen);
-            }
-            final String _tmpBio;
-            _tmpBio = _cursor.getString(_cursorIndexOfBio);
-            final boolean _tmpIsBlocked;
+            final boolean _tmpIsOnline;
             final int _tmp;
-            _tmp = _cursor.getInt(_cursorIndexOfIsBlocked);
-            _tmpIsBlocked = _tmp != 0;
-            final boolean _tmpIsFavorite;
-            final int _tmp_1;
-            _tmp_1 = _cursor.getInt(_cursorIndexOfIsFavorite);
-            _tmpIsFavorite = _tmp_1 != 0;
-            final String _tmpNotificationSound;
-            if (_cursor.isNull(_cursorIndexOfNotificationSound)) {
-              _tmpNotificationSound = null;
+            _tmp = _cursor.getInt(_cursorIndexOfIsOnline);
+            _tmpIsOnline = _tmp != 0;
+            final long _tmpLastSeen;
+            _tmpLastSeen = _cursor.getLong(_cursorIndexOfLastSeen);
+            final String _tmpPublicKey;
+            if (_cursor.isNull(_cursorIndexOfPublicKey)) {
+              _tmpPublicKey = null;
             } else {
-              _tmpNotificationSound = _cursor.getString(_cursorIndexOfNotificationSound);
+              _tmpPublicKey = _cursor.getString(_cursorIndexOfPublicKey);
             }
-            final String _tmpCustomNickname;
-            if (_cursor.isNull(_cursorIndexOfCustomNickname)) {
-              _tmpCustomNickname = null;
-            } else {
-              _tmpCustomNickname = _cursor.getString(_cursorIndexOfCustomNickname);
-            }
-            final long _tmpTokens;
-            _tmpTokens = _cursor.getLong(_cursorIndexOfTokens);
-            final boolean _tmpIsPremium;
-            final int _tmp_2;
-            _tmp_2 = _cursor.getInt(_cursorIndexOfIsPremium);
-            _tmpIsPremium = _tmp_2 != 0;
-            _item = new UserEntity(_tmpId,_tmpNickname,_tmpAvatarUrl,_tmpStatus,_tmpLastSeen,_tmpBio,_tmpIsBlocked,_tmpIsFavorite,_tmpNotificationSound,_tmpCustomNickname,_tmpTokens,_tmpIsPremium);
+            final long _tmpCreatedAt;
+            _tmpCreatedAt = _cursor.getLong(_cursorIndexOfCreatedAt);
+            final long _tmpUpdatedAt;
+            _tmpUpdatedAt = _cursor.getLong(_cursorIndexOfUpdatedAt);
+            _item = new UserEntity(_tmpId,_tmpUsername,_tmpDisplayName,_tmpAvatarUrl,_tmpIsOnline,_tmpLastSeen,_tmpPublicKey,_tmpCreatedAt,_tmpUpdatedAt);
             _result.add(_item);
           }
           return _result;

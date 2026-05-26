@@ -1,18 +1,21 @@
 package com.rcq.messenger.data.db;
 
 import android.database.Cursor;
+import android.os.CancellationSignal;
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.room.CoroutinesRoom;
+import androidx.room.EntityDeletionOrUpdateAdapter;
 import androidx.room.EntityInsertionAdapter;
 import androidx.room.RoomDatabase;
 import androidx.room.RoomSQLiteQuery;
-import androidx.room.SharedSQLiteStatement;
 import androidx.room.util.CursorUtil;
 import androidx.room.util.DBUtil;
 import androidx.sqlite.db.SupportSQLiteStatement;
+import com.rcq.messenger.domain.model.PetEntity;
 import java.lang.Class;
 import java.lang.Exception;
-import java.lang.Long;
+import java.lang.Integer;
 import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
@@ -33,9 +36,7 @@ public final class PetDao_Impl implements PetDao {
 
   private final EntityInsertionAdapter<PetEntity> __insertionAdapterOfPetEntity;
 
-  private final SharedSQLiteStatement __preparedStmtOfEquipPet;
-
-  private final SharedSQLiteStatement __preparedStmtOfUnequipPet;
+  private final EntityDeletionOrUpdateAdapter<PetEntity> __deletionAdapterOfPetEntity;
 
   public PetDao_Impl(@NonNull final RoomDatabase __db) {
     this.__db = __db;
@@ -43,7 +44,7 @@ public final class PetDao_Impl implements PetDao {
       @Override
       @NonNull
       protected String createQuery() {
-        return "INSERT OR REPLACE INTO `pets` (`id`,`name`,`type`,`rarity`,`imageUrl`,`equippedBy`,`isForSale`,`salePrice`) VALUES (?,?,?,?,?,?,?,?)";
+        return "INSERT OR REPLACE INTO `pets` (`id`,`name`,`type`,`breed`,`age`,`ownerId`,`avatarUrl`,`description`,`isActive`,`createdAt`,`updatedAt`) VALUES (?,?,?,?,?,?,?,?,?,?,?)";
       }
 
       @Override
@@ -52,38 +53,64 @@ public final class PetDao_Impl implements PetDao {
         statement.bindString(1, entity.getId());
         statement.bindString(2, entity.getName());
         statement.bindString(3, entity.getType());
-        statement.bindString(4, entity.getRarity());
-        statement.bindString(5, entity.getImageUrl());
-        if (entity.getEquippedBy() == null) {
-          statement.bindNull(6);
+        if (entity.getBreed() == null) {
+          statement.bindNull(4);
         } else {
-          statement.bindLong(6, entity.getEquippedBy());
+          statement.bindString(4, entity.getBreed());
         }
-        final int _tmp = entity.isForSale() ? 1 : 0;
-        statement.bindLong(7, _tmp);
-        if (entity.getSalePrice() == null) {
+        if (entity.getAge() == null) {
+          statement.bindNull(5);
+        } else {
+          statement.bindLong(5, entity.getAge());
+        }
+        statement.bindLong(6, entity.getOwnerId());
+        if (entity.getAvatarUrl() == null) {
+          statement.bindNull(7);
+        } else {
+          statement.bindString(7, entity.getAvatarUrl());
+        }
+        if (entity.getDescription() == null) {
           statement.bindNull(8);
         } else {
-          statement.bindLong(8, entity.getSalePrice());
+          statement.bindString(8, entity.getDescription());
+        }
+        final int _tmp = entity.isActive() ? 1 : 0;
+        statement.bindLong(9, _tmp);
+        statement.bindLong(10, entity.getCreatedAt());
+        statement.bindLong(11, entity.getUpdatedAt());
+      }
+    };
+    this.__deletionAdapterOfPetEntity = new EntityDeletionOrUpdateAdapter<PetEntity>(__db) {
+      @Override
+      @NonNull
+      protected String createQuery() {
+        return "DELETE FROM `pets` WHERE `id` = ?";
+      }
+
+      @Override
+      protected void bind(@NonNull final SupportSQLiteStatement statement,
+          @NonNull final PetEntity entity) {
+        statement.bindString(1, entity.getId());
+      }
+    };
+  }
+
+  @Override
+  public Object insertPet(final PetEntity pet, final Continuation<? super Unit> $completion) {
+    return CoroutinesRoom.execute(__db, true, new Callable<Unit>() {
+      @Override
+      @NonNull
+      public Unit call() throws Exception {
+        __db.beginTransaction();
+        try {
+          __insertionAdapterOfPetEntity.insert(pet);
+          __db.setTransactionSuccessful();
+          return Unit.INSTANCE;
+        } finally {
+          __db.endTransaction();
         }
       }
-    };
-    this.__preparedStmtOfEquipPet = new SharedSQLiteStatement(__db) {
-      @Override
-      @NonNull
-      public String createQuery() {
-        final String _query = "UPDATE pets SET equippedBy = ? WHERE id = ?";
-        return _query;
-      }
-    };
-    this.__preparedStmtOfUnequipPet = new SharedSQLiteStatement(__db) {
-      @Override
-      @NonNull
-      public String createQuery() {
-        final String _query = "UPDATE pets SET equippedBy = NULL WHERE id = ?";
-        return _query;
-      }
-    };
+    }, $completion);
   }
 
   @Override
@@ -106,126 +133,26 @@ public final class PetDao_Impl implements PetDao {
   }
 
   @Override
-  public Object equipPet(final String petId, final long userId,
-      final Continuation<? super Unit> $completion) {
+  public Object deletePet(final PetEntity pet, final Continuation<? super Unit> $completion) {
     return CoroutinesRoom.execute(__db, true, new Callable<Unit>() {
       @Override
       @NonNull
       public Unit call() throws Exception {
-        final SupportSQLiteStatement _stmt = __preparedStmtOfEquipPet.acquire();
-        int _argIndex = 1;
-        _stmt.bindLong(_argIndex, userId);
-        _argIndex = 2;
-        _stmt.bindString(_argIndex, petId);
+        __db.beginTransaction();
         try {
-          __db.beginTransaction();
-          try {
-            _stmt.executeUpdateDelete();
-            __db.setTransactionSuccessful();
-            return Unit.INSTANCE;
-          } finally {
-            __db.endTransaction();
-          }
+          __deletionAdapterOfPetEntity.handle(pet);
+          __db.setTransactionSuccessful();
+          return Unit.INSTANCE;
         } finally {
-          __preparedStmtOfEquipPet.release(_stmt);
+          __db.endTransaction();
         }
       }
     }, $completion);
   }
 
   @Override
-  public Object unequipPet(final String petId, final Continuation<? super Unit> $completion) {
-    return CoroutinesRoom.execute(__db, true, new Callable<Unit>() {
-      @Override
-      @NonNull
-      public Unit call() throws Exception {
-        final SupportSQLiteStatement _stmt = __preparedStmtOfUnequipPet.acquire();
-        int _argIndex = 1;
-        _stmt.bindString(_argIndex, petId);
-        try {
-          __db.beginTransaction();
-          try {
-            _stmt.executeUpdateDelete();
-            __db.setTransactionSuccessful();
-            return Unit.INSTANCE;
-          } finally {
-            __db.endTransaction();
-          }
-        } finally {
-          __preparedStmtOfUnequipPet.release(_stmt);
-        }
-      }
-    }, $completion);
-  }
-
-  @Override
-  public Flow<List<PetEntity>> getEquippedPets(final long userId) {
-    final String _sql = "SELECT * FROM pets WHERE equippedBy = ?";
-    final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 1);
-    int _argIndex = 1;
-    _statement.bindLong(_argIndex, userId);
-    return CoroutinesRoom.createFlow(__db, false, new String[] {"pets"}, new Callable<List<PetEntity>>() {
-      @Override
-      @NonNull
-      public List<PetEntity> call() throws Exception {
-        final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
-        try {
-          final int _cursorIndexOfId = CursorUtil.getColumnIndexOrThrow(_cursor, "id");
-          final int _cursorIndexOfName = CursorUtil.getColumnIndexOrThrow(_cursor, "name");
-          final int _cursorIndexOfType = CursorUtil.getColumnIndexOrThrow(_cursor, "type");
-          final int _cursorIndexOfRarity = CursorUtil.getColumnIndexOrThrow(_cursor, "rarity");
-          final int _cursorIndexOfImageUrl = CursorUtil.getColumnIndexOrThrow(_cursor, "imageUrl");
-          final int _cursorIndexOfEquippedBy = CursorUtil.getColumnIndexOrThrow(_cursor, "equippedBy");
-          final int _cursorIndexOfIsForSale = CursorUtil.getColumnIndexOrThrow(_cursor, "isForSale");
-          final int _cursorIndexOfSalePrice = CursorUtil.getColumnIndexOrThrow(_cursor, "salePrice");
-          final List<PetEntity> _result = new ArrayList<PetEntity>(_cursor.getCount());
-          while (_cursor.moveToNext()) {
-            final PetEntity _item;
-            final String _tmpId;
-            _tmpId = _cursor.getString(_cursorIndexOfId);
-            final String _tmpName;
-            _tmpName = _cursor.getString(_cursorIndexOfName);
-            final String _tmpType;
-            _tmpType = _cursor.getString(_cursorIndexOfType);
-            final String _tmpRarity;
-            _tmpRarity = _cursor.getString(_cursorIndexOfRarity);
-            final String _tmpImageUrl;
-            _tmpImageUrl = _cursor.getString(_cursorIndexOfImageUrl);
-            final Long _tmpEquippedBy;
-            if (_cursor.isNull(_cursorIndexOfEquippedBy)) {
-              _tmpEquippedBy = null;
-            } else {
-              _tmpEquippedBy = _cursor.getLong(_cursorIndexOfEquippedBy);
-            }
-            final boolean _tmpIsForSale;
-            final int _tmp;
-            _tmp = _cursor.getInt(_cursorIndexOfIsForSale);
-            _tmpIsForSale = _tmp != 0;
-            final Long _tmpSalePrice;
-            if (_cursor.isNull(_cursorIndexOfSalePrice)) {
-              _tmpSalePrice = null;
-            } else {
-              _tmpSalePrice = _cursor.getLong(_cursorIndexOfSalePrice);
-            }
-            _item = new PetEntity(_tmpId,_tmpName,_tmpType,_tmpRarity,_tmpImageUrl,_tmpEquippedBy,_tmpIsForSale,_tmpSalePrice);
-            _result.add(_item);
-          }
-          return _result;
-        } finally {
-          _cursor.close();
-        }
-      }
-
-      @Override
-      protected void finalize() {
-        _statement.release();
-      }
-    });
-  }
-
-  @Override
-  public Flow<List<PetEntity>> getAllPets() {
-    final String _sql = "SELECT * FROM pets";
+  public Flow<List<PetEntity>> getPets() {
+    final String _sql = "SELECT * FROM pets ORDER BY name ASC";
     final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 0);
     return CoroutinesRoom.createFlow(__db, false, new String[] {"pets"}, new Callable<List<PetEntity>>() {
       @Override
@@ -236,11 +163,14 @@ public final class PetDao_Impl implements PetDao {
           final int _cursorIndexOfId = CursorUtil.getColumnIndexOrThrow(_cursor, "id");
           final int _cursorIndexOfName = CursorUtil.getColumnIndexOrThrow(_cursor, "name");
           final int _cursorIndexOfType = CursorUtil.getColumnIndexOrThrow(_cursor, "type");
-          final int _cursorIndexOfRarity = CursorUtil.getColumnIndexOrThrow(_cursor, "rarity");
-          final int _cursorIndexOfImageUrl = CursorUtil.getColumnIndexOrThrow(_cursor, "imageUrl");
-          final int _cursorIndexOfEquippedBy = CursorUtil.getColumnIndexOrThrow(_cursor, "equippedBy");
-          final int _cursorIndexOfIsForSale = CursorUtil.getColumnIndexOrThrow(_cursor, "isForSale");
-          final int _cursorIndexOfSalePrice = CursorUtil.getColumnIndexOrThrow(_cursor, "salePrice");
+          final int _cursorIndexOfBreed = CursorUtil.getColumnIndexOrThrow(_cursor, "breed");
+          final int _cursorIndexOfAge = CursorUtil.getColumnIndexOrThrow(_cursor, "age");
+          final int _cursorIndexOfOwnerId = CursorUtil.getColumnIndexOrThrow(_cursor, "ownerId");
+          final int _cursorIndexOfAvatarUrl = CursorUtil.getColumnIndexOrThrow(_cursor, "avatarUrl");
+          final int _cursorIndexOfDescription = CursorUtil.getColumnIndexOrThrow(_cursor, "description");
+          final int _cursorIndexOfIsActive = CursorUtil.getColumnIndexOrThrow(_cursor, "isActive");
+          final int _cursorIndexOfCreatedAt = CursorUtil.getColumnIndexOrThrow(_cursor, "createdAt");
+          final int _cursorIndexOfUpdatedAt = CursorUtil.getColumnIndexOrThrow(_cursor, "updatedAt");
           final List<PetEntity> _result = new ArrayList<PetEntity>(_cursor.getCount());
           while (_cursor.moveToNext()) {
             final PetEntity _item;
@@ -250,27 +180,41 @@ public final class PetDao_Impl implements PetDao {
             _tmpName = _cursor.getString(_cursorIndexOfName);
             final String _tmpType;
             _tmpType = _cursor.getString(_cursorIndexOfType);
-            final String _tmpRarity;
-            _tmpRarity = _cursor.getString(_cursorIndexOfRarity);
-            final String _tmpImageUrl;
-            _tmpImageUrl = _cursor.getString(_cursorIndexOfImageUrl);
-            final Long _tmpEquippedBy;
-            if (_cursor.isNull(_cursorIndexOfEquippedBy)) {
-              _tmpEquippedBy = null;
+            final String _tmpBreed;
+            if (_cursor.isNull(_cursorIndexOfBreed)) {
+              _tmpBreed = null;
             } else {
-              _tmpEquippedBy = _cursor.getLong(_cursorIndexOfEquippedBy);
+              _tmpBreed = _cursor.getString(_cursorIndexOfBreed);
             }
-            final boolean _tmpIsForSale;
+            final Integer _tmpAge;
+            if (_cursor.isNull(_cursorIndexOfAge)) {
+              _tmpAge = null;
+            } else {
+              _tmpAge = _cursor.getInt(_cursorIndexOfAge);
+            }
+            final long _tmpOwnerId;
+            _tmpOwnerId = _cursor.getLong(_cursorIndexOfOwnerId);
+            final String _tmpAvatarUrl;
+            if (_cursor.isNull(_cursorIndexOfAvatarUrl)) {
+              _tmpAvatarUrl = null;
+            } else {
+              _tmpAvatarUrl = _cursor.getString(_cursorIndexOfAvatarUrl);
+            }
+            final String _tmpDescription;
+            if (_cursor.isNull(_cursorIndexOfDescription)) {
+              _tmpDescription = null;
+            } else {
+              _tmpDescription = _cursor.getString(_cursorIndexOfDescription);
+            }
+            final boolean _tmpIsActive;
             final int _tmp;
-            _tmp = _cursor.getInt(_cursorIndexOfIsForSale);
-            _tmpIsForSale = _tmp != 0;
-            final Long _tmpSalePrice;
-            if (_cursor.isNull(_cursorIndexOfSalePrice)) {
-              _tmpSalePrice = null;
-            } else {
-              _tmpSalePrice = _cursor.getLong(_cursorIndexOfSalePrice);
-            }
-            _item = new PetEntity(_tmpId,_tmpName,_tmpType,_tmpRarity,_tmpImageUrl,_tmpEquippedBy,_tmpIsForSale,_tmpSalePrice);
+            _tmp = _cursor.getInt(_cursorIndexOfIsActive);
+            _tmpIsActive = _tmp != 0;
+            final long _tmpCreatedAt;
+            _tmpCreatedAt = _cursor.getLong(_cursorIndexOfCreatedAt);
+            final long _tmpUpdatedAt;
+            _tmpUpdatedAt = _cursor.getLong(_cursorIndexOfUpdatedAt);
+            _item = new PetEntity(_tmpId,_tmpName,_tmpType,_tmpBreed,_tmpAge,_tmpOwnerId,_tmpAvatarUrl,_tmpDescription,_tmpIsActive,_tmpCreatedAt,_tmpUpdatedAt);
             _result.add(_item);
           }
           return _result;
@@ -284,6 +228,85 @@ public final class PetDao_Impl implements PetDao {
         _statement.release();
       }
     });
+  }
+
+  @Override
+  public Object getPet(final String id, final Continuation<? super PetEntity> $completion) {
+    final String _sql = "SELECT * FROM pets WHERE id = ?";
+    final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 1);
+    int _argIndex = 1;
+    _statement.bindString(_argIndex, id);
+    final CancellationSignal _cancellationSignal = DBUtil.createCancellationSignal();
+    return CoroutinesRoom.execute(__db, false, _cancellationSignal, new Callable<PetEntity>() {
+      @Override
+      @Nullable
+      public PetEntity call() throws Exception {
+        final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
+        try {
+          final int _cursorIndexOfId = CursorUtil.getColumnIndexOrThrow(_cursor, "id");
+          final int _cursorIndexOfName = CursorUtil.getColumnIndexOrThrow(_cursor, "name");
+          final int _cursorIndexOfType = CursorUtil.getColumnIndexOrThrow(_cursor, "type");
+          final int _cursorIndexOfBreed = CursorUtil.getColumnIndexOrThrow(_cursor, "breed");
+          final int _cursorIndexOfAge = CursorUtil.getColumnIndexOrThrow(_cursor, "age");
+          final int _cursorIndexOfOwnerId = CursorUtil.getColumnIndexOrThrow(_cursor, "ownerId");
+          final int _cursorIndexOfAvatarUrl = CursorUtil.getColumnIndexOrThrow(_cursor, "avatarUrl");
+          final int _cursorIndexOfDescription = CursorUtil.getColumnIndexOrThrow(_cursor, "description");
+          final int _cursorIndexOfIsActive = CursorUtil.getColumnIndexOrThrow(_cursor, "isActive");
+          final int _cursorIndexOfCreatedAt = CursorUtil.getColumnIndexOrThrow(_cursor, "createdAt");
+          final int _cursorIndexOfUpdatedAt = CursorUtil.getColumnIndexOrThrow(_cursor, "updatedAt");
+          final PetEntity _result;
+          if (_cursor.moveToFirst()) {
+            final String _tmpId;
+            _tmpId = _cursor.getString(_cursorIndexOfId);
+            final String _tmpName;
+            _tmpName = _cursor.getString(_cursorIndexOfName);
+            final String _tmpType;
+            _tmpType = _cursor.getString(_cursorIndexOfType);
+            final String _tmpBreed;
+            if (_cursor.isNull(_cursorIndexOfBreed)) {
+              _tmpBreed = null;
+            } else {
+              _tmpBreed = _cursor.getString(_cursorIndexOfBreed);
+            }
+            final Integer _tmpAge;
+            if (_cursor.isNull(_cursorIndexOfAge)) {
+              _tmpAge = null;
+            } else {
+              _tmpAge = _cursor.getInt(_cursorIndexOfAge);
+            }
+            final long _tmpOwnerId;
+            _tmpOwnerId = _cursor.getLong(_cursorIndexOfOwnerId);
+            final String _tmpAvatarUrl;
+            if (_cursor.isNull(_cursorIndexOfAvatarUrl)) {
+              _tmpAvatarUrl = null;
+            } else {
+              _tmpAvatarUrl = _cursor.getString(_cursorIndexOfAvatarUrl);
+            }
+            final String _tmpDescription;
+            if (_cursor.isNull(_cursorIndexOfDescription)) {
+              _tmpDescription = null;
+            } else {
+              _tmpDescription = _cursor.getString(_cursorIndexOfDescription);
+            }
+            final boolean _tmpIsActive;
+            final int _tmp;
+            _tmp = _cursor.getInt(_cursorIndexOfIsActive);
+            _tmpIsActive = _tmp != 0;
+            final long _tmpCreatedAt;
+            _tmpCreatedAt = _cursor.getLong(_cursorIndexOfCreatedAt);
+            final long _tmpUpdatedAt;
+            _tmpUpdatedAt = _cursor.getLong(_cursorIndexOfUpdatedAt);
+            _result = new PetEntity(_tmpId,_tmpName,_tmpType,_tmpBreed,_tmpAge,_tmpOwnerId,_tmpAvatarUrl,_tmpDescription,_tmpIsActive,_tmpCreatedAt,_tmpUpdatedAt);
+          } else {
+            _result = null;
+          }
+          return _result;
+        } finally {
+          _cursor.close();
+          _statement.release();
+        }
+      }
+    }, $completion);
   }
 
   @NonNull

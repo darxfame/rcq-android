@@ -4,7 +4,7 @@
             "outputFile": "com.rcq.messenger.app-mergeDebugResources-68:/values-v28/values-v28.xml",
             "map": [
                 {
-                    "source": "/Users/artemkochegizov/.gradle/caches/transforms-4/f2e1ddeb92dfcdde481fa716f858c991/transformed/appcompat-1.6.1/res/values-v28/values-v28.xml",
+                    "source": "/root/.gradle/caches/transforms-4/f2e1ddeb92dfcdde481fa716f858c991/transformed/appcompat-1.6.1/res/values-v28/values-v28.xml",
                     "from": {
                         "startLines": "2,3,4,8",
                         "startColumns": "4,4,4,4",
