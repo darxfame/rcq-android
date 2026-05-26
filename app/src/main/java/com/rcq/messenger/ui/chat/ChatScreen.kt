@@ -362,30 +362,6 @@ fun TypingIndicator(
         }
     }
 }
-            modifier = Modifier
-                .width(3.dp)
-                .height(40.dp)
-                .background(Primary)
-        )
-        Spacer(modifier = Modifier.width(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = "Replying to",
-                style = MaterialTheme.typography.labelSmall,
-                color = Primary
-            )
-            Text(
-                text = message.content,
-                style = MaterialTheme.typography.bodySmall,
-                color = TextSecondary,
-                maxLines = 1
-            )
-        }
-        IconButton(onClick = onCancel) {
-            Icon(Icons.Default.Close, "Cancel reply", tint = TextSecondary)
-        }
-    }
-}
 
 @Composable
 fun MessageInput(
