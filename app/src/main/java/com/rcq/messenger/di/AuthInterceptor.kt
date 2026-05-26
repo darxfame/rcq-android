@@ -47,13 +47,3 @@ class AuthInterceptor @Inject constructor(
     }
 }
 
-@Module
-@InstallIn(SingletonComponent::class)
-object OkHttpModule {
-
-    @Provides
-    @Singleton
-    fun provideAuthInterceptor(dataStore: DataStore<Preferences>): AuthInterceptor {
-        return AuthInterceptor(dataStore)
-    }
-}

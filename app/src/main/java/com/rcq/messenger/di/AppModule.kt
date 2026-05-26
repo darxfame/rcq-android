@@ -8,7 +8,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import androidx.room.Room
 import com.rcq.messenger.data.api.RCQApiService
 import com.rcq.messenger.data.db.*
-import com.rcq.messenger.data.websocket.WebSocketService
+import com.rcq.messenger.data.ws.WebSocketManager
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -35,6 +35,12 @@ object AppModule {
         ignoreUnknownKeys = true
         coerceInputValues = true
         encodeDefaults = true
+    }
+
+    @Provides
+    @Singleton
+    fun provideAuthInterceptor(dataStore: DataStore<Preferences>): AuthInterceptor {
+        return AuthInterceptor(dataStore)
     }
 
     @Provides
@@ -103,6 +109,12 @@ object AppModule {
 
     @Provides
     fun providePetDao(database: RCQDatabase): PetDao = database.petDao()
+
+    @Provides
+    @Singleton
+    fun provideWebSocketManager(okHttpClient: OkHttpClient, json: Json): WebSocketManager {
+        return WebSocketManager(okHttpClient, json)
+    }
 
     @Provides
     @Singleton
