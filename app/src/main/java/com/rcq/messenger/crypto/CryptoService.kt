@@ -1,78 +1,73 @@
 package com.rcq.messenger.crypto
 
 import android.util.Base64
-import com.rcq.messenger.util.CryptoUtils
-import java.security.SecureRandom
+import org.signal.libsignal.protocol.message.CiphertextMessage
+import org.signal.libsignal.protocol.message.PreKeySignalMessage
+import org.signal.libsignal.protocol.message.SignalMessage
+import javax.inject.Inject
+import javax.inject.Singleton
 
-/**
- * E2EE service matching iOS CryptoService implementation.
- */
-object CryptoService {
+@Singleton
+class CryptoService @Inject constructor(
+    private val sessionManager: SessionManager,
+    private val keyStore: SignalKeyStore
+) {
 
     /**
-     * Generate registration bundle with identity and signing keys.
+     * Encrypt message using Signal Protocol Double Ratchet
      */
-    fun generateRegistrationBundle(): RegistrationBundle {
-        val identityKey = generateRandomKey()
-        val signingKey = generateRandomKey()
-        return RegistrationBundle(
-            identityKey = identityKey,
-            signingKey = signingKey
+    fun encryptMessage(recipientUin: Long, text: String): EncryptedMessage {
+        val ciphertext = sessionManager.encryptMessage(recipientUin, text)
+        return EncryptedMessage(
+            ciphertext = Base64.encodeToString(
+                ciphertext.serialize(),
+                Base64.NO_WRAP
+            ),
+            signalType = ciphertext.type
         )
     }
 
     /**
-     * Generate a random Base64-encoded key (32 bytes).
+     * Decrypt message using Signal Protocol Double Ratchet
      */
-    fun generateRandomKey(): String {
-        val bytes = ByteArray(32)
-        SecureRandom().nextBytes(bytes)
-        return Base64.encodeToString(bytes, Base64.NO_WRAP)
+    fun decryptMessage(senderUin: Long, ciphertextBase64: String, signalType: Int): String {
+        val ciphertextBytes = Base64.decode(ciphertextBase64, Base64.NO_WRAP)
+
+        val ciphertext = when (signalType) {
+            CiphertextMessage.PREKEY_TYPE -> PreKeySignalMessage(ciphertextBytes)
+            CiphertextMessage.WHISPER_TYPE -> SignalMessage(ciphertextBytes)
+            else -> throw IllegalArgumentException("Unknown signal type: $signalType")
+        }
+
+        return sessionManager.decryptMessage(senderUin, ciphertext)
     }
 
     /**
-     * Encrypt a message for a recipient using AES-GCM.
+     * Check if we have an established session with the user
      */
-    fun encrypt(plaintext: String, recipientPublicKey: String): String {
-        val key = deriveKey(recipientPublicKey)
-        val encrypted = CryptoUtils.encrypt(plaintext.toByteArray(Charsets.UTF_8), key)
-        return CryptoUtils.bytesToBase64(encrypted)
+    fun hasSession(recipientUin: Long): Boolean {
+        return sessionManager.hasSession(recipientUin)
     }
 
     /**
-     * Decrypt a message.
+     * Delete session with user (for security or troubleshooting)
      */
-    fun decrypt(ciphertext: String, privateKey: String): String {
-        val key = deriveKey(privateKey)
-        val encryptedData = CryptoUtils.base64ToBytes(ciphertext)
-        val decrypted = CryptoUtils.decrypt(encryptedData, key)
-        return String(decrypted, Charsets.UTF_8)
+    fun deleteSession(recipientUin: Long) {
+        sessionManager.deleteSession(recipientUin)
     }
 
-    private fun deriveKey(publicKey: String): ByteArray {
-        val digest = java.security.MessageDigest.getInstance("SHA-256")
-        return digest.digest(publicKey.toByteArray(Charsets.UTF_8))
+    /**
+     * Get our identity key for sharing with other users
+     */
+    fun getIdentityKey(): String {
+        return Base64.encodeToString(
+            keyStore.identityKeyPair.publicKey.serialize(),
+            Base64.NO_WRAP
+        )
     }
+
+    data class EncryptedMessage(
+        val ciphertext: String, // Base64-encoded encrypted content
+        val signalType: Int // Signal Protocol message type (1=PreKey, 2=Whisper)
+    )
 }
-
-data class RegistrationBundle(
-    val identityKey: String,
-    val signingKey: String
-)
-
-data class PeerBundle(
-    val uin: Long,
-    val identityKey: String,
-    val signingKey: String
-)
-
-sealed class Envelope {
-    data class Text(val id: String, val text: String) : Envelope()
-    data class Photo(val id: String, val mediaId: String, val mediaKey: String, val caption: String?) : Envelope()
-    data class Voice(val id: String, val mediaId: String, val mediaKey: String, val durationSec: Double) : Envelope()
-}
-
-data class DecryptedEnvelope(
-    val senderUin: Long,
-    val content: Envelope
-)
