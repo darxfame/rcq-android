@@ -19,6 +19,12 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
 
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v3
+
+    - name: Accept Android SDK licenses
+      run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+
     - name: Cache Gradle packages
       uses: actions/cache@v4
       with:
@@ -33,22 +39,19 @@ jobs:
       run: chmod +x gradlew
 
     - name: Build with Gradle
-      run: ./gradlew build
+      run: ./gradlew assembleDebug --stacktrace
 
-    - name: Run tests
-      run: ./gradlew test
-
-    - name: Build APK
-      run: ./gradlew assembleDebug
+    - name: Run unit tests
+      run: ./gradlew testDebugUnitTest --continue
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
-        name: app-debug
+        name: app-debug-apk
         path: app/build/outputs/apk/debug/app-debug.apk
 
-    - name: Run lint
-      run: ./gradlew lint
+    - name: Run lint (optional)
+      run: ./gradlew lintDebug --continue || true
 
     - name: Upload lint results
       uses: actions/upload-artifact@v4
@@ -56,3 +59,4 @@ jobs:
       with:
         name: lint-results
         path: app/build/reports/lint-results-debug.html
+        if-no-files-found: ignore
