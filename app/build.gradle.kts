@@ -113,6 +113,9 @@ dependencies {
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
     implementation("androidx.biometric:biometric:1.1.0")
 
+    // Signal Protocol E2EE
+    implementation("org.signal:libsignal-android:0.33.0")
+
     // WebRTC
     implementation("io.getstream:stream-webrtc-android:1.1.1")
 
