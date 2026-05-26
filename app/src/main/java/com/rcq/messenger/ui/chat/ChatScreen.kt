@@ -249,24 +249,6 @@ fun MessageBubble(
         }
     }
 }
-                                topStart = 16.dp,
-                                topEnd = 16.dp,
-                                bottomStart = if (isOwnMessage) 16.dp else 4.dp,
-                                bottomEnd = if (isOwnMessage) 4.dp else 16.dp
-                            )
-                        )
-                        .padding(12.dp)
-                ) {
-                    when (message.kind) {
-                        MessageKind.TEXT -> {
-                            Text(
-                                text = message.content,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = if (isOwnMessage) OnPrimary else TextPrimary
-                            )
-                        }
-                        MessageKind.PHOTO -> {
-                            Box(
                                 modifier = Modifier
                                     .size(200.dp)
                                     .background(SurfaceVariant, RoundedCornerShape(8.dp)),
