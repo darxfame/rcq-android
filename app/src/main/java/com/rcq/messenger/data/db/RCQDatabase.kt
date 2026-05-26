@@ -1,6 +1,8 @@
 package com.rcq.messenger.data.db
 
 import androidx.room.*
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.rcq.messenger.domain.model.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.serialization.encodeToString
@@ -18,7 +20,7 @@ import kotlinx.serialization.json.Json
         CallEntity::class,
         PetEntity::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = false
 )
 @TypeConverters(RoomTypeConverters::class)
@@ -31,6 +33,17 @@ abstract class RCQDatabase : RoomDatabase() {
     abstract fun storyDao(): StoryDao
     abstract fun callDao(): CallDao
     abstract fun petDao(): PetDao
+
+    companion object {
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                // Add Signal Protocol E2EE fields to messages table
+                database.execSQL("ALTER TABLE messages ADD COLUMN ciphertext TEXT")
+                database.execSQL("ALTER TABLE messages ADD COLUMN signalType INTEGER NOT NULL DEFAULT 1")
+                database.execSQL("ALTER TABLE messages ADD COLUMN isEncrypted INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+    }
 }
 
 class RoomTypeConverters {
@@ -177,7 +190,7 @@ interface ChatDao {
     suspend fun updateTimestamp(chatId: String, timestamp: Long)
 }
 
-// Message Entity — aligned with iOS Message model (32 fields)
+// Message Entity — aligned with iOS Message model + Signal Protocol fields
 @Entity(
     tableName = "messages",
     indices = [Index("chatId"), Index("timestamp")]
@@ -213,7 +226,11 @@ data class MessageEntity(
     val longitude: Double? = null,
     val pollId: String? = null,
     val isForwarded: Boolean = false,
-    val mentionedUserIds: String? = null
+    val mentionedUserIds: String? = null,
+    // Signal Protocol E2EE fields
+    val ciphertext: String? = null, // Base64-encoded encrypted content
+    val signalType: Int = 1, // Signal Protocol message type (1=PreKey, 2=Whisper)
+    val isEncrypted: Boolean = false // Flag to indicate if message is encrypted
 )
 
 @Dao
