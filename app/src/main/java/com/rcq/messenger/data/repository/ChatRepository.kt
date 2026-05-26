@@ -10,6 +10,7 @@ import com.rcq.messenger.data.api.SendContactRequestBody
 import com.rcq.messenger.data.api.RCQApiService
 import com.rcq.messenger.data.db.*
 import com.rcq.messenger.domain.model.*
+import com.rcq.messenger.crypto.CryptoService
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -209,7 +210,8 @@ class ChatRepository @Inject constructor(
     private val api: RCQApiService,
     private val chatDao: ChatDao,
     private val messageDao: MessageDao,
-    private val webSocketService: WebSocketService
+    private val webSocketService: WebSocketService,
+    private val cryptoService: CryptoService
 ) {
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
@@ -290,11 +292,46 @@ class ChatRepository @Inject constructor(
     }
 
     suspend fun sendMessage(chatId: String, message: Message): Result<Message> = runCatching {
-        api.sendMessage(chatId, message).let { response ->
-            if (response.isSuccessful) response.body()!!.also {
-                messageDao.insertMessage(it.toEntity())
+        // Get recipient UIN from chat
+        val chat = chatDao.getChat(chatId) ?: throw Exception("Chat not found")
+        val recipientUin = chat.targetId
+
+        // Encrypt message content using Signal Protocol E2EE
+        val encrypted = cryptoService.encryptMessage(recipientUin, message.content)
+
+        // Create encrypted message entity for local storage
+        val encryptedMessageEntity = message.toEntity().copy(
+            ciphertext = encrypted.ciphertext,
+            signalType = encrypted.signalType,
+            isEncrypted = true,
+            status = "SENDING"
+        )
+
+        // Store encrypted message locally first
+        messageDao.insertMessage(encryptedMessageEntity)
+
+        // Send encrypted message to server
+        val encryptedMessage = message.copy(
+            content = encrypted.ciphertext, // Send encrypted content
+            status = MessageStatus.SENDING
+        )
+
+        api.sendMessage(chatId, encryptedMessage).let { response ->
+            if (response.isSuccessful) {
+                val sentMessage = response.body()!!
+                // Update local message with server response (keep encryption fields)
+                val updatedEntity = sentMessage.toEntity().copy(
+                    ciphertext = encrypted.ciphertext,
+                    signalType = encrypted.signalType,
+                    isEncrypted = true
+                )
+                messageDao.updateMessage(updatedEntity)
+                sentMessage
+            } else {
+                // Update local message status to failed
+                messageDao.updateMessage(encryptedMessageEntity.copy(status = "FAILED"))
+                throw Exception("Failed to send message: ${response.code()}")
             }
-            else throw Exception("Failed to send message")
         }
     }
 
@@ -429,5 +466,9 @@ private fun Message.toEntity() = MessageEntity(
     latitude = latitude,
     longitude = longitude,
     pollId = pollId,
-    mentionedUserIds = if (mentionedUserIds.isEmpty()) null else json.encodeToString(mentionedUserIds)
+    mentionedUserIds = if (mentionedUserIds.isEmpty()) null else json.encodeToString(mentionedUserIds),
+    // Signal Protocol E2EE fields - defaults for non-encrypted messages
+    ciphertext = null,
+    signalType = 1,
+    isEncrypted = false
 )
