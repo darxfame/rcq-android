@@ -3,6 +3,8 @@ package com.rcq.messenger.data.api
 import com.rcq.messenger.domain.model.*
 import retrofit2.Response
 import retrofit2.http.*
+import okhttp3.MultipartBody
+import okhttp3.ResponseBody
 
 interface RCQApiService {
 
@@ -246,6 +248,20 @@ interface RCQApiService {
 
     @POST("crypto/keys/refresh")
     suspend fun refreshPreKeys(@Body request: RefreshPreKeysRequest): Response<Unit>
+
+    // Media Upload/Download
+    @Multipart
+    @POST("media/upload")
+    suspend fun uploadMedia(@Part file: MultipartBody.Part): Response<MediaUploadResponse>
+
+    @GET("media/{mediaId}")
+    suspend fun downloadMedia(@Path("mediaId") mediaId: String): Response<ResponseBody>
+
+    @GET("media/usage")
+    suspend fun getMediaUsage(): Response<MediaUsageResponse>
+
+    @DELETE("media/{mediaId}")
+    suspend fun deleteMedia(@Path("mediaId") mediaId: String): Response<Unit>
 }
 
 // Request/Response classes
@@ -413,4 +429,20 @@ data class PreKeyBundleResponse(
 @kotlinx.serialization.Serializable
 data class RefreshPreKeysRequest(
     val preKeys: List<PreKeyData>
+)
+
+// Media API Data Classes
+@kotlinx.serialization.Serializable
+data class MediaUploadResponse(
+    val mediaId: String,
+    val url: String,
+    val size: Long,
+    val mimeType: String? = null
+)
+
+@kotlinx.serialization.Serializable
+data class MediaUsageResponse(
+    val usedBytes: Long,
+    val totalBytes: Long,
+    val fileCount: Int
 )
