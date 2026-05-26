@@ -249,84 +249,119 @@ fun MessageBubble(
         }
     }
 }
-                                modifier = Modifier
-                                    .size(200.dp)
-                                    .background(SurfaceVariant, RoundedCornerShape(8.dp)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(Icons.Default.Image, null, tint = TextSecondary)
-                            }
-                        }
-                        MessageKind.VOICE -> {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    Icons.Default.PlayArrow,
-                                    null,
-                                    tint = if (isOwnMessage) OnPrimary else TextPrimary
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = "0:00",
-                                    color = if (isOwnMessage) OnPrimary else TextPrimary
-                                )
-                            }
-                        }
-                        else -> {
-                            Text(
-                                text = message.content,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = if (isOwnMessage) OnPrimary else TextPrimary
-                            )
-                        }
-                    }
-                }
 
-                Spacer(modifier = Modifier.height(2.dp))
+private fun formatTimestamp(timestamp: Long): String {
+    val sdf = SimpleDateFormat("HH:mm", Locale.getDefault())
+    return sdf.format(Date(timestamp))
+}
 
+@Composable
+fun MessageStatusIcon(status: MessageStatus) {
+    when (status) {
+        MessageStatus.SENDING -> {
+            Icon(
+                imageVector = Icons.Default.Schedule,
+                contentDescription = "Sending",
+                tint = TextSecondary,
+                modifier = Modifier.size(12.dp)
+            )
+        }
+        MessageStatus.SENT -> {
+            Icon(
+                imageVector = Icons.Default.Check,
+                contentDescription = "Sent",
+                tint = TextSecondary,
+                modifier = Modifier.size(12.dp)
+            )
+        }
+        MessageStatus.DELIVERED -> {
+            Icon(
+                imageVector = Icons.Default.DoneAll,
+                contentDescription = "Delivered",
+                tint = TextSecondary,
+                modifier = Modifier.size(12.dp)
+            )
+        }
+        MessageStatus.READ -> {
+            Icon(
+                imageVector = Icons.Default.DoneAll,
+                contentDescription = "Read",
+                tint = Primary,
+                modifier = Modifier.size(12.dp)
+            )
+        }
+        MessageStatus.FAILED -> {
+            Icon(
+                imageVector = Icons.Default.Error,
+                contentDescription = "Failed",
+                tint = MaterialTheme.colorScheme.error,
+                modifier = Modifier.size(12.dp)
+            )
+        }
+    }
+}
+
+@Composable
+fun TypingIndicator(
+    isVisible: Boolean,
+    userName: String = "User"
+) {
+    if (isVisible) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .background(SurfaceVariant),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("U", color = Primary, style = MaterialTheme.typography.labelMedium)
+            }
+
+            Spacer(modifier = Modifier.width(8.dp))
+
+            Box(
+                modifier = Modifier
+                    .background(MessageReceived, RoundedCornerShape(16.dp))
+                    .padding(12.dp)
+            ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(message.timestamp)),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = TextTertiary
+                        text = "$userName печатает",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextSecondary
                     )
-                    if (isOwnMessage) {
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Icon(
-                            imageVector = when (message.status) {
-                                MessageStatus.SENDING -> Icons.Default.AccessTime
-                                MessageStatus.SENT -> Icons.Default.Check
-                                MessageStatus.DELIVERED -> Icons.Default.DoneAll
-                                MessageStatus.READ -> Icons.Default.DoneAll
-                                MessageStatus.FAILED -> Icons.Default.Error
-                            },
-                            contentDescription = null,
-                            modifier = Modifier.size(14.dp),
-                            tint = when (message.status) {
-                                MessageStatus.READ -> Primary
-                                MessageStatus.FAILED -> Error
-                                else -> TextTertiary
-                            }
-                        )
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    // Animated dots
+                    Row {
+                        repeat(3) { index ->
+                            val alpha by animateFloatAsState(
+                                targetValue = if ((System.currentTimeMillis() / 500) % 3 == index.toLong()) 1f else 0.3f,
+                                animationSpec = tween(500),
+                                label = "typing_dot_$index"
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .size(4.dp)
+                                    .background(
+                                        TextSecondary.copy(alpha = alpha),
+                                        CircleShape
+                                    )
+                            )
+                            if (index < 2) Spacer(modifier = Modifier.width(2.dp))
+                        }
                     }
                 }
             }
         }
     }
 }
-
-@Composable
-fun ReplyPreview(
-    message: Message,
-    onCancel: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Surface)
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
             modifier = Modifier
                 .width(3.dp)
                 .height(40.dp)
