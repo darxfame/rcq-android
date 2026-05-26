@@ -6,9 +6,6 @@ on:
   pull_request:
     branches: [ main, develop ]
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -25,16 +22,8 @@ jobs:
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
       with:
-        api-level: 34
-        build-tools: 34.0.0
-
-    - name: Accept Android SDK licenses
-      run: |
-        mkdir -p $ANDROID_HOME/licenses
-        echo "24333f8a63b6825ea9c5514f83c2829b004d1fee" > $ANDROID_HOME/licenses/android-sdk-license
-        echo "84831b9409646a918e30573bab4c9c91346d8abd" > $ANDROID_HOME/licenses/android-sdk-preview-license
-        echo "d975f751698a77b662f1254ddbeed3901e976f5a" > $ANDROID_HOME/licenses/intel-android-extra-license
-        yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+        accept-android-sdk-licenses: true
+        log-accepted-android-sdk-licenses: false
 
     - name: Cache Gradle packages
       uses: actions/cache@v4
@@ -53,9 +42,9 @@ jobs:
       run: ./gradlew clean
 
     - name: Build debug APK
-      run: ./gradlew assembleDebug --stacktrace --info
+      run: ./gradlew assembleDebug --stacktrace
 
-    - name: Run unit tests
+    - name: Run unit tests (continue on failure)
       run: ./gradlew testDebugUnitTest --continue || true
 
     - name: Upload APK
