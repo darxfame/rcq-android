@@ -4,6 +4,7 @@ import android.app.Service
 import android.content.Intent
 import android.os.Binder
 import android.os.IBinder
+import com.rcq.messenger.call.CallManager
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -14,6 +15,9 @@ import javax.inject.Inject
 
 @AndroidEntryPoint
 class CallService : Service() {
+
+    @Inject
+    lateinit var callManager: CallManager
 
     private val binder = LocalBinder()
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -27,6 +31,12 @@ class CallService : Service() {
     private val _callState = MutableStateFlow(CallState.IDLE)
     val callState: StateFlow<CallState> = _callState.asStateFlow()
 
+    private val _isMuted = MutableStateFlow(false)
+    val isMuted: StateFlow<Boolean> = _isMuted.asStateFlow()
+
+    private val _isSpeakerOn = MutableStateFlow(false)
+    val isSpeakerOn: StateFlow<Boolean> = _isSpeakerOn.asStateFlow()
+
     inner class LocalBinder : Binder() {
         fun getService(): CallService = this@CallService
     }
@@ -36,11 +46,13 @@ class CallService : Service() {
     override fun onCreate() {
         super.onCreate()
         initializeWebRTC()
+        callManager.bindCallService(this)
     }
 
     override fun onDestroy() {
         super.onDestroy()
         cleanup()
+        callManager.unbindCallService()
         serviceScope.cancel()
     }
 
@@ -100,7 +112,12 @@ class CallService : Service() {
                 }
                 override fun onIceConnectionReceivingChange(receiving: Boolean) {}
                 override fun onIceGatheringChange(state: PeerConnection.IceGatheringState?) {}
-                override fun onIceCandidate(candidate: IceCandidate?) {}
+                override fun onIceCandidate(candidate: IceCandidate?) {
+                    candidate?.let {
+                        // Send ICE candidate via CallManager/WebSocket
+                        // callManager.sendIceCandidate(it)
+                    }
+                }
                 override fun onIceCandidatesRemoved(candidates: Array<out IceCandidate>?) {}
                 override fun onAddStream(stream: MediaStream?) {
                     remoteVideoTrack = stream?.videoTracks?.firstOrNull()
@@ -128,10 +145,74 @@ class CallService : Service() {
 
     fun setMicrophoneEnabled(enabled: Boolean) {
         localAudioTrack?.setEnabled(enabled)
+        _isMuted.value = !enabled
     }
 
     fun setSpeakerphoneOn(on: Boolean) {
-        // Enable/disable speakerphone
+        _isSpeakerOn.value = on
+        // TODO: Implement actual speakerphone control
+    }
+
+    fun addIceCandidate(candidate: IceCandidate) {
+        peerConnection?.addIceCandidate(candidate)
+    }
+
+    fun createOffer(callback: (SessionDescription?) -> Unit) {
+        val constraints = MediaConstraints().apply {
+            mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveAudio", "true"))
+            mandatory.add(MediaConstraints.KeyValuePair("OfferToReceiveVideo", "true"))
+        }
+
+        peerConnection?.createOffer(object : SdpObserver {
+            override fun onCreateSuccess(sessionDescription: SessionDescription?) {
+                peerConnection?.setLocalDescription(object : SdpObserver {
+                    override fun onSetSuccess() {
+                        callback(sessionDescription)
+                    }
+                    override fun onCreateSuccess(p0: SessionDescription?) {}
+                    override fun onSetFailure(p0: String?) {}
+                    override fun onCreateFailure(p0: String?) {}
+                }, sessionDescription)
+            }
+            override fun onSetSuccess() {}
+            override fun onCreateFailure(error: String?) {
+                callback(null)
+            }
+            override fun onSetFailure(error: String?) {}
+        }, constraints)
+    }
+
+    fun createAnswer(callback: (SessionDescription?) -> Unit) {
+        val constraints = MediaConstraints()
+
+        peerConnection?.createAnswer(object : SdpObserver {
+            override fun onCreateSuccess(sessionDescription: SessionDescription?) {
+                peerConnection?.setLocalDescription(object : SdpObserver {
+                    override fun onSetSuccess() {
+                        callback(sessionDescription)
+                    }
+                    override fun onCreateSuccess(p0: SessionDescription?) {}
+                    override fun onSetFailure(p0: String?) {}
+                    override fun onCreateFailure(p0: String?) {}
+                }, sessionDescription)
+            }
+            override fun onSetSuccess() {}
+            override fun onCreateFailure(error: String?) {
+                callback(null)
+            }
+            override fun onSetFailure(error: String?) {}
+        }, constraints)
+    }
+
+    fun setRemoteDescription(sessionDescription: SessionDescription, callback: () -> Unit) {
+        peerConnection?.setRemoteDescription(object : SdpObserver {
+            override fun onSetSuccess() {
+                callback()
+            }
+            override fun onCreateSuccess(p0: SessionDescription?) {}
+            override fun onSetFailure(p0: String?) {}
+            override fun onCreateFailure(p0: String?) {}
+        }, sessionDescription)
     }
 
     private fun cleanup() {

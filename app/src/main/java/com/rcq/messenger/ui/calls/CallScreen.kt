@@ -15,7 +15,9 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.rcq.messenger.call.CallManager
 import com.rcq.messenger.data.repository.ChatRepository
+import com.rcq.messenger.service.CallService
 import com.rcq.messenger.service.CallState
 import com.rcq.messenger.ui.theme.*
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -27,7 +29,8 @@ import javax.inject.Inject
 
 @HiltViewModel
 class CallViewModel @Inject constructor(
-    private val chatRepository: ChatRepository
+    private val chatRepository: ChatRepository,
+    private val callManager: CallManager
 ) : ViewModel() {
 
     private val _callState = MutableStateFlow(CallState.IDLE)
@@ -45,32 +48,79 @@ class CallViewModel @Inject constructor(
     private val _targetNickname = MutableStateFlow("User")
     val targetNickname: StateFlow<String> = _targetNickname.asStateFlow()
 
-    fun startCall(chatId: String) {
-        _callState.value = CallState.CONNECTING
-        // TODO: Integrate with CallService for WebRTC
+    private var callService: CallService? = null
+
+    init {
+        // Observe CallManager state
+        viewModelScope.launch {
+            callManager.currentCall.collect { callInfo ->
+                callInfo?.let {
+                    _callState.value = it.state
+                }
+            }
+        }
     }
 
-    fun acceptIncomingCall() {
+    fun startCall(chatId: String, targetUin: Long) {
         _callState.value = CallState.CONNECTING
-        // TODO: Accept incoming call via CallService
+        callManager.startCall(targetUin, isVideoCall = false)
     }
 
-    fun declineCall() {
-        _callState.value = CallState.ENDED
+    fun startVideoCall(chatId: String, targetUin: Long) {
+        _callState.value = CallState.CONNECTING
+        callManager.startCall(targetUin, isVideoCall = true)
+    }
+
+    fun acceptIncomingCall(callId: String) {
+        callManager.acceptCall(callId)
+    }
+
+    fun declineCall(callId: String) {
+        callManager.declineCall(callId)
     }
 
     fun endCall() {
+        callManager.endCall()
         _callState.value = CallState.ENDED
     }
 
     fun toggleMute() {
-        _isMuted.value = !_isMuted.value
-        // TODO: Call service to mute/unmute
+        val newMuteState = !_isMuted.value
+        _isMuted.value = newMuteState
+        callService?.setMicrophoneEnabled(!newMuteState)
     }
 
     fun toggleSpeaker() {
-        _isSpeakerOn.value = !_isSpeakerOn.value
-        // TODO: Call service to toggle speaker
+        val newSpeakerState = !_isSpeakerOn.value
+        _isSpeakerOn.value = newSpeakerState
+        callService?.setSpeakerphoneOn(newSpeakerState)
+    }
+
+    fun bindCallService(service: CallService) {
+        callService = service
+
+        // Observe service state
+        viewModelScope.launch {
+            service.callState.collect { state ->
+                _callState.value = state
+            }
+        }
+
+        viewModelScope.launch {
+            service.isMuted.collect { muted ->
+                _isMuted.value = muted
+            }
+        }
+
+        viewModelScope.launch {
+            service.isSpeakerOn.collect { speakerOn ->
+                _isSpeakerOn.value = speakerOn
+            }
+        }
+    }
+
+    fun unbindCallService() {
+        callService = null
     }
 }
 
