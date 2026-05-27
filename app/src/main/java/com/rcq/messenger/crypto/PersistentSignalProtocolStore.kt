@@ -245,7 +245,8 @@ class PersistentSignalProtocolStore @Inject constructor(
     }
 
     private fun generateRegistrationId(): Int {
-        val registrationId = (Math.random() * 16380 + 1).toInt()
+        // Используем криптографически стойкий RNG для registration ID
+        val registrationId = org.signal.libsignal.protocol.util.KeyHelper.generateRegistrationId(false)
         runBlocking {
             val entity = SignalKeyEntity(
                 id = "registration_id",
