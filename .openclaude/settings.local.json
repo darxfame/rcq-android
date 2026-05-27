@@ -49,7 +49,20 @@
       "Skill(commit-commands:commit)",
       "Bash(./gradlew compileDebugKotlin --info)",
       "Bash(./gradlew kspDebugKotlin --info)",
-      "Bash(./gradlew kspDebugKotlin)"
+      "Bash(./gradlew kspDebugKotlin)",
+      "Bash(./gradlew assembleDebug -Pksp.incremental=false --rerun-tasks)",
+      "Bash(./gradlew kspDebugKotlin --stacktrace)",
+      "Bash(./gradlew --stop)",
+      "Bash(./gradlew kspDebugKotlin --no-daemon)",
+      "Bash(./gradlew assembleDebug --no-daemon)",
+      "Bash(./gradlew assembleDebug --no-daemon --stacktrace)",
+      "Bash(./gradlew :app:compileDebugKotlin --no-daemon)",
+      "mcp__plugin_context7_context7__resolve-library-id",
+      "WebSearch",
+      "Bash(./gradlew :app:dependencies --configuration debugCompileClasspath)",
+      "Bash(ANDROID_HOME=/opt/android-sdk PATH=\"$PATH:/opt/android-sdk/cmdline-tools/latest/bin:/opt/android-sdk/platform-tools\" ./gradlew kspDebugKotlin)",
+      "Bash(ANDROID_HOME=/opt/android-sdk PATH=\"$PATH:/opt/android-sdk/cmdline-tools/latest/bin:/opt/android-sdk/platform-tools\" ./gradlew assembleDebug --stacktrace)",
+      "Bash(ANDROID_HOME=/opt/android-sdk PATH=\"$PATH:/opt/android-sdk/cmdline-tools/latest/bin:/opt/android-sdk/platform-tools\" ./gradlew compileDebugKotlin --console=plain)"
     ]
   }
 }

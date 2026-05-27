@@ -85,7 +85,7 @@ class AuthViewModel @Inject constructor(
                     _isAuthenticated.value = true
                     _authState.value = AuthState.Authenticated
                     // Connect WebSocket after successful authentication
-                    webSocketService.connect()
+                    webSocketManager.connect()
                 } else {
                     _authState.value = AuthState.Onboarding
                 }
@@ -160,7 +160,7 @@ class AuthViewModel @Inject constructor(
                 _isAuthenticated.value = true
                 _authState.value = AuthState.Authenticated
                 // Connect WebSocket after confirming recovery phrase
-                webSocketService.connect()
+                webSocketManager.connect()
             }
         }
     }
