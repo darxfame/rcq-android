@@ -114,7 +114,7 @@ dependencies {
     implementation("androidx.biometric:biometric:1.1.0")
 
     // Signal Protocol E2EE
-    implementation("org.signal:libsignal-android:0.33.0")
+    implementation("org.signal:libsignal-android:0.31.0")
 
     // WebRTC
     implementation("io.getstream:stream-webrtc-android:1.1.1")

@@ -72,14 +72,14 @@ fun MediaMessageBubble(
                             onImageClick = { onMediaClick(message.mediaId ?: "") }
                         )
                     }
-                    MessageKind.VIDEO -> {
+                    "video" -> {
                         VideoMessageContent(
                             message = message,
                             isOwnMessage = isOwnMessage,
                             onVideoClick = { onMediaClick(message.mediaId ?: "") }
                         )
                     }
-                    MessageKind.VOICE -> {
+                    "audio" -> {
                         VoiceMessageContent(
                             message = message,
                             isOwnMessage = isOwnMessage,
@@ -88,7 +88,7 @@ fun MediaMessageBubble(
                             playbackState = playbackState
                         )
                     }
-                    MessageKind.FILE -> {
+                    "file" -> {
                         FileMessageContent(
                             message = message,
                             isOwnMessage = isOwnMessage,

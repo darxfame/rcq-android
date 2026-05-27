@@ -83,7 +83,7 @@ object AppModule {
             context,
             RCQDatabase::class.java,
             "rcq_database"
-        ).fallbackToDestructiveMigration().build()
+        ).addMigrations(RCQDatabase.MIGRATION_6_7, RCQDatabase.MIGRATION_7_8).build()
     }
 
     @Provides

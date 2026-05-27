@@ -12,6 +12,7 @@ import com.rcq.messenger.data.db.GroupDao
 import com.rcq.messenger.data.db.StoryDao
 import com.rcq.messenger.data.db.CallDao
 import com.rcq.messenger.data.db.PetDao
+import com.rcq.messenger.data.db.SignalKeyDao
 
 @Database(
     entities = [
@@ -23,9 +24,10 @@ import com.rcq.messenger.data.db.PetDao
         StoryEntity::class,
         StoryItemEntity::class,
         CallEntity::class,
-        PetEntity::class
+        PetEntity::class,
+        SignalKeyEntity::class
     ],
-    version = 7,
+    version = 8,
     exportSchema = false
 )
 @TypeConverters(RoomTypeConverters::class)
@@ -39,6 +41,8 @@ abstract class RCQDatabase : RoomDatabase() {
     abstract fun callDao(): CallDao
     abstract fun petDao(): PetDao
 
+    abstract fun signalKeyDao(): SignalKeyDao
+
     companion object {
         val MIGRATION_6_7 = object : Migration(6, 7) {
             override fun migrate(database: SupportSQLiteDatabase) {
@@ -46,6 +50,23 @@ abstract class RCQDatabase : RoomDatabase() {
                 database.execSQL("ALTER TABLE messages ADD COLUMN ciphertext TEXT")
                 database.execSQL("ALTER TABLE messages ADD COLUMN signalType INTEGER NOT NULL DEFAULT 1")
                 database.execSQL("ALTER TABLE messages ADD COLUMN isEncrypted INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
+        val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                // Add Signal Protocol keys storage table
+                database.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `signal_keys` (
+                        `id` TEXT NOT NULL,
+                        `keyType` TEXT NOT NULL,
+                        `address` TEXT,
+                        `keyId` INTEGER,
+                        `keyData` BLOB NOT NULL,
+                        `timestamp` INTEGER NOT NULL,
+                        PRIMARY KEY(`id`)
+                    )
+                """.trimIndent())
             }
         }
     }

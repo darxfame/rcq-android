@@ -54,7 +54,9 @@ class SessionManager @Inject constructor(
      * Generate pre-keys for registration
      */
     fun generatePreKeys(): List<String> {
-        val preKeys = KeyHelper.generatePreKeys(1, 100)
+        val preKeys = (1..100).map { id ->
+            PreKeyRecord.generate(id)
+        }
         return preKeys.map { preKey ->
             Base64.encodeToString(preKey.serialize(), Base64.NO_WRAP)
         }
@@ -64,9 +66,9 @@ class SessionManager @Inject constructor(
      * Generate signed pre-key for registration
      */
     fun generateSignedPreKey(): String {
-        val signedPreKey = KeyHelper.generateSignedPreKey(
-            signalKeyStore.identityKeyPair,
-            1
+        val signedPreKey = SignedPreKeyRecord.generate(
+            1,
+            signalKeyStore.identityKeyPair
         )
         return Base64.encodeToString(signedPreKey.serialize(), Base64.NO_WRAP)
     }

@@ -40,11 +40,11 @@ class CallManager @Inject constructor(
     private fun observeWebSocketEvents() {
         scope.launch {
             webSocketManager.eventFlow.collect { event ->
-                when (event) {
-                    is WebSocketEvent.CallOffer -> handleCallOffer(event)
-                    is WebSocketEvent.CallAnswer -> handleCallAnswer(event)
-                    is WebSocketEvent.CallIceCandidate -> handleIceCandidate(event)
-                    is WebSocketEvent.CallEnd -> handleCallEnd(event)
+                when (event.type) {
+                    WebSocketEvent.TYPE_CALL_OFFER -> handleCallOffer(event)
+                    WebSocketEvent.TYPE_CALL_ANSWER -> handleCallAnswer(event)
+                    WebSocketEvent.TYPE_CALL_ICE_CANDIDATE -> handleIceCandidate(event)
+                    WebSocketEvent.TYPE_CALL_END -> handleCallEnd(event)
                     else -> {}
                 }
             }
@@ -135,68 +135,92 @@ class CallManager @Inject constructor(
         }
     }
 
-    private fun handleCallOffer(event: WebSocketEvent.CallOffer) {
-        val incomingCall = IncomingCallInfo(
-            callId = event.callId,
-            callerUin = event.fromUin,
-            callerName = event.callerName ?: "Unknown",
-            isVideoCall = event.isVideoCall,
-            timestamp = System.currentTimeMillis()
-        )
-        _incomingCall.value = incomingCall
+    private fun handleCallOffer(event: WebSocketEvent) {
+        try {
+            val data = json.decodeFromString<Map<String, String>>(event.data ?: "{}")
+            val incomingCall = IncomingCallInfo(
+                callId = data["callId"] ?: "",
+                callerUin = data["fromUin"]?.toLongOrNull() ?: 0L,
+                callerName = "User ${data["fromUin"]}", // TODO: получить имя из UserRepository
+                isVideoCall = data["callType"] == "video",
+                timestamp = System.currentTimeMillis()
+            )
+            _incomingCall.value = incomingCall
+        } catch (e: Exception) {
+            // Log error parsing call offer
+        }
     }
 
-    private fun handleCallAnswer(event: WebSocketEvent.CallAnswer) {
-        val currentCall = _currentCall.value
-        if (currentCall?.callId == event.callId) {
-            if (event.accepted) {
-                _currentCall.value = currentCall.copy(state = CallState.CONNECTED)
-            } else {
+    private fun handleCallAnswer(event: WebSocketEvent) {
+        try {
+            val data = json.decodeFromString<Map<String, String>>(event.data ?: "{}")
+            val currentCall = _currentCall.value
+            val callId = data["callId"]
+            if (currentCall?.callId == callId) {
+                val accepted = data["accepted"]?.toBoolean() ?: false
+                if (accepted) {
+                    _currentCall.value = currentCall?.copy(state = CallState.CONNECTED)
+                } else {
+                    _currentCall.value = null
+                    // Stop CallService
+                    val intent = Intent(context, CallService::class.java)
+                    context.stopService(intent)
+                }
+            }
+        } catch (e: Exception) {
+            // Log error parsing call answer
+        }
+    }
+
+    private fun handleIceCandidate(event: WebSocketEvent) {
+        try {
+            val data = json.decodeFromString<Map<String, String>>(event.data ?: "{}")
+            val sdpMid = data["sdpMid"]
+            val sdpMLineIndex = data["sdpMLineIndex"]?.toIntOrNull() ?: 0
+            val candidate = data["candidate"]
+
+            if (candidate != null) {
+                callService?.addIceCandidate(
+                    IceCandidate(sdpMid, sdpMLineIndex, candidate)
+                )
+            }
+        } catch (e: Exception) {
+            // Log error parsing ICE candidate
+        }
+    }
+
+    private fun handleCallEnd(event: WebSocketEvent) {
+        try {
+            val data = json.decodeFromString<Map<String, String>>(event.data ?: "{}")
+            val callId = data["callId"]
+            val currentCall = _currentCall.value
+            if (currentCall?.callId == callId) {
                 _currentCall.value = null
+
                 // Stop CallService
                 val intent = Intent(context, CallService::class.java)
                 context.stopService(intent)
             }
-        }
-    }
 
-    private fun handleIceCandidate(event: WebSocketEvent.CallIceCandidate) {
-        // Forward ICE candidate to CallService
-        callService?.addIceCandidate(
-            IceCandidate(
-                event.sdpMid,
-                event.sdpMLineIndex,
-                event.candidate
-            )
-        )
-    }
-
-    private fun handleCallEnd(event: WebSocketEvent.CallEnd) {
-        val currentCall = _currentCall.value
-        if (currentCall?.callId == event.callId) {
-            _currentCall.value = null
-
-            // Stop CallService
-            val intent = Intent(context, CallService::class.java)
-            context.stopService(intent)
-        }
-
-        // Clear incoming call if it matches
-        val incomingCall = _incomingCall.value
-        if (incomingCall?.callId == event.callId) {
-            _incomingCall.value = null
+            // Clear incoming call if it matches
+            val incomingCall = _incomingCall.value
+            if (incomingCall?.callId == callId) {
+                _incomingCall.value = null
+            }
+        } catch (e: Exception) {
+            // Log error parsing call end
         }
     }
 
     private fun sendWebSocketMessage(type: String, data: Any) {
         scope.launch {
             try {
-                val message = mapOf(
-                    "type" to type,
-                    "data" to data
+                val dataJson = json.encodeToString(data)
+                val event = WebSocketEvent(
+                    type = type,
+                    data = dataJson
                 )
-                val jsonMessage = json.encodeToString(message)
-                webSocketManager.sendMessage(jsonMessage)
+                webSocketManager.sendMessage(event)
             } catch (e: Exception) {
                 // Handle error
             }

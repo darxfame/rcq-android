@@ -120,6 +120,27 @@ util/         - Utility functions and extensions
 
 ## Development Guidelines
 
+### CRITICAL: Superpowers Skills Usage
+**MANDATORY RULE: Always use Superpowers skills before any development work.**
+
+- **BEFORE starting ANY task** - invoke `superpowers:using-superpowers` to check for applicable skills
+- **For debugging** - ALWAYS use `superpowers:systematic-debugging` before attempting fixes
+- **For implementation** - use `superpowers:test-driven-development` for features/fixes
+- **For planning** - use `superpowers:writing-plans` for complex tasks
+- **For code review** - use `superpowers:requesting-code-review` after completion
+- **For verification** - use `superpowers:verification-before-completion` before claiming done
+
+**This is NOT optional. Skills prevent wasted effort and ensure quality.**
+
+### Rate Limiting Handling
+**MANDATORY RULE: Handle API rate limits properly.**
+
+- When receiving "Too many requests, please try again later" or "Service temporarily unavailable"
+- WAIT 30 seconds before retrying
+- Do NOT immediately retry or spam requests
+- Use exponential backoff for subsequent failures
+- This prevents API quota exhaustion and service degradation
+
 ### Database Changes
 - Always create Room migrations for schema changes
 - Test migrations with existing data

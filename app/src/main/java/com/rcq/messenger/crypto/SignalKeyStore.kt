@@ -3,57 +3,115 @@ package com.rcq.messenger.crypto
 import org.signal.libsignal.protocol.IdentityKey
 import org.signal.libsignal.protocol.IdentityKeyPair
 import org.signal.libsignal.protocol.SignalProtocolAddress
-import org.signal.libsignal.protocol.SignalProtocolException
+import org.signal.libsignal.protocol.groups.state.SenderKeyRecord
+import org.signal.libsignal.protocol.state.IdentityKeyStore
 import org.signal.libsignal.protocol.state.PreKeyRecord
 import org.signal.libsignal.protocol.state.SessionRecord
+import org.signal.libsignal.protocol.state.SignalProtocolStore
 import org.signal.libsignal.protocol.state.SignedPreKeyRecord
-import org.signal.libsignal.protocol.state.impl.InMemorySignalProtocolStore
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/**
+ * SignalKeyStore теперь делегирует все операции к PersistentSignalProtocolStore
+ * для обеспечения персистентного хранения E2EE ключей
+ */
 @Singleton
 class SignalKeyStore @Inject constructor(
-    private val identityKeyPair: IdentityKeyPair
-) : InMemorySignalProtocolStore(identityKeyPair, 0) {
+    private val persistentStore: PersistentSignalProtocolStore
+) : SignalProtocolStore {
 
-    override fun storeSession(address: SignalProtocolAddress, record: SessionRecord) {
-        super.storeSession(address, record)
-        // TODO: Persist to DB async when SignalKeyDao is implemented
+    // Делегируем все методы к персистентному хранилищу
+    override fun getIdentityKeyPair(): IdentityKeyPair = persistentStore.getIdentityKeyPair()
+
+    override fun getLocalRegistrationId(): Int = persistentStore.getLocalRegistrationId()
+
+    override fun saveIdentity(address: SignalProtocolAddress, identityKey: IdentityKey): Boolean =
+        persistentStore.saveIdentity(address, identityKey)
+
+    override fun isTrustedIdentity(
+        address: SignalProtocolAddress,
+        identityKey: IdentityKey,
+        direction: IdentityKeyStore.Direction
+    ): Boolean = persistentStore.isTrustedIdentity(address, identityKey, direction)
+
+    override fun getIdentity(address: SignalProtocolAddress): IdentityKey? =
+        persistentStore.getIdentity(address)
+
+    override fun loadPreKey(preKeyId: Int): PreKeyRecord = persistentStore.loadPreKey(preKeyId)
+
+    override fun storePreKey(preKeyId: Int, record: PreKeyRecord) =
+        persistentStore.storePreKey(preKeyId, record)
+
+    override fun containsPreKey(preKeyId: Int): Boolean = persistentStore.containsPreKey(preKeyId)
+
+    override fun removePreKey(preKeyId: Int) = persistentStore.removePreKey(preKeyId)
+
+    override fun loadSignedPreKey(signedPreKeyId: Int): SignedPreKeyRecord =
+        persistentStore.loadSignedPreKey(signedPreKeyId)
+
+    override fun loadSignedPreKeys(): List<SignedPreKeyRecord> = persistentStore.loadSignedPreKeys()
+
+    override fun storeSignedPreKey(signedPreKeyId: Int, record: SignedPreKeyRecord) =
+        persistentStore.storeSignedPreKey(signedPreKeyId, record)
+
+    override fun containsSignedPreKey(signedPreKeyId: Int): Boolean =
+        persistentStore.containsSignedPreKey(signedPreKeyId)
+
+    override fun removeSignedPreKey(signedPreKeyId: Int) = persistentStore.removeSignedPreKey(signedPreKeyId)
+
+    override fun loadSession(address: SignalProtocolAddress): SessionRecord =
+        persistentStore.loadSession(address)
+
+    override fun getSubDeviceSessions(name: String): List<Int> =
+        persistentStore.getSubDeviceSessions(name)
+
+    override fun storeSession(address: SignalProtocolAddress, record: SessionRecord) =
+        persistentStore.storeSession(address, record)
+
+    override fun containsSession(address: SignalProtocolAddress): Boolean =
+        persistentStore.containsSession(address)
+
+    override fun deleteSession(address: SignalProtocolAddress) = persistentStore.deleteSession(address)
+
+    override fun deleteAllSessions(name: String) = persistentStore.deleteAllSessions(name)
+
+    override fun storeSenderKey(
+        sender: SignalProtocolAddress,
+        distributionId: java.util.UUID,
+        record: SenderKeyRecord
+    ) = persistentStore.storeSenderKey(sender, distributionId, record)
+
+    override fun loadSenderKey(
+        sender: SignalProtocolAddress,
+        distributionId: java.util.UUID
+    ): SenderKeyRecord? = persistentStore.loadSenderKey(sender, distributionId)
+
+    // Дополнительные методы для совместимости и инициализации
+    fun getStoredIdentityKeyPair(): IdentityKeyPair = getIdentityKeyPair()
+
+    fun getStoredRegistrationId(): Int = getLocalRegistrationId()
+
+    fun hasActiveSession(address: SignalProtocolAddress): Boolean = containsSession(address)
+
+    fun initializeIdentityKeyPair(keyPair: IdentityKeyPair) {
+        persistentStore.storeIdentityKeyPair(keyPair)
     }
 
-    override fun loadSession(address: SignalProtocolAddress): SessionRecord {
-        return super.loadSession(address)
+    // Pre-key management
+    fun generatePreKeys(start: Int, count: Int): List<PreKeyRecord> {
+        val preKeys = mutableListOf<PreKeyRecord>()
+        for (i in start until start + count) {
+            val preKey = PreKeyRecord.generate(i)
+            storePreKey(i, preKey)
+            preKeys.add(preKey)
+        }
+        return preKeys
     }
 
-    override fun storePreKey(preKeyId: Int, record: PreKeyRecord) {
-        super.storePreKey(preKeyId, record)
-    }
-
-    override fun loadPreKey(preKeyId: Int): PreKeyRecord {
-        return super.loadPreKey(preKeyId) ?: throw SignalProtocolException("PreKey $preKeyId not found")
-    }
-
-    override fun storeSignedPreKey(signedPreKeyId: Int, record: SignedPreKeyRecord) {
-        super.storeSignedPreKey(signedPreKeyId, record)
-    }
-
-    override fun loadSignedPreKey(signedPreKeyId: Int): SignedPreKeyRecord {
-        return super.loadSignedPreKey(signedPreKeyId) ?: throw SignalProtocolException("SignedPreKey $signedPreKeyId not found")
-    }
-
-    override fun isTrustedIdentity(address: SignalProtocolAddress, identityKey: IdentityKey, direction: org.signal.libsignal.protocol.state.IdentityKeyStore.Direction): Boolean {
-        return super.isTrustedIdentity(address, identityKey, direction)
-    }
-
-    override fun getIdentityKeyPair(): IdentityKeyPair {
-        return super.getIdentityKeyPair()
-    }
-
-    override fun getLocalRegistrationId(): Int {
-        return super.getLocalRegistrationId()
-    }
-
-    override fun saveIdentity(address: SignalProtocolAddress, identityKey: IdentityKey): Boolean {
-        return super.saveIdentity(address, identityKey)
+    fun generateSignedPreKey(signedPreKeyId: Int, identityKeyPair: IdentityKeyPair): SignedPreKeyRecord {
+        val signedPreKey = SignedPreKeyRecord.generate(signedPreKeyId, identityKeyPair)
+        storeSignedPreKey(signedPreKeyId, signedPreKey)
+        return signedPreKey
     }
 }
