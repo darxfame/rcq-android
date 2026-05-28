@@ -47,6 +47,13 @@ dependencies {
     implementation(libs.okhttp.logging)
     implementation(libs.gson)
 
+    // X25519 + Ed25519 keygen via the BouncyCastle lightweight API.
+    // JCA's "XDH"/"Ed25519" KeyPairGenerators only exist on API 33+,
+    // and minSdk is 26 — BC's generators work everywhere and give raw
+    // 32-byte key access, which is exactly the wire format the backend
+    // expects (base64 of raw public keys, per rcq-spec 2.2).
+    implementation(libs.bouncycastle)
+
     // Encrypted-at-rest storage for the per-account identity (UIN, JWT,
     // private keys) — the Android equivalent of the iOS Keychain.
     implementation(libs.androidx.datastore)

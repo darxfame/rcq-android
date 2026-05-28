@@ -4,7 +4,7 @@
 # thin-MVP dependency set; Maps / CameraX / Coil / Play Services / Firebase
 # from the original catalogue are intentionally dropped and will be added
 # back per feature when needed (e.g. Firebase only when we wire FCM push).
-agp = "9.1.0"
+agp = "9.1.1"
 kotlin = "2.2.10"
 coreKtx = "1.10.1"
 lifecycleRuntimeKtx = "2.6.1"
@@ -15,6 +15,7 @@ okhttp = "4.12.0"
 gson = "2.10.1"
 datastore = "1.0.0"
 security = "1.1.0-alpha06"
+bouncycastle = "1.78.1"
 junit = "4.13.2"
 junitVersion = "1.1.5"
 espressoCore = "3.5.1"
@@ -38,6 +39,7 @@ androidx-security-crypto = { group = "androidx.security", name = "security-crypt
 okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
 okhttp-logging = { group = "com.squareup.okhttp3", name = "logging-interceptor", version.ref = "okhttp" }
 gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }
+bouncycastle = { group = "org.bouncycastle", name = "bcprov-jdk18on", version.ref = "bouncycastle" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
