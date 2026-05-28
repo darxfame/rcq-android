@@ -50,6 +50,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -171,6 +172,7 @@ private fun Home(session: Session, uin: Int, onOpenChat: (Int) -> Unit, onOpenSe
     val contacts by session.contacts.collectAsState()
     val pending by session.pending.collectAsState()
     val connected by session.connected.collectAsState()
+    val messages by session.messages.collectAsState()
     var showAdd by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
@@ -209,7 +211,8 @@ private fun Home(session: Session, uin: Int, onOpenChat: (Int) -> Unit, onOpenSe
                 }
             } else if (contacts.isNotEmpty()) {
                 item { SectionLabel("Contacts") }
-                items(contacts) { c -> ContactRow(c, onClick = { onOpenChat(c.uin) }) }
+                val sorted = contacts.sortedByDescending { messages[it.uin]?.lastOrNull()?.sentAt ?: 0L }
+                items(sorted) { c -> ContactRow(c, messages[c.uin]?.lastOrNull(), onClick = { onOpenChat(c.uin) }) }
             }
         }
     }
@@ -228,7 +231,7 @@ private fun SectionLabel(text: String) {
 }
 
 @Composable
-private fun ContactRow(c: Contact, onClick: () -> Unit) {
+private fun ContactRow(c: Contact, last: ChatMessage?, onClick: () -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable(onClick = onClick).padding(12.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -239,9 +242,24 @@ private fun ContactRow(c: Contact, onClick: () -> Unit) {
         }
         Column(Modifier.weight(1f)) {
             Text(c.nickname, color = TextPrimary, fontSize = 16.sp)
-            Text("#${c.uin}", color = TextSecondary, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+            val preview = when {
+                last == null -> "#${c.uin}"
+                last.kind == "photo" -> (if (last.fromMe) "You: " else "") + "📷 Photo"
+                else -> (if (last.fromMe) "You: " else "") + last.body
+            }
+            Text(
+                preview,
+                color = TextSecondary,
+                fontSize = 13.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                fontFamily = if (last == null) FontFamily.Monospace else FontFamily.Default,
+            )
         }
-        if (c.status == "online") Box(Modifier.size(8.dp).clip(CircleShape).background(Online))
+        Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            if (last != null) Text(formatTime(last.sentAt), color = TextSecondary, fontSize = 11.sp)
+            if (c.status == "online") Box(Modifier.size(8.dp).clip(CircleShape).background(Online))
+        }
     }
 }
 
