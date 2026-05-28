@@ -29,11 +29,24 @@ class PersistentSignalProtocolStore @Inject constructor(
     private var identityKeyPair: IdentityKeyPair? = null
 
     init {
-        // Load registration ID and identity key pair on initialization
         runBlocking {
             localRegistrationId = signalKeyDao.getLocalRegistrationId() ?: generateRegistrationId()
-            identityKeyPair = loadIdentityKeyPair()
+            identityKeyPair = loadIdentityKeyPair() ?: generateAndStoreIdentityKeyPair()
         }
+    }
+
+    private suspend fun generateAndStoreIdentityKeyPair(): IdentityKeyPair {
+        val ecKeyPair = org.signal.libsignal.protocol.ecc.Curve.generateKeyPair()
+        val keyPair = IdentityKeyPair(IdentityKey(ecKeyPair.publicKey), ecKeyPair.privateKey)
+        val entity = SignalKeyEntity(
+            id = SignalKeyEntity.identityKeyPairId(),
+            keyType = SignalKeyEntity.TYPE_IDENTITY_KEYPAIR,
+            address = null,
+            keyId = null,
+            keyData = keyPair.serialize()
+        )
+        signalKeyDao.storeIdentityKeyPair(entity)
+        return keyPair
     }
 
     // IdentityKeyStore implementation
