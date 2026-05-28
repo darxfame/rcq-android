@@ -210,6 +210,7 @@ class ContactRepository @Inject constructor(
 class ChatRepository @Inject constructor(
     private val api: RCQApiService,
     private val chatDao: ChatDao,
+    private val contactDao: ContactDao,
     private val messageDao: MessageDao,
     private val webSocketService: WebSocketService,
     private val cryptoService: CryptoService,
@@ -323,12 +324,26 @@ class ChatRepository @Inject constructor(
         }
     }
 
+    // Chats are a client-side concept only — server has no /chats endpoint.
+    // We derive the chatId from the target UIN and store locally.
     suspend fun createChat(targetId: Long): Result<Chat> = runCatching {
-        api.createChat(CreateChatRequest(targetId)).let { response ->
-            if (response.isSuccessful) response.body()!!.also {
-                chatDao.insertChat(it.toEntity())
-            }
-            else throw Exception("Failed to create chat")
+        chatDao.getChatByTargetId(targetId)?.toDomain() ?: run {
+            val contact = contactDao.getContactByUserId(targetId)
+            val now = System.currentTimeMillis()
+            val entity = ChatEntity(
+                id = "direct_$targetId",
+                targetId = targetId,
+                targetNickname = contact?.customNickname ?: contact?.nickname ?: targetId.toString(),
+                targetAvatar = contact?.avatarUrl,
+                unreadCount = 0,
+                isPinned = false,
+                isMuted = false,
+                isArchived = false,
+                createdAt = now,
+                updatedAt = now
+            )
+            chatDao.insertChat(entity)
+            entity.toDomain()
         }
     }
 
@@ -342,59 +357,52 @@ class ChatRepository @Inject constructor(
             entities.map { it.toDomain() }
         }
 
-    suspend fun syncMessages(chatId: String, limit: Int = 50): Result<Unit> = runCatching {
-        api.getMessages(chatId, limit = limit).let { response ->
-            if (response.isSuccessful) {
-                response.body()?.forEach { message ->
-                    messageDao.insertMessage(message.toEntity())
-                }
-            }
-        }
-    }
+    // Server has no GET /chats/{id}/messages — messages arrive via WebSocket
+    // and the offline queue on login. This is intentionally a no-op.
+    suspend fun syncMessages(chatId: String, limit: Int = 50): Result<Unit> = Result.success(Unit)
 
     suspend fun loadMoreMessages(chatId: String, before: Long, limit: Int = 50): List<Message> {
         return messageDao.getMessagesBefore(chatId, before, limit).map { it.toDomain() }
     }
 
     suspend fun sendMessage(chatId: String, message: Message): Result<Message> = runCatching {
-        // Get recipient UIN from chat
         val chat = chatDao.getChat(chatId) ?: throw Exception("Chat not found")
         val recipientUin = chat.targetId
 
-        // Encrypt message content using Signal Protocol E2EE
         val encrypted = cryptoService.encryptMessage(recipientUin, message.content)
 
-        // Create encrypted message entity for local storage
-        val encryptedMessageEntity = message.toEntity().copy(
+        val localEntity = message.toEntity().copy(
             ciphertext = encrypted.ciphertext,
             signalType = encrypted.signalType,
             isEncrypted = true,
             status = "SENDING"
         )
+        messageDao.insertMessage(localEntity)
 
-        // Store encrypted message locally first
-        messageDao.insertMessage(encryptedMessageEntity)
-
-        // Send encrypted message to server
-        val encryptedMessage = message.copy(
-            content = encrypted.ciphertext, // Send encrypted content
-            status = MessageStatus.SENDING
+        val request = com.rcq.messenger.data.api.SealedMessageRequest(
+            recipientUin = recipientUin,
+            ciphertext = encrypted.ciphertext,
+            signalType = encrypted.signalType,
+            kind = message.kind.name.lowercase(),
+            text = message.content.ifBlank { null },
+            mediaId = message.mediaId,
+            replyToId = message.replyToId
         )
 
-        api.sendMessage(chatId, encryptedMessage).let { response ->
+        api.sendSealedMessage(request).let { response ->
             if (response.isSuccessful) {
-                val sentMessage = response.body()!!
-                // Update local message with server response (keep encryption fields)
-                val updatedEntity = sentMessage.toEntity().copy(
+                val resp = response.body()!!
+                val sent = message.copy(id = resp.id, status = MessageStatus.SENT)
+                val updatedEntity = sent.toEntity().copy(
                     ciphertext = encrypted.ciphertext,
                     signalType = encrypted.signalType,
-                    isEncrypted = true
+                    isEncrypted = true,
+                    status = "SENT"
                 )
                 messageDao.updateMessage(updatedEntity)
-                sentMessage
+                sent
             } else {
-                // Update local message status to failed
-                messageDao.updateMessage(encryptedMessageEntity.copy(status = "FAILED"))
+                messageDao.updateMessage(localEntity.copy(status = "FAILED"))
                 throw Exception("Failed to send message: ${response.code()}")
             }
         }

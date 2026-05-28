@@ -64,6 +64,10 @@ interface RCQApiService {
     @GET("messages/queue")
     suspend fun getMessageQueue(): Response<List<Message>>
 
+    @POST("messages/sealed")
+    suspend fun sendSealedMessage(@Body request: SealedMessageRequest): Response<SealedMessageResponse>
+
+    // Kept for compile compat; server has no GET /chats endpoint
     @GET("chats/{id}/messages")
     suspend fun getMessages(
         @Path("id") chatId: String,
@@ -448,4 +452,21 @@ data class MediaUsageResponse(
     val usedBytes: Long,
     val totalBytes: Long,
     val fileCount: Int
+)
+
+@kotlinx.serialization.Serializable
+data class SealedMessageRequest(
+    @kotlinx.serialization.SerialName("recipient_uin") val recipientUin: Long,
+    val ciphertext: String,
+    @kotlinx.serialization.SerialName("signal_type") val signalType: Int,
+    val kind: String = "text",
+    val text: String? = null,
+    @kotlinx.serialization.SerialName("media_id") val mediaId: String? = null,
+    @kotlinx.serialization.SerialName("reply_to_id") val replyToId: String? = null
+)
+
+@kotlinx.serialization.Serializable
+data class SealedMessageResponse(
+    val id: String,
+    @kotlinx.serialization.SerialName("sent_at") val sentAt: Long = System.currentTimeMillis()
 )
