@@ -45,13 +45,12 @@ class CryptoService @Inject constructor(
     /**
      * Check if we have an established session with the user
      */
-    fun hasSession(recipientUin: Long): Boolean {
-        return sessionManager.hasSession(recipientUin)
+    fun hasSession(recipientUin: Long): Boolean = sessionManager.hasSession(recipientUin)
+
+    fun buildSession(recipientUin: Long, bundle: com.rcq.messenger.data.api.PreKeyBundleResponse) {
+        sessionManager.buildSession(recipientUin, bundle)
     }
 
-    /**
-     * Delete session with user (for security or troubleshooting)
-     */
     fun deleteSession(recipientUin: Long) {
         sessionManager.deleteSession(recipientUin)
     }

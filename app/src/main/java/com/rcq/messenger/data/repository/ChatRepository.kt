@@ -223,6 +223,12 @@ class ChatRepository @Inject constructor(
         webSocketService.events
             .onEach { event ->
                 when (event) {
+                    is WsEvent.ContactRequest -> {
+                        notificationHelper.showContactRequestNotification(
+                            fromUin = event.fromUin,
+                            nickname = event.fromNickname
+                        )
+                    }
                     is WsEvent.MessageNew -> {
                         try {
                             val obj = event.raw
@@ -231,12 +237,22 @@ class ChatRepository @Inject constructor(
                                 ?: return@onEach
                             val senderId = obj["sender_uin"]?.jsonPrimitive?.longOrNull
                                 ?: obj["senderUIN"]?.jsonPrimitive?.longOrNull ?: 0L
-                            // Server has no chat concept — derive chatId from sender UIN
                             val serverChatId = obj["chat_id"]?.jsonPrimitive?.contentOrNull
                             val chatId = if (!serverChatId.isNullOrBlank()) serverChatId
                                          else "direct_$senderId"
-                            val content = obj["text"]?.jsonPrimitive?.contentOrNull
-                                ?: obj["content"]?.jsonPrimitive?.contentOrNull ?: ""
+                            // Try to decrypt E2EE ciphertext; fall back to plaintext field
+                            val rawCiphertext = obj["ciphertext"]?.jsonPrimitive?.contentOrNull
+                            val signalType = obj["signal_type"]?.jsonPrimitive?.intOrNull ?: -1
+                            val content = if (rawCiphertext != null && signalType >= 0) {
+                                runCatching {
+                                    cryptoService.decryptMessage(senderId, rawCiphertext, signalType)
+                                }.getOrElse {
+                                    obj["text"]?.jsonPrimitive?.contentOrNull ?: ""
+                                }
+                            } else {
+                                obj["text"]?.jsonPrimitive?.contentOrNull
+                                    ?: obj["content"]?.jsonPrimitive?.contentOrNull ?: ""
+                            }
                             val timestamp = obj["sent_at"]?.jsonPrimitive?.longOrNull
                                 ?: obj["sentAt"]?.jsonPrimitive?.longOrNull
                                 ?: System.currentTimeMillis()
@@ -372,10 +388,20 @@ class ChatRepository @Inject constructor(
         val chat = chatDao.getChat(chatId) ?: throw Exception("Chat not found")
         val recipientUin = chat.targetId
 
-        // Insert optimistically FIRST so message shows in UI immediately,
-        // even if encryption or network fails
+        // Insert optimistically so message shows immediately in UI
         val optimisticEntity = message.toEntity().copy(status = "SENDING")
         messageDao.insertMessage(optimisticEntity)
+
+        // Build Signal session if we don't have one yet (first message to this contact)
+        if (!cryptoService.hasSession(recipientUin)) {
+            val bundleResp = api.fetchPreKeyBundle(recipientUin)
+            if (bundleResp.isSuccessful && bundleResp.body() != null) {
+                cryptoService.buildSession(recipientUin, bundleResp.body()!!)
+            } else {
+                messageDao.updateMessage(optimisticEntity.copy(status = "FAILED"))
+                throw Exception("Cannot fetch key bundle for recipient (${bundleResp.code()})")
+            }
+        }
 
         val encrypted = runCatching { cryptoService.encryptMessage(recipientUin, message.content) }
             .getOrElse { e ->

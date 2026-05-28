@@ -1,12 +1,16 @@
 package com.rcq.messenger.crypto
 
 import android.util.Base64
+import com.rcq.messenger.data.api.PreKeyBundleResponse
+import org.signal.libsignal.protocol.IdentityKey
+import org.signal.libsignal.protocol.SessionBuilder
 import org.signal.libsignal.protocol.SessionCipher
 import org.signal.libsignal.protocol.SignalProtocolAddress
 import org.signal.libsignal.protocol.ecc.Curve
 import org.signal.libsignal.protocol.message.CiphertextMessage
 import org.signal.libsignal.protocol.message.PreKeySignalMessage
 import org.signal.libsignal.protocol.message.SignalMessage
+import org.signal.libsignal.protocol.state.PreKeyBundle
 import org.signal.libsignal.protocol.state.PreKeyRecord
 import org.signal.libsignal.protocol.state.SignedPreKeyRecord
 import org.signal.libsignal.protocol.util.KeyHelper
@@ -44,6 +48,23 @@ class SessionManager @Inject constructor(
     fun hasSession(recipientUin: Long): Boolean {
         val address = SignalProtocolAddress(recipientUin.toString(), 1)
         return signalKeyStore.containsSession(address)
+    }
+
+    // Build a Signal session from the recipient's pre-key bundle fetched from server.
+    // Must be called before the first encrypt() to a new recipient.
+    fun buildSession(recipientUin: Long, bundle: PreKeyBundleResponse) {
+        val address = SignalProtocolAddress(recipientUin.toString(), 1)
+        val preKeyBundle = PreKeyBundle(
+            bundle.registrationId,
+            bundle.deviceId,
+            bundle.preKey?.id ?: 0,
+            bundle.preKey?.let { Curve.decodePoint(Base64.decode(it.key, Base64.NO_WRAP), 0) },
+            bundle.signedPreKey.id,
+            Curve.decodePoint(Base64.decode(bundle.signedPreKey.key, Base64.NO_WRAP), 0),
+            Base64.decode(bundle.signedPreKey.signature, Base64.NO_WRAP),
+            IdentityKey(Base64.decode(bundle.identityKey, Base64.NO_WRAP), 0)
+        )
+        SessionBuilder(signalKeyStore, address).process(preKeyBundle)
     }
 
     fun deleteSession(recipientUin: Long) {

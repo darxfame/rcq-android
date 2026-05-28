@@ -9,11 +9,16 @@ import javax.inject.Inject
 class RCQApplication : Application() {
 
     @Inject lateinit var notificationHelper: NotificationHelper
+    // Inject eagerly so WebSocket event handler in init{} runs at startup,
+    // not lazily when first screen is shown
+    @Inject lateinit var chatRepository: com.rcq.messenger.data.repository.ChatRepository
 
     override fun onCreate() {
         super.onCreate()
         instance = this
         notificationHelper.createNotificationChannels()
+        // chatRepository injection forces its init{} block to run,
+        // wiring up the WebSocket event listener before any screen loads
     }
 
     companion object {
