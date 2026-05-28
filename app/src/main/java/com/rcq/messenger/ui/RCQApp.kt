@@ -80,10 +80,16 @@ val bottomNavItems = listOf(
 )
 
 @Composable
-fun RCQApp() {
+fun RCQApp(initialChatId: String? = null) {
     val navController = rememberNavController()
     val authViewModel: AuthViewModel = hiltViewModel()
     val isAuthenticated by authViewModel.isAuthenticated.collectAsState()
+
+    LaunchedEffect(isAuthenticated, initialChatId) {
+        if (isAuthenticated && initialChatId != null) {
+            navController.navigate(Routes.chat(initialChatId))
+        }
+    }
 
     if (isAuthenticated) {
         MainScaffold(navController = navController, authViewModel = authViewModel)

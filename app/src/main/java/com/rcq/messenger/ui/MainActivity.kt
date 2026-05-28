@@ -16,13 +16,14 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        val initialChatId = intent.getStringExtra("chat_id")
         setContent {
             RCQTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    RCQApp()
+                    RCQApp(initialChatId = initialChatId)
                 }
             }
         }

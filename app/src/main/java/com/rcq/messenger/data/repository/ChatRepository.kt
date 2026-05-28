@@ -24,6 +24,7 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
 import com.rcq.messenger.data.websocket.WebSocketService
@@ -211,11 +212,13 @@ class ChatRepository @Inject constructor(
     private val chatDao: ChatDao,
     private val messageDao: MessageDao,
     private val webSocketService: WebSocketService,
-    private val cryptoService: CryptoService
+    private val cryptoService: CryptoService,
+    private val notificationHelper: com.rcq.messenger.service.NotificationHelper
 ) {
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     init {
+        fetchOfflineQueue()
         webSocketService.events
             .onEach { event ->
                 when (event) {
@@ -250,8 +253,13 @@ class ChatRepository @Inject constructor(
                             // Update chat metadata: increment unread count and update timestamp
                             try {
                                 val now = System.currentTimeMillis()
-                                // If chat exists, increment unread and update timestamp; otherwise create a new chat entry
                                 val existingChat = chatDao.getChat(msg.chatId)
+                                val senderName = existingChat?.targetNickname ?: "New message"
+                                notificationHelper.showMessageNotification(
+                                    chatId = msg.chatId,
+                                    senderName = senderName,
+                                    message = msg.content.ifBlank { "📎 Attachment" }
+                                )
                                 if (existingChat != null) {
                                     chatDao.incrementUnreadCount(msg.chatId, now)
                                 } else {
@@ -282,6 +290,23 @@ class ChatRepository @Inject constructor(
                 }
             }
             .launchIn(scope)
+    }
+
+    private fun fetchOfflineQueue() {
+        scope.launch {
+            runCatching {
+                val response = api.getMessageQueue()
+                if (response.isSuccessful) {
+                    response.body()?.forEach { msg ->
+                        if (messageDao.getMessage(msg.id) == null) {
+                            messageDao.insertMessage(msg.toEntity())
+                            val chat = chatDao.getChat(msg.chatId)
+                            if (chat != null) chatDao.incrementUnreadCount(msg.chatId, System.currentTimeMillis())
+                        }
+                    }
+                }
+            }
+        }
     }
 
     suspend fun getChat(chatId: String): Chat? = chatDao.getChat(chatId)?.toDomain()

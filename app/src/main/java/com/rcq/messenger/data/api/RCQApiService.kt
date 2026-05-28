@@ -61,6 +61,9 @@ interface RCQApiService {
     @POST("chats")
     suspend fun createChat(@Body request: CreateChatRequest): Response<Chat>
 
+    @GET("messages/queue")
+    suspend fun getMessageQueue(): Response<List<Message>>
+
     @GET("chats/{id}/messages")
     suspend fun getMessages(
         @Path("id") chatId: String,
