@@ -35,6 +35,11 @@ android {
         }
         debug {
             isDebuggable = true
+            ndk {
+                // S22 and all modern Android phones are arm64.
+                // Including all 4 ABIs bloats the APK to 77 MB and can crash Samsung's installer.
+                abiFilters += setOf("arm64-v8a")
+            }
         }
     }
 
