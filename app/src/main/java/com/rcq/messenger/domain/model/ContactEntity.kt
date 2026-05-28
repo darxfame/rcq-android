@@ -8,7 +8,12 @@ data class ContactEntity(
     @PrimaryKey
     val userId: Long,
     val nickname: String,
+    val avatarUrl: String? = null,
+    val status: String = "OFFLINE",
+    val lastSeen: String? = null,
     val isBlocked: Boolean = false,
     val isFavorite: Boolean = false,
+    val notificationSound: String? = null,
+    val customNickname: String? = null,
     val addedAt: Long = System.currentTimeMillis()
 )

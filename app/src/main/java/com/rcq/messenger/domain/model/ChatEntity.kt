@@ -7,15 +7,13 @@ import androidx.room.PrimaryKey
 data class ChatEntity(
     @PrimaryKey
     val id: String,
-    val type: String, // "direct", "group"
-    val name: String? = null,
-    val avatarUrl: String? = null,
-    val lastMessage: String? = null,
-    val lastMessageTime: Long = 0L,
+    val targetId: Long = 0L,
+    val targetNickname: String = "",
+    val targetAvatar: String? = null,
     val unreadCount: Int = 0,
-    val isArchived: Boolean = false,
+    val isPinned: Boolean = false,
     val isMuted: Boolean = false,
-    val participantIds: List<Long> = emptyList(),
+    val isArchived: Boolean = false,
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis()
 )

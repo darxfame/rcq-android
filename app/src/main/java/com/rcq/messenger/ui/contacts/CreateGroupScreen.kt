@@ -163,7 +163,7 @@ private fun GroupMemberItem(
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = contact.name.firstOrNull()?.uppercase() ?: "?",
+                text = contact.nickname.firstOrNull()?.uppercase() ?: "?",
                 color = if (isSelected)
                     Color.White
                 else
@@ -179,7 +179,7 @@ private fun GroupMemberItem(
                 .padding(horizontal = 12.dp)
         ) {
             Text(
-                text = contact.name,
+                text = contact.nickname,
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Medium,
                 maxLines = 1,

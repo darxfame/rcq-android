@@ -64,22 +64,22 @@ fun MediaMessageBubble(
             Column(
                 horizontalAlignment = if (isOwnMessage) Alignment.End else Alignment.Start
             ) {
-                when (message.type) {
-                    "image" -> {
+                when (message.kind) {
+                    MessageKind.PHOTO, MessageKind.PREMIUM_PHOTO -> {
                         ImageMessageContent(
                             message = message,
                             isOwnMessage = isOwnMessage,
                             onImageClick = { onMediaClick(message.mediaId ?: "") }
                         )
                     }
-                    "video" -> {
+                    MessageKind.VIDEO, MessageKind.PREMIUM_VIDEO -> {
                         VideoMessageContent(
                             message = message,
                             isOwnMessage = isOwnMessage,
                             onVideoClick = { onMediaClick(message.mediaId ?: "") }
                         )
                     }
-                    "audio" -> {
+                    MessageKind.VOICE -> {
                         VoiceMessageContent(
                             message = message,
                             isOwnMessage = isOwnMessage,
@@ -88,7 +88,7 @@ fun MediaMessageBubble(
                             playbackState = playbackState
                         )
                     }
-                    "file" -> {
+                    MessageKind.FILE -> {
                         FileMessageContent(
                             message = message,
                             isOwnMessage = isOwnMessage,

@@ -258,28 +258,3 @@ fun StoryItem(
     }
 }
 
-@Composable
-fun StoryViewerScreen(
-    userId: Long,
-    onBack: () -> Unit
-) {
-    // TODO: Implement full-screen story viewer with progress bar, gestures, etc.
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Background),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                text = "Story Viewer",
-                style = MaterialTheme.typography.titleLarge,
-                color = TextPrimary
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            Button(onClick = onBack) {
-                Text("Go Back")
-            }
-        }
-    }
-}

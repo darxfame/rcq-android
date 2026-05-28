@@ -233,7 +233,7 @@ class ChatRepository @Inject constructor(
                                     chatDao.incrementUnreadCount(msg.chatId, now)
                                 } else {
                                     // Create minimal chat entry so it appears in the list
-                                    val newChat = com.rcq.messenger.data.db.ChatEntity(
+                                    val newChat = ChatEntity(
                                         id = msg.chatId,
                                         targetId = msg.senderId,
                                         targetNickname = msg.replyToAuthorName ?: "Unknown",

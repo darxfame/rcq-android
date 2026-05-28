@@ -10,17 +10,35 @@ data class MessageEntity(
     val chatId: String,
     val senderId: Long,
     val content: String,
-    val type: String = "text", // "text", "image", "file", "audio", "video"
     val timestamp: Long = System.currentTimeMillis(),
-    val status: String = "sending", // "sending", "sent", "delivered", "read"
+    val status: String = "SENT",
     val replyToId: String? = null,
-    val attachmentUrl: String? = null,
-    val attachmentType: String? = null,
-    val attachmentSize: Long? = null,
-    val isEdited: Boolean = false,
     val editedAt: Long? = null,
     // E2EE fields
     val ciphertext: String? = null,
-    val signalType: Int = 1, // Signal Protocol message type
-    val isEncrypted: Boolean = false
+    val signalType: Int = 1,
+    val isEncrypted: Boolean = false,
+    // Phase 1 fields
+    val isFromMe: Boolean = false,
+    val kind: String = "TEXT",
+    val mediaId: String? = null,
+    val receivedWhileAway: Boolean = false,
+    val deletedForEveryone: Boolean = false,
+    val reactions: String? = null,
+    val thumbnailB64: String? = null,
+    val durationSec: Double = 0.0,
+    val ttlSeconds: Int? = null,
+    val forwardedFromName: String? = null,
+    val replyToContent: String? = null,
+    val replyToAuthorName: String? = null,
+    val premiumPriceTokens: Int? = null,
+    val premiumUnlocked: Boolean = false,
+    val albumId: String? = null,
+    val fileName: String? = null,
+    val fileMime: String? = null,
+    val fileSizeBytes: Long? = null,
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+    val pollId: String? = null,
+    val mentionedUserIds: String? = null
 )

@@ -83,7 +83,11 @@ object AppModule {
             context,
             RCQDatabase::class.java,
             "rcq_database"
-        ).addMigrations(RCQDatabase.MIGRATION_6_7, RCQDatabase.MIGRATION_7_8).build()
+        ).addMigrations(
+            RCQDatabase.MIGRATION_6_7,
+            RCQDatabase.MIGRATION_7_8,
+            RCQDatabase.MIGRATION_8_9
+        ).build()
     }
 
     @Provides
@@ -109,6 +113,9 @@ object AppModule {
 
     @Provides
     fun providePetDao(database: RCQDatabase): PetDao = database.petDao()
+
+    @Provides
+    fun provideSignalKeyDao(database: RCQDatabase): com.rcq.messenger.data.db.SignalKeyDao = database.signalKeyDao()
 
     @Provides
     @Singleton

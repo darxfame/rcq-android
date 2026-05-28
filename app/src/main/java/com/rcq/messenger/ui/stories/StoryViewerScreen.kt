@@ -119,7 +119,7 @@ fun StoryViewerScreen(
                     ) {
                         Column {
                             Text(
-                                text = story?.authorName ?: "Unknown",
+                                text = story?.nickname ?: "Unknown",
                                 color = Color.White,
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.Bold

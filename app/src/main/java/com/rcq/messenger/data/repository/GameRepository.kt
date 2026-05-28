@@ -117,7 +117,7 @@ class PetRepository @Inject constructor(
     }
 }
 
-private fun Pet.toEntity() = com.rcq.messenger.data.db.PetEntity(
+private fun Pet.toEntity() = com.rcq.messenger.domain.model.PetEntity(
     id = id, name = name, type = type.name, rarity = rarity.name,
     imageUrl = imageUrl, equippedBy = equippedBy,
     isForSale = isForSale, salePrice = salePrice

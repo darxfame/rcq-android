@@ -27,7 +27,7 @@ import com.rcq.messenger.data.db.SignalKeyDao
         PetEntity::class,
         SignalKeyEntity::class
     ],
-    version = 8,
+    version = 9,
     exportSchema = false
 )
 @TypeConverters(RoomTypeConverters::class)
@@ -46,7 +46,6 @@ abstract class RCQDatabase : RoomDatabase() {
     companion object {
         val MIGRATION_6_7 = object : Migration(6, 7) {
             override fun migrate(database: SupportSQLiteDatabase) {
-                // Add Signal Protocol E2EE fields to messages table
                 database.execSQL("ALTER TABLE messages ADD COLUMN ciphertext TEXT")
                 database.execSQL("ALTER TABLE messages ADD COLUMN signalType INTEGER NOT NULL DEFAULT 1")
                 database.execSQL("ALTER TABLE messages ADD COLUMN isEncrypted INTEGER NOT NULL DEFAULT 0")
@@ -55,7 +54,6 @@ abstract class RCQDatabase : RoomDatabase() {
 
         val MIGRATION_7_8 = object : Migration(7, 8) {
             override fun migrate(database: SupportSQLiteDatabase) {
-                // Add Signal Protocol keys storage table
                 database.execSQL("""
                     CREATE TABLE IF NOT EXISTS `signal_keys` (
                         `id` TEXT NOT NULL,
@@ -65,6 +63,79 @@ abstract class RCQDatabase : RoomDatabase() {
                         `keyData` BLOB NOT NULL,
                         `timestamp` INTEGER NOT NULL,
                         PRIMARY KEY(`id`)
+                    )
+                """.trimIndent())
+            }
+        }
+
+        val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                // Messages: add Phase 1 fields
+                database.execSQL("ALTER TABLE messages ADD COLUMN isFromMe INTEGER NOT NULL DEFAULT 0")
+                database.execSQL("ALTER TABLE messages ADD COLUMN kind TEXT NOT NULL DEFAULT 'TEXT'")
+                database.execSQL("ALTER TABLE messages ADD COLUMN mediaId TEXT")
+                database.execSQL("ALTER TABLE messages ADD COLUMN receivedWhileAway INTEGER NOT NULL DEFAULT 0")
+                database.execSQL("ALTER TABLE messages ADD COLUMN deletedForEveryone INTEGER NOT NULL DEFAULT 0")
+                database.execSQL("ALTER TABLE messages ADD COLUMN reactions TEXT")
+                database.execSQL("ALTER TABLE messages ADD COLUMN thumbnailB64 TEXT")
+                database.execSQL("ALTER TABLE messages ADD COLUMN durationSec REAL NOT NULL DEFAULT 0.0")
+                database.execSQL("ALTER TABLE messages ADD COLUMN ttlSeconds INTEGER")
+                database.execSQL("ALTER TABLE messages ADD COLUMN forwardedFromName TEXT")
+                database.execSQL("ALTER TABLE messages ADD COLUMN replyToContent TEXT")
+                database.execSQL("ALTER TABLE messages ADD COLUMN replyToAuthorName TEXT")
+                database.execSQL("ALTER TABLE messages ADD COLUMN premiumPriceTokens INTEGER")
+                database.execSQL("ALTER TABLE messages ADD COLUMN premiumUnlocked INTEGER NOT NULL DEFAULT 0")
+                database.execSQL("ALTER TABLE messages ADD COLUMN albumId TEXT")
+                database.execSQL("ALTER TABLE messages ADD COLUMN fileName TEXT")
+                database.execSQL("ALTER TABLE messages ADD COLUMN fileMime TEXT")
+                database.execSQL("ALTER TABLE messages ADD COLUMN fileSizeBytes INTEGER")
+                database.execSQL("ALTER TABLE messages ADD COLUMN latitude REAL")
+                database.execSQL("ALTER TABLE messages ADD COLUMN longitude REAL")
+                database.execSQL("ALTER TABLE messages ADD COLUMN pollId TEXT")
+                database.execSQL("ALTER TABLE messages ADD COLUMN mentionedUserIds TEXT")
+
+                // Contacts: add profile fields
+                database.execSQL("ALTER TABLE contacts ADD COLUMN avatarUrl TEXT")
+                database.execSQL("ALTER TABLE contacts ADD COLUMN status TEXT NOT NULL DEFAULT 'OFFLINE'")
+                database.execSQL("ALTER TABLE contacts ADD COLUMN lastSeen TEXT")
+                database.execSQL("ALTER TABLE contacts ADD COLUMN notificationSound TEXT")
+                database.execSQL("ALTER TABLE contacts ADD COLUMN customNickname TEXT")
+
+                // Chats: replace old schema with new direct-chat fields
+                // SQLite can't DROP columns, so we recreate the table
+                database.execSQL("""
+                    CREATE TABLE IF NOT EXISTS chats_new (
+                        `id` TEXT NOT NULL PRIMARY KEY,
+                        `targetId` INTEGER NOT NULL DEFAULT 0,
+                        `targetNickname` TEXT NOT NULL DEFAULT '',
+                        `targetAvatar` TEXT,
+                        `unreadCount` INTEGER NOT NULL DEFAULT 0,
+                        `isPinned` INTEGER NOT NULL DEFAULT 0,
+                        `isMuted` INTEGER NOT NULL DEFAULT 0,
+                        `isArchived` INTEGER NOT NULL DEFAULT 0,
+                        `createdAt` INTEGER NOT NULL DEFAULT 0,
+                        `updatedAt` INTEGER NOT NULL DEFAULT 0
+                    )
+                """.trimIndent())
+                database.execSQL("""
+                    INSERT OR IGNORE INTO chats_new (id, unreadCount, isMuted, isArchived, createdAt, updatedAt)
+                    SELECT id, unreadCount, isMuted, isArchived, createdAt, updatedAt FROM chats
+                """.trimIndent())
+                database.execSQL("DROP TABLE chats")
+                database.execSQL("ALTER TABLE chats_new RENAME TO chats")
+
+                // Pets: recreate with game-model fields
+                database.execSQL("DROP TABLE IF EXISTS pets")
+                database.execSQL("""
+                    CREATE TABLE IF NOT EXISTS `pets` (
+                        `id` TEXT NOT NULL PRIMARY KEY,
+                        `name` TEXT NOT NULL,
+                        `type` TEXT NOT NULL,
+                        `rarity` TEXT NOT NULL,
+                        `imageUrl` TEXT NOT NULL,
+                        `equippedBy` INTEGER,
+                        `isForSale` INTEGER NOT NULL DEFAULT 0,
+                        `salePrice` INTEGER
                     )
                 """.trimIndent())
             }

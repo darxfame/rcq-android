@@ -9,6 +9,9 @@ interface PetDao {
     @Query("SELECT * FROM pets ORDER BY name ASC")
     fun getPets(): Flow<List<PetEntity>>
 
+    @Query("SELECT * FROM pets ORDER BY name ASC")
+    fun getAllPets(): Flow<List<PetEntity>>
+
     @Query("SELECT * FROM pets WHERE id = :id")
     suspend fun getPet(id: String): PetEntity?
 
@@ -20,4 +23,10 @@ interface PetDao {
 
     @Delete
     suspend fun deletePet(pet: PetEntity)
+
+    @Query("UPDATE pets SET equippedBy = :userId WHERE id = :petId")
+    suspend fun equipPet(petId: String, userId: Long)
+
+    @Query("UPDATE pets SET equippedBy = NULL WHERE id = :petId")
+    suspend fun unequipPet(petId: String)
 }

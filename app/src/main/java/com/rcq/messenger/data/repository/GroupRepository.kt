@@ -62,15 +62,15 @@ class GroupRepository @Inject constructor(
 }
 
 private fun GroupEntity.toDomain() = Group(
-    id = id, name = name, avatarUrl = avatarUrl, description = description,
-    ownerId = ownerId, adminIds = emptyList(), memberIds = emptyList(),
-    memberCount = memberCount, createdAt = createdAt, settings = GroupSettings()
+    id = id, name = name, avatarUrl = avatarUrl, description = description ?: "",
+    ownerId = creatorId, adminIds = adminIds, memberIds = memberIds,
+    memberCount = memberIds.size, createdAt = createdAt, settings = GroupSettings()
 )
 
 private fun Group.toEntity() = GroupEntity(
     id = id, name = name, avatarUrl = avatarUrl, description = description,
-    ownerId = ownerId, memberCount = memberCount, createdAt = createdAt,
-    isPinned = isPinned, isMuted = isMuted
+    creatorId = ownerId, memberIds = memberIds, adminIds = adminIds,
+    createdAt = createdAt
 )
 
 @Singleton
@@ -133,8 +133,8 @@ class CallRepository @Inject constructor(
         entities.map { it.toDomain() }
     }
 
-    fun getMissedCalls(): Flow<List<Call>> = callDao.getMissedCalls().map { entities ->
-        entities.map { it.toDomain() }
+    fun getMissedCalls(): Flow<List<Call>> = callDao.getMissedCalls().map { entity ->
+        entity.map { it.toDomain() }
     }
 
     suspend fun syncCallHistory(): Result<Unit> = runCatching {
@@ -175,10 +175,11 @@ class CallRepository @Inject constructor(
 }
 
 private fun CallEntity.toDomain() = Call(
-    id = id, type = CallType.valueOf(type), targetId = targetId,
-    targetNickname = targetNickname, targetAvatar = targetAvatar,
+    id = id, type = CallType.valueOf(type),
+    targetId = participantIds.firstOrNull() ?: 0L,
+    targetNickname = "", targetAvatar = null,
     initiatorId = initiatorId, status = CallStatus.valueOf(status),
-    startedAt = startedAt, endedAt = endedAt, duration = duration
+    startedAt = startTime, endedAt = endTime, duration = duration
 )
 
 private fun Call.toEntity() = CallEntity(
@@ -187,7 +188,7 @@ private fun Call.toEntity() = CallEntity(
     status = status.name,
     participantIds = listOf(initiatorId), // Convert single target to list
     initiatorId = initiatorId,
-    startTime = startedAt,
+    startTime = startedAt ?: 0L,
     endTime = endedAt,
     duration = duration,
     isGroupCall = false
@@ -222,7 +223,7 @@ class StoryRepository @Inject constructor(
 
     suspend fun deleteStory(storyId: String): Result<Unit> = runCatching {
         api.deleteStory(storyId).let { response ->
-            if (response.isSuccessful) storyDao.deleteStory(storyId)
+            if (response.isSuccessful) storyDao.deleteStoryById(storyId)
             else throw Exception("Failed to delete story")
         }
     }
@@ -241,7 +242,7 @@ class StoryRepository @Inject constructor(
 }
 
 private fun StoryEntity.toDomain() = Story(
-    id = id, userId = userId, nickname = nickname,
+    id = id, userId = userId, nickname = nickname ?: "",
     avatarUrl = avatarUrl, items = emptyList(),
     viewerCount = viewerCount, createdAt = createdAt,
     expiresAt = expiresAt, isActive = isActive
@@ -257,5 +258,5 @@ private fun StoryItem.toEntity(storyId: String) = StoryItemEntity(
     id = id, storyId = storyId, type = type.name,
     mediaUrl = mediaUrl, thumbnailUrl = thumbnailUrl,
     caption = caption, backgroundColor = backgroundColor,
-    duration = duration, timestamp = createdAt
+    duration = duration.toLong(), timestamp = createdAt
 )

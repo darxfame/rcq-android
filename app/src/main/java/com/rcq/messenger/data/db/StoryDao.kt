@@ -28,6 +28,9 @@ interface StoryDao {
     @Delete
     suspend fun deleteStory(story: StoryEntity)
 
+    @Query("DELETE FROM stories WHERE id = :storyId")
+    suspend fun deleteStoryById(storyId: String)
+
     @Delete
     suspend fun deleteStoryItem(item: StoryItemEntity)
 }

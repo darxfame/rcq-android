@@ -3,8 +3,10 @@ package com.rcq.messenger.crypto
 import org.signal.libsignal.protocol.IdentityKey
 import org.signal.libsignal.protocol.IdentityKeyPair
 import org.signal.libsignal.protocol.SignalProtocolAddress
+import org.signal.libsignal.protocol.ecc.Curve
 import org.signal.libsignal.protocol.groups.state.SenderKeyRecord
 import org.signal.libsignal.protocol.state.IdentityKeyStore
+import org.signal.libsignal.protocol.state.KyberPreKeyRecord
 import org.signal.libsignal.protocol.state.PreKeyRecord
 import org.signal.libsignal.protocol.state.SessionRecord
 import org.signal.libsignal.protocol.state.SignalProtocolStore
@@ -63,6 +65,9 @@ class SignalKeyStore @Inject constructor(
     override fun loadSession(address: SignalProtocolAddress): SessionRecord =
         persistentStore.loadSession(address)
 
+    override fun loadExistingSessions(addresses: MutableList<SignalProtocolAddress>): MutableList<SessionRecord> =
+        persistentStore.loadExistingSessions(addresses)
+
     override fun getSubDeviceSessions(name: String): List<Int> =
         persistentStore.getSubDeviceSessions(name)
 
@@ -87,6 +92,19 @@ class SignalKeyStore @Inject constructor(
         distributionId: java.util.UUID
     ): SenderKeyRecord? = persistentStore.loadSenderKey(sender, distributionId)
 
+    override fun loadKyberPreKey(kyberPreKeyId: Int): KyberPreKeyRecord =
+        persistentStore.loadKyberPreKey(kyberPreKeyId)
+
+    override fun loadKyberPreKeys(): MutableList<KyberPreKeyRecord> = persistentStore.loadKyberPreKeys()
+
+    override fun storeKyberPreKey(kyberPreKeyId: Int, record: KyberPreKeyRecord) =
+        persistentStore.storeKyberPreKey(kyberPreKeyId, record)
+
+    override fun containsKyberPreKey(kyberPreKeyId: Int): Boolean =
+        persistentStore.containsKyberPreKey(kyberPreKeyId)
+
+    override fun markKyberPreKeyUsed(kyberPreKeyId: Int) = persistentStore.markKyberPreKeyUsed(kyberPreKeyId)
+
     // Дополнительные методы для совместимости и инициализации
     fun getStoredIdentityKeyPair(): IdentityKeyPair = getIdentityKeyPair()
 
@@ -102,7 +120,7 @@ class SignalKeyStore @Inject constructor(
     fun generatePreKeys(start: Int, count: Int): List<PreKeyRecord> {
         val preKeys = mutableListOf<PreKeyRecord>()
         for (i in start until start + count) {
-            val preKey = PreKeyRecord.generate(i)
+            val preKey = PreKeyRecord(i, Curve.generateKeyPair())
             storePreKey(i, preKey)
             preKeys.add(preKey)
         }
@@ -110,7 +128,17 @@ class SignalKeyStore @Inject constructor(
     }
 
     fun generateSignedPreKey(signedPreKeyId: Int, identityKeyPair: IdentityKeyPair): SignedPreKeyRecord {
-        val signedPreKey = SignedPreKeyRecord.generate(signedPreKeyId, identityKeyPair)
+        val signedKeyPair = Curve.generateKeyPair()
+        val signature = Curve.calculateSignature(
+            identityKeyPair.privateKey,
+            signedKeyPair.publicKey.serialize()
+        )
+        val signedPreKey = SignedPreKeyRecord(
+            signedPreKeyId,
+            System.currentTimeMillis(),
+            signedKeyPair,
+            signature
+        )
         storeSignedPreKey(signedPreKeyId, signedPreKey)
         return signedPreKey
     }

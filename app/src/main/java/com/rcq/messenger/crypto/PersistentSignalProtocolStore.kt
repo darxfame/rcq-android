@@ -6,6 +6,7 @@ import org.signal.libsignal.protocol.IdentityKeyPair
 import org.signal.libsignal.protocol.SignalProtocolAddress
 import org.signal.libsignal.protocol.groups.state.SenderKeyRecord
 import org.signal.libsignal.protocol.state.IdentityKeyStore
+import org.signal.libsignal.protocol.state.KyberPreKeyRecord
 import org.signal.libsignal.protocol.state.PreKeyRecord
 import org.signal.libsignal.protocol.state.SessionRecord
 import org.signal.libsignal.protocol.state.SignalProtocolStore
@@ -165,9 +166,13 @@ class PersistentSignalProtocolStore @Inject constructor(
     // SessionStore implementation
     override fun loadSession(address: SignalProtocolAddress): SessionRecord {
         return runBlocking {
-            val entity = signalKeyDao.getSession(address.name)
+            val entity = signalKeyDao.getSession(sessionAddress(address))
             entity?.let { SessionRecord(it.keyData) } ?: SessionRecord()
         }
+    }
+
+    override fun loadExistingSessions(addresses: MutableList<SignalProtocolAddress>): MutableList<SessionRecord> {
+        return addresses.map { loadSession(it) }.toMutableList()
     }
 
     override fun getSubDeviceSessions(name: String): List<Int> {
@@ -182,9 +187,9 @@ class PersistentSignalProtocolStore @Inject constructor(
     override fun storeSession(address: SignalProtocolAddress, record: SessionRecord) {
         runBlocking {
             val entity = SignalKeyEntity(
-                id = SignalKeyEntity.sessionId(address.name),
+                id = SignalKeyEntity.sessionId(sessionAddress(address)),
                 keyType = SignalKeyEntity.TYPE_SESSION,
-                address = address.name,
+                address = sessionAddress(address),
                 keyId = null,
                 keyData = record.serialize()
             )
@@ -194,13 +199,13 @@ class PersistentSignalProtocolStore @Inject constructor(
 
     override fun containsSession(address: SignalProtocolAddress): Boolean {
         return runBlocking {
-            signalKeyDao.getSession(address.name) != null
+            signalKeyDao.getSession(sessionAddress(address)) != null
         }
     }
 
     override fun deleteSession(address: SignalProtocolAddress) {
         runBlocking {
-            signalKeyDao.deleteSession(address.name)
+            signalKeyDao.deleteSession(sessionAddress(address))
         }
     }
 
@@ -229,12 +234,20 @@ class PersistentSignalProtocolStore @Inject constructor(
     }
 
     override fun loadKyberPreKey(kyberPreKeyId: Int): KyberPreKeyRecord {
-        // TODO: Implement Kyber pre-key storage when post-quantum cryptography is needed
-        // For now, throw exception as this is not yet implemented
-        throw UnsupportedOperationException("Kyber pre-keys not yet implemented")
+        throw UnsupportedOperationException("Kyber pre-keys are not supported by this store")
     }
 
+    override fun loadKyberPreKeys(): MutableList<KyberPreKeyRecord> = mutableListOf()
+
+    override fun storeKyberPreKey(kyberPreKeyId: Int, record: KyberPreKeyRecord) {}
+
+    override fun containsKyberPreKey(kyberPreKeyId: Int): Boolean = false
+
+    override fun markKyberPreKeyUsed(kyberPreKeyId: Int) {}
+
     // Helper methods
+    private fun sessionAddress(address: SignalProtocolAddress): String = "${address.name}.${address.deviceId}"
+
     private suspend fun loadIdentityKeyPair(): IdentityKeyPair? {
         return try {
             val entity = signalKeyDao.getIdentityKeyPair()
