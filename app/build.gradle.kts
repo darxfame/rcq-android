@@ -23,6 +23,13 @@ android {
         }
 
         buildConfigField("String", "API_BASE_URL", "\"https://api.rcq.app/\"")
+
+        ndk {
+            // arm64-v8a covers S22, Pixel, and all modern Android phones.
+            // x86/x86_64 are emulator-only; armeabi-v7a is 2013-era hardware.
+            // Restricting here cuts the APK from 77 MB to ~25 MB.
+            abiFilters += setOf("arm64-v8a")
+        }
     }
 
     buildTypes {
@@ -35,11 +42,6 @@ android {
         }
         debug {
             isDebuggable = true
-            ndk {
-                // S22 and all modern Android phones are arm64.
-                // Including all 4 ABIs bloats the APK to 77 MB and can crash Samsung's installer.
-                abiFilters += setOf("arm64-v8a")
-            }
         }
     }
 
@@ -64,6 +66,12 @@ android {
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        }
+        jniLibs {
+            // Equivalent to android:extractNativeLibs="true" — makes Samsung's
+            // package installer extract .so files to disk instead of loading from
+            // inside the APK, avoiding page-alignment crashes on Galaxy devices.
+            useLegacyPackaging = true
         }
     }
 }
