@@ -99,6 +99,7 @@ class ContactsViewModel @Inject constructor(
 fun ContactsScreen(
     viewModel: ContactsViewModel = hiltViewModel(),
     onContactClick: (Long) -> Unit,
+    onChatClick: (String) -> Unit = {},
     onAddContact: () -> Unit,
     onPendingRequests: () -> Unit = {}
 ) {
@@ -220,7 +221,10 @@ fun ContactsScreen(
                     items(filteredContacts, key = { it.id }) { contact ->
                         ContactItem(
                             contact = contact,
-                            onClick = { onContactClick(contact.userId) },
+                            onClick = {
+                                if (contact.chatId != null) onChatClick(contact.chatId)
+                                else onContactClick(contact.userId)
+                            },
                             onToggleFavorite = { viewModel.toggleFavorite(contact.userId, contact.isFavorite) },
                             onEditNickname = { viewModel.startEditNickname(contact) },
                             onBlock = { viewModel.blockContact(contact.userId) },

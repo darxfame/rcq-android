@@ -7,6 +7,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
@@ -15,7 +17,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -29,35 +35,111 @@ import java.util.*
 fun ChatsScreen(
     viewModel: ChatsViewModel = hiltViewModel(),
     onChatClick: (String) -> Unit,
-    onCreateGroup: () -> Unit
+    onCreateGroup: () -> Unit,
+    onNewDirectMessage: () -> Unit = {},
+    onBrowseGroups: () -> Unit = {}
 ) {
     val chats by viewModel.chats.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
 
+    var searchActive by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
+    var menuExpanded by remember { mutableStateOf(false) }
+    val focusRequester = remember { FocusRequester() }
+    val focusManager = LocalFocusManager.current
+
+    val filteredChats by remember(chats, searchQuery) {
+        derivedStateOf {
+            if (searchQuery.isBlank()) chats
+            else chats.filter { chat ->
+                chat.targetNickname.contains(searchQuery, ignoreCase = true) ||
+                    (chat.lastMessage?.content?.contains(searchQuery, ignoreCase = true) == true)
+            }
+        }
+    }
+
+    LaunchedEffect(searchActive) {
+        if (searchActive) focusRequester.requestFocus()
+    }
+
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = "Chats",
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold
-                    )
-                },
-                actions = {
-                    IconButton(onClick = { /* Search */ }) {
-                        Icon(Icons.Default.Search, contentDescription = "Search")
-                    }
-                    IconButton(onClick = onCreateGroup) {
-                        Icon(Icons.Default.Edit, contentDescription = "New Chat")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Background,
-                    titleContentColor = TextPrimary,
-                    actionIconContentColor = Primary
+            if (searchActive) {
+                TopAppBar(
+                    title = {
+                        OutlinedTextField(
+                            value = searchQuery,
+                            onValueChange = { searchQuery = it },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .focusRequester(focusRequester),
+                            placeholder = { Text("Search chats…") },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                            keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                unfocusedBorderColor = androidx.compose.ui.graphics.Color.Transparent,
+                                focusedBorderColor = androidx.compose.ui.graphics.Color.Transparent
+                            )
+                        )
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = {
+                            searchActive = false
+                            searchQuery = ""
+                            focusManager.clearFocus()
+                        }) {
+                            Icon(Icons.Default.ArrowBack, contentDescription = "Close search")
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Background)
                 )
-            )
+            } else {
+                TopAppBar(
+                    title = {
+                        Text(
+                            text = "Chats",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                    },
+                    actions = {
+                        IconButton(onClick = { searchActive = true }) {
+                            Icon(Icons.Default.Search, contentDescription = "Search")
+                        }
+                        Box {
+                            IconButton(onClick = { menuExpanded = true }) {
+                                Icon(Icons.Default.Edit, contentDescription = "New Chat")
+                            }
+                            DropdownMenu(
+                                expanded = menuExpanded,
+                                onDismissRequest = { menuExpanded = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("New Message") },
+                                    leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
+                                    onClick = { menuExpanded = false; onNewDirectMessage() }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("New Group") },
+                                    leadingIcon = { Icon(Icons.Default.Group, contentDescription = null) },
+                                    onClick = { menuExpanded = false; onCreateGroup() }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Browse Groups") },
+                                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                                    onClick = { menuExpanded = false; onBrowseGroups() }
+                                )
+                            }
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = Background,
+                        titleContentColor = TextPrimary,
+                        actionIconContentColor = Primary
+                    )
+                )
+            }
         },
         containerColor = Background
     ) { paddingValues ->
@@ -66,11 +148,11 @@ fun ChatsScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            if (chats.isEmpty() && !isLoading) {
+            if (filteredChats.isEmpty() && !isLoading) {
                 EmptyChatsState()
             } else {
                 LazyColumn {
-                    items(chats, key = { it.id }) { chat ->
+                    items(filteredChats, key = { it.id }) { chat ->
                         ChatItem(
                             chat = chat,
                             onClick = { onChatClick(chat.id) }

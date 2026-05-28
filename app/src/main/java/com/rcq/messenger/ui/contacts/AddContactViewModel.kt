@@ -49,7 +49,7 @@ class AddContactViewModel @Inject constructor(
 
         // Debounced search
         searchJob?.cancel()
-        if (newQuery.length >= 2) {
+        if (newQuery.length >= 3) {
             searchJob = viewModelScope.launch {
                 kotlinx.coroutines.delay(300)
                 if (_query.value == newQuery) {

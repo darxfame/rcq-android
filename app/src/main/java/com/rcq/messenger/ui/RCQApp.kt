@@ -24,6 +24,7 @@ import com.rcq.messenger.ui.contacts.ContactsScreen
 import com.rcq.messenger.ui.contacts.AddContactScreen
 import com.rcq.messenger.ui.contacts.PendingRequestsScreen
 import com.rcq.messenger.ui.contacts.CreateGroupScreen
+import com.rcq.messenger.ui.contacts.GroupBrowseScreen
 import com.rcq.messenger.ui.common.BottomNavBar
 import com.rcq.messenger.ui.stories.*
 import com.rcq.messenger.ui.calls.*
@@ -130,12 +131,15 @@ fun MainScaffold(
             composable(Screen.Chats.route) {
                 ChatsScreen(
                     onChatClick = { chatId -> navController.navigate(Routes.chat(chatId)) },
-                    onCreateGroup = { navController.navigate("create_group") }
+                    onCreateGroup = { navController.navigate("create_group") },
+                    onNewDirectMessage = { navController.navigate(Screen.Contacts.route) },
+                    onBrowseGroups = { navController.navigate("groups") }
                 )
             }
             composable(Screen.Contacts.route) {
                 ContactsScreen(
                     onContactClick = { userId -> navController.navigate(Routes.userProfile(userId)) },
+                    onChatClick = { chatId -> navController.navigate(Routes.chat(chatId)) },
                     onAddContact = { navController.navigate("add_contact") },
                     onPendingRequests = { navController.navigate("pending_requests") }
                 )
@@ -169,6 +173,12 @@ fun MainScaffold(
             }
             composable("create_group") {
                 CreateGroupScreen(onBack = { navController.popBackStack() })
+            }
+            composable("groups") {
+                GroupBrowseScreen(
+                    onBack = { navController.popBackStack() },
+                    onGroupClick = { chatId -> navController.navigate(Routes.chat(chatId)) }
+                )
             }
             composable("add_contact") {
                 AddContactScreen(

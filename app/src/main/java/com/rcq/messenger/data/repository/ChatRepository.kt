@@ -13,7 +13,7 @@ import com.rcq.messenger.domain.model.*
 import com.rcq.messenger.crypto.CryptoService
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -221,7 +221,30 @@ class ChatRepository @Inject constructor(
                 when (event) {
                     is WsEvent.MessageNew -> {
                         try {
-                            val msg = json.decodeFromString<com.rcq.messenger.domain.model.Message>(event.raw.toString())
+                            val obj = event.raw
+                            val msgId = obj["id"]?.jsonPrimitive?.contentOrNull
+                                ?: obj["message_id"]?.jsonPrimitive?.contentOrNull
+                                ?: return@onEach
+                            val chatId = obj["chat_id"]?.jsonPrimitive?.contentOrNull ?: event.chatId
+                            val senderId = obj["sender_uin"]?.jsonPrimitive?.longOrNull
+                                ?: obj["senderUIN"]?.jsonPrimitive?.longOrNull ?: 0L
+                            val content = obj["text"]?.jsonPrimitive?.contentOrNull
+                                ?: obj["content"]?.jsonPrimitive?.contentOrNull ?: ""
+                            val timestamp = obj["sent_at"]?.jsonPrimitive?.longOrNull
+                                ?: obj["sentAt"]?.jsonPrimitive?.longOrNull
+                                ?: System.currentTimeMillis()
+                            val kindStr = obj["kind"]?.jsonPrimitive?.contentOrNull ?: "text"
+                            val msg = com.rcq.messenger.domain.model.Message(
+                                id = msgId,
+                                chatId = chatId,
+                                senderId = senderId,
+                                isFromMe = false,
+                                kind = runCatching {
+                                    json.decodeFromString<com.rcq.messenger.domain.model.MessageKind>("\"$kindStr\"")
+                                }.getOrDefault(com.rcq.messenger.domain.model.MessageKind.TEXT),
+                                content = content,
+                                timestamp = timestamp
+                            )
                             messageDao.insertMessage(msg.toEntity())
 
                             // Update chat metadata: increment unread count and update timestamp
