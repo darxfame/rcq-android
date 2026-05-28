@@ -229,9 +229,12 @@ class ChatRepository @Inject constructor(
                             val msgId = obj["id"]?.jsonPrimitive?.contentOrNull
                                 ?: obj["message_id"]?.jsonPrimitive?.contentOrNull
                                 ?: return@onEach
-                            val chatId = obj["chat_id"]?.jsonPrimitive?.contentOrNull ?: event.chatId
                             val senderId = obj["sender_uin"]?.jsonPrimitive?.longOrNull
                                 ?: obj["senderUIN"]?.jsonPrimitive?.longOrNull ?: 0L
+                            // Server has no chat concept — derive chatId from sender UIN
+                            val serverChatId = obj["chat_id"]?.jsonPrimitive?.contentOrNull
+                            val chatId = if (!serverChatId.isNullOrBlank()) serverChatId
+                                         else "direct_$senderId"
                             val content = obj["text"]?.jsonPrimitive?.contentOrNull
                                 ?: obj["content"]?.jsonPrimitive?.contentOrNull ?: ""
                             val timestamp = obj["sent_at"]?.jsonPrimitive?.longOrNull
@@ -369,15 +372,23 @@ class ChatRepository @Inject constructor(
         val chat = chatDao.getChat(chatId) ?: throw Exception("Chat not found")
         val recipientUin = chat.targetId
 
-        val encrypted = cryptoService.encryptMessage(recipientUin, message.content)
+        // Insert optimistically FIRST so message shows in UI immediately,
+        // even if encryption or network fails
+        val optimisticEntity = message.toEntity().copy(status = "SENDING")
+        messageDao.insertMessage(optimisticEntity)
 
-        val localEntity = message.toEntity().copy(
+        val encrypted = runCatching { cryptoService.encryptMessage(recipientUin, message.content) }
+            .getOrElse { e ->
+                messageDao.updateMessage(optimisticEntity.copy(status = "FAILED"))
+                throw e
+            }
+
+        val localEntity = optimisticEntity.copy(
             ciphertext = encrypted.ciphertext,
             signalType = encrypted.signalType,
-            isEncrypted = true,
-            status = "SENDING"
+            isEncrypted = true
         )
-        messageDao.insertMessage(localEntity)
+        messageDao.updateMessage(localEntity)
 
         val request = com.rcq.messenger.data.api.SealedMessageRequest(
             recipientUin = recipientUin,
