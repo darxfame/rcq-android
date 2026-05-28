@@ -113,6 +113,27 @@ class Session(context: Context) {
 
     fun stop() = socket.disconnect()
 
+    /** Publish own presence status (online|away|dnd). Soft-fail. */
+    suspend fun setStatus(status: String) {
+        runCatching { api.setStatus(status) }
+    }
+
+    /** Irreversible account burn: wipe server-side, then everything local
+     *  (identity keychain + message DB + in-memory flows). After this the
+     *  app is back to a fresh-install state. */
+    suspend fun burnAccount() {
+        runCatching { api.deleteAccount() }
+        socket.disconnect()
+        store.wipe()
+        db.wipe()
+        peerIdentityCache.clear()
+        _contacts.value = emptyList()
+        _pending.value = emptyList()
+        _messages.value = emptyMap()
+        _typingFrom.value = null
+        started = false
+    }
+
     // ── messaging ────────────────────────────────────────────────────
 
     suspend fun sendText(toUin: Int, text: String) {

@@ -62,6 +62,10 @@ class MessageDb(context: Context) : SQLiteOpenHelper(context.applicationContext,
         writableDatabase.update("messages", values, "id = ?", arrayOf(id))
     }
 
+    fun wipe() {
+        writableDatabase.execSQL("DELETE FROM messages")
+    }
+
     fun all(): List<ChatMessage> {
         val out = ArrayList<ChatMessage>()
         readableDatabase.rawQuery(

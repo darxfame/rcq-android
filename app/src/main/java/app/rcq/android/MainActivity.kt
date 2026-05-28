@@ -41,6 +41,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -81,6 +82,7 @@ private fun RcqApp(session: Session) {
         mutableStateOf<UiState>(session.uin?.let { UiState.Registered(it) } ?: UiState.Onboarding)
     }
     var chatPeer by remember { mutableStateOf<Int?>(null) }
+    var showSettings by remember { mutableStateOf(false) }
 
     LaunchedEffect(state) {
         if (state is UiState.Registered) session.start()
@@ -105,7 +107,12 @@ private fun RcqApp(session: Session) {
         val peer = chatPeer
         when {
             s is UiState.Registered && peer != null -> ChatScreen(session, peer, onBack = { chatPeer = null })
-            s is UiState.Registered -> Home(session, s.uin, onOpenChat = { chatPeer = it })
+            s is UiState.Registered && showSettings -> SettingsScreen(
+                session, s.uin,
+                onBack = { showSettings = false },
+                onBurned = { showSettings = false; chatPeer = null; state = UiState.Onboarding },
+            )
+            s is UiState.Registered -> Home(session, s.uin, onOpenChat = { chatPeer = it }, onOpenSettings = { showSettings = true })
             s is UiState.Onboarding -> Onboarding(onStart = ::register)
             s is UiState.Registering -> Registering()
             s is UiState.Failed -> Failed(s.message, onRetry = ::register)
@@ -148,7 +155,7 @@ private fun Failed(message: String, onRetry: () -> Unit) {
 }
 
 @Composable
-private fun Home(session: Session, uin: Int, onOpenChat: (Int) -> Unit) {
+private fun Home(session: Session, uin: Int, onOpenChat: (Int) -> Unit, onOpenSettings: () -> Unit) {
     val scope = rememberCoroutineScope()
     val contacts by session.contacts.collectAsState()
     val pending by session.pending.collectAsState()
@@ -165,6 +172,7 @@ private fun Home(session: Session, uin: Int, onOpenChat: (Int) -> Unit) {
                     Text("#$uin", color = TextSecondary, fontSize = 13.sp, fontFamily = FontFamily.Monospace)
                 }
             }
+            Text("⚙", color = TextSecondary, fontSize = 22.sp, modifier = Modifier.clickable(onClick = onOpenSettings).padding(end = 14.dp))
             Box(
                 modifier = Modifier.clip(CircleShape).background(Accent).clickable { showAdd = true }.padding(horizontal = 16.dp, vertical = 8.dp),
             ) { Text("+ Add", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp) }
@@ -348,6 +356,76 @@ private fun stateGlyph(s: DeliveryState): String = when (s) {
     DeliveryState.SENT -> "✓"
     DeliveryState.DELIVERED -> "✓✓"
     DeliveryState.FAILED -> "✕"
+}
+
+@Composable
+private fun SettingsScreen(session: Session, uin: Int, onBack: () -> Unit, onBurned: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    var status by remember { mutableStateOf("online") }
+    var confirmBurn by remember { mutableStateOf(false) }
+
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 16.dp)) {
+            Text("‹ Back", color = Accent, fontSize = 16.sp, modifier = Modifier.clickable(onClick = onBack))
+            Spacer(Modifier.width(16.dp))
+            Text("Settings", color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+        }
+
+        SectionLabel("Your UIN")
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("#$uin", color = TextPrimary, fontSize = 28.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace, modifier = Modifier.weight(1f))
+            Text("Copy", color = Accent, fontWeight = FontWeight.SemiBold, modifier = Modifier
+                .clickable {
+                    val cm = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                    cm.setPrimaryClip(android.content.ClipData.newPlainText("UIN", "$uin"))
+                }
+                .padding(8.dp))
+        }
+
+        Spacer(Modifier.height(20.dp))
+        SectionLabel("Status")
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf("online" to "Online", "away" to "Away", "dnd" to "Do Not Disturb").forEach { (key, label) ->
+                val selected = status == key
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(percent = 50))
+                        .background(if (selected) Accent else Surface)
+                        .clickable { status = key; scope.launch { session.setStatus(key) } }
+                        .padding(horizontal = 14.dp, vertical = 8.dp),
+                ) { Text(label, color = if (selected) Color.White else TextSecondary, fontSize = 13.sp) }
+            }
+        }
+
+        Spacer(Modifier.weight(1f))
+        Box(
+            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Surface)
+                .clickable { confirmBurn = true }.padding(vertical = 14.dp),
+            contentAlignment = Alignment.Center,
+        ) { Text("Burn account", color = Color(0xFFE5484D), fontWeight = FontWeight.SemiBold) }
+        Text(
+            "Wipes this account everywhere. Irreversible.",
+            color = TextSecondary, fontSize = 11.sp,
+            modifier = Modifier.fillMaxWidth().padding(top = 6.dp),
+            textAlign = TextAlign.Center,
+        )
+    }
+
+    if (confirmBurn) {
+        AlertDialog(
+            onDismissRequest = { confirmBurn = false },
+            containerColor = Surface,
+            title = { Text("Burn account?", color = TextPrimary) },
+            text = { Text("This deletes your account and all local data. It cannot be undone.", color = TextSecondary) },
+            confirmButton = {
+                TextButton(onClick = { confirmBurn = false; scope.launch { runCatching { session.burnAccount() }; onBurned() } }) {
+                    Text("Burn", color = Color(0xFFE5484D))
+                }
+            },
+            dismissButton = { TextButton(onClick = { confirmBurn = false }) { Text("Cancel", color = TextSecondary) } },
+        )
+    }
 }
 
 @Composable

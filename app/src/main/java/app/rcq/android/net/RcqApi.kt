@@ -123,6 +123,32 @@ class RcqApi(private val baseUrl: String = DEFAULT_BASE_URL) {
         post("/contacts/respond", gson.toJson(RespondBody(requestId, accept)), authed = true, RespondResponse::class.java)
     }
 
+    // ── presence + account (rcq-spec 3.3 / 2.4) ──────────────────────
+
+    data class StatusBody(val status: String, val status_message: String? = null)
+
+    suspend fun setStatus(status: String) = withContext(Dispatchers.IO) {
+        sendNoResult("POST", "/presence/status", gson.toJson(StatusBody(status)), authed = true)
+    }
+
+    /** DELETE /auth/account — irreversible burn (rcq-spec 2.4). */
+    suspend fun deleteAccount() = withContext(Dispatchers.IO) {
+        sendNoResult("DELETE", "/auth/account", null, authed = true)
+    }
+
+    private fun sendNoResult(method: String, path: String, json: String?, authed: Boolean) {
+        val b = Request.Builder().url("$baseUrl$path")
+        when (method) {
+            "POST" -> b.post((json ?: "{}").toRequestBody(JSON))
+            "DELETE" -> b.delete()
+            else -> b.get()
+        }
+        if (authed) token?.let { b.header("Authorization", "Bearer $it") }
+        client.newCall(b.build()).execute().use { resp ->
+            if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
+        }
+    }
+
     // ── plumbing ─────────────────────────────────────────────────────
 
     private fun <T> post(path: String, json: String, authed: Boolean, type: Class<T>): T {
