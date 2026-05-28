@@ -23,6 +23,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rcq.messenger.data.db.ContactDao
+import com.rcq.messenger.data.repository.ChatRepository
 import com.rcq.messenger.data.repository.ContactRepository
 import com.rcq.messenger.data.repository.UserRepository
 import com.rcq.messenger.domain.model.Contact
@@ -40,6 +41,7 @@ import javax.inject.Inject
 @HiltViewModel
 class ContactsViewModel @Inject constructor(
     private val contactRepository: ContactRepository,
+    private val chatRepository: ChatRepository,
     private val userRepository: UserRepository,
     private val contactDao: ContactDao
 ) : ViewModel() {
@@ -57,6 +59,12 @@ class ContactsViewModel @Inject constructor(
     private val _editingContact = MutableStateFlow<Contact?>(null)
     val editingContact: StateFlow<Contact?> = _editingContact.asStateFlow()
 
+    private val _pendingChatId = MutableStateFlow<String?>(null)
+    val pendingChatId: StateFlow<String?> = _pendingChatId.asStateFlow()
+
+    private val _openChatError = MutableStateFlow<String?>(null)
+    val openChatError: StateFlow<String?> = _openChatError.asStateFlow()
+
     init {
         refresh()
     }
@@ -68,6 +76,19 @@ class ContactsViewModel @Inject constructor(
             _isLoading.value = false
         }
     }
+
+    fun openOrCreateChat(userId: Long) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            chatRepository.openOrCreateChat(userId)
+                .onSuccess { chatId -> _pendingChatId.value = chatId }
+                .onFailure { _openChatError.value = it.message }
+            _isLoading.value = false
+        }
+    }
+
+    fun consumePendingChatId() { _pendingChatId.value = null }
+    fun clearOpenChatError() { _openChatError.value = null }
 
     fun removeContact(userId: Long) {
         viewModelScope.launch {
@@ -107,8 +128,18 @@ fun ContactsScreen(
     val isLoading by viewModel.isLoading.collectAsState()
     val pendingCount by viewModel.pendingRequestsCount.collectAsState()
     val editingContact by viewModel.editingContact.collectAsState()
+    val pendingChatId by viewModel.pendingChatId.collectAsState()
+    val openChatError by viewModel.openChatError.collectAsState()
     var searchQuery by remember { mutableStateOf("") }
     var nicknameInput by remember { mutableStateOf("") }
+
+    // Navigate to chat as soon as VM resolves the chatId
+    LaunchedEffect(pendingChatId) {
+        pendingChatId?.let { chatId ->
+            viewModel.consumePendingChatId()
+            onChatClick(chatId)
+        }
+    }
 
     val filteredContacts = remember(contacts, searchQuery) {
         if (searchQuery.isBlank()) contacts
@@ -155,7 +186,16 @@ fun ContactsScreen(
         )
     }
 
+    val snackbarHostState = remember { SnackbarHostState() }
+    LaunchedEffect(openChatError) {
+        openChatError?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.clearOpenChatError()
+        }
+    }
+
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = {
@@ -195,6 +235,13 @@ fun ContactsScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
+            if (isLoading) {
+                LinearProgressIndicator(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = Primary,
+                    trackColor = SurfaceVariant
+                )
+            }
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
@@ -221,10 +268,7 @@ fun ContactsScreen(
                     items(filteredContacts, key = { it.id }) { contact ->
                         ContactItem(
                             contact = contact,
-                            onClick = {
-                                if (contact.chatId != null) onChatClick(contact.chatId)
-                                else onContactClick(contact.userId)
-                            },
+                            onClick = { viewModel.openOrCreateChat(contact.userId) },
                             onToggleFavorite = { viewModel.toggleFavorite(contact.userId, contact.isFavorite) },
                             onEditNickname = { viewModel.startEditNickname(contact) },
                             onBlock = { viewModel.blockContact(contact.userId) },

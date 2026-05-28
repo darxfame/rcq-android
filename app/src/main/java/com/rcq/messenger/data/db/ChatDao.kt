@@ -15,6 +15,9 @@ interface ChatDao {
     @Query("SELECT * FROM chats WHERE id = :id")
     suspend fun getChat(id: String): ChatEntity?
 
+    @Query("SELECT * FROM chats WHERE targetId = :targetId LIMIT 1")
+    suspend fun getChatByTargetId(targetId: Long): ChatEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertChat(chat: ChatEntity)
 

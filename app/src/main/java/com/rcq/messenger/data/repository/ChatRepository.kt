@@ -332,6 +332,11 @@ class ChatRepository @Inject constructor(
         }
     }
 
+    suspend fun openOrCreateChat(targetId: Long): Result<String> = runCatching {
+        chatDao.getChatByTargetId(targetId)?.id
+            ?: createChat(targetId).getOrThrow().id
+    }
+
     fun getMessages(chatId: String, limit: Int = 50): Flow<List<Message>> =
         messageDao.getMessages(chatId, limit).map { entities ->
             entities.map { it.toDomain() }

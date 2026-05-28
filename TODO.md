@@ -12,7 +12,9 @@
 - [x] Recovery phrase generation/display/clipboard
 - [x] Auth token via DataStore + interceptor
 - [x] Logout
-- [x] Account recovery (restore from phrase) — wired to real API
+- [ ] Account recovery — challenge-response (Ed25519) — BACKEND PENDING
+  - Android: MnemonicHelper.kt создан (Task 6 ✅), Tasks 7-9 ждут backend
+  - Backend: patch в docs/superpowers/plans/account-recovery-backend.patch
 - [ ] Biometric/PIN unlock
 
 ## Contacts
@@ -79,6 +81,13 @@
 - [ ] Incoming call screen + notification
 - [ ] Call controls (mute, speaker, camera flip)
 - [ ] Audio rooms (AudioRoomService exists)
+
+## Design: iOS Reference Parity
+- [ ] Сверить иконки с rcq-ios (https://github.com/rcq-messenger/rcq-ios)
+- [ ] Порт звуков уведомлений / системных звуков из iOS ресурсов
+- [ ] Эмодзи-реакции в стиле iOS (picker + display в баблах)
+- [ ] Типографика и отступы по iOS гайдлайнам (скруглия, shadow, spacing)
+- [ ] Цветовая палитра/тема в соответствии с iOS дизайн-системой RCQ
 
 ## Phase 4: Social Features
 - [ ] Stories upload + reply

@@ -98,7 +98,32 @@ fun GroupBrowseScreen(
 
             if (groups.isEmpty() && !isLoading) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("No groups found", color = TextSecondary)
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.padding(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Group,
+                            contentDescription = null,
+                            modifier = Modifier.size(64.dp),
+                            tint = TextSecondary
+                        )
+                        Text(
+                            text = if (searchQuery.isBlank()) "You haven't joined any groups yet"
+                                   else "No groups match \"$searchQuery\"",
+                            color = TextSecondary,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                        if (searchQuery.isBlank()) {
+                            Text(
+                                text = "Create a new group or ask someone to add you",
+                                color = TextTertiary,
+                                style = MaterialTheme.typography.bodySmall,
+                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            )
+                        }
+                    }
                 }
             } else {
                 LazyColumn {
