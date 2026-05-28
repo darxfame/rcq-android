@@ -101,9 +101,9 @@ interface RCQApiService {
         @Body reaction: Reaction
     ): Response<Message>
 
-    // Groups
+    // Groups — server returns {"groups":[...]} wrapper
     @GET("groups")
-    suspend fun getGroups(): Response<List<Group>>
+    suspend fun getGroups(): Response<GroupsResponse>
 
     @POST("groups")
     suspend fun createGroup(@Body request: CreateGroupRequest): Response<Group>
@@ -453,6 +453,15 @@ data class MediaUsageResponse(
     val totalBytes: Long,
     val fileCount: Int
 )
+
+@kotlinx.serialization.Serializable
+data class GroupsResponse(
+    val groups: List<Group> = emptyList(),
+    val items: List<Group> = emptyList(),  // alt key some servers use
+    val data: List<Group> = emptyList()    // alt key
+) {
+    fun toList(): List<Group> = groups.ifEmpty { items.ifEmpty { data } }
+}
 
 @kotlinx.serialization.Serializable
 data class SealedMessageRequest(
