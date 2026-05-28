@@ -27,7 +27,7 @@ class AuthViewModel @Inject constructor(
     private val api: RCQApiService,
     private val dataStore: DataStore<Preferences>,
     @ApplicationContext private val context: Context,
-    private val webSocketManager: com.rcq.messenger.data.ws.WebSocketManager,
+    private val webSocketService: com.rcq.messenger.data.websocket.WebSocketService,
     private val cryptoService: CryptoService
 ) : ViewModel() {
 
@@ -85,7 +85,7 @@ class AuthViewModel @Inject constructor(
                     _isAuthenticated.value = true
                     _authState.value = AuthState.Authenticated
                     // Connect WebSocket after successful authentication
-                    webSocketManager.connect()
+                    webSocketService.connect()
                 } else {
                     _authState.value = AuthState.Onboarding
                 }
@@ -109,7 +109,7 @@ class AuthViewModel @Inject constructor(
                     RegisterRequest(
                         nickname = nickname,
                         identity_key = bundle.identityKey,
-                        signing_key = bundle.signingKey
+                        signing_key = bundle.signedPreKey
                     )
                 )
 
@@ -119,7 +119,7 @@ class AuthViewModel @Inject constructor(
                     val token = body.token
 
                     // Generate recovery phrase from keys
-                    val recoveryPhrase = generateRecoveryPhrase(bundle.identityKey, bundle.signingKey)
+                    val recoveryPhrase = generateRecoveryPhrase(bundle.identityKey, bundle.signedPreKey)
                     _recoveryPhrase.value = recoveryPhrase
                     _showRecoveryPhrase.value = true
 
@@ -129,7 +129,7 @@ class AuthViewModel @Inject constructor(
                         prefs[KEY_TOKEN] = token
                         prefs[KEY_NICKNAME] = nickname
                         prefs[KEY_IDENTITY_KEY] = bundle.identityKey
-                        prefs[KEY_SIGNING_KEY] = bundle.signingKey
+                        prefs[KEY_SIGNING_KEY] = bundle.signedPreKey
                         prefs[KEY_RECOVERY_PHRASE] = recoveryPhrase.joinToString(" ")
                     }
                     // Also save to main DataStore for AuthInterceptor and WebSocketService
@@ -160,7 +160,7 @@ class AuthViewModel @Inject constructor(
                 _isAuthenticated.value = true
                 _authState.value = AuthState.Authenticated
                 // Connect WebSocket after confirming recovery phrase
-                webSocketManager.connect()
+                webSocketService.connect()
             }
         }
     }

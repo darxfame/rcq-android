@@ -3,6 +3,7 @@ package com.rcq.messenger.crypto
 import android.util.Base64
 import org.signal.libsignal.protocol.SessionCipher
 import org.signal.libsignal.protocol.SignalProtocolAddress
+import org.signal.libsignal.protocol.ecc.Curve
 import org.signal.libsignal.protocol.message.CiphertextMessage
 import org.signal.libsignal.protocol.message.PreKeySignalMessage
 import org.signal.libsignal.protocol.message.SignalMessage
@@ -55,7 +56,7 @@ class SessionManager @Inject constructor(
      */
     fun generatePreKeys(): List<String> {
         val preKeys = (1..100).map { id ->
-            PreKeyRecord.generate(id)
+            PreKeyRecord(id, Curve.generateKeyPair())
         }
         return preKeys.map { preKey ->
             Base64.encodeToString(preKey.serialize(), Base64.NO_WRAP)
@@ -66,9 +67,16 @@ class SessionManager @Inject constructor(
      * Generate signed pre-key for registration
      */
     fun generateSignedPreKey(): String {
-        val signedPreKey = SignedPreKeyRecord.generate(
+        val signedKeyPair = Curve.generateKeyPair()
+        val signature = Curve.calculateSignature(
+            signalKeyStore.identityKeyPair.privateKey,
+            signedKeyPair.publicKey.serialize()
+        )
+        val signedPreKey = SignedPreKeyRecord(
             1,
-            signalKeyStore.identityKeyPair
+            System.currentTimeMillis(),
+            signedKeyPair,
+            signature
         )
         return Base64.encodeToString(signedPreKey.serialize(), Base64.NO_WRAP)
     }

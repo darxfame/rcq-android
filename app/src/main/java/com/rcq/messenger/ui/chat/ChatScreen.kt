@@ -43,6 +43,7 @@ fun ChatScreen(
     val replyTo by viewModel.replyTo.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val currentUserId by viewModel.currentUserId.collectAsState()
+    val chatTitle by viewModel.chatTitle.collectAsState()
     val listState = rememberLazyListState()
 
     LaunchedEffect(chatId) {
@@ -61,21 +62,14 @@ fun ChatScreen(
                                 .background(SurfaceVariant),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text("U", color = Primary)
+                            Text(chatTitle.firstOrNull()?.uppercase() ?: "?", color = Primary)
                         }
                         Spacer(modifier = Modifier.width(12.dp))
-                        Column {
-                            Text(
-                                text = "User",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Text(
-                                text = "Online",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Online
-                            )
-                        }
+                        Text(
+                            text = chatTitle,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
                     }
                 },
                 navigationIcon = {

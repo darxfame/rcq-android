@@ -1,80 +1,89 @@
-# RCQ Android App - Complete TODO List
+# RCQ Android — TODO
 
-## Authentication Flow
-- [x] Welcome screen with nickname input
-- [x] Registration with key generation
-- [x] Recovery phrase generation and display
-- [x] Recovery phrase auto-copy to clipboard
-- [x] Auth token storage in DataStore
-- [x] Auth interceptor for API requests
-- [x] Logout functionality
-- [ ] Account recovery flow (restore from phrase)
+## Build & Infrastructure
+- [x] assembleDebug green (123 compile errors fixed — May 28)
+- [x] DB migration chain v6→v7→v8→v9 working
+- [x] Hilt DI wired for all DAOs including SignalKeyDao
+- [x] KyberPreKey methods implemented (libsignal 0.33 compatibility)
+
+## Authentication
+- [x] Welcome screen + registration
+- [x] Recovery phrase generation/display/clipboard
+- [x] Auth token via DataStore + interceptor
+- [x] Logout
+- [ ] Account recovery (restore from phrase) — UI exists, logic incomplete
 - [ ] Biometric/PIN unlock
 
-## Navigation
-- [x] Bottom nav: Chats, Contacts, Settings
-- [x] Chat detail screen
-- [x] Profile screen
-- [x] Add contact screen
-- [ ] Create group screen
-- [ ] Audio rooms screen
-- [ ] Stories screen
-- [ ] Games screen
-- [ ] Marketplace screen
-
 ## Contacts
-- [x] Display contacts list
-- [x] Search contacts locally
-- [x] Add contact by UIN (search on server)
-- [x] Contact requests - accept/decline
-- [x] Remove contact
-- [x] Block/unblock contact
+- [x] List contacts
+- [x] Search locally
+- [x] Add contact by UIN
+- [x] Accept/decline requests
+- [x] Remove / block / unblock
+- [ ] Fix contact sync (API returns array, not `{contacts:[]}` wrapper) — DIAGNOSIS.md #1
+- [ ] Fix user search timeout (GET /users/{uin}/info) — DIAGNOSIS.md #2
+- [ ] Fix friend request endpoint ambiguity (POST /contacts vs /contacts/request) — DIAGNOSIS.md #3
 - [ ] Edit contact nickname
 - [ ] Favorite contacts
 
-## Chats
-- [x] Display chats list
-- [x] Load messages from database
-- [x] Send message
-- [x] Edit message
-- [x] Delete message
-- [ ] Reply to message
+## Chats & Messaging
+- [x] Chats list
+- [x] Load messages from DB
+- [x] Send / edit / delete message
+- [x] E2EE encryption via Signal Protocol
+- [x] ChatEntity updated (targetId, targetNickname, isPinned)
+- [ ] Real-time receive via WebSocket — wired but needs validation
+- [ ] Reply to message (UI exists, missing send logic)
 - [ ] Forward message
-- [ ] Real-time messaging (WebSocket)
 - [ ] Push notifications
 
-## Settings
-- [x] Display current user info (UIN, nickname)
-- [x] View recovery phrase
-- [x] Logout button
-- [ ] Profile editing
+## Groups
+- [x] GroupEntity, GroupDao, GroupRepository (compiles)
+- [x] CreateGroupScreen + CreateGroupViewModel
+- [ ] Create group — API call working end-to-end
+- [ ] Group chat screen
+- [ ] Group member management
+
+## Stories
+- [x] StoriesScreen UI (list)
+- [x] StoryViewerScreen + StoryViewerViewModel
+- [ ] Story upload
+- [ ] Story reply
+
+## Calls
+- [x] CallEntity, CallDao (with getMissedCalls, limit overload)
+- [x] CallScreen, CallsScreen UI
+- [ ] WebRTC call initiation working end-to-end
+- [ ] Incoming call notification
+
+## Settings & Profile
+- [x] Display UIN, nickname, recovery phrase, logout
+- [ ] Profile editing (avatar, bio, nickname)
 - [ ] Privacy settings
 - [ ] Notification settings
 - [ ] Appearance/theme settings
 - [ ] Storage settings
-- [ ] About/help screens
 
-## API Integration
-- [x] Auth: register, login
-- [x] Users: get, search
-- [x] Contacts: list, add, remove, block, unblock
-- [x] Contact requests: list, accept, decline
-- [x] Chats: list, create
-- [x] Messages: send, edit, delete
-- [ ] Messages: real-time via WebSocket
+## Games / Marketplace / Pets / Audio Rooms
+- [x] Entities and repositories compile
+- [x] PetDao with equip/unequip
+- [ ] Games screen functional
+- [ ] Marketplace screen functional
+- [ ] Audio rooms screen functional
 
-## Database (Room)
-- [x] Users table
-- [x] Contacts table
-- [x] Chats table
-- [x] Messages table
-- [ ] Groups table
-- [ ] Stories table
-- [ ] Calls table
+## Phase 2: Media Messaging (NEXT)
+- [ ] Photo send (camera + gallery picker)
+- [ ] Photo receive + display
+- [ ] Video send/receive
+- [ ] File attachment send/receive
+- [ ] Voice message record + send (VoiceRecorder exists)
+- [ ] Voice message playback
+- [ ] Location sharing
+- [ ] All media types encrypted via CryptoService
+- [ ] MediaService integration
 
-## Core Features
-- [ ] Voice/video calls
-- [ ] Audio rooms
-- [ ] Stories
-- [ ] Games
-- [ ] Marketplace/Pets
+## Testing
+- [ ] Unit tests for CryptoService
+- [ ] Integration tests for DB migrations (v6→v9)
+- [ ] E2EE round-trip test (encrypt → store → decrypt)
+- [ ] Contact sync integration test

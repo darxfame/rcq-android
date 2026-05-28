@@ -261,6 +261,8 @@ class ChatRepository @Inject constructor(
             .launchIn(scope)
     }
 
+    suspend fun getChat(chatId: String): Chat? = chatDao.getChat(chatId)?.toDomain()
+
     fun getChats(): Flow<List<Chat>> = chatDao.getChats().map { entities ->
         entities.map { it.toDomain() }
     }
@@ -286,6 +288,16 @@ class ChatRepository @Inject constructor(
         messageDao.getMessages(chatId, limit).map { entities ->
             entities.map { it.toDomain() }
         }
+
+    suspend fun syncMessages(chatId: String, limit: Int = 50): Result<Unit> = runCatching {
+        api.getMessages(chatId, limit = limit).let { response ->
+            if (response.isSuccessful) {
+                response.body()?.forEach { message ->
+                    messageDao.insertMessage(message.toEntity())
+                }
+            }
+        }
+    }
 
     suspend fun loadMoreMessages(chatId: String, before: Long, limit: Int = 50): List<Message> {
         return messageDao.getMessagesBefore(chatId, before, limit).map { it.toDomain() }

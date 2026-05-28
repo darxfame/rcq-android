@@ -151,10 +151,13 @@ fun MainScaffold(
                 )
             }
             composable(Screen.Settings.route) {
+                val currentUin by authViewModel.currentUin.collectAsState()
+                val nickname by authViewModel.nickname.collectAsState()
+                val recoveryPhrase by authViewModel.recoveryPhrase.collectAsState()
                 SettingsScreen(
-                    currentUin = authViewModel.currentUin.value,
-                    nickname = authViewModel.nickname.value,
-                    recoveryPhrase = authViewModel.recoveryPhrase.value,
+                    currentUin = currentUin,
+                    nickname = nickname,
+                    recoveryPhrase = recoveryPhrase,
                     onLogout = { authViewModel.logout() }
                 )
             }
