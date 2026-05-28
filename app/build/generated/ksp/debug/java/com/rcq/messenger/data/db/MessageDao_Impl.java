@@ -15,7 +15,9 @@ import androidx.room.util.DBUtil;
 import androidx.sqlite.db.SupportSQLiteStatement;
 import com.rcq.messenger.domain.model.MessageEntity;
 import java.lang.Class;
+import java.lang.Double;
 import java.lang.Exception;
+import java.lang.Integer;
 import java.lang.Long;
 import java.lang.Object;
 import java.lang.Override;
@@ -49,7 +51,7 @@ public final class MessageDao_Impl implements MessageDao {
       @Override
       @NonNull
       protected String createQuery() {
-        return "INSERT OR REPLACE INTO `messages` (`id`,`chatId`,`senderId`,`content`,`type`,`timestamp`,`status`,`replyToId`,`attachmentUrl`,`attachmentType`,`attachmentSize`,`isEdited`,`editedAt`,`ciphertext`,`signalType`,`isEncrypted`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+        return "INSERT OR REPLACE INTO `messages` (`id`,`chatId`,`senderId`,`content`,`timestamp`,`status`,`replyToId`,`editedAt`,`ciphertext`,`signalType`,`isEncrypted`,`isFromMe`,`kind`,`mediaId`,`receivedWhileAway`,`deletedForEveryone`,`reactions`,`thumbnailB64`,`durationSec`,`ttlSeconds`,`forwardedFromName`,`replyToContent`,`replyToAuthorName`,`premiumPriceTokens`,`premiumUnlocked`,`albumId`,`fileName`,`fileMime`,`fileSizeBytes`,`latitude`,`longitude`,`pollId`,`mentionedUserIds`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
       }
 
       @Override
@@ -59,51 +61,123 @@ public final class MessageDao_Impl implements MessageDao {
         statement.bindString(2, entity.getChatId());
         statement.bindLong(3, entity.getSenderId());
         statement.bindString(4, entity.getContent());
-        statement.bindString(5, entity.getType());
-        statement.bindLong(6, entity.getTimestamp());
-        statement.bindString(7, entity.getStatus());
+        statement.bindLong(5, entity.getTimestamp());
+        statement.bindString(6, entity.getStatus());
         if (entity.getReplyToId() == null) {
+          statement.bindNull(7);
+        } else {
+          statement.bindString(7, entity.getReplyToId());
+        }
+        if (entity.getEditedAt() == null) {
           statement.bindNull(8);
         } else {
-          statement.bindString(8, entity.getReplyToId());
-        }
-        if (entity.getAttachmentUrl() == null) {
-          statement.bindNull(9);
-        } else {
-          statement.bindString(9, entity.getAttachmentUrl());
-        }
-        if (entity.getAttachmentType() == null) {
-          statement.bindNull(10);
-        } else {
-          statement.bindString(10, entity.getAttachmentType());
-        }
-        if (entity.getAttachmentSize() == null) {
-          statement.bindNull(11);
-        } else {
-          statement.bindLong(11, entity.getAttachmentSize());
-        }
-        final int _tmp = entity.isEdited() ? 1 : 0;
-        statement.bindLong(12, _tmp);
-        if (entity.getEditedAt() == null) {
-          statement.bindNull(13);
-        } else {
-          statement.bindLong(13, entity.getEditedAt());
+          statement.bindLong(8, entity.getEditedAt());
         }
         if (entity.getCiphertext() == null) {
+          statement.bindNull(9);
+        } else {
+          statement.bindString(9, entity.getCiphertext());
+        }
+        statement.bindLong(10, entity.getSignalType());
+        final int _tmp = entity.isEncrypted() ? 1 : 0;
+        statement.bindLong(11, _tmp);
+        final int _tmp_1 = entity.isFromMe() ? 1 : 0;
+        statement.bindLong(12, _tmp_1);
+        statement.bindString(13, entity.getKind());
+        if (entity.getMediaId() == null) {
           statement.bindNull(14);
         } else {
-          statement.bindString(14, entity.getCiphertext());
+          statement.bindString(14, entity.getMediaId());
         }
-        statement.bindLong(15, entity.getSignalType());
-        final int _tmp_1 = entity.isEncrypted() ? 1 : 0;
-        statement.bindLong(16, _tmp_1);
+        final int _tmp_2 = entity.getReceivedWhileAway() ? 1 : 0;
+        statement.bindLong(15, _tmp_2);
+        final int _tmp_3 = entity.getDeletedForEveryone() ? 1 : 0;
+        statement.bindLong(16, _tmp_3);
+        if (entity.getReactions() == null) {
+          statement.bindNull(17);
+        } else {
+          statement.bindString(17, entity.getReactions());
+        }
+        if (entity.getThumbnailB64() == null) {
+          statement.bindNull(18);
+        } else {
+          statement.bindString(18, entity.getThumbnailB64());
+        }
+        statement.bindDouble(19, entity.getDurationSec());
+        if (entity.getTtlSeconds() == null) {
+          statement.bindNull(20);
+        } else {
+          statement.bindLong(20, entity.getTtlSeconds());
+        }
+        if (entity.getForwardedFromName() == null) {
+          statement.bindNull(21);
+        } else {
+          statement.bindString(21, entity.getForwardedFromName());
+        }
+        if (entity.getReplyToContent() == null) {
+          statement.bindNull(22);
+        } else {
+          statement.bindString(22, entity.getReplyToContent());
+        }
+        if (entity.getReplyToAuthorName() == null) {
+          statement.bindNull(23);
+        } else {
+          statement.bindString(23, entity.getReplyToAuthorName());
+        }
+        if (entity.getPremiumPriceTokens() == null) {
+          statement.bindNull(24);
+        } else {
+          statement.bindLong(24, entity.getPremiumPriceTokens());
+        }
+        final int _tmp_4 = entity.getPremiumUnlocked() ? 1 : 0;
+        statement.bindLong(25, _tmp_4);
+        if (entity.getAlbumId() == null) {
+          statement.bindNull(26);
+        } else {
+          statement.bindString(26, entity.getAlbumId());
+        }
+        if (entity.getFileName() == null) {
+          statement.bindNull(27);
+        } else {
+          statement.bindString(27, entity.getFileName());
+        }
+        if (entity.getFileMime() == null) {
+          statement.bindNull(28);
+        } else {
+          statement.bindString(28, entity.getFileMime());
+        }
+        if (entity.getFileSizeBytes() == null) {
+          statement.bindNull(29);
+        } else {
+          statement.bindLong(29, entity.getFileSizeBytes());
+        }
+        if (entity.getLatitude() == null) {
+          statement.bindNull(30);
+        } else {
+          statement.bindDouble(30, entity.getLatitude());
+        }
+        if (entity.getLongitude() == null) {
+          statement.bindNull(31);
+        } else {
+          statement.bindDouble(31, entity.getLongitude());
+        }
+        if (entity.getPollId() == null) {
+          statement.bindNull(32);
+        } else {
+          statement.bindString(32, entity.getPollId());
+        }
+        if (entity.getMentionedUserIds() == null) {
+          statement.bindNull(33);
+        } else {
+          statement.bindString(33, entity.getMentionedUserIds());
+        }
       }
     };
     this.__updateAdapterOfMessageEntity = new EntityDeletionOrUpdateAdapter<MessageEntity>(__db) {
       @Override
       @NonNull
       protected String createQuery() {
-        return "UPDATE OR ABORT `messages` SET `id` = ?,`chatId` = ?,`senderId` = ?,`content` = ?,`type` = ?,`timestamp` = ?,`status` = ?,`replyToId` = ?,`attachmentUrl` = ?,`attachmentType` = ?,`attachmentSize` = ?,`isEdited` = ?,`editedAt` = ?,`ciphertext` = ?,`signalType` = ?,`isEncrypted` = ? WHERE `id` = ?";
+        return "UPDATE OR ABORT `messages` SET `id` = ?,`chatId` = ?,`senderId` = ?,`content` = ?,`timestamp` = ?,`status` = ?,`replyToId` = ?,`editedAt` = ?,`ciphertext` = ?,`signalType` = ?,`isEncrypted` = ?,`isFromMe` = ?,`kind` = ?,`mediaId` = ?,`receivedWhileAway` = ?,`deletedForEveryone` = ?,`reactions` = ?,`thumbnailB64` = ?,`durationSec` = ?,`ttlSeconds` = ?,`forwardedFromName` = ?,`replyToContent` = ?,`replyToAuthorName` = ?,`premiumPriceTokens` = ?,`premiumUnlocked` = ?,`albumId` = ?,`fileName` = ?,`fileMime` = ?,`fileSizeBytes` = ?,`latitude` = ?,`longitude` = ?,`pollId` = ?,`mentionedUserIds` = ? WHERE `id` = ?";
       }
 
       @Override
@@ -113,45 +187,117 @@ public final class MessageDao_Impl implements MessageDao {
         statement.bindString(2, entity.getChatId());
         statement.bindLong(3, entity.getSenderId());
         statement.bindString(4, entity.getContent());
-        statement.bindString(5, entity.getType());
-        statement.bindLong(6, entity.getTimestamp());
-        statement.bindString(7, entity.getStatus());
+        statement.bindLong(5, entity.getTimestamp());
+        statement.bindString(6, entity.getStatus());
         if (entity.getReplyToId() == null) {
+          statement.bindNull(7);
+        } else {
+          statement.bindString(7, entity.getReplyToId());
+        }
+        if (entity.getEditedAt() == null) {
           statement.bindNull(8);
         } else {
-          statement.bindString(8, entity.getReplyToId());
-        }
-        if (entity.getAttachmentUrl() == null) {
-          statement.bindNull(9);
-        } else {
-          statement.bindString(9, entity.getAttachmentUrl());
-        }
-        if (entity.getAttachmentType() == null) {
-          statement.bindNull(10);
-        } else {
-          statement.bindString(10, entity.getAttachmentType());
-        }
-        if (entity.getAttachmentSize() == null) {
-          statement.bindNull(11);
-        } else {
-          statement.bindLong(11, entity.getAttachmentSize());
-        }
-        final int _tmp = entity.isEdited() ? 1 : 0;
-        statement.bindLong(12, _tmp);
-        if (entity.getEditedAt() == null) {
-          statement.bindNull(13);
-        } else {
-          statement.bindLong(13, entity.getEditedAt());
+          statement.bindLong(8, entity.getEditedAt());
         }
         if (entity.getCiphertext() == null) {
+          statement.bindNull(9);
+        } else {
+          statement.bindString(9, entity.getCiphertext());
+        }
+        statement.bindLong(10, entity.getSignalType());
+        final int _tmp = entity.isEncrypted() ? 1 : 0;
+        statement.bindLong(11, _tmp);
+        final int _tmp_1 = entity.isFromMe() ? 1 : 0;
+        statement.bindLong(12, _tmp_1);
+        statement.bindString(13, entity.getKind());
+        if (entity.getMediaId() == null) {
           statement.bindNull(14);
         } else {
-          statement.bindString(14, entity.getCiphertext());
+          statement.bindString(14, entity.getMediaId());
         }
-        statement.bindLong(15, entity.getSignalType());
-        final int _tmp_1 = entity.isEncrypted() ? 1 : 0;
-        statement.bindLong(16, _tmp_1);
-        statement.bindString(17, entity.getId());
+        final int _tmp_2 = entity.getReceivedWhileAway() ? 1 : 0;
+        statement.bindLong(15, _tmp_2);
+        final int _tmp_3 = entity.getDeletedForEveryone() ? 1 : 0;
+        statement.bindLong(16, _tmp_3);
+        if (entity.getReactions() == null) {
+          statement.bindNull(17);
+        } else {
+          statement.bindString(17, entity.getReactions());
+        }
+        if (entity.getThumbnailB64() == null) {
+          statement.bindNull(18);
+        } else {
+          statement.bindString(18, entity.getThumbnailB64());
+        }
+        statement.bindDouble(19, entity.getDurationSec());
+        if (entity.getTtlSeconds() == null) {
+          statement.bindNull(20);
+        } else {
+          statement.bindLong(20, entity.getTtlSeconds());
+        }
+        if (entity.getForwardedFromName() == null) {
+          statement.bindNull(21);
+        } else {
+          statement.bindString(21, entity.getForwardedFromName());
+        }
+        if (entity.getReplyToContent() == null) {
+          statement.bindNull(22);
+        } else {
+          statement.bindString(22, entity.getReplyToContent());
+        }
+        if (entity.getReplyToAuthorName() == null) {
+          statement.bindNull(23);
+        } else {
+          statement.bindString(23, entity.getReplyToAuthorName());
+        }
+        if (entity.getPremiumPriceTokens() == null) {
+          statement.bindNull(24);
+        } else {
+          statement.bindLong(24, entity.getPremiumPriceTokens());
+        }
+        final int _tmp_4 = entity.getPremiumUnlocked() ? 1 : 0;
+        statement.bindLong(25, _tmp_4);
+        if (entity.getAlbumId() == null) {
+          statement.bindNull(26);
+        } else {
+          statement.bindString(26, entity.getAlbumId());
+        }
+        if (entity.getFileName() == null) {
+          statement.bindNull(27);
+        } else {
+          statement.bindString(27, entity.getFileName());
+        }
+        if (entity.getFileMime() == null) {
+          statement.bindNull(28);
+        } else {
+          statement.bindString(28, entity.getFileMime());
+        }
+        if (entity.getFileSizeBytes() == null) {
+          statement.bindNull(29);
+        } else {
+          statement.bindLong(29, entity.getFileSizeBytes());
+        }
+        if (entity.getLatitude() == null) {
+          statement.bindNull(30);
+        } else {
+          statement.bindDouble(30, entity.getLatitude());
+        }
+        if (entity.getLongitude() == null) {
+          statement.bindNull(31);
+        } else {
+          statement.bindDouble(31, entity.getLongitude());
+        }
+        if (entity.getPollId() == null) {
+          statement.bindNull(32);
+        } else {
+          statement.bindString(32, entity.getPollId());
+        }
+        if (entity.getMentionedUserIds() == null) {
+          statement.bindNull(33);
+        } else {
+          statement.bindString(33, entity.getMentionedUserIds());
+        }
+        statement.bindString(34, entity.getId());
       }
     };
     this.__preparedStmtOfDeleteMessage = new SharedSQLiteStatement(__db) {
@@ -301,18 +447,35 @@ public final class MessageDao_Impl implements MessageDao {
           final int _cursorIndexOfChatId = CursorUtil.getColumnIndexOrThrow(_cursor, "chatId");
           final int _cursorIndexOfSenderId = CursorUtil.getColumnIndexOrThrow(_cursor, "senderId");
           final int _cursorIndexOfContent = CursorUtil.getColumnIndexOrThrow(_cursor, "content");
-          final int _cursorIndexOfType = CursorUtil.getColumnIndexOrThrow(_cursor, "type");
           final int _cursorIndexOfTimestamp = CursorUtil.getColumnIndexOrThrow(_cursor, "timestamp");
           final int _cursorIndexOfStatus = CursorUtil.getColumnIndexOrThrow(_cursor, "status");
           final int _cursorIndexOfReplyToId = CursorUtil.getColumnIndexOrThrow(_cursor, "replyToId");
-          final int _cursorIndexOfAttachmentUrl = CursorUtil.getColumnIndexOrThrow(_cursor, "attachmentUrl");
-          final int _cursorIndexOfAttachmentType = CursorUtil.getColumnIndexOrThrow(_cursor, "attachmentType");
-          final int _cursorIndexOfAttachmentSize = CursorUtil.getColumnIndexOrThrow(_cursor, "attachmentSize");
-          final int _cursorIndexOfIsEdited = CursorUtil.getColumnIndexOrThrow(_cursor, "isEdited");
           final int _cursorIndexOfEditedAt = CursorUtil.getColumnIndexOrThrow(_cursor, "editedAt");
           final int _cursorIndexOfCiphertext = CursorUtil.getColumnIndexOrThrow(_cursor, "ciphertext");
           final int _cursorIndexOfSignalType = CursorUtil.getColumnIndexOrThrow(_cursor, "signalType");
           final int _cursorIndexOfIsEncrypted = CursorUtil.getColumnIndexOrThrow(_cursor, "isEncrypted");
+          final int _cursorIndexOfIsFromMe = CursorUtil.getColumnIndexOrThrow(_cursor, "isFromMe");
+          final int _cursorIndexOfKind = CursorUtil.getColumnIndexOrThrow(_cursor, "kind");
+          final int _cursorIndexOfMediaId = CursorUtil.getColumnIndexOrThrow(_cursor, "mediaId");
+          final int _cursorIndexOfReceivedWhileAway = CursorUtil.getColumnIndexOrThrow(_cursor, "receivedWhileAway");
+          final int _cursorIndexOfDeletedForEveryone = CursorUtil.getColumnIndexOrThrow(_cursor, "deletedForEveryone");
+          final int _cursorIndexOfReactions = CursorUtil.getColumnIndexOrThrow(_cursor, "reactions");
+          final int _cursorIndexOfThumbnailB64 = CursorUtil.getColumnIndexOrThrow(_cursor, "thumbnailB64");
+          final int _cursorIndexOfDurationSec = CursorUtil.getColumnIndexOrThrow(_cursor, "durationSec");
+          final int _cursorIndexOfTtlSeconds = CursorUtil.getColumnIndexOrThrow(_cursor, "ttlSeconds");
+          final int _cursorIndexOfForwardedFromName = CursorUtil.getColumnIndexOrThrow(_cursor, "forwardedFromName");
+          final int _cursorIndexOfReplyToContent = CursorUtil.getColumnIndexOrThrow(_cursor, "replyToContent");
+          final int _cursorIndexOfReplyToAuthorName = CursorUtil.getColumnIndexOrThrow(_cursor, "replyToAuthorName");
+          final int _cursorIndexOfPremiumPriceTokens = CursorUtil.getColumnIndexOrThrow(_cursor, "premiumPriceTokens");
+          final int _cursorIndexOfPremiumUnlocked = CursorUtil.getColumnIndexOrThrow(_cursor, "premiumUnlocked");
+          final int _cursorIndexOfAlbumId = CursorUtil.getColumnIndexOrThrow(_cursor, "albumId");
+          final int _cursorIndexOfFileName = CursorUtil.getColumnIndexOrThrow(_cursor, "fileName");
+          final int _cursorIndexOfFileMime = CursorUtil.getColumnIndexOrThrow(_cursor, "fileMime");
+          final int _cursorIndexOfFileSizeBytes = CursorUtil.getColumnIndexOrThrow(_cursor, "fileSizeBytes");
+          final int _cursorIndexOfLatitude = CursorUtil.getColumnIndexOrThrow(_cursor, "latitude");
+          final int _cursorIndexOfLongitude = CursorUtil.getColumnIndexOrThrow(_cursor, "longitude");
+          final int _cursorIndexOfPollId = CursorUtil.getColumnIndexOrThrow(_cursor, "pollId");
+          final int _cursorIndexOfMentionedUserIds = CursorUtil.getColumnIndexOrThrow(_cursor, "mentionedUserIds");
           final List<MessageEntity> _result = new ArrayList<MessageEntity>(_cursor.getCount());
           while (_cursor.moveToNext()) {
             final MessageEntity _item;
@@ -324,8 +487,6 @@ public final class MessageDao_Impl implements MessageDao {
             _tmpSenderId = _cursor.getLong(_cursorIndexOfSenderId);
             final String _tmpContent;
             _tmpContent = _cursor.getString(_cursorIndexOfContent);
-            final String _tmpType;
-            _tmpType = _cursor.getString(_cursorIndexOfType);
             final long _tmpTimestamp;
             _tmpTimestamp = _cursor.getLong(_cursorIndexOfTimestamp);
             final String _tmpStatus;
@@ -336,28 +497,6 @@ public final class MessageDao_Impl implements MessageDao {
             } else {
               _tmpReplyToId = _cursor.getString(_cursorIndexOfReplyToId);
             }
-            final String _tmpAttachmentUrl;
-            if (_cursor.isNull(_cursorIndexOfAttachmentUrl)) {
-              _tmpAttachmentUrl = null;
-            } else {
-              _tmpAttachmentUrl = _cursor.getString(_cursorIndexOfAttachmentUrl);
-            }
-            final String _tmpAttachmentType;
-            if (_cursor.isNull(_cursorIndexOfAttachmentType)) {
-              _tmpAttachmentType = null;
-            } else {
-              _tmpAttachmentType = _cursor.getString(_cursorIndexOfAttachmentType);
-            }
-            final Long _tmpAttachmentSize;
-            if (_cursor.isNull(_cursorIndexOfAttachmentSize)) {
-              _tmpAttachmentSize = null;
-            } else {
-              _tmpAttachmentSize = _cursor.getLong(_cursorIndexOfAttachmentSize);
-            }
-            final boolean _tmpIsEdited;
-            final int _tmp;
-            _tmp = _cursor.getInt(_cursorIndexOfIsEdited);
-            _tmpIsEdited = _tmp != 0;
             final Long _tmpEditedAt;
             if (_cursor.isNull(_cursorIndexOfEditedAt)) {
               _tmpEditedAt = null;
@@ -373,10 +512,126 @@ public final class MessageDao_Impl implements MessageDao {
             final int _tmpSignalType;
             _tmpSignalType = _cursor.getInt(_cursorIndexOfSignalType);
             final boolean _tmpIsEncrypted;
+            final int _tmp;
+            _tmp = _cursor.getInt(_cursorIndexOfIsEncrypted);
+            _tmpIsEncrypted = _tmp != 0;
+            final boolean _tmpIsFromMe;
             final int _tmp_1;
-            _tmp_1 = _cursor.getInt(_cursorIndexOfIsEncrypted);
-            _tmpIsEncrypted = _tmp_1 != 0;
-            _item = new MessageEntity(_tmpId,_tmpChatId,_tmpSenderId,_tmpContent,_tmpType,_tmpTimestamp,_tmpStatus,_tmpReplyToId,_tmpAttachmentUrl,_tmpAttachmentType,_tmpAttachmentSize,_tmpIsEdited,_tmpEditedAt,_tmpCiphertext,_tmpSignalType,_tmpIsEncrypted);
+            _tmp_1 = _cursor.getInt(_cursorIndexOfIsFromMe);
+            _tmpIsFromMe = _tmp_1 != 0;
+            final String _tmpKind;
+            _tmpKind = _cursor.getString(_cursorIndexOfKind);
+            final String _tmpMediaId;
+            if (_cursor.isNull(_cursorIndexOfMediaId)) {
+              _tmpMediaId = null;
+            } else {
+              _tmpMediaId = _cursor.getString(_cursorIndexOfMediaId);
+            }
+            final boolean _tmpReceivedWhileAway;
+            final int _tmp_2;
+            _tmp_2 = _cursor.getInt(_cursorIndexOfReceivedWhileAway);
+            _tmpReceivedWhileAway = _tmp_2 != 0;
+            final boolean _tmpDeletedForEveryone;
+            final int _tmp_3;
+            _tmp_3 = _cursor.getInt(_cursorIndexOfDeletedForEveryone);
+            _tmpDeletedForEveryone = _tmp_3 != 0;
+            final String _tmpReactions;
+            if (_cursor.isNull(_cursorIndexOfReactions)) {
+              _tmpReactions = null;
+            } else {
+              _tmpReactions = _cursor.getString(_cursorIndexOfReactions);
+            }
+            final String _tmpThumbnailB64;
+            if (_cursor.isNull(_cursorIndexOfThumbnailB64)) {
+              _tmpThumbnailB64 = null;
+            } else {
+              _tmpThumbnailB64 = _cursor.getString(_cursorIndexOfThumbnailB64);
+            }
+            final double _tmpDurationSec;
+            _tmpDurationSec = _cursor.getDouble(_cursorIndexOfDurationSec);
+            final Integer _tmpTtlSeconds;
+            if (_cursor.isNull(_cursorIndexOfTtlSeconds)) {
+              _tmpTtlSeconds = null;
+            } else {
+              _tmpTtlSeconds = _cursor.getInt(_cursorIndexOfTtlSeconds);
+            }
+            final String _tmpForwardedFromName;
+            if (_cursor.isNull(_cursorIndexOfForwardedFromName)) {
+              _tmpForwardedFromName = null;
+            } else {
+              _tmpForwardedFromName = _cursor.getString(_cursorIndexOfForwardedFromName);
+            }
+            final String _tmpReplyToContent;
+            if (_cursor.isNull(_cursorIndexOfReplyToContent)) {
+              _tmpReplyToContent = null;
+            } else {
+              _tmpReplyToContent = _cursor.getString(_cursorIndexOfReplyToContent);
+            }
+            final String _tmpReplyToAuthorName;
+            if (_cursor.isNull(_cursorIndexOfReplyToAuthorName)) {
+              _tmpReplyToAuthorName = null;
+            } else {
+              _tmpReplyToAuthorName = _cursor.getString(_cursorIndexOfReplyToAuthorName);
+            }
+            final Integer _tmpPremiumPriceTokens;
+            if (_cursor.isNull(_cursorIndexOfPremiumPriceTokens)) {
+              _tmpPremiumPriceTokens = null;
+            } else {
+              _tmpPremiumPriceTokens = _cursor.getInt(_cursorIndexOfPremiumPriceTokens);
+            }
+            final boolean _tmpPremiumUnlocked;
+            final int _tmp_4;
+            _tmp_4 = _cursor.getInt(_cursorIndexOfPremiumUnlocked);
+            _tmpPremiumUnlocked = _tmp_4 != 0;
+            final String _tmpAlbumId;
+            if (_cursor.isNull(_cursorIndexOfAlbumId)) {
+              _tmpAlbumId = null;
+            } else {
+              _tmpAlbumId = _cursor.getString(_cursorIndexOfAlbumId);
+            }
+            final String _tmpFileName;
+            if (_cursor.isNull(_cursorIndexOfFileName)) {
+              _tmpFileName = null;
+            } else {
+              _tmpFileName = _cursor.getString(_cursorIndexOfFileName);
+            }
+            final String _tmpFileMime;
+            if (_cursor.isNull(_cursorIndexOfFileMime)) {
+              _tmpFileMime = null;
+            } else {
+              _tmpFileMime = _cursor.getString(_cursorIndexOfFileMime);
+            }
+            final Long _tmpFileSizeBytes;
+            if (_cursor.isNull(_cursorIndexOfFileSizeBytes)) {
+              _tmpFileSizeBytes = null;
+            } else {
+              _tmpFileSizeBytes = _cursor.getLong(_cursorIndexOfFileSizeBytes);
+            }
+            final Double _tmpLatitude;
+            if (_cursor.isNull(_cursorIndexOfLatitude)) {
+              _tmpLatitude = null;
+            } else {
+              _tmpLatitude = _cursor.getDouble(_cursorIndexOfLatitude);
+            }
+            final Double _tmpLongitude;
+            if (_cursor.isNull(_cursorIndexOfLongitude)) {
+              _tmpLongitude = null;
+            } else {
+              _tmpLongitude = _cursor.getDouble(_cursorIndexOfLongitude);
+            }
+            final String _tmpPollId;
+            if (_cursor.isNull(_cursorIndexOfPollId)) {
+              _tmpPollId = null;
+            } else {
+              _tmpPollId = _cursor.getString(_cursorIndexOfPollId);
+            }
+            final String _tmpMentionedUserIds;
+            if (_cursor.isNull(_cursorIndexOfMentionedUserIds)) {
+              _tmpMentionedUserIds = null;
+            } else {
+              _tmpMentionedUserIds = _cursor.getString(_cursorIndexOfMentionedUserIds);
+            }
+            _item = new MessageEntity(_tmpId,_tmpChatId,_tmpSenderId,_tmpContent,_tmpTimestamp,_tmpStatus,_tmpReplyToId,_tmpEditedAt,_tmpCiphertext,_tmpSignalType,_tmpIsEncrypted,_tmpIsFromMe,_tmpKind,_tmpMediaId,_tmpReceivedWhileAway,_tmpDeletedForEveryone,_tmpReactions,_tmpThumbnailB64,_tmpDurationSec,_tmpTtlSeconds,_tmpForwardedFromName,_tmpReplyToContent,_tmpReplyToAuthorName,_tmpPremiumPriceTokens,_tmpPremiumUnlocked,_tmpAlbumId,_tmpFileName,_tmpFileMime,_tmpFileSizeBytes,_tmpLatitude,_tmpLongitude,_tmpPollId,_tmpMentionedUserIds);
             _result.add(_item);
           }
           return _result;
@@ -414,18 +669,35 @@ public final class MessageDao_Impl implements MessageDao {
           final int _cursorIndexOfChatId = CursorUtil.getColumnIndexOrThrow(_cursor, "chatId");
           final int _cursorIndexOfSenderId = CursorUtil.getColumnIndexOrThrow(_cursor, "senderId");
           final int _cursorIndexOfContent = CursorUtil.getColumnIndexOrThrow(_cursor, "content");
-          final int _cursorIndexOfType = CursorUtil.getColumnIndexOrThrow(_cursor, "type");
           final int _cursorIndexOfTimestamp = CursorUtil.getColumnIndexOrThrow(_cursor, "timestamp");
           final int _cursorIndexOfStatus = CursorUtil.getColumnIndexOrThrow(_cursor, "status");
           final int _cursorIndexOfReplyToId = CursorUtil.getColumnIndexOrThrow(_cursor, "replyToId");
-          final int _cursorIndexOfAttachmentUrl = CursorUtil.getColumnIndexOrThrow(_cursor, "attachmentUrl");
-          final int _cursorIndexOfAttachmentType = CursorUtil.getColumnIndexOrThrow(_cursor, "attachmentType");
-          final int _cursorIndexOfAttachmentSize = CursorUtil.getColumnIndexOrThrow(_cursor, "attachmentSize");
-          final int _cursorIndexOfIsEdited = CursorUtil.getColumnIndexOrThrow(_cursor, "isEdited");
           final int _cursorIndexOfEditedAt = CursorUtil.getColumnIndexOrThrow(_cursor, "editedAt");
           final int _cursorIndexOfCiphertext = CursorUtil.getColumnIndexOrThrow(_cursor, "ciphertext");
           final int _cursorIndexOfSignalType = CursorUtil.getColumnIndexOrThrow(_cursor, "signalType");
           final int _cursorIndexOfIsEncrypted = CursorUtil.getColumnIndexOrThrow(_cursor, "isEncrypted");
+          final int _cursorIndexOfIsFromMe = CursorUtil.getColumnIndexOrThrow(_cursor, "isFromMe");
+          final int _cursorIndexOfKind = CursorUtil.getColumnIndexOrThrow(_cursor, "kind");
+          final int _cursorIndexOfMediaId = CursorUtil.getColumnIndexOrThrow(_cursor, "mediaId");
+          final int _cursorIndexOfReceivedWhileAway = CursorUtil.getColumnIndexOrThrow(_cursor, "receivedWhileAway");
+          final int _cursorIndexOfDeletedForEveryone = CursorUtil.getColumnIndexOrThrow(_cursor, "deletedForEveryone");
+          final int _cursorIndexOfReactions = CursorUtil.getColumnIndexOrThrow(_cursor, "reactions");
+          final int _cursorIndexOfThumbnailB64 = CursorUtil.getColumnIndexOrThrow(_cursor, "thumbnailB64");
+          final int _cursorIndexOfDurationSec = CursorUtil.getColumnIndexOrThrow(_cursor, "durationSec");
+          final int _cursorIndexOfTtlSeconds = CursorUtil.getColumnIndexOrThrow(_cursor, "ttlSeconds");
+          final int _cursorIndexOfForwardedFromName = CursorUtil.getColumnIndexOrThrow(_cursor, "forwardedFromName");
+          final int _cursorIndexOfReplyToContent = CursorUtil.getColumnIndexOrThrow(_cursor, "replyToContent");
+          final int _cursorIndexOfReplyToAuthorName = CursorUtil.getColumnIndexOrThrow(_cursor, "replyToAuthorName");
+          final int _cursorIndexOfPremiumPriceTokens = CursorUtil.getColumnIndexOrThrow(_cursor, "premiumPriceTokens");
+          final int _cursorIndexOfPremiumUnlocked = CursorUtil.getColumnIndexOrThrow(_cursor, "premiumUnlocked");
+          final int _cursorIndexOfAlbumId = CursorUtil.getColumnIndexOrThrow(_cursor, "albumId");
+          final int _cursorIndexOfFileName = CursorUtil.getColumnIndexOrThrow(_cursor, "fileName");
+          final int _cursorIndexOfFileMime = CursorUtil.getColumnIndexOrThrow(_cursor, "fileMime");
+          final int _cursorIndexOfFileSizeBytes = CursorUtil.getColumnIndexOrThrow(_cursor, "fileSizeBytes");
+          final int _cursorIndexOfLatitude = CursorUtil.getColumnIndexOrThrow(_cursor, "latitude");
+          final int _cursorIndexOfLongitude = CursorUtil.getColumnIndexOrThrow(_cursor, "longitude");
+          final int _cursorIndexOfPollId = CursorUtil.getColumnIndexOrThrow(_cursor, "pollId");
+          final int _cursorIndexOfMentionedUserIds = CursorUtil.getColumnIndexOrThrow(_cursor, "mentionedUserIds");
           final List<MessageEntity> _result = new ArrayList<MessageEntity>(_cursor.getCount());
           while (_cursor.moveToNext()) {
             final MessageEntity _item;
@@ -437,8 +709,6 @@ public final class MessageDao_Impl implements MessageDao {
             _tmpSenderId = _cursor.getLong(_cursorIndexOfSenderId);
             final String _tmpContent;
             _tmpContent = _cursor.getString(_cursorIndexOfContent);
-            final String _tmpType;
-            _tmpType = _cursor.getString(_cursorIndexOfType);
             final long _tmpTimestamp;
             _tmpTimestamp = _cursor.getLong(_cursorIndexOfTimestamp);
             final String _tmpStatus;
@@ -449,28 +719,6 @@ public final class MessageDao_Impl implements MessageDao {
             } else {
               _tmpReplyToId = _cursor.getString(_cursorIndexOfReplyToId);
             }
-            final String _tmpAttachmentUrl;
-            if (_cursor.isNull(_cursorIndexOfAttachmentUrl)) {
-              _tmpAttachmentUrl = null;
-            } else {
-              _tmpAttachmentUrl = _cursor.getString(_cursorIndexOfAttachmentUrl);
-            }
-            final String _tmpAttachmentType;
-            if (_cursor.isNull(_cursorIndexOfAttachmentType)) {
-              _tmpAttachmentType = null;
-            } else {
-              _tmpAttachmentType = _cursor.getString(_cursorIndexOfAttachmentType);
-            }
-            final Long _tmpAttachmentSize;
-            if (_cursor.isNull(_cursorIndexOfAttachmentSize)) {
-              _tmpAttachmentSize = null;
-            } else {
-              _tmpAttachmentSize = _cursor.getLong(_cursorIndexOfAttachmentSize);
-            }
-            final boolean _tmpIsEdited;
-            final int _tmp;
-            _tmp = _cursor.getInt(_cursorIndexOfIsEdited);
-            _tmpIsEdited = _tmp != 0;
             final Long _tmpEditedAt;
             if (_cursor.isNull(_cursorIndexOfEditedAt)) {
               _tmpEditedAt = null;
@@ -486,10 +734,126 @@ public final class MessageDao_Impl implements MessageDao {
             final int _tmpSignalType;
             _tmpSignalType = _cursor.getInt(_cursorIndexOfSignalType);
             final boolean _tmpIsEncrypted;
+            final int _tmp;
+            _tmp = _cursor.getInt(_cursorIndexOfIsEncrypted);
+            _tmpIsEncrypted = _tmp != 0;
+            final boolean _tmpIsFromMe;
             final int _tmp_1;
-            _tmp_1 = _cursor.getInt(_cursorIndexOfIsEncrypted);
-            _tmpIsEncrypted = _tmp_1 != 0;
-            _item = new MessageEntity(_tmpId,_tmpChatId,_tmpSenderId,_tmpContent,_tmpType,_tmpTimestamp,_tmpStatus,_tmpReplyToId,_tmpAttachmentUrl,_tmpAttachmentType,_tmpAttachmentSize,_tmpIsEdited,_tmpEditedAt,_tmpCiphertext,_tmpSignalType,_tmpIsEncrypted);
+            _tmp_1 = _cursor.getInt(_cursorIndexOfIsFromMe);
+            _tmpIsFromMe = _tmp_1 != 0;
+            final String _tmpKind;
+            _tmpKind = _cursor.getString(_cursorIndexOfKind);
+            final String _tmpMediaId;
+            if (_cursor.isNull(_cursorIndexOfMediaId)) {
+              _tmpMediaId = null;
+            } else {
+              _tmpMediaId = _cursor.getString(_cursorIndexOfMediaId);
+            }
+            final boolean _tmpReceivedWhileAway;
+            final int _tmp_2;
+            _tmp_2 = _cursor.getInt(_cursorIndexOfReceivedWhileAway);
+            _tmpReceivedWhileAway = _tmp_2 != 0;
+            final boolean _tmpDeletedForEveryone;
+            final int _tmp_3;
+            _tmp_3 = _cursor.getInt(_cursorIndexOfDeletedForEveryone);
+            _tmpDeletedForEveryone = _tmp_3 != 0;
+            final String _tmpReactions;
+            if (_cursor.isNull(_cursorIndexOfReactions)) {
+              _tmpReactions = null;
+            } else {
+              _tmpReactions = _cursor.getString(_cursorIndexOfReactions);
+            }
+            final String _tmpThumbnailB64;
+            if (_cursor.isNull(_cursorIndexOfThumbnailB64)) {
+              _tmpThumbnailB64 = null;
+            } else {
+              _tmpThumbnailB64 = _cursor.getString(_cursorIndexOfThumbnailB64);
+            }
+            final double _tmpDurationSec;
+            _tmpDurationSec = _cursor.getDouble(_cursorIndexOfDurationSec);
+            final Integer _tmpTtlSeconds;
+            if (_cursor.isNull(_cursorIndexOfTtlSeconds)) {
+              _tmpTtlSeconds = null;
+            } else {
+              _tmpTtlSeconds = _cursor.getInt(_cursorIndexOfTtlSeconds);
+            }
+            final String _tmpForwardedFromName;
+            if (_cursor.isNull(_cursorIndexOfForwardedFromName)) {
+              _tmpForwardedFromName = null;
+            } else {
+              _tmpForwardedFromName = _cursor.getString(_cursorIndexOfForwardedFromName);
+            }
+            final String _tmpReplyToContent;
+            if (_cursor.isNull(_cursorIndexOfReplyToContent)) {
+              _tmpReplyToContent = null;
+            } else {
+              _tmpReplyToContent = _cursor.getString(_cursorIndexOfReplyToContent);
+            }
+            final String _tmpReplyToAuthorName;
+            if (_cursor.isNull(_cursorIndexOfReplyToAuthorName)) {
+              _tmpReplyToAuthorName = null;
+            } else {
+              _tmpReplyToAuthorName = _cursor.getString(_cursorIndexOfReplyToAuthorName);
+            }
+            final Integer _tmpPremiumPriceTokens;
+            if (_cursor.isNull(_cursorIndexOfPremiumPriceTokens)) {
+              _tmpPremiumPriceTokens = null;
+            } else {
+              _tmpPremiumPriceTokens = _cursor.getInt(_cursorIndexOfPremiumPriceTokens);
+            }
+            final boolean _tmpPremiumUnlocked;
+            final int _tmp_4;
+            _tmp_4 = _cursor.getInt(_cursorIndexOfPremiumUnlocked);
+            _tmpPremiumUnlocked = _tmp_4 != 0;
+            final String _tmpAlbumId;
+            if (_cursor.isNull(_cursorIndexOfAlbumId)) {
+              _tmpAlbumId = null;
+            } else {
+              _tmpAlbumId = _cursor.getString(_cursorIndexOfAlbumId);
+            }
+            final String _tmpFileName;
+            if (_cursor.isNull(_cursorIndexOfFileName)) {
+              _tmpFileName = null;
+            } else {
+              _tmpFileName = _cursor.getString(_cursorIndexOfFileName);
+            }
+            final String _tmpFileMime;
+            if (_cursor.isNull(_cursorIndexOfFileMime)) {
+              _tmpFileMime = null;
+            } else {
+              _tmpFileMime = _cursor.getString(_cursorIndexOfFileMime);
+            }
+            final Long _tmpFileSizeBytes;
+            if (_cursor.isNull(_cursorIndexOfFileSizeBytes)) {
+              _tmpFileSizeBytes = null;
+            } else {
+              _tmpFileSizeBytes = _cursor.getLong(_cursorIndexOfFileSizeBytes);
+            }
+            final Double _tmpLatitude;
+            if (_cursor.isNull(_cursorIndexOfLatitude)) {
+              _tmpLatitude = null;
+            } else {
+              _tmpLatitude = _cursor.getDouble(_cursorIndexOfLatitude);
+            }
+            final Double _tmpLongitude;
+            if (_cursor.isNull(_cursorIndexOfLongitude)) {
+              _tmpLongitude = null;
+            } else {
+              _tmpLongitude = _cursor.getDouble(_cursorIndexOfLongitude);
+            }
+            final String _tmpPollId;
+            if (_cursor.isNull(_cursorIndexOfPollId)) {
+              _tmpPollId = null;
+            } else {
+              _tmpPollId = _cursor.getString(_cursorIndexOfPollId);
+            }
+            final String _tmpMentionedUserIds;
+            if (_cursor.isNull(_cursorIndexOfMentionedUserIds)) {
+              _tmpMentionedUserIds = null;
+            } else {
+              _tmpMentionedUserIds = _cursor.getString(_cursorIndexOfMentionedUserIds);
+            }
+            _item = new MessageEntity(_tmpId,_tmpChatId,_tmpSenderId,_tmpContent,_tmpTimestamp,_tmpStatus,_tmpReplyToId,_tmpEditedAt,_tmpCiphertext,_tmpSignalType,_tmpIsEncrypted,_tmpIsFromMe,_tmpKind,_tmpMediaId,_tmpReceivedWhileAway,_tmpDeletedForEveryone,_tmpReactions,_tmpThumbnailB64,_tmpDurationSec,_tmpTtlSeconds,_tmpForwardedFromName,_tmpReplyToContent,_tmpReplyToAuthorName,_tmpPremiumPriceTokens,_tmpPremiumUnlocked,_tmpAlbumId,_tmpFileName,_tmpFileMime,_tmpFileSizeBytes,_tmpLatitude,_tmpLongitude,_tmpPollId,_tmpMentionedUserIds);
             _result.add(_item);
           }
           return _result;
@@ -518,18 +882,35 @@ public final class MessageDao_Impl implements MessageDao {
           final int _cursorIndexOfChatId = CursorUtil.getColumnIndexOrThrow(_cursor, "chatId");
           final int _cursorIndexOfSenderId = CursorUtil.getColumnIndexOrThrow(_cursor, "senderId");
           final int _cursorIndexOfContent = CursorUtil.getColumnIndexOrThrow(_cursor, "content");
-          final int _cursorIndexOfType = CursorUtil.getColumnIndexOrThrow(_cursor, "type");
           final int _cursorIndexOfTimestamp = CursorUtil.getColumnIndexOrThrow(_cursor, "timestamp");
           final int _cursorIndexOfStatus = CursorUtil.getColumnIndexOrThrow(_cursor, "status");
           final int _cursorIndexOfReplyToId = CursorUtil.getColumnIndexOrThrow(_cursor, "replyToId");
-          final int _cursorIndexOfAttachmentUrl = CursorUtil.getColumnIndexOrThrow(_cursor, "attachmentUrl");
-          final int _cursorIndexOfAttachmentType = CursorUtil.getColumnIndexOrThrow(_cursor, "attachmentType");
-          final int _cursorIndexOfAttachmentSize = CursorUtil.getColumnIndexOrThrow(_cursor, "attachmentSize");
-          final int _cursorIndexOfIsEdited = CursorUtil.getColumnIndexOrThrow(_cursor, "isEdited");
           final int _cursorIndexOfEditedAt = CursorUtil.getColumnIndexOrThrow(_cursor, "editedAt");
           final int _cursorIndexOfCiphertext = CursorUtil.getColumnIndexOrThrow(_cursor, "ciphertext");
           final int _cursorIndexOfSignalType = CursorUtil.getColumnIndexOrThrow(_cursor, "signalType");
           final int _cursorIndexOfIsEncrypted = CursorUtil.getColumnIndexOrThrow(_cursor, "isEncrypted");
+          final int _cursorIndexOfIsFromMe = CursorUtil.getColumnIndexOrThrow(_cursor, "isFromMe");
+          final int _cursorIndexOfKind = CursorUtil.getColumnIndexOrThrow(_cursor, "kind");
+          final int _cursorIndexOfMediaId = CursorUtil.getColumnIndexOrThrow(_cursor, "mediaId");
+          final int _cursorIndexOfReceivedWhileAway = CursorUtil.getColumnIndexOrThrow(_cursor, "receivedWhileAway");
+          final int _cursorIndexOfDeletedForEveryone = CursorUtil.getColumnIndexOrThrow(_cursor, "deletedForEveryone");
+          final int _cursorIndexOfReactions = CursorUtil.getColumnIndexOrThrow(_cursor, "reactions");
+          final int _cursorIndexOfThumbnailB64 = CursorUtil.getColumnIndexOrThrow(_cursor, "thumbnailB64");
+          final int _cursorIndexOfDurationSec = CursorUtil.getColumnIndexOrThrow(_cursor, "durationSec");
+          final int _cursorIndexOfTtlSeconds = CursorUtil.getColumnIndexOrThrow(_cursor, "ttlSeconds");
+          final int _cursorIndexOfForwardedFromName = CursorUtil.getColumnIndexOrThrow(_cursor, "forwardedFromName");
+          final int _cursorIndexOfReplyToContent = CursorUtil.getColumnIndexOrThrow(_cursor, "replyToContent");
+          final int _cursorIndexOfReplyToAuthorName = CursorUtil.getColumnIndexOrThrow(_cursor, "replyToAuthorName");
+          final int _cursorIndexOfPremiumPriceTokens = CursorUtil.getColumnIndexOrThrow(_cursor, "premiumPriceTokens");
+          final int _cursorIndexOfPremiumUnlocked = CursorUtil.getColumnIndexOrThrow(_cursor, "premiumUnlocked");
+          final int _cursorIndexOfAlbumId = CursorUtil.getColumnIndexOrThrow(_cursor, "albumId");
+          final int _cursorIndexOfFileName = CursorUtil.getColumnIndexOrThrow(_cursor, "fileName");
+          final int _cursorIndexOfFileMime = CursorUtil.getColumnIndexOrThrow(_cursor, "fileMime");
+          final int _cursorIndexOfFileSizeBytes = CursorUtil.getColumnIndexOrThrow(_cursor, "fileSizeBytes");
+          final int _cursorIndexOfLatitude = CursorUtil.getColumnIndexOrThrow(_cursor, "latitude");
+          final int _cursorIndexOfLongitude = CursorUtil.getColumnIndexOrThrow(_cursor, "longitude");
+          final int _cursorIndexOfPollId = CursorUtil.getColumnIndexOrThrow(_cursor, "pollId");
+          final int _cursorIndexOfMentionedUserIds = CursorUtil.getColumnIndexOrThrow(_cursor, "mentionedUserIds");
           final MessageEntity _result;
           if (_cursor.moveToFirst()) {
             final String _tmpId;
@@ -540,8 +921,6 @@ public final class MessageDao_Impl implements MessageDao {
             _tmpSenderId = _cursor.getLong(_cursorIndexOfSenderId);
             final String _tmpContent;
             _tmpContent = _cursor.getString(_cursorIndexOfContent);
-            final String _tmpType;
-            _tmpType = _cursor.getString(_cursorIndexOfType);
             final long _tmpTimestamp;
             _tmpTimestamp = _cursor.getLong(_cursorIndexOfTimestamp);
             final String _tmpStatus;
@@ -552,28 +931,6 @@ public final class MessageDao_Impl implements MessageDao {
             } else {
               _tmpReplyToId = _cursor.getString(_cursorIndexOfReplyToId);
             }
-            final String _tmpAttachmentUrl;
-            if (_cursor.isNull(_cursorIndexOfAttachmentUrl)) {
-              _tmpAttachmentUrl = null;
-            } else {
-              _tmpAttachmentUrl = _cursor.getString(_cursorIndexOfAttachmentUrl);
-            }
-            final String _tmpAttachmentType;
-            if (_cursor.isNull(_cursorIndexOfAttachmentType)) {
-              _tmpAttachmentType = null;
-            } else {
-              _tmpAttachmentType = _cursor.getString(_cursorIndexOfAttachmentType);
-            }
-            final Long _tmpAttachmentSize;
-            if (_cursor.isNull(_cursorIndexOfAttachmentSize)) {
-              _tmpAttachmentSize = null;
-            } else {
-              _tmpAttachmentSize = _cursor.getLong(_cursorIndexOfAttachmentSize);
-            }
-            final boolean _tmpIsEdited;
-            final int _tmp;
-            _tmp = _cursor.getInt(_cursorIndexOfIsEdited);
-            _tmpIsEdited = _tmp != 0;
             final Long _tmpEditedAt;
             if (_cursor.isNull(_cursorIndexOfEditedAt)) {
               _tmpEditedAt = null;
@@ -589,10 +946,126 @@ public final class MessageDao_Impl implements MessageDao {
             final int _tmpSignalType;
             _tmpSignalType = _cursor.getInt(_cursorIndexOfSignalType);
             final boolean _tmpIsEncrypted;
+            final int _tmp;
+            _tmp = _cursor.getInt(_cursorIndexOfIsEncrypted);
+            _tmpIsEncrypted = _tmp != 0;
+            final boolean _tmpIsFromMe;
             final int _tmp_1;
-            _tmp_1 = _cursor.getInt(_cursorIndexOfIsEncrypted);
-            _tmpIsEncrypted = _tmp_1 != 0;
-            _result = new MessageEntity(_tmpId,_tmpChatId,_tmpSenderId,_tmpContent,_tmpType,_tmpTimestamp,_tmpStatus,_tmpReplyToId,_tmpAttachmentUrl,_tmpAttachmentType,_tmpAttachmentSize,_tmpIsEdited,_tmpEditedAt,_tmpCiphertext,_tmpSignalType,_tmpIsEncrypted);
+            _tmp_1 = _cursor.getInt(_cursorIndexOfIsFromMe);
+            _tmpIsFromMe = _tmp_1 != 0;
+            final String _tmpKind;
+            _tmpKind = _cursor.getString(_cursorIndexOfKind);
+            final String _tmpMediaId;
+            if (_cursor.isNull(_cursorIndexOfMediaId)) {
+              _tmpMediaId = null;
+            } else {
+              _tmpMediaId = _cursor.getString(_cursorIndexOfMediaId);
+            }
+            final boolean _tmpReceivedWhileAway;
+            final int _tmp_2;
+            _tmp_2 = _cursor.getInt(_cursorIndexOfReceivedWhileAway);
+            _tmpReceivedWhileAway = _tmp_2 != 0;
+            final boolean _tmpDeletedForEveryone;
+            final int _tmp_3;
+            _tmp_3 = _cursor.getInt(_cursorIndexOfDeletedForEveryone);
+            _tmpDeletedForEveryone = _tmp_3 != 0;
+            final String _tmpReactions;
+            if (_cursor.isNull(_cursorIndexOfReactions)) {
+              _tmpReactions = null;
+            } else {
+              _tmpReactions = _cursor.getString(_cursorIndexOfReactions);
+            }
+            final String _tmpThumbnailB64;
+            if (_cursor.isNull(_cursorIndexOfThumbnailB64)) {
+              _tmpThumbnailB64 = null;
+            } else {
+              _tmpThumbnailB64 = _cursor.getString(_cursorIndexOfThumbnailB64);
+            }
+            final double _tmpDurationSec;
+            _tmpDurationSec = _cursor.getDouble(_cursorIndexOfDurationSec);
+            final Integer _tmpTtlSeconds;
+            if (_cursor.isNull(_cursorIndexOfTtlSeconds)) {
+              _tmpTtlSeconds = null;
+            } else {
+              _tmpTtlSeconds = _cursor.getInt(_cursorIndexOfTtlSeconds);
+            }
+            final String _tmpForwardedFromName;
+            if (_cursor.isNull(_cursorIndexOfForwardedFromName)) {
+              _tmpForwardedFromName = null;
+            } else {
+              _tmpForwardedFromName = _cursor.getString(_cursorIndexOfForwardedFromName);
+            }
+            final String _tmpReplyToContent;
+            if (_cursor.isNull(_cursorIndexOfReplyToContent)) {
+              _tmpReplyToContent = null;
+            } else {
+              _tmpReplyToContent = _cursor.getString(_cursorIndexOfReplyToContent);
+            }
+            final String _tmpReplyToAuthorName;
+            if (_cursor.isNull(_cursorIndexOfReplyToAuthorName)) {
+              _tmpReplyToAuthorName = null;
+            } else {
+              _tmpReplyToAuthorName = _cursor.getString(_cursorIndexOfReplyToAuthorName);
+            }
+            final Integer _tmpPremiumPriceTokens;
+            if (_cursor.isNull(_cursorIndexOfPremiumPriceTokens)) {
+              _tmpPremiumPriceTokens = null;
+            } else {
+              _tmpPremiumPriceTokens = _cursor.getInt(_cursorIndexOfPremiumPriceTokens);
+            }
+            final boolean _tmpPremiumUnlocked;
+            final int _tmp_4;
+            _tmp_4 = _cursor.getInt(_cursorIndexOfPremiumUnlocked);
+            _tmpPremiumUnlocked = _tmp_4 != 0;
+            final String _tmpAlbumId;
+            if (_cursor.isNull(_cursorIndexOfAlbumId)) {
+              _tmpAlbumId = null;
+            } else {
+              _tmpAlbumId = _cursor.getString(_cursorIndexOfAlbumId);
+            }
+            final String _tmpFileName;
+            if (_cursor.isNull(_cursorIndexOfFileName)) {
+              _tmpFileName = null;
+            } else {
+              _tmpFileName = _cursor.getString(_cursorIndexOfFileName);
+            }
+            final String _tmpFileMime;
+            if (_cursor.isNull(_cursorIndexOfFileMime)) {
+              _tmpFileMime = null;
+            } else {
+              _tmpFileMime = _cursor.getString(_cursorIndexOfFileMime);
+            }
+            final Long _tmpFileSizeBytes;
+            if (_cursor.isNull(_cursorIndexOfFileSizeBytes)) {
+              _tmpFileSizeBytes = null;
+            } else {
+              _tmpFileSizeBytes = _cursor.getLong(_cursorIndexOfFileSizeBytes);
+            }
+            final Double _tmpLatitude;
+            if (_cursor.isNull(_cursorIndexOfLatitude)) {
+              _tmpLatitude = null;
+            } else {
+              _tmpLatitude = _cursor.getDouble(_cursorIndexOfLatitude);
+            }
+            final Double _tmpLongitude;
+            if (_cursor.isNull(_cursorIndexOfLongitude)) {
+              _tmpLongitude = null;
+            } else {
+              _tmpLongitude = _cursor.getDouble(_cursorIndexOfLongitude);
+            }
+            final String _tmpPollId;
+            if (_cursor.isNull(_cursorIndexOfPollId)) {
+              _tmpPollId = null;
+            } else {
+              _tmpPollId = _cursor.getString(_cursorIndexOfPollId);
+            }
+            final String _tmpMentionedUserIds;
+            if (_cursor.isNull(_cursorIndexOfMentionedUserIds)) {
+              _tmpMentionedUserIds = null;
+            } else {
+              _tmpMentionedUserIds = _cursor.getString(_cursorIndexOfMentionedUserIds);
+            }
+            _result = new MessageEntity(_tmpId,_tmpChatId,_tmpSenderId,_tmpContent,_tmpTimestamp,_tmpStatus,_tmpReplyToId,_tmpEditedAt,_tmpCiphertext,_tmpSignalType,_tmpIsEncrypted,_tmpIsFromMe,_tmpKind,_tmpMediaId,_tmpReceivedWhileAway,_tmpDeletedForEveryone,_tmpReactions,_tmpThumbnailB64,_tmpDurationSec,_tmpTtlSeconds,_tmpForwardedFromName,_tmpReplyToContent,_tmpReplyToAuthorName,_tmpPremiumPriceTokens,_tmpPremiumUnlocked,_tmpAlbumId,_tmpFileName,_tmpFileMime,_tmpFileSizeBytes,_tmpLatitude,_tmpLongitude,_tmpPollId,_tmpMentionedUserIds);
           } else {
             _result = null;
           }

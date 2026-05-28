@@ -6,7 +6,6 @@ import dagger.internal.QualifierMetadata;
 import dagger.internal.ScopeMetadata;
 import javax.annotation.processing.Generated;
 import javax.inject.Provider;
-import org.signal.libsignal.protocol.IdentityKeyPair;
 
 @ScopeMetadata("javax.inject.Singleton")
 @QualifierMetadata
@@ -22,22 +21,23 @@ import org.signal.libsignal.protocol.IdentityKeyPair;
     "KotlinInternalInJava"
 })
 public final class SignalKeyStore_Factory implements Factory<SignalKeyStore> {
-  private final Provider<IdentityKeyPair> identityKeyPairProvider;
+  private final Provider<PersistentSignalProtocolStore> persistentStoreProvider;
 
-  public SignalKeyStore_Factory(Provider<IdentityKeyPair> identityKeyPairProvider) {
-    this.identityKeyPairProvider = identityKeyPairProvider;
+  public SignalKeyStore_Factory(Provider<PersistentSignalProtocolStore> persistentStoreProvider) {
+    this.persistentStoreProvider = persistentStoreProvider;
   }
 
   @Override
   public SignalKeyStore get() {
-    return newInstance(identityKeyPairProvider.get());
+    return newInstance(persistentStoreProvider.get());
   }
 
-  public static SignalKeyStore_Factory create(Provider<IdentityKeyPair> identityKeyPairProvider) {
-    return new SignalKeyStore_Factory(identityKeyPairProvider);
+  public static SignalKeyStore_Factory create(
+      Provider<PersistentSignalProtocolStore> persistentStoreProvider) {
+    return new SignalKeyStore_Factory(persistentStoreProvider);
   }
 
-  public static SignalKeyStore newInstance(IdentityKeyPair identityKeyPair) {
-    return new SignalKeyStore(identityKeyPair);
+  public static SignalKeyStore newInstance(PersistentSignalProtocolStore persistentStore) {
+    return new SignalKeyStore(persistentStore);
   }
 }

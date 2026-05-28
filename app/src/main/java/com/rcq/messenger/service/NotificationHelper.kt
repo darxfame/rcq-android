@@ -9,6 +9,7 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.rcq.messenger.R
+import com.rcq.messenger.service.RcqSound
 import com.rcq.messenger.ui.MainActivity
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -16,7 +17,8 @@ import javax.inject.Singleton
 
 @Singleton
 class NotificationHelper @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val soundManager: SoundManager
 ) {
     companion object {
         const val CHANNEL_MESSAGES = "messages"
@@ -74,6 +76,7 @@ class NotificationHelper @Inject constructor(
     }
 
     fun showMessageNotification(chatId: String, senderName: String, message: String) {
+        soundManager.play(RcqSound.MESSAGE_INCOMING)
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
             putExtra("chat_id", chatId)

@@ -204,6 +204,136 @@ public final class CallDao_Impl implements CallDao {
   }
 
   @Override
+  public Flow<List<CallEntity>> getCalls(final int limit) {
+    final String _sql = "SELECT * FROM calls ORDER BY startTime DESC LIMIT ?";
+    final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 1);
+    int _argIndex = 1;
+    _statement.bindLong(_argIndex, limit);
+    return CoroutinesRoom.createFlow(__db, false, new String[] {"calls"}, new Callable<List<CallEntity>>() {
+      @Override
+      @NonNull
+      public List<CallEntity> call() throws Exception {
+        final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
+        try {
+          final int _cursorIndexOfId = CursorUtil.getColumnIndexOrThrow(_cursor, "id");
+          final int _cursorIndexOfType = CursorUtil.getColumnIndexOrThrow(_cursor, "type");
+          final int _cursorIndexOfStatus = CursorUtil.getColumnIndexOrThrow(_cursor, "status");
+          final int _cursorIndexOfParticipantIds = CursorUtil.getColumnIndexOrThrow(_cursor, "participantIds");
+          final int _cursorIndexOfInitiatorId = CursorUtil.getColumnIndexOrThrow(_cursor, "initiatorId");
+          final int _cursorIndexOfStartTime = CursorUtil.getColumnIndexOrThrow(_cursor, "startTime");
+          final int _cursorIndexOfEndTime = CursorUtil.getColumnIndexOrThrow(_cursor, "endTime");
+          final int _cursorIndexOfDuration = CursorUtil.getColumnIndexOrThrow(_cursor, "duration");
+          final int _cursorIndexOfIsGroupCall = CursorUtil.getColumnIndexOrThrow(_cursor, "isGroupCall");
+          final List<CallEntity> _result = new ArrayList<CallEntity>(_cursor.getCount());
+          while (_cursor.moveToNext()) {
+            final CallEntity _item;
+            final String _tmpId;
+            _tmpId = _cursor.getString(_cursorIndexOfId);
+            final String _tmpType;
+            _tmpType = _cursor.getString(_cursorIndexOfType);
+            final String _tmpStatus;
+            _tmpStatus = _cursor.getString(_cursorIndexOfStatus);
+            final List<Long> _tmpParticipantIds;
+            final String _tmp;
+            _tmp = _cursor.getString(_cursorIndexOfParticipantIds);
+            _tmpParticipantIds = __roomTypeConverters.toListLong(_tmp);
+            final long _tmpInitiatorId;
+            _tmpInitiatorId = _cursor.getLong(_cursorIndexOfInitiatorId);
+            final long _tmpStartTime;
+            _tmpStartTime = _cursor.getLong(_cursorIndexOfStartTime);
+            final Long _tmpEndTime;
+            if (_cursor.isNull(_cursorIndexOfEndTime)) {
+              _tmpEndTime = null;
+            } else {
+              _tmpEndTime = _cursor.getLong(_cursorIndexOfEndTime);
+            }
+            final long _tmpDuration;
+            _tmpDuration = _cursor.getLong(_cursorIndexOfDuration);
+            final boolean _tmpIsGroupCall;
+            final int _tmp_1;
+            _tmp_1 = _cursor.getInt(_cursorIndexOfIsGroupCall);
+            _tmpIsGroupCall = _tmp_1 != 0;
+            _item = new CallEntity(_tmpId,_tmpType,_tmpStatus,_tmpParticipantIds,_tmpInitiatorId,_tmpStartTime,_tmpEndTime,_tmpDuration,_tmpIsGroupCall);
+            _result.add(_item);
+          }
+          return _result;
+        } finally {
+          _cursor.close();
+        }
+      }
+
+      @Override
+      protected void finalize() {
+        _statement.release();
+      }
+    });
+  }
+
+  @Override
+  public Flow<List<CallEntity>> getMissedCalls() {
+    final String _sql = "SELECT * FROM calls WHERE status = 'MISSED' ORDER BY startTime DESC";
+    final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 0);
+    return CoroutinesRoom.createFlow(__db, false, new String[] {"calls"}, new Callable<List<CallEntity>>() {
+      @Override
+      @NonNull
+      public List<CallEntity> call() throws Exception {
+        final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
+        try {
+          final int _cursorIndexOfId = CursorUtil.getColumnIndexOrThrow(_cursor, "id");
+          final int _cursorIndexOfType = CursorUtil.getColumnIndexOrThrow(_cursor, "type");
+          final int _cursorIndexOfStatus = CursorUtil.getColumnIndexOrThrow(_cursor, "status");
+          final int _cursorIndexOfParticipantIds = CursorUtil.getColumnIndexOrThrow(_cursor, "participantIds");
+          final int _cursorIndexOfInitiatorId = CursorUtil.getColumnIndexOrThrow(_cursor, "initiatorId");
+          final int _cursorIndexOfStartTime = CursorUtil.getColumnIndexOrThrow(_cursor, "startTime");
+          final int _cursorIndexOfEndTime = CursorUtil.getColumnIndexOrThrow(_cursor, "endTime");
+          final int _cursorIndexOfDuration = CursorUtil.getColumnIndexOrThrow(_cursor, "duration");
+          final int _cursorIndexOfIsGroupCall = CursorUtil.getColumnIndexOrThrow(_cursor, "isGroupCall");
+          final List<CallEntity> _result = new ArrayList<CallEntity>(_cursor.getCount());
+          while (_cursor.moveToNext()) {
+            final CallEntity _item;
+            final String _tmpId;
+            _tmpId = _cursor.getString(_cursorIndexOfId);
+            final String _tmpType;
+            _tmpType = _cursor.getString(_cursorIndexOfType);
+            final String _tmpStatus;
+            _tmpStatus = _cursor.getString(_cursorIndexOfStatus);
+            final List<Long> _tmpParticipantIds;
+            final String _tmp;
+            _tmp = _cursor.getString(_cursorIndexOfParticipantIds);
+            _tmpParticipantIds = __roomTypeConverters.toListLong(_tmp);
+            final long _tmpInitiatorId;
+            _tmpInitiatorId = _cursor.getLong(_cursorIndexOfInitiatorId);
+            final long _tmpStartTime;
+            _tmpStartTime = _cursor.getLong(_cursorIndexOfStartTime);
+            final Long _tmpEndTime;
+            if (_cursor.isNull(_cursorIndexOfEndTime)) {
+              _tmpEndTime = null;
+            } else {
+              _tmpEndTime = _cursor.getLong(_cursorIndexOfEndTime);
+            }
+            final long _tmpDuration;
+            _tmpDuration = _cursor.getLong(_cursorIndexOfDuration);
+            final boolean _tmpIsGroupCall;
+            final int _tmp_1;
+            _tmp_1 = _cursor.getInt(_cursorIndexOfIsGroupCall);
+            _tmpIsGroupCall = _tmp_1 != 0;
+            _item = new CallEntity(_tmpId,_tmpType,_tmpStatus,_tmpParticipantIds,_tmpInitiatorId,_tmpStartTime,_tmpEndTime,_tmpDuration,_tmpIsGroupCall);
+            _result.add(_item);
+          }
+          return _result;
+        } finally {
+          _cursor.close();
+        }
+      }
+
+      @Override
+      protected void finalize() {
+        _statement.release();
+      }
+    });
+  }
+
+  @Override
   public Object getCall(final String id, final Continuation<? super CallEntity> $completion) {
     final String _sql = "SELECT * FROM calls WHERE id = ?";
     final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 1);

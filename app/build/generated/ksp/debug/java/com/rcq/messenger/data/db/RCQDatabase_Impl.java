@@ -42,23 +42,26 @@ public final class RCQDatabase_Impl extends RCQDatabase {
 
   private volatile PetDao _petDao;
 
+  private volatile SignalKeyDao _signalKeyDao;
+
   @Override
   @NonNull
   protected SupportSQLiteOpenHelper createOpenHelper(@NonNull final DatabaseConfiguration config) {
-    final SupportSQLiteOpenHelper.Callback _openCallback = new RoomOpenHelper(config, new RoomOpenHelper.Delegate(7) {
+    final SupportSQLiteOpenHelper.Callback _openCallback = new RoomOpenHelper(config, new RoomOpenHelper.Delegate(10) {
       @Override
       public void createAllTables(@NonNull final SupportSQLiteDatabase db) {
         db.execSQL("CREATE TABLE IF NOT EXISTS `users` (`id` INTEGER NOT NULL, `username` TEXT NOT NULL, `displayName` TEXT NOT NULL, `avatarUrl` TEXT, `isOnline` INTEGER NOT NULL, `lastSeen` INTEGER NOT NULL, `publicKey` TEXT, `createdAt` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`id`))");
-        db.execSQL("CREATE TABLE IF NOT EXISTS `contacts` (`userId` INTEGER NOT NULL, `nickname` TEXT NOT NULL, `isBlocked` INTEGER NOT NULL, `isFavorite` INTEGER NOT NULL, `addedAt` INTEGER NOT NULL, PRIMARY KEY(`userId`))");
-        db.execSQL("CREATE TABLE IF NOT EXISTS `chats` (`id` TEXT NOT NULL, `type` TEXT NOT NULL, `name` TEXT, `avatarUrl` TEXT, `lastMessage` TEXT, `lastMessageTime` INTEGER NOT NULL, `unreadCount` INTEGER NOT NULL, `isArchived` INTEGER NOT NULL, `isMuted` INTEGER NOT NULL, `participantIds` TEXT NOT NULL, `createdAt` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`id`))");
-        db.execSQL("CREATE TABLE IF NOT EXISTS `messages` (`id` TEXT NOT NULL, `chatId` TEXT NOT NULL, `senderId` INTEGER NOT NULL, `content` TEXT NOT NULL, `type` TEXT NOT NULL, `timestamp` INTEGER NOT NULL, `status` TEXT NOT NULL, `replyToId` TEXT, `attachmentUrl` TEXT, `attachmentType` TEXT, `attachmentSize` INTEGER, `isEdited` INTEGER NOT NULL, `editedAt` INTEGER, `ciphertext` TEXT, `signalType` INTEGER NOT NULL, `isEncrypted` INTEGER NOT NULL, PRIMARY KEY(`id`))");
+        db.execSQL("CREATE TABLE IF NOT EXISTS `contacts` (`userId` INTEGER NOT NULL, `nickname` TEXT NOT NULL, `avatarUrl` TEXT, `status` TEXT NOT NULL, `lastSeen` TEXT, `isBlocked` INTEGER NOT NULL, `isFavorite` INTEGER NOT NULL, `notificationSound` TEXT, `customNickname` TEXT, `addedAt` INTEGER NOT NULL, PRIMARY KEY(`userId`))");
+        db.execSQL("CREATE TABLE IF NOT EXISTS `chats` (`id` TEXT NOT NULL, `targetId` INTEGER NOT NULL, `targetNickname` TEXT NOT NULL, `targetAvatar` TEXT, `unreadCount` INTEGER NOT NULL, `isPinned` INTEGER NOT NULL, `isMuted` INTEGER NOT NULL, `isArchived` INTEGER NOT NULL, `createdAt` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, `lastMessageContent` TEXT, `lastMessageTimestamp` INTEGER, `lastMessageKind` TEXT, PRIMARY KEY(`id`))");
+        db.execSQL("CREATE TABLE IF NOT EXISTS `messages` (`id` TEXT NOT NULL, `chatId` TEXT NOT NULL, `senderId` INTEGER NOT NULL, `content` TEXT NOT NULL, `timestamp` INTEGER NOT NULL, `status` TEXT NOT NULL, `replyToId` TEXT, `editedAt` INTEGER, `ciphertext` TEXT, `signalType` INTEGER NOT NULL, `isEncrypted` INTEGER NOT NULL, `isFromMe` INTEGER NOT NULL, `kind` TEXT NOT NULL, `mediaId` TEXT, `receivedWhileAway` INTEGER NOT NULL, `deletedForEveryone` INTEGER NOT NULL, `reactions` TEXT, `thumbnailB64` TEXT, `durationSec` REAL NOT NULL, `ttlSeconds` INTEGER, `forwardedFromName` TEXT, `replyToContent` TEXT, `replyToAuthorName` TEXT, `premiumPriceTokens` INTEGER, `premiumUnlocked` INTEGER NOT NULL, `albumId` TEXT, `fileName` TEXT, `fileMime` TEXT, `fileSizeBytes` INTEGER, `latitude` REAL, `longitude` REAL, `pollId` TEXT, `mentionedUserIds` TEXT, PRIMARY KEY(`id`))");
         db.execSQL("CREATE TABLE IF NOT EXISTS `groups` (`id` TEXT NOT NULL, `name` TEXT NOT NULL, `description` TEXT, `avatarUrl` TEXT, `creatorId` INTEGER NOT NULL, `memberIds` TEXT NOT NULL, `adminIds` TEXT NOT NULL, `isPublic` INTEGER NOT NULL, `inviteLink` TEXT, `createdAt` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`id`))");
         db.execSQL("CREATE TABLE IF NOT EXISTS `stories` (`id` TEXT NOT NULL, `userId` INTEGER NOT NULL, `nickname` TEXT, `avatarUrl` TEXT, `type` TEXT NOT NULL, `content` TEXT, `mediaUrl` TEXT, `duration` INTEGER NOT NULL, `viewerIds` TEXT NOT NULL, `viewerCount` INTEGER NOT NULL, `isHighlighted` INTEGER NOT NULL, `isActive` INTEGER NOT NULL, `timestamp` INTEGER NOT NULL, `createdAt` INTEGER NOT NULL, `expiresAt` INTEGER NOT NULL, PRIMARY KEY(`id`))");
         db.execSQL("CREATE TABLE IF NOT EXISTS `story_items` (`id` TEXT NOT NULL, `storyId` TEXT NOT NULL, `type` TEXT NOT NULL, `content` TEXT, `mediaUrl` TEXT, `thumbnailUrl` TEXT, `caption` TEXT, `backgroundColor` TEXT, `duration` INTEGER NOT NULL, `timestamp` INTEGER NOT NULL, PRIMARY KEY(`id`))");
         db.execSQL("CREATE TABLE IF NOT EXISTS `calls` (`id` TEXT NOT NULL, `type` TEXT NOT NULL, `status` TEXT NOT NULL, `participantIds` TEXT NOT NULL, `initiatorId` INTEGER NOT NULL, `startTime` INTEGER NOT NULL, `endTime` INTEGER, `duration` INTEGER NOT NULL, `isGroupCall` INTEGER NOT NULL, PRIMARY KEY(`id`))");
-        db.execSQL("CREATE TABLE IF NOT EXISTS `pets` (`id` TEXT NOT NULL, `name` TEXT NOT NULL, `type` TEXT NOT NULL, `breed` TEXT, `age` INTEGER, `ownerId` INTEGER NOT NULL, `avatarUrl` TEXT, `description` TEXT, `isActive` INTEGER NOT NULL, `createdAt` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, PRIMARY KEY(`id`))");
+        db.execSQL("CREATE TABLE IF NOT EXISTS `pets` (`id` TEXT NOT NULL, `name` TEXT NOT NULL, `type` TEXT NOT NULL, `rarity` TEXT NOT NULL, `imageUrl` TEXT NOT NULL, `equippedBy` INTEGER, `isForSale` INTEGER NOT NULL, `salePrice` INTEGER, PRIMARY KEY(`id`))");
+        db.execSQL("CREATE TABLE IF NOT EXISTS `signal_keys` (`id` TEXT NOT NULL, `keyType` TEXT NOT NULL, `address` TEXT, `keyId` INTEGER, `keyData` BLOB NOT NULL, `timestamp` INTEGER NOT NULL, PRIMARY KEY(`id`))");
         db.execSQL("CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)");
-        db.execSQL("INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '31fc5575b2d58ea7fcfdec6f44aa8f4e')");
+        db.execSQL("INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '31bf9ae2f6a713a166b37fc290728231')");
       }
 
       @Override
@@ -72,6 +75,7 @@ public final class RCQDatabase_Impl extends RCQDatabase {
         db.execSQL("DROP TABLE IF EXISTS `story_items`");
         db.execSQL("DROP TABLE IF EXISTS `calls`");
         db.execSQL("DROP TABLE IF EXISTS `pets`");
+        db.execSQL("DROP TABLE IF EXISTS `signal_keys`");
         final List<? extends RoomDatabase.Callback> _callbacks = mCallbacks;
         if (_callbacks != null) {
           for (RoomDatabase.Callback _callback : _callbacks) {
@@ -134,11 +138,16 @@ public final class RCQDatabase_Impl extends RCQDatabase {
                   + " Expected:\n" + _infoUsers + "\n"
                   + " Found:\n" + _existingUsers);
         }
-        final HashMap<String, TableInfo.Column> _columnsContacts = new HashMap<String, TableInfo.Column>(5);
+        final HashMap<String, TableInfo.Column> _columnsContacts = new HashMap<String, TableInfo.Column>(10);
         _columnsContacts.put("userId", new TableInfo.Column("userId", "INTEGER", true, 1, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsContacts.put("nickname", new TableInfo.Column("nickname", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsContacts.put("avatarUrl", new TableInfo.Column("avatarUrl", "TEXT", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsContacts.put("status", new TableInfo.Column("status", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsContacts.put("lastSeen", new TableInfo.Column("lastSeen", "TEXT", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsContacts.put("isBlocked", new TableInfo.Column("isBlocked", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsContacts.put("isFavorite", new TableInfo.Column("isFavorite", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsContacts.put("notificationSound", new TableInfo.Column("notificationSound", "TEXT", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsContacts.put("customNickname", new TableInfo.Column("customNickname", "TEXT", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsContacts.put("addedAt", new TableInfo.Column("addedAt", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         final HashSet<TableInfo.ForeignKey> _foreignKeysContacts = new HashSet<TableInfo.ForeignKey>(0);
         final HashSet<TableInfo.Index> _indicesContacts = new HashSet<TableInfo.Index>(0);
@@ -149,19 +158,20 @@ public final class RCQDatabase_Impl extends RCQDatabase {
                   + " Expected:\n" + _infoContacts + "\n"
                   + " Found:\n" + _existingContacts);
         }
-        final HashMap<String, TableInfo.Column> _columnsChats = new HashMap<String, TableInfo.Column>(12);
+        final HashMap<String, TableInfo.Column> _columnsChats = new HashMap<String, TableInfo.Column>(13);
         _columnsChats.put("id", new TableInfo.Column("id", "TEXT", true, 1, null, TableInfo.CREATED_FROM_ENTITY));
-        _columnsChats.put("type", new TableInfo.Column("type", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
-        _columnsChats.put("name", new TableInfo.Column("name", "TEXT", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
-        _columnsChats.put("avatarUrl", new TableInfo.Column("avatarUrl", "TEXT", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
-        _columnsChats.put("lastMessage", new TableInfo.Column("lastMessage", "TEXT", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
-        _columnsChats.put("lastMessageTime", new TableInfo.Column("lastMessageTime", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsChats.put("targetId", new TableInfo.Column("targetId", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsChats.put("targetNickname", new TableInfo.Column("targetNickname", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsChats.put("targetAvatar", new TableInfo.Column("targetAvatar", "TEXT", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsChats.put("unreadCount", new TableInfo.Column("unreadCount", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
-        _columnsChats.put("isArchived", new TableInfo.Column("isArchived", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsChats.put("isPinned", new TableInfo.Column("isPinned", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsChats.put("isMuted", new TableInfo.Column("isMuted", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
-        _columnsChats.put("participantIds", new TableInfo.Column("participantIds", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsChats.put("isArchived", new TableInfo.Column("isArchived", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsChats.put("createdAt", new TableInfo.Column("createdAt", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsChats.put("updatedAt", new TableInfo.Column("updatedAt", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsChats.put("lastMessageContent", new TableInfo.Column("lastMessageContent", "TEXT", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsChats.put("lastMessageTimestamp", new TableInfo.Column("lastMessageTimestamp", "INTEGER", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsChats.put("lastMessageKind", new TableInfo.Column("lastMessageKind", "TEXT", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
         final HashSet<TableInfo.ForeignKey> _foreignKeysChats = new HashSet<TableInfo.ForeignKey>(0);
         final HashSet<TableInfo.Index> _indicesChats = new HashSet<TableInfo.Index>(0);
         final TableInfo _infoChats = new TableInfo("chats", _columnsChats, _foreignKeysChats, _indicesChats);
@@ -171,23 +181,40 @@ public final class RCQDatabase_Impl extends RCQDatabase {
                   + " Expected:\n" + _infoChats + "\n"
                   + " Found:\n" + _existingChats);
         }
-        final HashMap<String, TableInfo.Column> _columnsMessages = new HashMap<String, TableInfo.Column>(16);
+        final HashMap<String, TableInfo.Column> _columnsMessages = new HashMap<String, TableInfo.Column>(33);
         _columnsMessages.put("id", new TableInfo.Column("id", "TEXT", true, 1, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsMessages.put("chatId", new TableInfo.Column("chatId", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsMessages.put("senderId", new TableInfo.Column("senderId", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsMessages.put("content", new TableInfo.Column("content", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
-        _columnsMessages.put("type", new TableInfo.Column("type", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsMessages.put("timestamp", new TableInfo.Column("timestamp", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsMessages.put("status", new TableInfo.Column("status", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsMessages.put("replyToId", new TableInfo.Column("replyToId", "TEXT", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
-        _columnsMessages.put("attachmentUrl", new TableInfo.Column("attachmentUrl", "TEXT", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
-        _columnsMessages.put("attachmentType", new TableInfo.Column("attachmentType", "TEXT", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
-        _columnsMessages.put("attachmentSize", new TableInfo.Column("attachmentSize", "INTEGER", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
-        _columnsMessages.put("isEdited", new TableInfo.Column("isEdited", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsMessages.put("editedAt", new TableInfo.Column("editedAt", "INTEGER", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsMessages.put("ciphertext", new TableInfo.Column("ciphertext", "TEXT", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsMessages.put("signalType", new TableInfo.Column("signalType", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsMessages.put("isEncrypted", new TableInfo.Column("isEncrypted", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsMessages.put("isFromMe", new TableInfo.Column("isFromMe", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsMessages.put("kind", new TableInfo.Column("kind", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsMessages.put("mediaId", new TableInfo.Column("mediaId", "TEXT", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsMessages.put("receivedWhileAway", new TableInfo.Column("receivedWhileAway", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsMessages.put("deletedForEveryone", new TableInfo.Column("deletedForEveryone", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsMessages.put("reactions", new TableInfo.Column("reactions", "TEXT", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsMessages.put("thumbnailB64", new TableInfo.Column("thumbnailB64", "TEXT", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsMessages.put("durationSec", new TableInfo.Column("durationSec", "REAL", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsMessages.put("ttlSeconds", new TableInfo.Column("ttlSeconds", "INTEGER", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsMessages.put("forwardedFromName", new TableInfo.Column("forwardedFromName", "TEXT", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsMessages.put("replyToContent", new TableInfo.Column("replyToContent", "TEXT", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsMessages.put("replyToAuthorName", new TableInfo.Column("replyToAuthorName", "TEXT", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsMessages.put("premiumPriceTokens", new TableInfo.Column("premiumPriceTokens", "INTEGER", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsMessages.put("premiumUnlocked", new TableInfo.Column("premiumUnlocked", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsMessages.put("albumId", new TableInfo.Column("albumId", "TEXT", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsMessages.put("fileName", new TableInfo.Column("fileName", "TEXT", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsMessages.put("fileMime", new TableInfo.Column("fileMime", "TEXT", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsMessages.put("fileSizeBytes", new TableInfo.Column("fileSizeBytes", "INTEGER", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsMessages.put("latitude", new TableInfo.Column("latitude", "REAL", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsMessages.put("longitude", new TableInfo.Column("longitude", "REAL", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsMessages.put("pollId", new TableInfo.Column("pollId", "TEXT", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsMessages.put("mentionedUserIds", new TableInfo.Column("mentionedUserIds", "TEXT", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
         final HashSet<TableInfo.ForeignKey> _foreignKeysMessages = new HashSet<TableInfo.ForeignKey>(0);
         final HashSet<TableInfo.Index> _indicesMessages = new HashSet<TableInfo.Index>(0);
         final TableInfo _infoMessages = new TableInfo("messages", _columnsMessages, _foreignKeysMessages, _indicesMessages);
@@ -282,18 +309,15 @@ public final class RCQDatabase_Impl extends RCQDatabase {
                   + " Expected:\n" + _infoCalls + "\n"
                   + " Found:\n" + _existingCalls);
         }
-        final HashMap<String, TableInfo.Column> _columnsPets = new HashMap<String, TableInfo.Column>(11);
+        final HashMap<String, TableInfo.Column> _columnsPets = new HashMap<String, TableInfo.Column>(8);
         _columnsPets.put("id", new TableInfo.Column("id", "TEXT", true, 1, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsPets.put("name", new TableInfo.Column("name", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsPets.put("type", new TableInfo.Column("type", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
-        _columnsPets.put("breed", new TableInfo.Column("breed", "TEXT", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
-        _columnsPets.put("age", new TableInfo.Column("age", "INTEGER", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
-        _columnsPets.put("ownerId", new TableInfo.Column("ownerId", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
-        _columnsPets.put("avatarUrl", new TableInfo.Column("avatarUrl", "TEXT", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
-        _columnsPets.put("description", new TableInfo.Column("description", "TEXT", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
-        _columnsPets.put("isActive", new TableInfo.Column("isActive", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
-        _columnsPets.put("createdAt", new TableInfo.Column("createdAt", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
-        _columnsPets.put("updatedAt", new TableInfo.Column("updatedAt", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsPets.put("rarity", new TableInfo.Column("rarity", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsPets.put("imageUrl", new TableInfo.Column("imageUrl", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsPets.put("equippedBy", new TableInfo.Column("equippedBy", "INTEGER", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsPets.put("isForSale", new TableInfo.Column("isForSale", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsPets.put("salePrice", new TableInfo.Column("salePrice", "INTEGER", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
         final HashSet<TableInfo.ForeignKey> _foreignKeysPets = new HashSet<TableInfo.ForeignKey>(0);
         final HashSet<TableInfo.Index> _indicesPets = new HashSet<TableInfo.Index>(0);
         final TableInfo _infoPets = new TableInfo("pets", _columnsPets, _foreignKeysPets, _indicesPets);
@@ -303,9 +327,25 @@ public final class RCQDatabase_Impl extends RCQDatabase {
                   + " Expected:\n" + _infoPets + "\n"
                   + " Found:\n" + _existingPets);
         }
+        final HashMap<String, TableInfo.Column> _columnsSignalKeys = new HashMap<String, TableInfo.Column>(6);
+        _columnsSignalKeys.put("id", new TableInfo.Column("id", "TEXT", true, 1, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsSignalKeys.put("keyType", new TableInfo.Column("keyType", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsSignalKeys.put("address", new TableInfo.Column("address", "TEXT", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsSignalKeys.put("keyId", new TableInfo.Column("keyId", "INTEGER", false, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsSignalKeys.put("keyData", new TableInfo.Column("keyData", "BLOB", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsSignalKeys.put("timestamp", new TableInfo.Column("timestamp", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        final HashSet<TableInfo.ForeignKey> _foreignKeysSignalKeys = new HashSet<TableInfo.ForeignKey>(0);
+        final HashSet<TableInfo.Index> _indicesSignalKeys = new HashSet<TableInfo.Index>(0);
+        final TableInfo _infoSignalKeys = new TableInfo("signal_keys", _columnsSignalKeys, _foreignKeysSignalKeys, _indicesSignalKeys);
+        final TableInfo _existingSignalKeys = TableInfo.read(db, "signal_keys");
+        if (!_infoSignalKeys.equals(_existingSignalKeys)) {
+          return new RoomOpenHelper.ValidationResult(false, "signal_keys(com.rcq.messenger.domain.model.SignalKeyEntity).\n"
+                  + " Expected:\n" + _infoSignalKeys + "\n"
+                  + " Found:\n" + _existingSignalKeys);
+        }
         return new RoomOpenHelper.ValidationResult(true, null);
       }
-    }, "31fc5575b2d58ea7fcfdec6f44aa8f4e", "b71eb6824b16c7607d87ac309dfa60ab");
+    }, "31bf9ae2f6a713a166b37fc290728231", "2b440118cde4418a9287671a631efbdb");
     final SupportSQLiteOpenHelper.Configuration _sqliteConfig = SupportSQLiteOpenHelper.Configuration.builder(config.context).name(config.name).callback(_openCallback).build();
     final SupportSQLiteOpenHelper _helper = config.sqliteOpenHelperFactory.create(_sqliteConfig);
     return _helper;
@@ -316,7 +356,7 @@ public final class RCQDatabase_Impl extends RCQDatabase {
   protected InvalidationTracker createInvalidationTracker() {
     final HashMap<String, String> _shadowTablesMap = new HashMap<String, String>(0);
     final HashMap<String, Set<String>> _viewTables = new HashMap<String, Set<String>>(0);
-    return new InvalidationTracker(this, _shadowTablesMap, _viewTables, "users","contacts","chats","messages","groups","stories","story_items","calls","pets");
+    return new InvalidationTracker(this, _shadowTablesMap, _viewTables, "users","contacts","chats","messages","groups","stories","story_items","calls","pets","signal_keys");
   }
 
   @Override
@@ -334,6 +374,7 @@ public final class RCQDatabase_Impl extends RCQDatabase {
       _db.execSQL("DELETE FROM `story_items`");
       _db.execSQL("DELETE FROM `calls`");
       _db.execSQL("DELETE FROM `pets`");
+      _db.execSQL("DELETE FROM `signal_keys`");
       super.setTransactionSuccessful();
     } finally {
       super.endTransaction();
@@ -356,6 +397,7 @@ public final class RCQDatabase_Impl extends RCQDatabase {
     _typeConvertersMap.put(StoryDao.class, StoryDao_Impl.getRequiredConverters());
     _typeConvertersMap.put(CallDao.class, CallDao_Impl.getRequiredConverters());
     _typeConvertersMap.put(PetDao.class, PetDao_Impl.getRequiredConverters());
+    _typeConvertersMap.put(SignalKeyDao.class, SignalKeyDao_Impl.getRequiredConverters());
     return _typeConvertersMap;
   }
 
@@ -482,6 +524,20 @@ public final class RCQDatabase_Impl extends RCQDatabase {
           _petDao = new PetDao_Impl(this);
         }
         return _petDao;
+      }
+    }
+  }
+
+  @Override
+  public SignalKeyDao signalKeyDao() {
+    if (_signalKeyDao != null) {
+      return _signalKeyDao;
+    } else {
+      synchronized(this) {
+        if(_signalKeyDao == null) {
+          _signalKeyDao = new SignalKeyDao_Impl(this);
+        }
+        return _signalKeyDao;
       }
     }
   }

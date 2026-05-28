@@ -7,6 +7,7 @@ import androidx.room.EntityDeletionOrUpdateAdapter;
 import androidx.room.EntityInsertionAdapter;
 import androidx.room.RoomDatabase;
 import androidx.room.RoomSQLiteQuery;
+import androidx.room.SharedSQLiteStatement;
 import androidx.room.util.CursorUtil;
 import androidx.room.util.DBUtil;
 import androidx.sqlite.db.SupportSQLiteStatement;
@@ -42,6 +43,8 @@ public final class StoryDao_Impl implements StoryDao {
   private final EntityDeletionOrUpdateAdapter<StoryEntity> __deletionAdapterOfStoryEntity;
 
   private final EntityDeletionOrUpdateAdapter<StoryItemEntity> __deletionAdapterOfStoryItemEntity;
+
+  private final SharedSQLiteStatement __preparedStmtOfDeleteStoryById;
 
   public StoryDao_Impl(@NonNull final RoomDatabase __db) {
     this.__db = __db;
@@ -159,6 +162,14 @@ public final class StoryDao_Impl implements StoryDao {
         statement.bindString(1, entity.getId());
       }
     };
+    this.__preparedStmtOfDeleteStoryById = new SharedSQLiteStatement(__db) {
+      @Override
+      @NonNull
+      public String createQuery() {
+        final String _query = "DELETE FROM stories WHERE id = ?";
+        return _query;
+      }
+    };
   }
 
   @Override
@@ -249,6 +260,32 @@ public final class StoryDao_Impl implements StoryDao {
           return Unit.INSTANCE;
         } finally {
           __db.endTransaction();
+        }
+      }
+    }, $completion);
+  }
+
+  @Override
+  public Object deleteStoryById(final String storyId,
+      final Continuation<? super Unit> $completion) {
+    return CoroutinesRoom.execute(__db, true, new Callable<Unit>() {
+      @Override
+      @NonNull
+      public Unit call() throws Exception {
+        final SupportSQLiteStatement _stmt = __preparedStmtOfDeleteStoryById.acquire();
+        int _argIndex = 1;
+        _stmt.bindString(_argIndex, storyId);
+        try {
+          __db.beginTransaction();
+          try {
+            _stmt.executeUpdateDelete();
+            __db.setTransactionSuccessful();
+            return Unit.INSTANCE;
+          } finally {
+            __db.endTransaction();
+          }
+        } finally {
+          __preparedStmtOfDeleteStoryById.release(_stmt);
         }
       }
     }, $completion);

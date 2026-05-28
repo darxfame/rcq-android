@@ -1,9 +1,10 @@
 -- Merging decision tree log ---
 manifest
-ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:2:1-95:12
-INJECTED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:2:1-95:12
-INJECTED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:2:1-95:12
-INJECTED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:2:1-95:12
+ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:2:1-89:12
+INJECTED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:2:1-89:12
+INJECTED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:2:1-89:12
+INJECTED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:2:1-89:12
+MERGED from [io.coil-kt:coil-gif:2.5.0] /root/.gradle/caches/transforms-4/51afabf59a6d4d469d1926ea8743360a/transformed/jetified-coil-gif-2.5.0/AndroidManifest.xml:2:1-7:12
 MERGED from [androidx.biometric:biometric:1.1.0] /root/.gradle/caches/transforms-4/22eea0633aea6f18146ee13730933a23/transformed/biometric-1.1.0/AndroidManifest.xml:17:1-29:12
 MERGED from [com.google.android.gms:play-services-location:21.1.0] /root/.gradle/caches/transforms-4/d11ce1a4ab172a00facf9ab80e25a812/transformed/jetified-play-services-location-21.1.0/AndroidManifest.xml:2:1-9:12
 MERGED from [com.google.android.gms:play-services-base:18.1.0] /root/.gradle/caches/transforms-4/b6a56f5b3d4fdd577f137ec62bd25983/transformed/jetified-play-services-base-18.1.0/AndroidManifest.xml:16:1-24:12
@@ -64,11 +65,11 @@ MERGED from [androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0] /root/.gradle
 MERGED from [com.google.accompanist:accompanist-drawablepainter:0.32.0] /root/.gradle/caches/transforms-4/5b2a32281e97e2e3385ee401e3c92c01/transformed/jetified-accompanist-drawablepainter-0.32.0/AndroidManifest.xml:17:1-23:12
 MERGED from [androidx.compose.ui:ui-android:1.6.1] /root/.gradle/caches/transforms-4/98c008685b384717d7afd8c8e809709e/transformed/jetified-ui-release/AndroidManifest.xml:2:1-7:12
 MERGED from [androidx.viewpager:viewpager:1.0.0] /root/.gradle/caches/transforms-4/b8f2733ba331c45b4f0613f0531b1fbc/transformed/viewpager-1.0.0/AndroidManifest.xml:17:1-22:12
+MERGED from [androidx.vectordrawable:vectordrawable-animated:1.1.0] /root/.gradle/caches/transforms-4/f3da7885b4c96dac9b175249daefc4ab/transformed/vectordrawable-animated-1.1.0/AndroidManifest.xml:17:1-24:12
+MERGED from [androidx.vectordrawable:vectordrawable:1.1.0] /root/.gradle/caches/transforms-4/61200c5bc78e6b2822cb3f968f97b853/transformed/vectordrawable-1.1.0/AndroidManifest.xml:17:1-24:12
 MERGED from [androidx.autofill:autofill:1.0.0] /root/.gradle/caches/transforms-4/4d80dab2f5040fd585a0d697cafa001b/transformed/jetified-autofill-1.0.0/AndroidManifest.xml:17:1-24:12
 MERGED from [androidx.drawerlayout:drawerlayout:1.0.0] /root/.gradle/caches/transforms-4/b546d059b446917c058eb1b19da9bbc0/transformed/drawerlayout-1.0.0/AndroidManifest.xml:17:1-22:12
 MERGED from [androidx.customview:customview:1.0.0] /root/.gradle/caches/transforms-4/0a13926ba9e3968e1093dd833cb2621c/transformed/customview-1.0.0/AndroidManifest.xml:17:1-22:12
-MERGED from [androidx.vectordrawable:vectordrawable-animated:1.1.0] /root/.gradle/caches/transforms-4/f3da7885b4c96dac9b175249daefc4ab/transformed/vectordrawable-animated-1.1.0/AndroidManifest.xml:17:1-24:12
-MERGED from [androidx.vectordrawable:vectordrawable:1.1.0] /root/.gradle/caches/transforms-4/61200c5bc78e6b2822cb3f968f97b853/transformed/vectordrawable-1.1.0/AndroidManifest.xml:17:1-24:12
 MERGED from [androidx.core:core:1.12.0] /root/.gradle/caches/transforms-4/da2a27d2651b4cd95cf5a8627ba1b3d9/transformed/core-1.12.0/AndroidManifest.xml:17:1-30:12
 MERGED from [androidx.customview:customview-poolingcontainer:1.0.0] /root/.gradle/caches/transforms-4/63c358cb0de2c96d244ca9c990ea8d90/transformed/jetified-customview-poolingcontainer-1.0.0/AndroidManifest.xml:17:1-23:12
 MERGED from [androidx.core:core-ktx:1.12.0] /root/.gradle/caches/transforms-4/15d2834e68a164c689f323380856083a/transformed/jetified-core-ktx-1.12.0/AndroidManifest.xml:2:1-7:12
@@ -86,12 +87,12 @@ MERGED from [androidx.arch.core:core-runtime:2.2.0] /root/.gradle/caches/transfo
 MERGED from [androidx.interpolator:interpolator:1.0.0] /root/.gradle/caches/transforms-4/f1d3b95edc1ba2d8d626b8a683192f27/transformed/interpolator-1.0.0/AndroidManifest.xml:17:1-22:12
 MERGED from [androidx.versionedparcelable:versionedparcelable:1.1.1] /root/.gradle/caches/transforms-4/e1893fce60b4b6eba6963b87295ffb27/transformed/versionedparcelable-1.1.1/AndroidManifest.xml:17:1-27:12
 MERGED from [androidx.profileinstaller:profileinstaller:1.3.1] /root/.gradle/caches/transforms-4/8dfdfb6f94ba8145ab923c45816e0904/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:17:1-55:12
+MERGED from [androidx.exifinterface:exifinterface:1.3.6] /root/.gradle/caches/transforms-4/b3641d4e5b8160a5cc02af62fc18b769/transformed/exifinterface-1.3.6/AndroidManifest.xml:17:1-24:12
 MERGED from [androidx.startup:startup-runtime:1.1.1] /root/.gradle/caches/transforms-4/c34fe7a959023c0290998a335d8a3870/transformed/jetified-startup-runtime-1.1.1/AndroidManifest.xml:17:1-33:12
 MERGED from [androidx.tracing:tracing:1.0.0] /root/.gradle/caches/transforms-4/72ac34e5ec1b215cf2c501549c419a45/transformed/jetified-tracing-1.0.0/AndroidManifest.xml:17:1-24:12
-MERGED from [androidx.exifinterface:exifinterface:1.3.6] /root/.gradle/caches/transforms-4/b3641d4e5b8160a5cc02af62fc18b769/transformed/exifinterface-1.3.6/AndroidManifest.xml:17:1-24:12
 MERGED from [androidx.cursoradapter:cursoradapter:1.0.0] /root/.gradle/caches/transforms-4/722a05ad654968da3b1e383ca6c65297/transformed/cursoradapter-1.0.0/AndroidManifest.xml:17:1-22:12
 MERGED from [androidx.annotation:annotation-experimental:1.4.0] /root/.gradle/caches/transforms-4/f61c2de84ba3fd9934c8684912cc1902/transformed/jetified-annotation-experimental-1.4.0/AndroidManifest.xml:2:1-7:12
-MERGED from [org.signal:libsignal-android:0.33.0] /root/.gradle/caches/transforms-4/1f115942cb46da46ca0b10b37eda7ca0/transformed/jetified-libsignal-android-0.33.0/AndroidManifest.xml:2:1-9:12
+MERGED from [org.signal:libsignal-android:0.31.0] /root/.gradle/caches/transforms-4/d6ea3a4d862c0022fc7f730b40a430af/transformed/jetified-libsignal-android-0.31.0/AndroidManifest.xml:2:1-9:12
 MERGED from [com.google.dagger:dagger-lint-aar:2.50] /root/.gradle/caches/transforms-4/2ad214eda052cba18e54e5365402d9a7/transformed/jetified-dagger-lint-aar-2.50/AndroidManifest.xml:16:1-19:12
 	package
 		INJECTED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml
@@ -121,66 +122,58 @@ ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:10:5-1
 		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:11:9-35
 	android:name
 		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:10:22-77
-uses-permission#android.permission.WRITE_EXTERNAL_STORAGE
-ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:12:5-14:40
-	android:maxSdkVersion
-		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:13:9-35
-	tools:ignore
-		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:14:9-37
-	android:name
-		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:12:22-78
 uses-permission#android.permission.READ_MEDIA_IMAGES
-ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:15:5-76
+ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:13:5-76
 	android:name
-		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:15:22-73
+		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:13:22-73
 uses-permission#android.permission.READ_MEDIA_VIDEO
-ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:16:5-75
+ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:14:5-75
 	android:name
-		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:16:22-72
+		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:14:22-72
 uses-permission#android.permission.READ_MEDIA_AUDIO
-ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:17:5-75
+ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:15:5-75
 	android:name
-		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:17:22-72
+		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:15:22-72
 uses-permission#android.permission.ACCESS_FINE_LOCATION
-ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:20:5-79
+ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:18:5-79
 	android:name
-		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:20:22-76
+		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:18:22-76
 uses-permission#android.permission.ACCESS_COARSE_LOCATION
-ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:21:5-81
+ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:19:5-81
 	android:name
-		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:21:22-78
-uses-permission#android.permission.ACCESS_BACKGROUND_LOCATION
-ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:22:5-85
-	android:name
-		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:22:22-82
+		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:19:22-78
 uses-permission#android.permission.CAMERA
-ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:25:5-65
+ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:22:5-65
 	android:name
-		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:25:22-62
+		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:22:22-62
 uses-permission#android.permission.RECORD_AUDIO
-ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:26:5-71
+ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:23:5-71
 	android:name
-		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:26:22-68
+		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:23:22-68
 uses-permission#android.permission.POST_NOTIFICATIONS
-ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:29:5-77
+ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:26:5-77
 	android:name
-		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:29:22-74
+		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:26:22-74
 uses-permission#android.permission.VIBRATE
-ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:30:5-66
+ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:27:5-66
 	android:name
-		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:30:22-63
+		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:27:22-63
 uses-permission#android.permission.FOREGROUND_SERVICE
-ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:33:5-77
+ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:30:5-77
 	android:name
-		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:33:22-74
+		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:30:22-74
 uses-permission#android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK
-ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:34:5-92
+ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:32:5-33:38
+	android:minSdkVersion
+		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:33:9-35
 	android:name
-		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:34:22-89
+		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:32:22-89
 uses-permission#android.permission.FOREGROUND_SERVICE_MICROPHONE
-ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:35:5-88
+ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:34:5-35:38
+	android:minSdkVersion
+		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:35:9-35
 	android:name
-		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:35:22-85
+		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:34:22-85
 uses-permission#android.permission.WAKE_LOCK
 ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:38:5-68
 	android:name
@@ -191,25 +184,19 @@ MERGED from [androidx.biometric:biometric:1.1.0] /root/.gradle/caches/transforms
 MERGED from [androidx.biometric:biometric:1.1.0] /root/.gradle/caches/transforms-4/22eea0633aea6f18146ee13730933a23/transformed/biometric-1.1.0/AndroidManifest.xml:24:5-72
 	android:name
 		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:41:22-69
-uses-permission#android.permission.READ_PHONE_STATE
-ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:44:5-75
-	android:name
-		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:44:22-72
-uses-permission#android.permission.MANAGE_OWN_CALLS
-ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:45:5-75
-	android:name
-		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:45:22-72
 uses-permission#android.permission.BLUETOOTH
-ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:48:5-68
+ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:44:5-45:38
+	android:maxSdkVersion
+		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:45:9-35
 	android:name
-		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:48:22-65
+		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:44:22-65
 uses-permission#android.permission.BLUETOOTH_CONNECT
-ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:49:5-76
+ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:46:5-76
 	android:name
-		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:49:22-73
+		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:46:22-73
 application
-ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:51:5-93:19
-INJECTED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:51:5-93:19
+ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:48:5-87:19
+INJECTED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:48:5-87:19
 MERGED from [com.google.android.gms:play-services-location:21.1.0] /root/.gradle/caches/transforms-4/d11ce1a4ab172a00facf9ab80e25a812/transformed/jetified-play-services-location-21.1.0/AndroidManifest.xml:7:5-20
 MERGED from [com.google.android.gms:play-services-location:21.1.0] /root/.gradle/caches/transforms-4/d11ce1a4ab172a00facf9ab80e25a812/transformed/jetified-play-services-location-21.1.0/AndroidManifest.xml:7:5-20
 MERGED from [com.google.android.gms:play-services-base:18.1.0] /root/.gradle/caches/transforms-4/b6a56f5b3d4fdd577f137ec62bd25983/transformed/jetified-play-services-base-18.1.0/AndroidManifest.xml:19:5-23:19
@@ -241,75 +228,77 @@ MERGED from [androidx.startup:startup-runtime:1.1.1] /root/.gradle/caches/transf
 	android:appComponentFactory
 		ADDED from [androidx.core:core:1.12.0] /root/.gradle/caches/transforms-4/da2a27d2651b4cd95cf5a8627ba1b3d9/transformed/core-1.12.0/AndroidManifest.xml:28:18-86
 	android:supportsRtl
-		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:59:9-35
+		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:56:9-35
 	android:label
-		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:57:9-41
+		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:54:9-41
 	android:fullBackupContent
-		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:55:9-42
+		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:52:9-42
 	android:roundIcon
-		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:58:9-54
+		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:55:9-54
 	tools:targetApi
-		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:62:9-29
+		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:59:9-29
 	android:icon
-		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:56:9-43
+		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:53:9-43
 	android:allowBackup
-		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:53:9-36
+		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:50:9-36
 	android:theme
-		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:60:9-41
+		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:57:9-41
 	android:dataExtractionRules
-		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:54:9-65
+		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:51:9-65
 	android:usesCleartextTraffic
-		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:61:9-45
+		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:58:9-45
 	android:name
-		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:52:9-39
+		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:49:9-39
 activity#com.rcq.messenger.ui.MainActivity
-ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:64:9-73:20
+ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:61:9-70:20
 	android:launchMode
-		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:67:13-44
+		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:64:13-44
 	android:exported
-		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:66:13-36
+		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:63:13-36
 	android:theme
-		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:68:13-45
+		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:65:13-45
 	android:name
-		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:65:13-44
+		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:62:13-44
 intent-filter#action:name:android.intent.action.MAIN+category:name:android.intent.category.LAUNCHER
-ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:69:13-72:29
+ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:66:13-69:29
 action#android.intent.action.MAIN
-ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:70:17-69
+ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:67:17-69
 	android:name
-		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:70:25-66
+		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:67:25-66
 category#android.intent.category.LAUNCHER
-ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:71:17-77
+ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:68:17-77
 	android:name
-		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:71:27-74
+		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:68:27-74
 service#com.rcq.messenger.service.WebSocketService
-ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:76:9-79:56
+ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:72:9-75:56
 	android:exported
-		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:78:13-37
+		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:74:13-37
 	android:foregroundServiceType
-		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:79:13-53
+		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:75:13-53
 	android:name
-		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:77:13-53
+		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:73:13-53
 service#com.rcq.messenger.service.CallService
-ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:82:9-85:58
+ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:77:9-80:58
+	android:exported
+		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:79:13-37
+	android:foregroundServiceType
+		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:80:13-55
+	android:name
+		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:78:13-48
+service#com.rcq.messenger.service.AudioRoomService
+ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:82:9-85:61
 	android:exported
 		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:84:13-37
 	android:foregroundServiceType
-		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:85:13-55
+		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:85:13-58
 	android:name
-		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:83:13-48
-service#com.rcq.messenger.service.AudioRoomService
-ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:88:9-91:61
-	android:exported
-		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:90:13-37
-	android:foregroundServiceType
-		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:91:13-58
-	android:name
-		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:89:13-53
+		ADDED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml:83:13-53
 uses-sdk
 INJECTED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml reason: use-sdk injection requested
 INJECTED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml
 INJECTED from /root/llm/rcq_android/android/app/src/main/AndroidManifest.xml
+MERGED from [io.coil-kt:coil-gif:2.5.0] /root/.gradle/caches/transforms-4/51afabf59a6d4d469d1926ea8743360a/transformed/jetified-coil-gif-2.5.0/AndroidManifest.xml:5:5-44
+MERGED from [io.coil-kt:coil-gif:2.5.0] /root/.gradle/caches/transforms-4/51afabf59a6d4d469d1926ea8743360a/transformed/jetified-coil-gif-2.5.0/AndroidManifest.xml:5:5-44
 MERGED from [androidx.biometric:biometric:1.1.0] /root/.gradle/caches/transforms-4/22eea0633aea6f18146ee13730933a23/transformed/biometric-1.1.0/AndroidManifest.xml:20:5-22:41
 MERGED from [androidx.biometric:biometric:1.1.0] /root/.gradle/caches/transforms-4/22eea0633aea6f18146ee13730933a23/transformed/biometric-1.1.0/AndroidManifest.xml:20:5-22:41
 MERGED from [com.google.android.gms:play-services-location:21.1.0] /root/.gradle/caches/transforms-4/d11ce1a4ab172a00facf9ab80e25a812/transformed/jetified-play-services-location-21.1.0/AndroidManifest.xml:5:5-44
@@ -430,16 +419,16 @@ MERGED from [androidx.compose.ui:ui-android:1.6.1] /root/.gradle/caches/transfor
 MERGED from [androidx.compose.ui:ui-android:1.6.1] /root/.gradle/caches/transforms-4/98c008685b384717d7afd8c8e809709e/transformed/jetified-ui-release/AndroidManifest.xml:5:5-44
 MERGED from [androidx.viewpager:viewpager:1.0.0] /root/.gradle/caches/transforms-4/b8f2733ba331c45b4f0613f0531b1fbc/transformed/viewpager-1.0.0/AndroidManifest.xml:20:5-44
 MERGED from [androidx.viewpager:viewpager:1.0.0] /root/.gradle/caches/transforms-4/b8f2733ba331c45b4f0613f0531b1fbc/transformed/viewpager-1.0.0/AndroidManifest.xml:20:5-44
+MERGED from [androidx.vectordrawable:vectordrawable-animated:1.1.0] /root/.gradle/caches/transforms-4/f3da7885b4c96dac9b175249daefc4ab/transformed/vectordrawable-animated-1.1.0/AndroidManifest.xml:20:5-22:41
+MERGED from [androidx.vectordrawable:vectordrawable-animated:1.1.0] /root/.gradle/caches/transforms-4/f3da7885b4c96dac9b175249daefc4ab/transformed/vectordrawable-animated-1.1.0/AndroidManifest.xml:20:5-22:41
+MERGED from [androidx.vectordrawable:vectordrawable:1.1.0] /root/.gradle/caches/transforms-4/61200c5bc78e6b2822cb3f968f97b853/transformed/vectordrawable-1.1.0/AndroidManifest.xml:20:5-22:41
+MERGED from [androidx.vectordrawable:vectordrawable:1.1.0] /root/.gradle/caches/transforms-4/61200c5bc78e6b2822cb3f968f97b853/transformed/vectordrawable-1.1.0/AndroidManifest.xml:20:5-22:41
 MERGED from [androidx.autofill:autofill:1.0.0] /root/.gradle/caches/transforms-4/4d80dab2f5040fd585a0d697cafa001b/transformed/jetified-autofill-1.0.0/AndroidManifest.xml:20:5-22:41
 MERGED from [androidx.autofill:autofill:1.0.0] /root/.gradle/caches/transforms-4/4d80dab2f5040fd585a0d697cafa001b/transformed/jetified-autofill-1.0.0/AndroidManifest.xml:20:5-22:41
 MERGED from [androidx.drawerlayout:drawerlayout:1.0.0] /root/.gradle/caches/transforms-4/b546d059b446917c058eb1b19da9bbc0/transformed/drawerlayout-1.0.0/AndroidManifest.xml:20:5-44
 MERGED from [androidx.drawerlayout:drawerlayout:1.0.0] /root/.gradle/caches/transforms-4/b546d059b446917c058eb1b19da9bbc0/transformed/drawerlayout-1.0.0/AndroidManifest.xml:20:5-44
 MERGED from [androidx.customview:customview:1.0.0] /root/.gradle/caches/transforms-4/0a13926ba9e3968e1093dd833cb2621c/transformed/customview-1.0.0/AndroidManifest.xml:20:5-44
 MERGED from [androidx.customview:customview:1.0.0] /root/.gradle/caches/transforms-4/0a13926ba9e3968e1093dd833cb2621c/transformed/customview-1.0.0/AndroidManifest.xml:20:5-44
-MERGED from [androidx.vectordrawable:vectordrawable-animated:1.1.0] /root/.gradle/caches/transforms-4/f3da7885b4c96dac9b175249daefc4ab/transformed/vectordrawable-animated-1.1.0/AndroidManifest.xml:20:5-22:41
-MERGED from [androidx.vectordrawable:vectordrawable-animated:1.1.0] /root/.gradle/caches/transforms-4/f3da7885b4c96dac9b175249daefc4ab/transformed/vectordrawable-animated-1.1.0/AndroidManifest.xml:20:5-22:41
-MERGED from [androidx.vectordrawable:vectordrawable:1.1.0] /root/.gradle/caches/transforms-4/61200c5bc78e6b2822cb3f968f97b853/transformed/vectordrawable-1.1.0/AndroidManifest.xml:20:5-22:41
-MERGED from [androidx.vectordrawable:vectordrawable:1.1.0] /root/.gradle/caches/transforms-4/61200c5bc78e6b2822cb3f968f97b853/transformed/vectordrawable-1.1.0/AndroidManifest.xml:20:5-22:41
 MERGED from [androidx.core:core:1.12.0] /root/.gradle/caches/transforms-4/da2a27d2651b4cd95cf5a8627ba1b3d9/transformed/core-1.12.0/AndroidManifest.xml:20:5-44
 MERGED from [androidx.core:core:1.12.0] /root/.gradle/caches/transforms-4/da2a27d2651b4cd95cf5a8627ba1b3d9/transformed/core-1.12.0/AndroidManifest.xml:20:5-44
 MERGED from [androidx.customview:customview-poolingcontainer:1.0.0] /root/.gradle/caches/transforms-4/63c358cb0de2c96d244ca9c990ea8d90/transformed/jetified-customview-poolingcontainer-1.0.0/AndroidManifest.xml:20:5-21:38
@@ -474,18 +463,18 @@ MERGED from [androidx.versionedparcelable:versionedparcelable:1.1.1] /root/.grad
 MERGED from [androidx.versionedparcelable:versionedparcelable:1.1.1] /root/.gradle/caches/transforms-4/e1893fce60b4b6eba6963b87295ffb27/transformed/versionedparcelable-1.1.1/AndroidManifest.xml:20:5-22:41
 MERGED from [androidx.profileinstaller:profileinstaller:1.3.1] /root/.gradle/caches/transforms-4/8dfdfb6f94ba8145ab923c45816e0904/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:21:5-44
 MERGED from [androidx.profileinstaller:profileinstaller:1.3.1] /root/.gradle/caches/transforms-4/8dfdfb6f94ba8145ab923c45816e0904/transformed/jetified-profileinstaller-1.3.1/AndroidManifest.xml:21:5-44
+MERGED from [androidx.exifinterface:exifinterface:1.3.6] /root/.gradle/caches/transforms-4/b3641d4e5b8160a5cc02af62fc18b769/transformed/exifinterface-1.3.6/AndroidManifest.xml:20:5-22:41
+MERGED from [androidx.exifinterface:exifinterface:1.3.6] /root/.gradle/caches/transforms-4/b3641d4e5b8160a5cc02af62fc18b769/transformed/exifinterface-1.3.6/AndroidManifest.xml:20:5-22:41
 MERGED from [androidx.startup:startup-runtime:1.1.1] /root/.gradle/caches/transforms-4/c34fe7a959023c0290998a335d8a3870/transformed/jetified-startup-runtime-1.1.1/AndroidManifest.xml:21:5-23:41
 MERGED from [androidx.startup:startup-runtime:1.1.1] /root/.gradle/caches/transforms-4/c34fe7a959023c0290998a335d8a3870/transformed/jetified-startup-runtime-1.1.1/AndroidManifest.xml:21:5-23:41
 MERGED from [androidx.tracing:tracing:1.0.0] /root/.gradle/caches/transforms-4/72ac34e5ec1b215cf2c501549c419a45/transformed/jetified-tracing-1.0.0/AndroidManifest.xml:20:5-22:41
 MERGED from [androidx.tracing:tracing:1.0.0] /root/.gradle/caches/transforms-4/72ac34e5ec1b215cf2c501549c419a45/transformed/jetified-tracing-1.0.0/AndroidManifest.xml:20:5-22:41
-MERGED from [androidx.exifinterface:exifinterface:1.3.6] /root/.gradle/caches/transforms-4/b3641d4e5b8160a5cc02af62fc18b769/transformed/exifinterface-1.3.6/AndroidManifest.xml:20:5-22:41
-MERGED from [androidx.exifinterface:exifinterface:1.3.6] /root/.gradle/caches/transforms-4/b3641d4e5b8160a5cc02af62fc18b769/transformed/exifinterface-1.3.6/AndroidManifest.xml:20:5-22:41
 MERGED from [androidx.cursoradapter:cursoradapter:1.0.0] /root/.gradle/caches/transforms-4/722a05ad654968da3b1e383ca6c65297/transformed/cursoradapter-1.0.0/AndroidManifest.xml:20:5-44
 MERGED from [androidx.cursoradapter:cursoradapter:1.0.0] /root/.gradle/caches/transforms-4/722a05ad654968da3b1e383ca6c65297/transformed/cursoradapter-1.0.0/AndroidManifest.xml:20:5-44
 MERGED from [androidx.annotation:annotation-experimental:1.4.0] /root/.gradle/caches/transforms-4/f61c2de84ba3fd9934c8684912cc1902/transformed/jetified-annotation-experimental-1.4.0/AndroidManifest.xml:5:5-44
 MERGED from [androidx.annotation:annotation-experimental:1.4.0] /root/.gradle/caches/transforms-4/f61c2de84ba3fd9934c8684912cc1902/transformed/jetified-annotation-experimental-1.4.0/AndroidManifest.xml:5:5-44
-MERGED from [org.signal:libsignal-android:0.33.0] /root/.gradle/caches/transforms-4/1f115942cb46da46ca0b10b37eda7ca0/transformed/jetified-libsignal-android-0.33.0/AndroidManifest.xml:5:5-7:41
-MERGED from [org.signal:libsignal-android:0.33.0] /root/.gradle/caches/transforms-4/1f115942cb46da46ca0b10b37eda7ca0/transformed/jetified-libsignal-android-0.33.0/AndroidManifest.xml:5:5-7:41
+MERGED from [org.signal:libsignal-android:0.31.0] /root/.gradle/caches/transforms-4/d6ea3a4d862c0022fc7f730b40a430af/transformed/jetified-libsignal-android-0.31.0/AndroidManifest.xml:5:5-7:41
+MERGED from [org.signal:libsignal-android:0.31.0] /root/.gradle/caches/transforms-4/d6ea3a4d862c0022fc7f730b40a430af/transformed/jetified-libsignal-android-0.31.0/AndroidManifest.xml:5:5-7:41
 MERGED from [com.google.dagger:dagger-lint-aar:2.50] /root/.gradle/caches/transforms-4/2ad214eda052cba18e54e5365402d9a7/transformed/jetified-dagger-lint-aar-2.50/AndroidManifest.xml:18:3-42
 MERGED from [com.google.dagger:dagger-lint-aar:2.50] /root/.gradle/caches/transforms-4/2ad214eda052cba18e54e5365402d9a7/transformed/jetified-dagger-lint-aar-2.50/AndroidManifest.xml:18:3-42
 	android:targetSdkVersion

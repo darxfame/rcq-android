@@ -113,8 +113,9 @@ dependencies {
     // DataStore
     implementation("androidx.datastore:datastore-preferences:1.0.0")
 
-    // Coil for images
+    // Coil for images + GIF animated emoticons
     implementation("io.coil-kt:coil-compose:2.5.0")
+    implementation("io.coil-kt:coil-gif:2.5.0")
 
     // Security
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
