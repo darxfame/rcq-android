@@ -5,6 +5,7 @@ import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 import app.rcq.android.model.ChatMessage
+import app.rcq.android.model.DeliveryState
 
 /**
  * Local message store. The backend drains messages on delivery (rcq-spec
@@ -26,7 +27,8 @@ class MessageDb(context: Context) : SQLiteOpenHelper(context.applicationContext,
               peer_uin  INTEGER NOT NULL,
               from_me   INTEGER NOT NULL,
               body      TEXT NOT NULL,
-              sent_at   INTEGER NOT NULL
+              sent_at   INTEGER NOT NULL,
+              state     TEXT NOT NULL DEFAULT 'DELIVERED'
             )
             """.trimIndent()
         )
@@ -34,7 +36,9 @@ class MessageDb(context: Context) : SQLiteOpenHelper(context.applicationContext,
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        // Single version so far; future migrations are additive.
+        if (oldVersion < 2) {
+            db.execSQL("ALTER TABLE messages ADD COLUMN state TEXT NOT NULL DEFAULT 'DELIVERED'")
+        }
     }
 
     /** Insert; returns true if it was new (false if the UUID already existed). */
@@ -45,6 +49,7 @@ class MessageDb(context: Context) : SQLiteOpenHelper(context.applicationContext,
             put("from_me", if (msg.fromMe) 1 else 0)
             put("body", msg.body)
             put("sent_at", msg.sentAt)
+            put("state", msg.state.name)
         }
         val rowId = writableDatabase.insertWithOnConflict(
             "messages", null, values, SQLiteDatabase.CONFLICT_IGNORE,
@@ -52,10 +57,15 @@ class MessageDb(context: Context) : SQLiteOpenHelper(context.applicationContext,
         return rowId != -1L
     }
 
+    fun updateState(id: String, state: DeliveryState) {
+        val values = ContentValues().apply { put("state", state.name) }
+        writableDatabase.update("messages", values, "id = ?", arrayOf(id))
+    }
+
     fun all(): List<ChatMessage> {
         val out = ArrayList<ChatMessage>()
         readableDatabase.rawQuery(
-            "SELECT id, peer_uin, from_me, body, sent_at FROM messages ORDER BY sent_at ASC", null,
+            "SELECT id, peer_uin, from_me, body, sent_at, state FROM messages ORDER BY sent_at ASC", null,
         ).use { c ->
             while (c.moveToNext()) {
                 out.add(
@@ -65,6 +75,7 @@ class MessageDb(context: Context) : SQLiteOpenHelper(context.applicationContext,
                         fromMe = c.getInt(2) == 1,
                         body = c.getString(3),
                         sentAt = c.getLong(4),
+                        state = runCatching { DeliveryState.valueOf(c.getString(5)) }.getOrDefault(DeliveryState.DELIVERED),
                     )
                 )
             }
@@ -74,6 +85,6 @@ class MessageDb(context: Context) : SQLiteOpenHelper(context.applicationContext,
 
     private companion object {
         const val NAME = "rcq-messages.db"
-        const val VERSION = 1
+        const val VERSION = 2
     }
 }

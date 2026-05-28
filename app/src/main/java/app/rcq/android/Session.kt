@@ -9,6 +9,7 @@ import app.rcq.android.data.MessageDb
 import app.rcq.android.data.SecureStore
 import app.rcq.android.model.ChatMessage
 import app.rcq.android.model.Contact
+import app.rcq.android.model.DeliveryState
 import app.rcq.android.model.PendingRequest
 import app.rcq.android.net.RcqApi
 import app.rcq.android.net.RcqSocket
@@ -16,6 +17,7 @@ import com.google.gson.JsonObject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -47,6 +49,10 @@ class Session(context: Context) {
 
     private val _connected = MutableStateFlow(false)
     val connected: StateFlow<Boolean> = _connected.asStateFlow()
+
+    private val _typingFrom = MutableStateFlow<Int?>(null)
+    val typingFrom: StateFlow<Int?> = _typingFrom.asStateFlow()
+    private var typingSeq = 0
 
     // uin -> recipient X25519 identity public (raw), from contacts or lookup.
     private val peerIdentityCache = HashMap<Int, ByteArray>()
@@ -111,17 +117,35 @@ class Session(context: Context) {
 
     suspend fun sendText(toUin: Int, text: String) {
         val env = Envelope.text(text)
-        // Persist + show immediately; failure to send leaves it in history
-        // (no delivery-state tracking yet — a later refinement).
-        store(ChatMessage(env.id, toUin, fromMe = true, body = text, sentAt = System.currentTimeMillis()))
-        val payload = SealedSender.encryptV1(
-            envelope = env,
-            recipientIdentityPub = recipientKey(toUin),
-            ownUin = store.uin ?: error("not registered"),
-            signingPriv = signingPriv(),
-            signingPub = signingPub(),
-        )
-        api.sendSealed(toUin, payload)
+        store(ChatMessage(env.id, toUin, fromMe = true, body = text, sentAt = System.currentTimeMillis(), state = DeliveryState.SENDING))
+        sendEnvelope(env, toUin)
+    }
+
+    /** Retry a previously-failed outgoing message (same UUID, so no dup). */
+    suspend fun resend(msg: ChatMessage) {
+        if (!msg.fromMe || msg.state != DeliveryState.FAILED) return
+        updateMessageState(msg.id, msg.peerUin, DeliveryState.SENDING)
+        sendEnvelope(Envelope.Text(msg.id, msg.body), msg.peerUin)
+    }
+
+    private suspend fun sendEnvelope(env: Envelope.Text, toUin: Int) {
+        try {
+            val payload = SealedSender.encryptV1(
+                envelope = env,
+                recipientIdentityPub = recipientKey(toUin),
+                ownUin = store.uin ?: error("not registered"),
+                signingPriv = signingPriv(),
+                signingPub = signingPub(),
+            )
+            val resp = api.sendSealed(toUin, payload)
+            updateMessageState(env.id, toUin, if (resp.delivered) DeliveryState.DELIVERED else DeliveryState.SENT)
+        } catch (e: Exception) {
+            updateMessageState(env.id, toUin, DeliveryState.FAILED)
+        }
+    }
+
+    fun sendTyping(toUin: Int, active: Boolean) {
+        socket.send("{\"type\":\"typing\",\"to_uin\":$toUin,\"active\":$active}")
     }
 
     private suspend fun recipientKey(uin: Int): ByteArray {
@@ -189,7 +213,19 @@ class Session(context: Context) {
             "contact_request", "contact_response", "contact_removed" -> {
                 scope.launch { runCatching { refreshContacts() }; runCatching { refreshPending() } }
             }
-            else -> Unit // typing/presence/etc. ignored for now
+            "typing" -> {
+                val from = obj.get("from_uin")?.asInt
+                val active = obj.get("active")?.asBoolean ?: false
+                if (active && from != null) {
+                    _typingFrom.value = from
+                    val seq = ++typingSeq
+                    scope.launch { delay(6000); if (typingSeq == seq) _typingFrom.value = null }
+                } else {
+                    _typingFrom.value = null
+                }
+            }
+            "presence" -> scope.launch { runCatching { refreshContacts() } }
+            else -> Unit
         }
     }
 
@@ -204,6 +240,13 @@ class Session(context: Context) {
         if (!db.insert(msg)) return
         val cur = _messages.value.toMutableMap()
         cur[msg.peerUin] = ((cur[msg.peerUin] ?: emptyList()) + msg).sortedBy { it.sentAt }
+        _messages.value = cur
+    }
+
+    private fun updateMessageState(id: String, peer: Int, state: DeliveryState) {
+        db.updateState(id, state)
+        val cur = _messages.value.toMutableMap()
+        cur[peer] = (cur[peer] ?: emptyList()).map { if (it.id == id) it.copy(state = state) else it }
         _messages.value = cur
     }
 

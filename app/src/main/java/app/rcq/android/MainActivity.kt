@@ -29,6 +29,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -45,7 +46,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import app.rcq.android.model.ChatMessage
 import app.rcq.android.model.Contact
+import app.rcq.android.model.DeliveryState
 import kotlinx.coroutines.launch
 
 private val Background = Color(0xFF0F1115)
@@ -266,44 +269,85 @@ private fun ChatScreen(session: Session, peer: Int, onBack: () -> Unit) {
     val scope = rememberCoroutineScope()
     val all by session.messages.collectAsState()
     val messages = all[peer] ?: emptyList()
+    val typingFrom by session.typingFrom.collectAsState()
     var draft by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
 
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) listState.animateScrollToItem(messages.size - 1)
     }
+    DisposableEffect(peer) { onDispose { session.sendTyping(peer, false) } }
 
     Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 8.dp)) {
             Text("‹ Back", color = Accent, fontSize = 16.sp, modifier = Modifier.clickable(onClick = onBack))
             Spacer(Modifier.width(16.dp))
-            Text(session.contactName(peer), color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-        }
-        LazyColumn(state = listState, modifier = Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            items(messages) { m ->
-                Box(Modifier.fillMaxWidth(), contentAlignment = if (m.fromMe) Alignment.CenterEnd else Alignment.CenterStart) {
-                    Text(
-                        m.body,
-                        color = if (m.fromMe) Color.White else TextPrimary,
-                        fontSize = 15.sp,
-                        modifier = Modifier.clip(RoundedCornerShape(14.dp)).background(if (m.fromMe) Accent else Surface).padding(horizontal = 12.dp, vertical = 8.dp),
-                    )
-                }
+            Column {
+                Text(session.contactName(peer), color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                if (typingFrom == peer) Text("typing…", color = Accent, fontSize = 12.sp)
             }
         }
+        LazyColumn(state = listState, modifier = Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            items(messages) { m -> MessageBubble(m, onRetry = { scope.launch { runCatching { session.resend(m) } } }) }
+        }
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
-            OutlinedTextField(value = draft, onValueChange = { draft = it }, modifier = Modifier.weight(1f), placeholder = { Text("Message", color = TextSecondary) }, singleLine = true)
+            OutlinedTextField(
+                value = draft,
+                onValueChange = { draft = it; session.sendTyping(peer, it.isNotBlank()) },
+                modifier = Modifier.weight(1f),
+                placeholder = { Text("Message", color = TextSecondary) },
+                singleLine = true,
+            )
             Spacer(Modifier.width(8.dp))
             val canSend = draft.isNotBlank()
             Box(
                 modifier = Modifier.clip(RoundedCornerShape(percent = 50)).background(if (canSend) Accent else Surface)
                     .clickable(enabled = canSend) {
                         val body = draft.trim(); draft = ""
+                        session.sendTyping(peer, false)
                         scope.launch { runCatching { session.sendText(peer, body) } }
                     }.padding(horizontal = 18.dp, vertical = 14.dp),
             ) { Text("Send", color = Color.White, fontWeight = FontWeight.SemiBold) }
         }
     }
+}
+
+@Composable
+private fun MessageBubble(m: ChatMessage, onRetry: () -> Unit) {
+    val failed = m.state == DeliveryState.FAILED
+    Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = if (m.fromMe) Alignment.End else Alignment.Start) {
+        Text(
+            m.body,
+            color = if (m.fromMe) Color.White else TextPrimary,
+            fontSize = 15.sp,
+            modifier = Modifier
+                .clip(RoundedCornerShape(14.dp))
+                .background(if (m.fromMe) Accent else Surface)
+                .then(if (failed) Modifier.clickable(onClick = onRetry) else Modifier)
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+        ) {
+            Text(formatTime(m.sentAt), color = TextSecondary, fontSize = 10.sp)
+            if (m.fromMe) {
+                if (failed) Text("failed · tap to retry", color = Color(0xFFE5484D), fontSize = 10.sp)
+                else Text(stateGlyph(m.state), color = TextSecondary, fontSize = 10.sp)
+            }
+        }
+    }
+}
+
+private fun formatTime(ts: Long): String =
+    java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()).format(java.util.Date(ts))
+
+private fun stateGlyph(s: DeliveryState): String = when (s) {
+    DeliveryState.SENDING -> "·"
+    DeliveryState.SENT -> "✓"
+    DeliveryState.DELIVERED -> "✓✓"
+    DeliveryState.FAILED -> "✕"
 }
 
 @Composable

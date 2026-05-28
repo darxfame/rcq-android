@@ -26,6 +26,7 @@ class RcqSocket(private val baseWsUrl: String = DEFAULT_WS_URL) {
     private var ws: WebSocket? = null
     private var shouldStayConnected = false
     private var attempt = 0
+    private var pingTimer: java.util.Timer? = null
 
     private var uin: Int = 0
     private var token: String = ""
@@ -46,12 +47,28 @@ class RcqSocket(private val baseWsUrl: String = DEFAULT_WS_URL) {
         open()
     }
 
+    /** Send a raw JSON frame (e.g. typing). No-op if the socket is down. */
+    fun send(json: String): Boolean = ws?.send(json) ?: false
+
+    private fun startPing() {
+        pingTimer?.cancel()
+        pingTimer = java.util.Timer(true).apply {
+            scheduleAtFixedRate(object : java.util.TimerTask() {
+                // App-level heartbeat matching the iOS client; keeps the
+                // server's per-socket liveness fresh on top of OkHttp's
+                // protocol ping.
+                override fun run() { ws?.send("{\"type\":\"ping\"}") }
+            }, 25_000, 25_000)
+        }
+    }
+
     private fun open() {
         ws?.cancel()
         val request = Request.Builder().url("$baseWsUrl/ws/$uin?token=$token").build()
         ws = client.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
                 attempt = 0
+                startPing()
                 onState(true)
             }
 
@@ -87,6 +104,8 @@ class RcqSocket(private val baseWsUrl: String = DEFAULT_WS_URL) {
 
     fun disconnect() {
         shouldStayConnected = false
+        pingTimer?.cancel()
+        pingTimer = null
         ws?.close(1000, null)
         ws = null
     }

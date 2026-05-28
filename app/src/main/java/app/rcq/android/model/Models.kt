@@ -16,6 +16,10 @@ data class PendingRequest(
     val fromNickname: String,
 )
 
+/** Delivery state of an outgoing message. Incoming messages are always
+ *  DELIVERED. Mirrors the iOS DeliveryState minus read receipts. */
+enum class DeliveryState { SENDING, SENT, DELIVERED, FAILED }
+
 /** A single chat message, persisted locally (the server doesn't keep
  *  messages after delivery). `id` is the envelope UUID — the dedup key
  *  that prevents a message arriving via both WebSocket and the queue
@@ -26,4 +30,5 @@ data class ChatMessage(
     val fromMe: Boolean,
     val body: String,
     val sentAt: Long,
+    val state: DeliveryState = DeliveryState.DELIVERED,
 )
