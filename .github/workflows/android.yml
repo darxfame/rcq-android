@@ -37,6 +37,16 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-gradle-
 
+    # Cache the debug keystore so every build is signed with the same key.
+    # Without this, each fresh runner generates a new keystore, making the
+    # signature change between builds — Android then refuses to install the
+    # update over a previously installed version.
+    - name: Cache Android debug keystore
+      uses: actions/cache@v4
+      with:
+        path: ~/.android/debug.keystore
+        key: android-debug-keystore-v1
+
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
 
@@ -54,7 +64,8 @@ jobs:
     - name: Run lint
       run: ./gradlew lintDebug --continue || true
 
-    # Upload as artifact (zip — only useful for CI inspection, NOT for phone install)
+    # Artifact = always a .zip on download. Only useful for inspecting build output.
+    # Use the Release asset below to install on a phone.
     - name: Upload APK artifact
       uses: actions/upload-artifact@v4
       with:
@@ -70,11 +81,9 @@ jobs:
         path: app/build/reports/lint-results-debug.html
         if-no-files-found: ignore
 
-    # ── Direct .apk download via GitHub Release ───────────────────────────────
-    # Artifact downloads are always zipped by GitHub — Android can't install
-    # a .zip. A Release asset downloads as a bare .apk you can tap and install.
-    # The "latest-debug" pre-release is overwritten on every push.
-    - name: Publish APK to GitHub Release (tap-to-install on Android)
+    # The Release asset downloads as a bare .apk — tap to install directly.
+    # "latest-debug" is overwritten on every push to phase-* or main.
+    - name: Publish APK to GitHub Release
       if: github.event_name == 'push'
       uses: softprops/action-gh-release@v2
       with:
@@ -82,16 +91,19 @@ jobs:
         name: "Latest Debug Build"
         prerelease: true
         body: |
-          🤖 Auto-built from `${{ github.ref_name }}` @ ${{ github.sha }}
+          🤖 Built from `${{ github.ref_name }}` @ `${{ github.sha }}`
 
-          ## Install on your phone
+          ## How to install on your phone
 
-          1. **Download `rcq-debug.apk`** (link below ↓)
-          2. Open the file on your phone — tap **Install**
-          3. If blocked: **Settings → Apps → Special app access → Install unknown apps**
-             → enable for your browser or Files app, then try again
+          **⚠️ If you have an older version installed — uninstall it first.**
+          (Android blocks installs when the signature changes between builds.)
 
-          Works on Samsung S22, Pixel, and all Android 8.0+ devices.
+          1. Tap **rcq-debug.apk** below to download
+          2. Open **Files → Downloads**, tap the file → **Install**
+          3. If Samsung blocks it: Settings → Apps → Special app access →
+             Install unknown apps → enable for your Files app
+
+          Works on all Android 8.0+ phones (arm64, arm32, x86).
         files: app/build/outputs/apk/debug/rcq-debug.apk
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

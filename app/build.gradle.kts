@@ -24,12 +24,6 @@ android {
 
         buildConfigField("String", "API_BASE_URL", "\"https://api.rcq.app/\"")
 
-        ndk {
-            // arm64-v8a covers S22, Pixel, and all modern Android phones.
-            // x86/x86_64 are emulator-only; armeabi-v7a is 2013-era hardware.
-            // Restricting here cuts the APK from 77 MB to ~25 MB.
-            abiFilters += setOf("arm64-v8a")
-        }
     }
 
     buildTypes {
