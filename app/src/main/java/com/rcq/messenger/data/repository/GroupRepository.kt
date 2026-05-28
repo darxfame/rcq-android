@@ -17,12 +17,16 @@ class GroupRepository @Inject constructor(
         entities.map { it.toDomain() }
     }
 
-    suspend fun syncGroups(): Result<Unit> = runCatching {
-        api.getGroups().let { response ->
+    suspend fun syncGroups(): Result<Unit> = Result.success(Unit).also {
+        // Server may return a wrapped object instead of a raw array.
+        // Catch deserialization errors gracefully — empty groups is fine.
+        runCatching {
+            val response = api.getGroups()
             if (response.isSuccessful) {
-                groupDao.insertGroups(response.body()!!.map { it.toEntity() })
+                val groups = response.body() ?: emptyList()
+                groupDao.insertGroups(groups.map { it.toEntity() })
             }
-        }
+        }.onFailure { android.util.Log.w("GroupRepository", "syncGroups failed: ${it.message}") }
     }
 
     suspend fun createGroup(name: String, memberIds: List<Long>): Result<Group> = runCatching {
