@@ -49,11 +49,22 @@ fun ChatScreen(
     val currentUserId by viewModel.currentUserId.collectAsState()
     val chatTitle by viewModel.chatTitle.collectAsState()
     val recordingState by viewModel.recordingState.collectAsState()
+    val playbackState by viewModel.playbackState.collectAsState()
+    val activeVoiceId by viewModel.activeVoiceId.collectAsState()
     val listState = rememberLazyListState()
+    var showAttachMenu by remember { mutableStateOf(false) }
 
     val photoPickerLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.GetContent()
     ) { uri -> uri?.let { viewModel.sendPhotoMessage(it) } }
+
+    val videoPickerLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri -> uri?.let { viewModel.sendVideoMessage(it) } }
+
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri -> uri?.let { viewModel.sendFileMessage(it) } }
 
     LaunchedEffect(chatId) {
         viewModel.loadChat(chatId)
@@ -118,7 +129,12 @@ fun ChatScreen(
                     MessageBubble(
                         message = message,
                         isOwnMessage = message.senderId == currentUserId,
-                        onReply = { viewModel.setReplyTo(message) }
+                        onReply = { viewModel.setReplyTo(message) },
+                        onForward = { viewModel.forwardMessage(message) },
+                        onVoicePlay = { _ -> viewModel.playVoice(message) },
+                        onVoicePause = { viewModel.pauseVoice() },
+                        isVoicePlaying = activeVoiceId == message.mediaId,
+                        playbackState = playbackState
                     )
                 }
             }
@@ -131,20 +147,42 @@ fun ChatScreen(
                 )
             }
 
-            MessageInput(
-                text = messageText,
-                onTextChange = viewModel::updateMessageText,
-                onSend = viewModel::sendMessage,
-                onAttach = { photoPickerLauncher.launch("image/*") },
-                onVoice = {
-                    if (recordingState == RecordingState.RECORDING) {
-                        viewModel.stopAndSendVoiceMessage()
-                    } else {
-                        viewModel.startVoiceRecording()
-                    }
-                },
-                isRecording = recordingState == RecordingState.RECORDING
-            )
+            Box {
+                MessageInput(
+                    text = messageText,
+                    onTextChange = viewModel::updateMessageText,
+                    onSend = viewModel::sendMessage,
+                    onAttach = { showAttachMenu = true },
+                    onVoice = {
+                        if (recordingState == RecordingState.RECORDING) {
+                            viewModel.stopAndSendVoiceMessage()
+                        } else {
+                            viewModel.startVoiceRecording()
+                        }
+                    },
+                    isRecording = recordingState == RecordingState.RECORDING
+                )
+                DropdownMenu(
+                    expanded = showAttachMenu,
+                    onDismissRequest = { showAttachMenu = false }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("Photo") },
+                        leadingIcon = { Icon(Icons.Default.Image, null) },
+                        onClick = { showAttachMenu = false; photoPickerLauncher.launch("image/*") }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Video") },
+                        leadingIcon = { Icon(Icons.Default.VideoLibrary, null) },
+                        onClick = { showAttachMenu = false; videoPickerLauncher.launch("video/*") }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("File") },
+                        leadingIcon = { Icon(Icons.Default.AttachFile, null) },
+                        onClick = { showAttachMenu = false; filePickerLauncher.launch("*/*") }
+                    )
+                }
+            }
         }
     }
 }
@@ -154,7 +192,12 @@ fun ChatScreen(
 fun MessageBubble(
     message: Message,
     isOwnMessage: Boolean,
-    onReply: () -> Unit
+    onReply: () -> Unit,
+    onForward: () -> Unit = {},
+    onVoicePlay: (String) -> Unit = {},
+    onVoicePause: () -> Unit = {},
+    isVoicePlaying: Boolean = false,
+    playbackState: com.rcq.messenger.media.PlaybackState = com.rcq.messenger.media.PlaybackState.IDLE
 ) {
     var showMenu by remember { mutableStateOf(false) }
 
@@ -213,24 +256,39 @@ fun MessageBubble(
             Column(
                 horizontalAlignment = if (isOwnMessage) Alignment.End else Alignment.Start
             ) {
-                Box(
-                    modifier = Modifier
-                        .background(
-                            if (isOwnMessage) MessageSent else MessageReceived,
-                            RoundedCornerShape(
-                                topStart = 16.dp,
-                                topEnd = 16.dp,
-                                bottomStart = if (isOwnMessage) 16.dp else 4.dp,
-                                bottomEnd = if (isOwnMessage) 4.dp else 16.dp
-                            )
-                        )
-                        .padding(12.dp)
-                ) {
-                    Text(
-                        text = message.content,
-                        color = if (isOwnMessage) TextOnPrimary else TextPrimary,
-                        style = MaterialTheme.typography.bodyMedium
+                val isMedia = message.kind in listOf(
+                    MessageKind.PHOTO, MessageKind.VIDEO, MessageKind.VOICE,
+                    MessageKind.FILE, MessageKind.PREMIUM_PHOTO, MessageKind.PREMIUM_VIDEO
+                )
+                if (isMedia) {
+                    com.rcq.messenger.ui.chat.components.MediaMessageBubble(
+                        message = message,
+                        isOwnMessage = isOwnMessage,
+                        onMediaClick = { /* TODO: open fullscreen */ },
+                        onVoicePlay = onVoicePlay,
+                        onVoicePause = onVoicePause,
+                        playbackState = if (isVoicePlaying) playbackState else com.rcq.messenger.media.PlaybackState.IDLE,
+                        modifier = Modifier
                     )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .background(
+                                if (isOwnMessage) MessageSent else MessageReceived,
+                                RoundedCornerShape(
+                                    topStart = 16.dp, topEnd = 16.dp,
+                                    bottomStart = if (isOwnMessage) 16.dp else 4.dp,
+                                    bottomEnd = if (isOwnMessage) 4.dp else 16.dp
+                                )
+                            )
+                            .padding(12.dp)
+                    ) {
+                        Text(
+                            text = message.content,
+                            color = if (isOwnMessage) TextOnPrimary else TextPrimary,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(4.dp))
@@ -275,19 +333,22 @@ fun MessageBubble(
             DropdownMenuItem(
                 text = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.Reply,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
+                        Icon(Icons.AutoMirrored.Filled.Reply, null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(8.dp))
                         Text("Reply")
                     }
                 },
-                onClick = {
-                    showMenu = false
-                    onReply()
-                }
+                onClick = { showMenu = false; onReply() }
+            )
+            DropdownMenuItem(
+                text = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Forward, null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Forward")
+                    }
+                },
+                onClick = { showMenu = false; onForward() }
             )
         }
     }

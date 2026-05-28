@@ -167,8 +167,12 @@ class ChatViewModel @Inject constructor(
         }
     }
 
-    // Voice recording state forwarded from VoiceRecorder
+    // Recording / playback state forwarded from VoiceRecorder
     val recordingState = voiceRecorder.recordingState
+    val playbackState = voiceRecorder.playbackState
+
+    private val _activeVoiceId = MutableStateFlow<String?>(null)
+    val activeVoiceId: StateFlow<String?> = _activeVoiceId.asStateFlow()
 
     fun sendPhotoMessage(uri: Uri) {
         val chatId = this.chatId
@@ -229,6 +233,86 @@ class ChatViewModel @Inject constructor(
 
     fun cancelVoiceRecording() {
         voiceRecorder.cancelRecording()
+    }
+
+    fun sendVideoMessage(uri: Uri) {
+        val chatId = this.chatId
+        if (chatId.isEmpty()) return
+        viewModelScope.launch {
+            val chat = chatRepository.getChat(chatId) ?: return@launch
+            mediaService.uploadMedia(uri, MediaType.VIDEO, chat.targetId).onSuccess { result ->
+                val message = Message(
+                    id = java.util.UUID.randomUUID().toString(),
+                    chatId = chatId,
+                    senderId = _currentUserId.value,
+                    isFromMe = true,
+                    kind = MessageKind.VIDEO,
+                    content = "",
+                    mediaId = result.mediaId,
+                    fileMime = result.mimeType,
+                    fileSizeBytes = result.size,
+                    timestamp = System.currentTimeMillis(),
+                    status = MessageStatus.SENDING
+                )
+                chatRepository.sendMessage(chatId, message)
+                    .onFailure { _sendError.value = "Failed to send video: ${it.message}" }
+            }.onFailure { _sendError.value = "Upload failed: ${it.message}" }
+        }
+    }
+
+    fun sendFileMessage(uri: Uri) {
+        val chatId = this.chatId
+        if (chatId.isEmpty()) return
+        viewModelScope.launch {
+            val chat = chatRepository.getChat(chatId) ?: return@launch
+            mediaService.uploadMedia(uri, MediaType.DOCUMENT, chat.targetId).onSuccess { result ->
+                val message = Message(
+                    id = java.util.UUID.randomUUID().toString(),
+                    chatId = chatId,
+                    senderId = _currentUserId.value,
+                    isFromMe = true,
+                    kind = MessageKind.FILE,
+                    content = "",
+                    mediaId = result.mediaId,
+                    fileMime = result.mimeType,
+                    fileSizeBytes = result.size,
+                    timestamp = System.currentTimeMillis(),
+                    status = MessageStatus.SENDING
+                )
+                chatRepository.sendMessage(chatId, message)
+                    .onFailure { _sendError.value = "Failed to send file: ${it.message}" }
+            }.onFailure { _sendError.value = "Upload failed: ${it.message}" }
+        }
+    }
+
+    fun playVoice(message: Message) {
+        val mediaId = message.mediaId ?: return
+        viewModelScope.launch {
+            _activeVoiceId.value = mediaId
+            // Try local cache first, then download
+            val localFile = mediaService.getLocalMediaFile(mediaId)
+            val file = if (localFile != null) {
+                localFile
+            } else {
+                val senderUin = if (message.isFromMe) null else message.senderId
+                mediaService.downloadMedia(mediaId, senderUin, 1)
+                    .getOrNull() ?: run {
+                        _activeVoiceId.value = null
+                        return@launch
+                    }
+            }
+            voiceRecorder.playVoiceMessage(file)
+        }
+    }
+
+    fun pauseVoice() {
+        voiceRecorder.pausePlayback()
+        _activeVoiceId.value = null
+    }
+
+    fun forwardMessage(message: Message) {
+        // TODO Phase 2: show chat selector, then resend to chosen chat
+        _sendError.value = "Forward: coming soon"
     }
 
     fun loadMoreMessages() {

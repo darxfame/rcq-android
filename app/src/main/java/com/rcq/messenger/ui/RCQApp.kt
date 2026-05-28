@@ -184,7 +184,15 @@ fun MainScaffold(
             }
             composable("profile/{userId}") { backStackEntry ->
                 val userId = backStackEntry.arguments?.getString("userId")?.toLongOrNull() ?: return@composable
-                ProfileScreen(userId = userId, onBack = { navController.popBackStack() })
+                ProfileScreen(
+                    userId = userId,
+                    onBack = { navController.popBackStack() },
+                    onOpenChat = { chatId ->
+                        navController.navigate(Routes.chat(chatId)) {
+                            popUpTo("profile/{userId}") { inclusive = true }
+                        }
+                    }
+                )
             }
             composable(Routes.CALL) { backStackEntry ->
                 val callId = backStackEntry.arguments?.getString("callId") ?: return@composable

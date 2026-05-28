@@ -16,6 +16,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.rcq.messenger.data.repository.ChatRepository
 import com.rcq.messenger.data.repository.UserRepository
 import com.rcq.messenger.domain.model.User
 import com.rcq.messenger.ui.theme.*
@@ -28,7 +29,8 @@ import javax.inject.Inject
 
 @HiltViewModel
 class ProfileViewModel @Inject constructor(
-    private val userRepository: UserRepository
+    private val userRepository: UserRepository,
+    private val chatRepository: ChatRepository
 ) : ViewModel() {
 
     private val _user = MutableStateFlow<User?>(null)
@@ -36,6 +38,9 @@ class ProfileViewModel @Inject constructor(
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+
+    private val _createdChatId = MutableStateFlow<String?>(null)
+    val createdChatId: StateFlow<String?> = _createdChatId.asStateFlow()
 
     fun loadUser(userId: Long) {
         viewModelScope.launch {
@@ -46,6 +51,18 @@ class ProfileViewModel @Inject constructor(
             _isLoading.value = false
         }
     }
+
+    fun openChat(targetId: Long) {
+        viewModelScope.launch {
+            chatRepository.createChat(targetId).onSuccess { chat ->
+                _createdChatId.value = chat.id
+            }
+        }
+    }
+
+    fun consumeChatId() {
+        _createdChatId.value = null
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -53,13 +70,22 @@ class ProfileViewModel @Inject constructor(
 fun ProfileScreen(
     userId: Long,
     onBack: () -> Unit,
+    onOpenChat: (String) -> Unit = {},
     viewModel: ProfileViewModel = hiltViewModel()
 ) {
     val user by viewModel.user.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
+    val createdChatId by viewModel.createdChatId.collectAsState()
 
     LaunchedEffect(userId) {
         viewModel.loadUser(userId)
+    }
+
+    LaunchedEffect(createdChatId) {
+        createdChatId?.let { chatId ->
+            viewModel.consumeChatId()
+            onOpenChat(chatId)
+        }
     }
 
     Scaffold(
@@ -157,7 +183,7 @@ fun ProfileScreen(
 
                 // Action Buttons
                 Button(
-                    onClick = { /* TODO: Start chat */ },
+                    onClick = { viewModel.openChat(user!!.id) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(56.dp),
