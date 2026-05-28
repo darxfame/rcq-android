@@ -70,6 +70,59 @@ class RcqApi(private val baseUrl: String = DEFAULT_BASE_URL) {
             )
         }
 
+    // ── offline queue drain (rcq-spec 6.3.1) ─────────────────────────
+
+    data class QueuedEnvelope(
+        val id: Int,
+        val envelope_type: String?,
+        val payload: String?,
+        val received_at: String?,
+        val group_id: Int? = null,
+    )
+
+    suspend fun drainQueue(): List<QueuedEnvelope> = withContext(Dispatchers.IO) {
+        get("/messages/queue", authed = true, Array<QueuedEnvelope>::class.java).toList()
+    }
+
+    // ── contacts (rcq-spec 4) ────────────────────────────────────────
+
+    data class ContactRow(
+        val uin: Int,
+        val nickname: String?,
+        val status: String?,
+        val identity_key: String?,
+        val signing_key: String?,
+    )
+
+    suspend fun contacts(): List<ContactRow> = withContext(Dispatchers.IO) {
+        get("/contacts", authed = true, Array<ContactRow>::class.java).toList()
+    }
+
+    data class PendingRow(
+        val id: Int,
+        val from_uin: Int,
+        val nickname: String?,
+        val state: String?,
+    )
+
+    suspend fun pending(): List<PendingRow> = withContext(Dispatchers.IO) {
+        get("/contacts/pending", authed = true, Array<PendingRow>::class.java).toList()
+    }
+
+    data class ContactRequestBody(val to_uin: Int)
+    data class ContactRequestResponse(val id: Int = 0, val state: String? = null, val auto: Boolean = false)
+
+    suspend fun requestContact(toUin: Int): ContactRequestResponse = withContext(Dispatchers.IO) {
+        post("/contacts/request", gson.toJson(ContactRequestBody(toUin)), authed = true, ContactRequestResponse::class.java)
+    }
+
+    data class RespondBody(val request_id: Int, val accept: Boolean)
+    data class RespondResponse(val state: String? = null)
+
+    suspend fun respondContact(requestId: Int, accept: Boolean): RespondResponse = withContext(Dispatchers.IO) {
+        post("/contacts/respond", gson.toJson(RespondBody(requestId, accept)), authed = true, RespondResponse::class.java)
+    }
+
     // ── plumbing ─────────────────────────────────────────────────────
 
     private fun <T> post(path: String, json: String, authed: Boolean, type: Class<T>): T {

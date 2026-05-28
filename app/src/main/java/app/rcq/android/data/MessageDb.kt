@@ -1,0 +1,79 @@
+package app.rcq.android.data
+
+import android.content.ContentValues
+import android.content.Context
+import android.database.sqlite.SQLiteDatabase
+import android.database.sqlite.SQLiteOpenHelper
+import app.rcq.android.model.ChatMessage
+
+/**
+ * Local message store. The backend drains messages on delivery (rcq-spec
+ * 6.3.1), so chat history only survives if the client keeps it — this is
+ * the Android analogue of the iOS MessageDB. Hand-rolled SQLite (like iOS)
+ * rather than Room to avoid an annotation-processor dependency.
+ *
+ * The primary key is the envelope UUID, and inserts are INSERT OR IGNORE,
+ * which gives free de-duplication for a message that arrives over both the
+ * WebSocket and the queue drain.
+ */
+class MessageDb(context: Context) : SQLiteOpenHelper(context.applicationContext, NAME, null, VERSION) {
+
+    override fun onCreate(db: SQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE messages (
+              id        TEXT PRIMARY KEY,
+              peer_uin  INTEGER NOT NULL,
+              from_me   INTEGER NOT NULL,
+              body      TEXT NOT NULL,
+              sent_at   INTEGER NOT NULL
+            )
+            """.trimIndent()
+        )
+        db.execSQL("CREATE INDEX idx_messages_peer ON messages(peer_uin, sent_at)")
+    }
+
+    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
+        // Single version so far; future migrations are additive.
+    }
+
+    /** Insert; returns true if it was new (false if the UUID already existed). */
+    fun insert(msg: ChatMessage): Boolean {
+        val values = ContentValues().apply {
+            put("id", msg.id)
+            put("peer_uin", msg.peerUin)
+            put("from_me", if (msg.fromMe) 1 else 0)
+            put("body", msg.body)
+            put("sent_at", msg.sentAt)
+        }
+        val rowId = writableDatabase.insertWithOnConflict(
+            "messages", null, values, SQLiteDatabase.CONFLICT_IGNORE,
+        )
+        return rowId != -1L
+    }
+
+    fun all(): List<ChatMessage> {
+        val out = ArrayList<ChatMessage>()
+        readableDatabase.rawQuery(
+            "SELECT id, peer_uin, from_me, body, sent_at FROM messages ORDER BY sent_at ASC", null,
+        ).use { c ->
+            while (c.moveToNext()) {
+                out.add(
+                    ChatMessage(
+                        id = c.getString(0),
+                        peerUin = c.getInt(1),
+                        fromMe = c.getInt(2) == 1,
+                        body = c.getString(3),
+                        sentAt = c.getLong(4),
+                    )
+                )
+            }
+        }
+        return out
+    }
+
+    private companion object {
+        const val NAME = "rcq-messages.db"
+        const val VERSION = 1
+    }
+}

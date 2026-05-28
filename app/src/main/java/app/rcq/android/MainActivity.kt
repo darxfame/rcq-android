@@ -15,18 +15,23 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -40,6 +45,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import app.rcq.android.model.Contact
 import kotlinx.coroutines.launch
 
 private val Background = Color(0xFF0F1115)
@@ -47,6 +53,7 @@ private val Surface = Color(0xFF1A1D23)
 private val TextPrimary = Color(0xFFE6E8EC)
 private val TextSecondary = Color(0xFF8A8F99)
 private val Accent = Color(0xFF3B82F6)
+private val Online = Color(0xFF34C759)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -72,6 +79,10 @@ private fun RcqApp(session: Session) {
     }
     var chatPeer by remember { mutableStateOf<Int?>(null) }
 
+    LaunchedEffect(state) {
+        if (state is UiState.Registered) session.start()
+    }
+
     fun register() {
         state = UiState.Registering
         scope.launch {
@@ -90,12 +101,11 @@ private fun RcqApp(session: Session) {
         val s = state
         val peer = chatPeer
         when {
-            s is UiState.Registered && peer != null ->
-                ChatScreen(session, myUin = s.uin, peer = peer, onBack = { chatPeer = null })
+            s is UiState.Registered && peer != null -> ChatScreen(session, peer, onBack = { chatPeer = null })
+            s is UiState.Registered -> Home(session, s.uin, onOpenChat = { chatPeer = it })
             s is UiState.Onboarding -> Onboarding(onStart = ::register)
             s is UiState.Registering -> Registering()
-            s is UiState.Registered -> Home(uin = s.uin, onOpenChat = { chatPeer = it })
-            s is UiState.Failed -> Failed(message = s.message, onRetry = ::register)
+            s is UiState.Failed -> Failed(s.message, onRetry = ::register)
         }
     }
 }
@@ -109,7 +119,7 @@ private fun Onboarding(onStart: () -> Unit) {
     ) {
         Text("RCQ", color = TextPrimary, fontSize = 48.sp, fontWeight = FontWeight.Bold)
         Text("Private messaging. No phone number.", color = TextSecondary, fontSize = 15.sp, textAlign = TextAlign.Center)
-        CapsuleButton(label = "Start", onClick = onStart)
+        CapsuleButton("Start", onClick = onStart)
     }
 }
 
@@ -130,95 +140,168 @@ private fun Failed(message: String, onRetry: () -> Unit) {
     ) {
         Text("Couldn't connect", color = TextPrimary, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
         Text(message, color = TextSecondary, fontSize = 13.sp, textAlign = TextAlign.Center)
-        CapsuleButton(label = "Try again", onClick = onRetry)
+        CapsuleButton("Try again", onClick = onRetry)
     }
 }
 
 @Composable
-private fun Home(uin: Int, onOpenChat: (Int) -> Unit) {
-    var peerInput by remember { mutableStateOf("") }
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-        modifier = Modifier.padding(32.dp),
-    ) {
-        Text("Your UIN", color = TextSecondary, fontSize = 14.sp)
-        Text("#$uin", color = TextPrimary, fontSize = 36.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
-        Spacer(Modifier.height(24.dp))
-        OutlinedTextField(
-            value = peerInput,
-            onValueChange = { peerInput = it.filter(Char::isDigit) },
-            label = { Text("Message a UIN", color = TextSecondary) },
-            singleLine = true,
-        )
-        val target = peerInput.toIntOrNull()
-        CapsuleButton(
-            label = "Open chat",
-            enabled = target != null,
-            onClick = { target?.let(onOpenChat) },
-        )
-    }
-}
-
-@Composable
-private fun ChatScreen(session: Session, myUin: Int, peer: Int, onBack: () -> Unit) {
+private fun Home(session: Session, uin: Int, onOpenChat: (Int) -> Unit) {
     val scope = rememberCoroutineScope()
-    val messages = remember { mutableStateListOf<Pair<Boolean, String>>() } // fromMe, text
-    var draft by remember { mutableStateOf("") }
+    val contacts by session.contacts.collectAsState()
+    val pending by session.pending.collectAsState()
+    val connected by session.connected.collectAsState()
+    var showAdd by remember { mutableStateOf(false) }
 
-    DisposableEffect(peer) {
-        session.connect { sender, text ->
-            if (sender == peer) messages.add(false to text)
+    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+        // Header
+        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("RCQ", color = TextPrimary, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Box(Modifier.size(7.dp).clip(CircleShape).background(if (connected) Online else TextSecondary))
+                    Text("#$uin", color = TextSecondary, fontSize = 13.sp, fontFamily = FontFamily.Monospace)
+                }
+            }
+            Box(
+                modifier = Modifier.clip(CircleShape).background(Accent).clickable { showAdd = true }.padding(horizontal = 16.dp, vertical = 8.dp),
+            ) { Text("+ Add", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp) }
         }
-        onDispose { session.disconnect() }
+
+        LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            if (pending.isNotEmpty()) {
+                item { SectionLabel("Requests") }
+                items(pending) { req ->
+                    PendingRow(
+                        name = req.fromNickname,
+                        onAccept = { scope.launch { runCatching { session.respond(req.requestId, true) } } },
+                        onDecline = { scope.launch { runCatching { session.respond(req.requestId, false) } } },
+                    )
+                }
+                item { Spacer(Modifier.height(10.dp)) }
+            }
+            if (contacts.isEmpty() && pending.isEmpty()) {
+                item {
+                    Box(Modifier.fillMaxWidth().padding(top = 60.dp), contentAlignment = Alignment.Center) {
+                        Text("No contacts yet.\nTap + Add and enter a UIN.", color = TextSecondary, fontSize = 14.sp, textAlign = TextAlign.Center)
+                    }
+                }
+            } else if (contacts.isNotEmpty()) {
+                item { SectionLabel("Contacts") }
+                items(contacts) { c -> ContactRow(c, onClick = { onOpenChat(c.uin) }) }
+            }
+        }
+    }
+
+    if (showAdd) {
+        AddContactDialog(
+            onAdd = { target -> scope.launch { runCatching { session.addContact(target) } }; showAdd = false },
+            onDismiss = { showAdd = false },
+        )
+    }
+}
+
+@Composable
+private fun SectionLabel(text: String) {
+    Text(text.uppercase(), color = TextSecondary, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(vertical = 8.dp))
+}
+
+@Composable
+private fun ContactRow(c: Contact, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable(onClick = onClick).padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Box(Modifier.size(38.dp).clip(CircleShape).background(Surface), contentAlignment = Alignment.Center) {
+            Text(c.nickname.take(1).uppercase(), color = TextPrimary, fontWeight = FontWeight.SemiBold)
+        }
+        Column(Modifier.weight(1f)) {
+            Text(c.nickname, color = TextPrimary, fontSize = 16.sp)
+            Text("#${c.uin}", color = TextSecondary, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+        }
+        if (c.status == "online") Box(Modifier.size(8.dp).clip(CircleShape).background(Online))
+    }
+}
+
+@Composable
+private fun PendingRow(name: String, onAccept: () -> Unit, onDecline: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Surface).padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(name, color = TextPrimary, fontSize = 15.sp, modifier = Modifier.weight(1f))
+        Text("Accept", color = Accent, fontWeight = FontWeight.SemiBold, modifier = Modifier.clickable(onClick = onAccept).padding(8.dp))
+        Spacer(Modifier.width(4.dp))
+        Text("Decline", color = TextSecondary, modifier = Modifier.clickable(onClick = onDecline).padding(8.dp))
+    }
+}
+
+@Composable
+private fun AddContactDialog(onAdd: (Int) -> Unit, onDismiss: () -> Unit) {
+    var input by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Surface,
+        title = { Text("Add contact", color = TextPrimary) },
+        text = {
+            OutlinedTextField(
+                value = input,
+                onValueChange = { input = it.filter(Char::isDigit) },
+                label = { Text("UIN", color = TextSecondary) },
+                singleLine = true,
+            )
+        },
+        confirmButton = {
+            val target = input.toIntOrNull()
+            TextButton(enabled = target != null, onClick = { target?.let(onAdd) }) {
+                Text("Add request", color = if (target != null) Accent else TextSecondary)
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = TextSecondary) } },
+    )
+}
+
+@Composable
+private fun ChatScreen(session: Session, peer: Int, onBack: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    val all by session.messages.collectAsState()
+    val messages = all[peer] ?: emptyList()
+    var draft by remember { mutableStateOf("") }
+    val listState = rememberLazyListState()
+
+    LaunchedEffect(messages.size) {
+        if (messages.isNotEmpty()) listState.animateScrollToItem(messages.size - 1)
     }
 
     Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 8.dp)) {
             Text("‹ Back", color = Accent, fontSize = 16.sp, modifier = Modifier.clickable(onClick = onBack))
             Spacer(Modifier.width(16.dp))
-            Text("#$peer", color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, fontFamily = FontFamily.Monospace)
+            Text(session.contactName(peer), color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
         }
-        Spacer(Modifier.height(8.dp))
-        LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            items(messages) { (fromMe, text) ->
-                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = if (fromMe) Alignment.CenterEnd else Alignment.CenterStart) {
+        LazyColumn(state = listState, modifier = Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            items(messages) { m ->
+                Box(Modifier.fillMaxWidth(), contentAlignment = if (m.fromMe) Alignment.CenterEnd else Alignment.CenterStart) {
                     Text(
-                        text,
-                        color = if (fromMe) Color.White else TextPrimary,
+                        m.body,
+                        color = if (m.fromMe) Color.White else TextPrimary,
                         fontSize = 15.sp,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(if (fromMe) Accent else Surface)
-                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        modifier = Modifier.clip(RoundedCornerShape(14.dp)).background(if (m.fromMe) Accent else Surface).padding(horizontal = 12.dp, vertical = 8.dp),
                     )
                 }
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
-            OutlinedTextField(
-                value = draft,
-                onValueChange = { draft = it },
-                modifier = Modifier.weight(1f),
-                placeholder = { Text("Message", color = TextSecondary) },
-                singleLine = true,
-            )
+            OutlinedTextField(value = draft, onValueChange = { draft = it }, modifier = Modifier.weight(1f), placeholder = { Text("Message", color = TextSecondary) }, singleLine = true)
             Spacer(Modifier.width(8.dp))
             val canSend = draft.isNotBlank()
             Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(percent = 50))
-                    .background(if (canSend) Accent else Surface)
+                modifier = Modifier.clip(RoundedCornerShape(percent = 50)).background(if (canSend) Accent else Surface)
                     .clickable(enabled = canSend) {
-                        val body = draft.trim()
-                        draft = ""
-                        messages.add(true to body)
+                        val body = draft.trim(); draft = ""
                         scope.launch { runCatching { session.sendText(peer, body) } }
-                    }
-                    .padding(horizontal = 18.dp, vertical = 14.dp),
-            ) {
-                Text("Send", color = Color.White, fontWeight = FontWeight.SemiBold)
-            }
+                    }.padding(horizontal = 18.dp, vertical = 14.dp),
+            ) { Text("Send", color = Color.White, fontWeight = FontWeight.SemiBold) }
         }
     }
 }
@@ -226,13 +309,8 @@ private fun ChatScreen(session: Session, myUin: Int, peer: Int, onBack: () -> Un
 @Composable
 private fun CapsuleButton(label: String, enabled: Boolean = true, onClick: () -> Unit) {
     Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(percent = 50))
-            .background(if (enabled) Accent else Surface)
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 40.dp, vertical = 14.dp),
+        modifier = Modifier.clip(RoundedCornerShape(percent = 50)).background(if (enabled) Accent else Surface)
+            .clickable(enabled = enabled, onClick = onClick).padding(horizontal = 40.dp, vertical = 14.dp),
         contentAlignment = Alignment.Center,
-    ) {
-        Text(label, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-    }
+    ) { Text(label, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold) }
 }
