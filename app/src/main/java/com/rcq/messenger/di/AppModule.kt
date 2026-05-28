@@ -86,7 +86,8 @@ object AppModule {
         ).addMigrations(
             RCQDatabase.MIGRATION_6_7,
             RCQDatabase.MIGRATION_7_8,
-            RCQDatabase.MIGRATION_8_9
+            RCQDatabase.MIGRATION_8_9,
+            RCQDatabase.MIGRATION_9_10
         ).build()
     }
 

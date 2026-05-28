@@ -46,6 +46,15 @@ class SettingsViewModel @Inject constructor(
     val isLoading = MutableStateFlow(false)
     val error: MutableStateFlow<String?> = MutableStateFlow(null)
 
+    val notificationsEnabled = MutableStateFlow(true)
+    val messagePreview = MutableStateFlow(true)
+    val soundEnabled = MutableStateFlow(true)
+    val vibrationEnabled = MutableStateFlow(true)
+    val readReceipts = MutableStateFlow(true)
+    val lastSeenVisible = MutableStateFlow(true)
+    val onlineVisible = MutableStateFlow(true)
+    val darkTheme = MutableStateFlow(false)
+
     private var currentUser: User? = null
 
     fun loadCurrentUser() {
@@ -100,6 +109,15 @@ fun SettingsScreen(
     val editBio by viewModel.editBio.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()
+
+    val notificationsEnabled by viewModel.notificationsEnabled.collectAsState()
+    val messagePreview by viewModel.messagePreview.collectAsState()
+    val soundEnabled by viewModel.soundEnabled.collectAsState()
+    val vibrationEnabled by viewModel.vibrationEnabled.collectAsState()
+    val readReceipts by viewModel.readReceipts.collectAsState()
+    val lastSeenVisible by viewModel.lastSeenVisible.collectAsState()
+    val onlineVisible by viewModel.onlineVisible.collectAsState()
+    val darkTheme by viewModel.darkTheme.collectAsState()
 
     LaunchedEffect(Unit) {
         viewModel.loadCurrentUser()
@@ -286,6 +304,87 @@ fun SettingsScreen(
             }
 
             item {
+                SettingsSection(title = "Notifications") {
+                    SettingsToggleItem(
+                        icon = Icons.Default.Notifications,
+                        title = "Notifications",
+                        checked = notificationsEnabled,
+                        onCheckedChange = { viewModel.notificationsEnabled.value = it }
+                    )
+                    SettingsToggleItem(
+                        icon = Icons.Default.Preview,
+                        title = "Message preview",
+                        checked = messagePreview,
+                        onCheckedChange = { viewModel.messagePreview.value = it },
+                        enabled = notificationsEnabled
+                    )
+                    SettingsToggleItem(
+                        icon = Icons.Default.VolumeUp,
+                        title = "Sound",
+                        checked = soundEnabled,
+                        onCheckedChange = { viewModel.soundEnabled.value = it }
+                    )
+                    SettingsToggleItem(
+                        icon = Icons.Default.Vibration,
+                        title = "Vibration",
+                        checked = vibrationEnabled,
+                        onCheckedChange = { viewModel.vibrationEnabled.value = it }
+                    )
+                }
+            }
+
+            item {
+                SettingsSection(title = "Privacy") {
+                    SettingsToggleItem(
+                        icon = Icons.Default.DoneAll,
+                        title = "Read receipts",
+                        checked = readReceipts,
+                        onCheckedChange = { viewModel.readReceipts.value = it }
+                    )
+                    SettingsToggleItem(
+                        icon = Icons.Default.AccessTime,
+                        title = "Show last seen",
+                        checked = lastSeenVisible,
+                        onCheckedChange = { viewModel.lastSeenVisible.value = it }
+                    )
+                    SettingsToggleItem(
+                        icon = Icons.Default.Circle,
+                        title = "Show online status",
+                        checked = onlineVisible,
+                        onCheckedChange = { viewModel.onlineVisible.value = it }
+                    )
+                }
+            }
+
+            item {
+                SettingsSection(title = "Appearance") {
+                    SettingsToggleItem(
+                        icon = Icons.Default.DarkMode,
+                        title = "Dark theme",
+                        checked = darkTheme,
+                        onCheckedChange = { viewModel.darkTheme.value = it }
+                    )
+                }
+            }
+
+            item {
+                SettingsSection(title = "Storage") {
+                    SettingsItem(
+                        icon = Icons.Default.Storage,
+                        title = "Cache",
+                        subtitle = "Calculating...",
+                        onClick = {}
+                    )
+                    SettingsItem(
+                        icon = Icons.Default.Delete,
+                        title = "Clear cache",
+                        subtitle = "Free up storage space",
+                        onClick = {}
+                    )
+                }
+            }
+
+            item {
                 SettingsSection(title = "Support") {
                     SettingsItem(
                         icon = Icons.Default.Info,
@@ -445,6 +544,51 @@ fun SettingsItem(
             Icons.Default.ChevronRight,
             contentDescription = null,
             tint = TextTertiary
+        )
+    }
+}
+
+@Composable
+fun SettingsToggleItem(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    subtitle: String? = null,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    enabled: Boolean = true
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = enabled, onClick = { onCheckedChange(!checked) })
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = if (enabled) Primary else TextSecondary,
+            modifier = Modifier.size(24.dp)
+        )
+        Spacer(modifier = Modifier.width(16.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                color = if (enabled) TextPrimary else TextSecondary
+            )
+            if (subtitle != null) {
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextSecondary
+                )
+            }
+        }
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            enabled = enabled
         )
     }
 }

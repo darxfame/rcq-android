@@ -21,11 +21,15 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.isGranted
+import com.google.accompanist.permissions.rememberPermissionState
 import com.rcq.messenger.domain.model.Message
 import com.rcq.messenger.media.RecordingState
 import com.rcq.messenger.domain.model.MessageStatus
@@ -35,7 +39,7 @@ import com.rcq.messenger.ui.theme.*
 import java.text.SimpleDateFormat
 import java.util.*
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
 fun ChatScreen(
     chatId: String,
@@ -53,6 +57,15 @@ fun ChatScreen(
     val activeVoiceId by viewModel.activeVoiceId.collectAsState()
     val listState = rememberLazyListState()
     var showAttachMenu by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val locationPermissionState = rememberPermissionState(android.Manifest.permission.ACCESS_FINE_LOCATION)
+    val requestLocationAndSend = {
+        if (locationPermissionState.status.isGranted) {
+            viewModel.sendLocationMessage(context)
+        } else {
+            locationPermissionState.launchPermissionRequest()
+        }
+    }
 
     val photoPickerLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.GetContent()
@@ -181,6 +194,11 @@ fun ChatScreen(
                         leadingIcon = { Icon(Icons.Default.AttachFile, null) },
                         onClick = { showAttachMenu = false; filePickerLauncher.launch("*/*") }
                     )
+                    DropdownMenuItem(
+                        text = { Text("Location") },
+                        leadingIcon = { Icon(Icons.Default.LocationOn, null) },
+                        onClick = { showAttachMenu = false; requestLocationAndSend() }
+                    )
                 }
             }
         }
@@ -270,6 +288,40 @@ fun MessageBubble(
                         playbackState = if (isVoicePlaying) playbackState else com.rcq.messenger.media.PlaybackState.IDLE,
                         modifier = Modifier
                     )
+                } else if (message.kind == MessageKind.LOCATION && message.latitude != null && message.longitude != null) {
+                    Column(
+                        modifier = Modifier
+                            .background(
+                                if (isOwnMessage) MessageSent else MessageReceived,
+                                RoundedCornerShape(
+                                    topStart = 16.dp, topEnd = 16.dp,
+                                    bottomStart = if (isOwnMessage) 16.dp else 4.dp,
+                                    bottomEnd = if (isOwnMessage) 4.dp else 16.dp
+                                )
+                            )
+                            .padding(12.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Default.LocationOn,
+                                contentDescription = null,
+                                tint = if (isOwnMessage) TextOnPrimary else Primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                "Location",
+                                fontWeight = FontWeight.Medium,
+                                color = if (isOwnMessage) TextOnPrimary else TextPrimary
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            "${String.format("%.4f", message.latitude)}, ${String.format("%.4f", message.longitude)}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (isOwnMessage) TextOnPrimary.copy(alpha = 0.8f) else TextSecondary
+                        )
+                    }
                 } else {
                     Box(
                         modifier = Modifier

@@ -405,14 +405,25 @@ private fun ChatEntity.toDomain() = Chat(
     id = id, targetId = targetId, targetNickname = targetNickname,
     targetAvatar = targetAvatar, unreadCount = unreadCount,
     isPinned = isPinned, isMuted = isMuted, isArchived = isArchived,
-    createdAt = createdAt, updatedAt = updatedAt
+    createdAt = createdAt, updatedAt = updatedAt,
+    lastMessage = if (lastMessageContent != null && lastMessageTimestamp != null) {
+        Message(
+            id = "", chatId = id, senderId = 0L,
+            kind = try { MessageKind.valueOf(lastMessageKind ?: "TEXT") } catch (e: Exception) { MessageKind.TEXT },
+            content = lastMessageContent,
+            timestamp = lastMessageTimestamp
+        )
+    } else null
 )
 
 private fun Chat.toEntity() = ChatEntity(
     id = id, targetId = targetId, targetNickname = targetNickname,
     targetAvatar = targetAvatar, unreadCount = unreadCount,
     isPinned = isPinned, isMuted = isMuted, isArchived = isArchived,
-    createdAt = createdAt, updatedAt = updatedAt
+    createdAt = createdAt, updatedAt = updatedAt,
+    lastMessageContent = lastMessage?.content,
+    lastMessageTimestamp = lastMessage?.timestamp,
+    lastMessageKind = lastMessage?.kind?.name
 )
 
 private fun MessageEntity.toDomain() = Message(

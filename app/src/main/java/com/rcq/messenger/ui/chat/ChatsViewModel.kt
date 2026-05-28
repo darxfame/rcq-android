@@ -16,6 +16,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 import javax.inject.Inject
 
 @HiltViewModel
@@ -257,6 +258,40 @@ class ChatViewModel @Inject constructor(
                 chatRepository.sendMessage(chatId, message)
                     .onFailure { _sendError.value = "Failed to send video: ${it.message}" }
             }.onFailure { _sendError.value = "Upload failed: ${it.message}" }
+        }
+    }
+
+    fun sendLocationMessage(context: android.content.Context) {
+        val chatId = this.chatId
+        if (chatId.isEmpty()) return
+        viewModelScope.launch {
+            try {
+                val fusedClient = com.google.android.gms.location.LocationServices
+                    .getFusedLocationProviderClient(context)
+                val location = suspendCancellableCoroutine<android.location.Location?> { cont ->
+                    fusedClient.lastLocation
+                        .addOnSuccessListener { cont.resume(it, null) }
+                        .addOnFailureListener { cont.resume(null, null) }
+                } ?: run { _sendError.value = "Location unavailable"; return@launch }
+                val message = Message(
+                    id = java.util.UUID.randomUUID().toString(),
+                    chatId = chatId,
+                    senderId = _currentUserId.value,
+                    isFromMe = true,
+                    kind = MessageKind.LOCATION,
+                    content = "${location.latitude},${location.longitude}",
+                    latitude = location.latitude,
+                    longitude = location.longitude,
+                    timestamp = System.currentTimeMillis(),
+                    status = MessageStatus.SENDING
+                )
+                chatRepository.sendMessage(chatId, message)
+                    .onFailure { _sendError.value = "Failed to send location: ${it.message}" }
+            } catch (e: SecurityException) {
+                _sendError.value = "Location permission required"
+            } catch (e: Exception) {
+                _sendError.value = "Location error: ${e.message}"
+            }
         }
     }
 

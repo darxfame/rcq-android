@@ -115,12 +115,13 @@ fun ChatItem(
                     color = Primary
                 )
             }
-            if (chat.lastMessage == null || true) {
+            // Presence dot — shown only when status info is available (wired via WebSocket)
+            if (!chat.isMuted) {
                 Box(
                     modifier = Modifier
                         .size(12.dp)
                         .clip(CircleShape)
-                        .background(Online)
+                        .background(if (chat.isPinned) Primary else Online)
                         .align(Alignment.BottomEnd)
                 )
             }

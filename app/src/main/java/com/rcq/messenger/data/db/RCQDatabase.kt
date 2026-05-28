@@ -27,7 +27,7 @@ import com.rcq.messenger.data.db.SignalKeyDao
         PetEntity::class,
         SignalKeyEntity::class
     ],
-    version = 9,
+    version = 10,
     exportSchema = false
 )
 @TypeConverters(RoomTypeConverters::class)
@@ -123,15 +123,23 @@ abstract class RCQDatabase : RoomDatabase() {
                 """.trimIndent())
                 database.execSQL("DROP TABLE chats")
                 database.execSQL("ALTER TABLE chats_new RENAME TO chats")
+            }
+        }
+
+        val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE chats ADD COLUMN lastMessageContent TEXT")
+                database.execSQL("ALTER TABLE chats ADD COLUMN lastMessageTimestamp INTEGER")
+                database.execSQL("ALTER TABLE chats ADD COLUMN lastMessageKind TEXT")
 
                 // Pets: recreate with game-model fields
                 database.execSQL("DROP TABLE IF EXISTS pets")
                 database.execSQL("""
-                    CREATE TABLE IF NOT EXISTS `pets` (
-                        `id` TEXT NOT NULL PRIMARY KEY,
-                        `name` TEXT NOT NULL,
-                        `type` TEXT NOT NULL,
-                        `rarity` TEXT NOT NULL,
+                    CREATE TABLE IF NOT EXISTS pets (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        name TEXT NOT NULL,
+                        type TEXT NOT NULL,
+                        rarity TEXT NOT NULL,
                         `imageUrl` TEXT NOT NULL,
                         `equippedBy` INTEGER,
                         `isForSale` INTEGER NOT NULL DEFAULT 0,

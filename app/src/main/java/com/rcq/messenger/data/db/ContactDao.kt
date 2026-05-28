@@ -35,4 +35,10 @@ interface ContactDao {
 
     @Query("UPDATE contacts SET isBlocked = 1 WHERE userId = :userId")
     suspend fun blockContact(userId: Long)
+
+    @Query("UPDATE contacts SET customNickname = :nickname WHERE userId = :userId")
+    suspend fun updateCustomNickname(userId: Long, nickname: String?)
+
+    @Query("UPDATE contacts SET isFavorite = :isFavorite WHERE userId = :userId")
+    suspend fun setFavorite(userId: Long, isFavorite: Boolean)
 }

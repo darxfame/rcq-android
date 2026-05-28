@@ -1,7 +1,9 @@
 package com.rcq.messenger.ui.contacts
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -20,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.rcq.messenger.data.db.ContactDao
 import com.rcq.messenger.data.repository.ContactRepository
 import com.rcq.messenger.data.repository.UserRepository
 import com.rcq.messenger.domain.model.Contact
@@ -37,7 +40,8 @@ import javax.inject.Inject
 @HiltViewModel
 class ContactsViewModel @Inject constructor(
     private val contactRepository: ContactRepository,
-    private val userRepository: UserRepository
+    private val userRepository: UserRepository,
+    private val contactDao: ContactDao
 ) : ViewModel() {
 
     val contacts: StateFlow<List<Contact>> = contactRepository.getContacts()
@@ -49,6 +53,9 @@ class ContactsViewModel @Inject constructor(
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+
+    private val _editingContact = MutableStateFlow<Contact?>(null)
+    val editingContact: StateFlow<Contact?> = _editingContact.asStateFlow()
 
     init {
         refresh()
@@ -73,6 +80,18 @@ class ContactsViewModel @Inject constructor(
             contactRepository.blockContact(userId)
         }
     }
+
+    fun startEditNickname(contact: Contact) { _editingContact.value = contact }
+    fun cancelEditNickname() { _editingContact.value = null }
+    fun saveCustomNickname(userId: Long, nickname: String) {
+        viewModelScope.launch {
+            contactDao.updateCustomNickname(userId, nickname.trim().ifEmpty { null })
+            _editingContact.value = null
+        }
+    }
+    fun toggleFavorite(userId: Long, currentValue: Boolean) {
+        viewModelScope.launch { contactDao.setFavorite(userId, !currentValue) }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -86,15 +105,53 @@ fun ContactsScreen(
     val contacts by viewModel.contacts.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val pendingCount by viewModel.pendingRequestsCount.collectAsState()
+    val editingContact by viewModel.editingContact.collectAsState()
     var searchQuery by remember { mutableStateOf("") }
+    var nicknameInput by remember { mutableStateOf("") }
 
     val filteredContacts = remember(contacts, searchQuery) {
         if (searchQuery.isBlank()) contacts
-        else contacts.filter { it.nickname.contains(searchQuery, ignoreCase = true) }
+        else contacts.filter {
+            (it.customNickname ?: it.nickname).contains(searchQuery, ignoreCase = true)
+        }
+    }
+
+    LaunchedEffect(editingContact) {
+        nicknameInput = editingContact?.let { it.customNickname ?: it.nickname } ?: ""
     }
 
     LaunchedEffect(Unit) {
         viewModel.refresh()
+    }
+
+    if (editingContact != null) {
+        AlertDialog(
+            onDismissRequest = { viewModel.cancelEditNickname() },
+            title = { Text("Edit Nickname") },
+            text = {
+                OutlinedTextField(
+                    value = nicknameInput,
+                    onValueChange = { nicknameInput = it },
+                    label = { Text("Nickname") },
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Primary,
+                        unfocusedBorderColor = SurfaceVariant,
+                        focusedTextColor = TextPrimary,
+                        unfocusedTextColor = TextPrimary,
+                        cursorColor = Primary
+                    )
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    editingContact?.let { viewModel.saveCustomNickname(it.userId, nicknameInput) }
+                }) { Text("Save") }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.cancelEditNickname() }) { Text("Cancel") }
+            }
+        )
     }
 
     Scaffold(
@@ -108,7 +165,6 @@ fun ContactsScreen(
                     )
                 },
                 actions = {
-                    // Pending requests button (like iOS)
                     BadgedBox(
                         badge = {
                             if (pendingCount > 0) {
@@ -120,7 +176,6 @@ fun ContactsScreen(
                             Icon(Icons.Default.PersonAdd, contentDescription = "Pending Requests")
                         }
                     }
-                    // Add contact button
                     IconButton(onClick = onAddContact) {
                         Icon(Icons.Default.Search, contentDescription = "Add Contact")
                     }
@@ -165,7 +220,11 @@ fun ContactsScreen(
                     items(filteredContacts, key = { it.id }) { contact ->
                         ContactItem(
                             contact = contact,
-                            onClick = { onContactClick(contact.userId) }
+                            onClick = { onContactClick(contact.userId) },
+                            onToggleFavorite = { viewModel.toggleFavorite(contact.userId, contact.isFavorite) },
+                            onEditNickname = { viewModel.startEditNickname(contact) },
+                            onBlock = { viewModel.blockContact(contact.userId) },
+                            onRemove = { viewModel.removeContact(contact.userId) }
                         )
                     }
                 }
@@ -174,75 +233,113 @@ fun ContactsScreen(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ContactItem(
     contact: Contact,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onToggleFavorite: () -> Unit = {},
+    onEditNickname: () -> Unit = {},
+    onBlock: () -> Unit = {},
+    onRemove: () -> Unit = {}
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box {
-            Box(
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(CircleShape)
-                    .background(SurfaceVariant),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = contact.nickname.firstOrNull()?.uppercase() ?: "?",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = Primary
+    var menuExpanded by remember { mutableStateOf(false) }
+
+    Box {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .combinedClickable(
+                    onClick = onClick,
+                    onLongClick = { menuExpanded = true }
+                )
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box {
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(CircleShape)
+                        .background(SurfaceVariant),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = (contact.customNickname ?: contact.nickname).firstOrNull()?.uppercase() ?: "?",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = Primary
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .size(12.dp)
+                        .clip(CircleShape)
+                        .background(
+                            when (contact.status) {
+                                com.rcq.messenger.domain.model.UserStatus.ONLINE -> Online
+                                com.rcq.messenger.domain.model.UserStatus.AWAY -> Warning
+                                com.rcq.messenger.domain.model.UserStatus.BUSY, com.rcq.messenger.domain.model.UserStatus.DND -> Error
+                                com.rcq.messenger.domain.model.UserStatus.INVISIBLE, com.rcq.messenger.domain.model.UserStatus.OFFLINE -> Offline
+                            }
+                        )
+                        .align(Alignment.BottomEnd)
                 )
             }
-            Box(
-                modifier = Modifier
-                    .size(12.dp)
-                    .clip(CircleShape)
-                    .background(
-                        when (contact.status) {
-                            com.rcq.messenger.domain.model.UserStatus.ONLINE -> Online
-                            com.rcq.messenger.domain.model.UserStatus.AWAY -> Warning
-                            com.rcq.messenger.domain.model.UserStatus.BUSY, com.rcq.messenger.domain.model.UserStatus.DND -> Error
-                            com.rcq.messenger.domain.model.UserStatus.INVISIBLE, com.rcq.messenger.domain.model.UserStatus.OFFLINE -> Offline
-                        }
-                    )
-                    .align(Alignment.BottomEnd)
-            )
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = contact.customNickname ?: contact.nickname,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = TextPrimary
+                )
+                Text(
+                    text = when (contact.status) {
+                        com.rcq.messenger.domain.model.UserStatus.ONLINE -> "Online"
+                        com.rcq.messenger.domain.model.UserStatus.AWAY -> "Away"
+                        com.rcq.messenger.domain.model.UserStatus.BUSY, com.rcq.messenger.domain.model.UserStatus.DND -> "Do not disturb"
+                        com.rcq.messenger.domain.model.UserStatus.INVISIBLE, com.rcq.messenger.domain.model.UserStatus.OFFLINE -> "Offline"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextSecondary
+                )
+            }
+
+            if (contact.isFavorite) {
+                Icon(
+                    Icons.Default.Star,
+                    contentDescription = "Favorite",
+                    tint = Warning,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
         }
 
-        Spacer(modifier = Modifier.width(12.dp))
-
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = contact.customNickname ?: contact.nickname,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Medium,
-                color = TextPrimary
+        DropdownMenu(
+            expanded = menuExpanded,
+            onDismissRequest = { menuExpanded = false }
+        ) {
+            DropdownMenuItem(
+                text = { Text(if (contact.isFavorite) "Unfavorite" else "Favorite") },
+                leadingIcon = { Icon(if (contact.isFavorite) Icons.Default.Star else Icons.Default.StarBorder, null, tint = Warning) },
+                onClick = { menuExpanded = false; onToggleFavorite() }
             )
-            Text(
-                text = when (contact.status) {
-                    com.rcq.messenger.domain.model.UserStatus.ONLINE -> "Online"
-                    com.rcq.messenger.domain.model.UserStatus.AWAY -> "Away"
-                    com.rcq.messenger.domain.model.UserStatus.BUSY, com.rcq.messenger.domain.model.UserStatus.DND -> "Do not disturb"
-                    com.rcq.messenger.domain.model.UserStatus.INVISIBLE, com.rcq.messenger.domain.model.UserStatus.OFFLINE -> "Offline"
-                },
-                style = MaterialTheme.typography.bodySmall,
-                color = TextSecondary
+            DropdownMenuItem(
+                text = { Text("Edit nickname") },
+                leadingIcon = { Icon(Icons.Default.Edit, null) },
+                onClick = { menuExpanded = false; onEditNickname() }
             )
-        }
-
-        if (contact.isFavorite) {
-            Icon(
-                Icons.Default.Star,
-                contentDescription = "Favorite",
-                tint = Warning,
-                modifier = Modifier.size(20.dp)
+            DropdownMenuItem(
+                text = { Text("Block") },
+                leadingIcon = { Icon(Icons.Default.Block, null, tint = Error) },
+                onClick = { menuExpanded = false; onBlock() }
+            )
+            DropdownMenuItem(
+                text = { Text("Remove") },
+                leadingIcon = { Icon(Icons.Default.Delete, null, tint = Error) },
+                onClick = { menuExpanded = false; onRemove() }
             )
         }
     }

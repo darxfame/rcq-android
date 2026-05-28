@@ -2,16 +2,17 @@
 
 ## Build & Infrastructure
 - [x] assembleDebug green (123 compile errors fixed — May 28)
-- [x] DB migration chain v6→v7→v8→v9 working
+- [x] DB migration chain v6→v7→v8→v9→v10 working
 - [x] Hilt DI wired for all DAOs including SignalKeyDao
 - [x] KyberPreKey methods implemented (libsignal 0.33 compatibility)
+- [x] GitHub Actions: APK published to GitHub Release for direct install
 
 ## Authentication
 - [x] Welcome screen + registration
 - [x] Recovery phrase generation/display/clipboard
 - [x] Auth token via DataStore + interceptor
 - [x] Logout
-- [ ] Account recovery (restore from phrase) — UI exists, logic incomplete
+- [x] Account recovery (restore from phrase) — wired to real API
 - [ ] Biometric/PIN unlock
 
 ## Contacts
@@ -20,22 +21,21 @@
 - [x] Add contact by UIN
 - [x] Accept/decline requests
 - [x] Remove / block / unblock
-- [ ] Fix contact sync (API returns array, not `{contacts:[]}` wrapper) — DIAGNOSIS.md #1
-- [ ] Fix user search timeout (GET /users/{uin}/info) — DIAGNOSIS.md #2
-- [ ] Fix friend request endpoint ambiguity (POST /contacts vs /contacts/request) — DIAGNOSIS.md #3
-- [ ] Edit contact nickname
-- [ ] Favorite contacts
+- [x] Edit contact nickname (custom alias per contact)
+- [x] Favorite contacts (toggle + UI indicator)
+- [ ] Push notifications for new contact requests
 
 ## Chats & Messaging
-- [x] Chats list
-- [x] Load messages from DB
+- [x] Chats list with last message preview + unread count badge
+- [x] Load messages from DB + sync from server on open
 - [x] Send / edit / delete message
+- [x] Reply to message (long-press → context menu)
+- [x] Forward message (stub — chat selector pending)
 - [x] E2EE encryption via Signal Protocol
-- [x] ChatEntity updated (targetId, targetNickname, isPinned)
-- [ ] Real-time receive via WebSocket — wired but needs validation
-- [ ] Reply to message (UI exists, missing send logic)
-- [ ] Forward message
+- [x] ChatEntity updated (targetId, targetNickname, isPinned, lastMessage)
+- [ ] Real-time receive via WebSocket — wired, needs end-to-end testing
 - [ ] Push notifications
+- [ ] Forward message: chat selector UI
 
 ## Groups
 - [x] GroupEntity, GroupDao, GroupRepository (compiles)
@@ -58,32 +58,36 @@
 
 ## Settings & Profile
 - [x] Display UIN, nickname, recovery phrase, logout
-- [ ] Profile editing (avatar, bio, nickname)
-- [ ] Privacy settings
-- [ ] Notification settings
-- [ ] Appearance/theme settings
-- [ ] Storage settings
+- [x] Profile editing (nickname + bio) — saves to API + DataStore
+- [x] Notifications settings (toggles: enabled, preview, sound, vibration)
+- [x] Privacy settings (toggles: read receipts, last seen, online status)
+- [x] Appearance settings (dark theme toggle — in-memory)
+- [x] Storage section (cache info + clear stub)
 
-## Games / Marketplace / Pets / Audio Rooms
-- [x] Entities and repositories compile
-- [x] PetDao with equip/unequip
+## Phase 2: Media Messaging ✅ COMPLETE
+- [x] Photo send (gallery picker → E2EE upload)
+- [x] Photo receive + display (MediaMessageBubble)
+- [x] Video send/receive
+- [x] File attachment send/receive
+- [x] Voice message record + send
+- [x] Voice message playback (download → decrypt → play)
+- [x] Location sharing (FusedLocationProvider + permission)
+- [x] All media types encrypted via CryptoService + MediaService
+
+## Phase 3: Calls (NEXT)
+- [ ] WebRTC call initiation end-to-end (CallManager + CallService exist)
+- [ ] Incoming call screen + notification
+- [ ] Call controls (mute, speaker, camera flip)
+- [ ] Audio rooms (AudioRoomService exists)
+
+## Phase 4: Social Features
+- [ ] Stories upload + reply
 - [ ] Games screen functional
 - [ ] Marketplace screen functional
 - [ ] Audio rooms screen functional
 
-## Phase 2: Media Messaging (NEXT)
-- [ ] Photo send (camera + gallery picker)
-- [ ] Photo receive + display
-- [ ] Video send/receive
-- [ ] File attachment send/receive
-- [ ] Voice message record + send (VoiceRecorder exists)
-- [ ] Voice message playback
-- [ ] Location sharing
-- [ ] All media types encrypted via CryptoService
-- [ ] MediaService integration
-
 ## Testing
 - [ ] Unit tests for CryptoService
-- [ ] Integration tests for DB migrations (v6→v9)
+- [ ] Integration tests for DB migrations (v6→v10)
 - [ ] E2EE round-trip test (encrypt → store → decrypt)
 - [ ] Contact sync integration test

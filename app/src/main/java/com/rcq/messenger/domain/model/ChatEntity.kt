@@ -15,5 +15,8 @@ data class ChatEntity(
     val isMuted: Boolean = false,
     val isArchived: Boolean = false,
     val createdAt: Long = System.currentTimeMillis(),
-    val updatedAt: Long = System.currentTimeMillis()
+    val updatedAt: Long = System.currentTimeMillis(),
+    val lastMessageContent: String? = null,
+    val lastMessageTimestamp: Long? = null,
+    val lastMessageKind: String? = null
 )
