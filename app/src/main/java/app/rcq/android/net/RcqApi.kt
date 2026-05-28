@@ -4,6 +4,7 @@ import com.google.gson.Gson
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -149,6 +150,33 @@ class RcqApi(private val baseUrl: String = DEFAULT_BASE_URL) {
         }
     }
 
+    // ── media blobs (rcq-spec 9) ─────────────────────────────────────
+
+    data class UploadResponse(val media_id: String, val size: Int = 0)
+
+    /** Upload an encrypted blob. pay_jetons=0 (free tier ≤ 50 MB). */
+    suspend fun uploadBlob(bytes: ByteArray): UploadResponse = withContext(Dispatchers.IO) {
+        val body = MultipartBody.Builder().setType(MultipartBody.FORM)
+            .addFormDataPart("blob", "photo.bin", bytes.toRequestBody(OCTET))
+            .addFormDataPart("pay_jetons", "0")
+            .build()
+        val b = Request.Builder().url("$baseUrl/media/upload").post(body)
+        token?.let { b.header("Authorization", "Bearer $it") }
+        client.newCall(b.build()).execute().use { resp ->
+            val text = resp.body?.string().orEmpty()
+            if (!resp.isSuccessful) throw IOException("upload HTTP ${resp.code}: ${text.take(200)}")
+            gson.fromJson(text, UploadResponse::class.java)
+        }
+    }
+
+    suspend fun getBlob(mediaId: String): ByteArray = withContext(Dispatchers.IO) {
+        val req = Request.Builder().url("$baseUrl/media/$mediaId").get().build()
+        client.newCall(req).execute().use { resp ->
+            if (!resp.isSuccessful) throw IOException("download HTTP ${resp.code}")
+            resp.body?.bytes() ?: throw IOException("empty blob")
+        }
+    }
+
     // ── plumbing ─────────────────────────────────────────────────────
 
     private fun <T> post(path: String, json: String, authed: Boolean, type: Class<T>): T {
@@ -178,5 +206,6 @@ class RcqApi(private val baseUrl: String = DEFAULT_BASE_URL) {
     companion object {
         const val DEFAULT_BASE_URL = "https://api.rcq.app"
         private val JSON = "application/json".toMediaType()
+        private val OCTET = "application/octet-stream".toMediaType()
     }
 }

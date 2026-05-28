@@ -28,7 +28,10 @@ class MessageDb(context: Context) : SQLiteOpenHelper(context.applicationContext,
               from_me   INTEGER NOT NULL,
               body      TEXT NOT NULL,
               sent_at   INTEGER NOT NULL,
-              state     TEXT NOT NULL DEFAULT 'DELIVERED'
+              state     TEXT NOT NULL DEFAULT 'DELIVERED',
+              kind      TEXT NOT NULL DEFAULT 'text',
+              media_id  TEXT,
+              media_key TEXT
             )
             """.trimIndent()
         )
@@ -38,6 +41,11 @@ class MessageDb(context: Context) : SQLiteOpenHelper(context.applicationContext,
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
         if (oldVersion < 2) {
             db.execSQL("ALTER TABLE messages ADD COLUMN state TEXT NOT NULL DEFAULT 'DELIVERED'")
+        }
+        if (oldVersion < 3) {
+            db.execSQL("ALTER TABLE messages ADD COLUMN kind TEXT NOT NULL DEFAULT 'text'")
+            db.execSQL("ALTER TABLE messages ADD COLUMN media_id TEXT")
+            db.execSQL("ALTER TABLE messages ADD COLUMN media_key TEXT")
         }
     }
 
@@ -50,6 +58,9 @@ class MessageDb(context: Context) : SQLiteOpenHelper(context.applicationContext,
             put("body", msg.body)
             put("sent_at", msg.sentAt)
             put("state", msg.state.name)
+            put("kind", msg.kind)
+            put("media_id", msg.mediaId)
+            put("media_key", msg.mediaKey)
         }
         val rowId = writableDatabase.insertWithOnConflict(
             "messages", null, values, SQLiteDatabase.CONFLICT_IGNORE,
@@ -69,7 +80,7 @@ class MessageDb(context: Context) : SQLiteOpenHelper(context.applicationContext,
     fun all(): List<ChatMessage> {
         val out = ArrayList<ChatMessage>()
         readableDatabase.rawQuery(
-            "SELECT id, peer_uin, from_me, body, sent_at, state FROM messages ORDER BY sent_at ASC", null,
+            "SELECT id, peer_uin, from_me, body, sent_at, state, kind, media_id, media_key FROM messages ORDER BY sent_at ASC", null,
         ).use { c ->
             while (c.moveToNext()) {
                 out.add(
@@ -80,6 +91,9 @@ class MessageDb(context: Context) : SQLiteOpenHelper(context.applicationContext,
                         body = c.getString(3),
                         sentAt = c.getLong(4),
                         state = runCatching { DeliveryState.valueOf(c.getString(5)) }.getOrDefault(DeliveryState.DELIVERED),
+                        kind = c.getString(6) ?: "text",
+                        mediaId = c.getString(7),
+                        mediaKey = c.getString(8),
                     )
                 )
             }
@@ -89,6 +103,6 @@ class MessageDb(context: Context) : SQLiteOpenHelper(context.applicationContext,
 
     private companion object {
         const val NAME = "rcq-messages.db"
-        const val VERSION = 2
+        const val VERSION = 3
     }
 }

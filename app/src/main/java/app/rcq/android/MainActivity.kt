@@ -1,9 +1,14 @@
 package app.rcq.android
 
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -34,6 +39,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -41,6 +47,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -50,7 +58,10 @@ import androidx.compose.ui.unit.sp
 import app.rcq.android.model.ChatMessage
 import app.rcq.android.model.Contact
 import app.rcq.android.model.DeliveryState
+import java.io.ByteArrayOutputStream
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private val Background = Color(0xFF0F1115)
 private val Surface = Color(0xFF1A1D23)
@@ -275,11 +286,19 @@ private fun AddContactDialog(onAdd: (Int) -> Unit, onDismiss: () -> Unit) {
 @Composable
 private fun ChatScreen(session: Session, peer: Int, onBack: () -> Unit) {
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     val all by session.messages.collectAsState()
     val messages = all[peer] ?: emptyList()
     val typingFrom by session.typingFrom.collectAsState()
     var draft by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
+
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) scope.launch {
+            val jpeg = withContext(Dispatchers.IO) { compressImage(context, uri) }
+            if (jpeg != null) runCatching { session.sendPhoto(peer, jpeg, null) }
+        }
+    }
 
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) listState.animateScrollToItem(messages.size - 1)
@@ -296,9 +315,10 @@ private fun ChatScreen(session: Session, peer: Int, onBack: () -> Unit) {
             }
         }
         LazyColumn(state = listState, modifier = Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            items(messages) { m -> MessageBubble(m, onRetry = { scope.launch { runCatching { session.resend(m) } } }) }
+            items(messages) { m -> MessageBubble(session, m, onRetry = { scope.launch { runCatching { session.resend(m) } } }) }
         }
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
+            Text("📎", fontSize = 22.sp, modifier = Modifier.clickable { picker.launch("image/*") }.padding(end = 10.dp))
             OutlinedTextField(
                 value = draft,
                 onValueChange = { draft = it; session.sendTyping(peer, it.isNotBlank()) },
@@ -321,19 +341,31 @@ private fun ChatScreen(session: Session, peer: Int, onBack: () -> Unit) {
 }
 
 @Composable
-private fun MessageBubble(m: ChatMessage, onRetry: () -> Unit) {
+private fun MessageBubble(session: Session, m: ChatMessage, onRetry: () -> Unit) {
     val failed = m.state == DeliveryState.FAILED
     Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = if (m.fromMe) Alignment.End else Alignment.Start) {
-        Text(
-            m.body,
-            color = if (m.fromMe) Color.White else TextPrimary,
-            fontSize = 15.sp,
-            modifier = Modifier
-                .clip(RoundedCornerShape(14.dp))
-                .background(if (m.fromMe) Accent else Surface)
-                .then(if (failed) Modifier.clickable(onClick = onRetry) else Modifier)
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-        )
+        if (m.kind == "photo") {
+            PhotoBubble(session, m)
+            if (m.body.isNotEmpty()) {
+                Text(
+                    m.body,
+                    color = if (m.fromMe) Color.White else TextPrimary,
+                    fontSize = 14.sp,
+                    modifier = Modifier.padding(top = 2.dp).clip(RoundedCornerShape(10.dp)).background(if (m.fromMe) Accent else Surface).padding(horizontal = 10.dp, vertical = 6.dp),
+                )
+            }
+        } else {
+            Text(
+                m.body,
+                color = if (m.fromMe) Color.White else TextPrimary,
+                fontSize = 15.sp,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(if (m.fromMe) Accent else Surface)
+                    .then(if (failed) Modifier.clickable(onClick = onRetry) else Modifier)
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+            )
+        }
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -341,11 +373,44 @@ private fun MessageBubble(m: ChatMessage, onRetry: () -> Unit) {
         ) {
             Text(formatTime(m.sentAt), color = TextSecondary, fontSize = 10.sp)
             if (m.fromMe) {
-                if (failed) Text("failed · tap to retry", color = Color(0xFFE5484D), fontSize = 10.sp)
+                if (failed) Text("failed · tap to retry", color = Color(0xFFE5484D), fontSize = 10.sp, modifier = Modifier.clickable(onClick = onRetry))
                 else Text(stateGlyph(m.state), color = TextSecondary, fontSize = 10.sp)
             }
         }
     }
+}
+
+@Composable
+private fun PhotoBubble(session: Session, m: ChatMessage) {
+    val bytes by produceState<ByteArray?>(initialValue = null, m.mediaId) {
+        value = if (m.mediaId != null && m.mediaKey != null) session.fetchImage(m.mediaId, m.mediaKey) else null
+    }
+    val image = remember(bytes) {
+        bytes?.let { runCatching { BitmapFactory.decodeByteArray(it, 0, it.size)?.asImageBitmap() }.getOrNull() }
+    }
+    Box(
+        modifier = Modifier.size(220.dp).clip(RoundedCornerShape(14.dp)).background(Surface),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (image != null) {
+            Image(bitmap = image, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+        } else {
+            CircularProgressIndicator(color = Accent, modifier = Modifier.size(22.dp))
+        }
+    }
+}
+
+private fun compressImage(context: android.content.Context, uri: android.net.Uri): ByteArray? {
+    val src = context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it) } ?: return null
+    val maxSide = 1200
+    val longest = maxOf(src.width, src.height)
+    val scaled = if (longest > maxSide) {
+        val f = maxSide.toFloat() / longest
+        Bitmap.createScaledBitmap(src, (src.width * f).toInt(), (src.height * f).toInt(), true)
+    } else src
+    val out = ByteArrayOutputStream()
+    scaled.compress(Bitmap.CompressFormat.JPEG, 80, out)
+    return out.toByteArray()
 }
 
 private fun formatTime(ts: Long): String =

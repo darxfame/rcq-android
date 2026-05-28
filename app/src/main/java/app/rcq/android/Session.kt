@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Base64
 import app.rcq.android.crypto.Envelope
 import app.rcq.android.crypto.IdentityKeys
+import app.rcq.android.crypto.MediaCrypto
 import app.rcq.android.crypto.SealedSender
 import app.rcq.android.data.MessageDb
 import app.rcq.android.data.SecureStore
@@ -56,6 +57,8 @@ class Session(context: Context) {
 
     // uin -> recipient X25519 identity public (raw), from contacts or lookup.
     private val peerIdentityCache = HashMap<Int, ByteArray>()
+    // media_id -> decrypted plaintext bytes (sender seeds it; receiver caches).
+    private val imageCache = java.util.concurrent.ConcurrentHashMap<String, ByteArray>()
 
     @Volatile
     private var started = false
@@ -139,17 +142,36 @@ class Session(context: Context) {
     suspend fun sendText(toUin: Int, text: String) {
         val env = Envelope.text(text)
         store(ChatMessage(env.id, toUin, fromMe = true, body = text, sentAt = System.currentTimeMillis(), state = DeliveryState.SENDING))
-        sendEnvelope(env, toUin)
+        sendEnvelope(env, env.id, toUin)
+    }
+
+    /** Encrypt+upload an already-compressed JPEG, then send a photo
+     *  envelope carrying the media id + per-blob key (rcq-spec 9). The
+     *  local bubble appears once the blob is uploaded. */
+    suspend fun sendPhoto(toUin: Int, jpeg: ByteArray, caption: String?) {
+        val key = MediaCrypto.newKey()
+        val blob = MediaCrypto.seal(jpeg, key)
+        val keyB64 = Base64.encodeToString(key, Base64.NO_WRAP)
+        val upload = api.uploadBlob(blob)            // throws on failure (caller catches)
+        imageCache[upload.media_id] = jpeg            // own bubble renders without re-download
+        val env = Envelope.photo(upload.media_id, keyB64, caption)
+        store(ChatMessage(env.id, toUin, true, caption ?: "", System.currentTimeMillis(), DeliveryState.SENDING, kind = "photo", mediaId = upload.media_id, mediaKey = keyB64))
+        sendEnvelope(env, env.id, toUin)
     }
 
     /** Retry a previously-failed outgoing message (same UUID, so no dup). */
     suspend fun resend(msg: ChatMessage) {
         if (!msg.fromMe || msg.state != DeliveryState.FAILED) return
         updateMessageState(msg.id, msg.peerUin, DeliveryState.SENDING)
-        sendEnvelope(Envelope.Text(msg.id, msg.body), msg.peerUin)
+        val env: Envelope = if (msg.kind == "photo" && msg.mediaId != null && msg.mediaKey != null) {
+            Envelope.Photo(msg.id, msg.mediaId, msg.mediaKey, msg.body.ifEmpty { null })
+        } else {
+            Envelope.Text(msg.id, msg.body)
+        }
+        sendEnvelope(env, msg.id, msg.peerUin)
     }
 
-    private suspend fun sendEnvelope(env: Envelope.Text, toUin: Int) {
+    private suspend fun sendEnvelope(env: Envelope, id: String, toUin: Int) {
         try {
             val payload = SealedSender.encryptV1(
                 envelope = env,
@@ -159,10 +181,20 @@ class Session(context: Context) {
                 signingPub = signingPub(),
             )
             val resp = api.sendSealed(toUin, payload)
-            updateMessageState(env.id, toUin, if (resp.delivered) DeliveryState.DELIVERED else DeliveryState.SENT)
+            updateMessageState(id, toUin, if (resp.delivered) DeliveryState.DELIVERED else DeliveryState.SENT)
         } catch (e: Exception) {
-            updateMessageState(env.id, toUin, DeliveryState.FAILED)
+            updateMessageState(id, toUin, DeliveryState.FAILED)
         }
+    }
+
+    /** Download + decrypt a media blob, cached by media id. */
+    suspend fun fetchImage(mediaId: String, mediaKey: String): ByteArray? {
+        imageCache[mediaId]?.let { return it }
+        return runCatching {
+            val blob = api.getBlob(mediaId)
+            val key = Base64.decode(mediaKey, Base64.NO_WRAP)
+            MediaCrypto.open(blob, key).also { imageCache[mediaId] = it }
+        }.getOrNull()
     }
 
     fun sendTyping(toUin: Int, active: Boolean) {
@@ -180,9 +212,13 @@ class Session(context: Context) {
     private fun ingest(payloadB64: String) {
         runCatching {
             val dec = SealedSender.decryptV1(payloadB64, identityPriv(), identityPub())
-            val env = dec.envelope
-            if (env is Envelope.Text) {
-                store(ChatMessage(env.id, dec.senderUin, fromMe = false, body = env.text, sentAt = System.currentTimeMillis()))
+            val now = System.currentTimeMillis()
+            when (val env = dec.envelope) {
+                is Envelope.Text ->
+                    store(ChatMessage(env.id, dec.senderUin, false, env.text, now))
+                is Envelope.Photo ->
+                    store(ChatMessage(env.id, dec.senderUin, false, env.caption ?: "", now, kind = "photo", mediaId = env.mediaId, mediaKey = env.mediaKey))
+                is Envelope.Unknown -> Unit
             }
         }
     }

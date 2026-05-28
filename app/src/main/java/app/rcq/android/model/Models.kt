@@ -28,7 +28,10 @@ data class ChatMessage(
     val id: String,
     val peerUin: Int,
     val fromMe: Boolean,
-    val body: String,
+    val body: String,             // text, or caption for media
     val sentAt: Long,
     val state: DeliveryState = DeliveryState.DELIVERED,
+    val kind: String = "text",    // "text" | "photo"
+    val mediaId: String? = null,
+    val mediaKey: String? = null,
 )
