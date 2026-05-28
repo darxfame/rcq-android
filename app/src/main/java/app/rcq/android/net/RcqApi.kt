@@ -11,10 +11,10 @@ import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 /**
- * Minimal REST client for the RCQ backend. Talks the same wire protocol as
- * the iOS client (rcq-spec) against the production instance by default.
- * Only the registration endpoint is wired so far; contacts + messaging
- * follow in later milestones.
+ * Minimal REST client for the RCQ backend, talking the same wire protocol
+ * as the iOS client (rcq-spec) against prod by default. Registration,
+ * peer lookup, and 1:1 sealed send are wired; contacts roster + media come
+ * later.
  */
 class RcqApi(private val baseUrl: String = DEFAULT_BASE_URL) {
 
@@ -23,34 +23,76 @@ class RcqApi(private val baseUrl: String = DEFAULT_BASE_URL) {
         .build()
     private val gson = Gson()
 
+    @Volatile
+    private var token: String? = null
+    fun setToken(t: String?) { token = t }
+
+    // ── register (rcq-spec 2.2) ──────────────────────────────────────
+
     data class RegisterRequest(
         val nickname: String,
-        val identity_key: String,   // base64 raw X25519 public
-        val signing_key: String,    // base64 raw Ed25519 public
+        val identity_key: String,
+        val signing_key: String,
         val inviter_uin: Int? = null,
     )
 
-    data class RegisterResponse(
+    data class RegisterResponse(val uin: Int, val token: String)
+
+    suspend fun register(req: RegisterRequest): RegisterResponse = withContext(Dispatchers.IO) {
+        post("/auth/register", gson.toJson(req), authed = false, RegisterResponse::class.java)
+    }
+
+    // ── peer lookup (rcq-spec 3.1) ───────────────────────────────────
+
+    data class UserInfo(
         val uin: Int,
-        val token: String,
+        val nickname: String?,
+        val identity_key: String?,   // base64 raw X25519 public
+        val signing_key: String?,    // base64 raw Ed25519 public
     )
 
-    /** POST /auth/register — mints a new anonymous account (rcq-spec 2.2).
-     *  No password: the returned JWT and the locally-held private keys are
-     *  the only credential, so the caller must persist them immediately. */
-    suspend fun register(req: RegisterRequest): RegisterResponse = withContext(Dispatchers.IO) {
-        val body = gson.toJson(req).toRequestBody(JSON)
-        val request = Request.Builder()
-            .url("$baseUrl/auth/register")
-            .post(body)
-            .build()
+    suspend fun userInfo(uin: Int): UserInfo = withContext(Dispatchers.IO) {
+        get("/users/$uin/info", authed = true, UserInfo::class.java)
+    }
+
+    // ── 1:1 send (rcq-spec 6.2.1) ────────────────────────────────────
+
+    data class SendRequest(val to_uin: Int, val envelope_type: String, val payload: String)
+    data class SendResponse(val delivered: Boolean = false, val queued: Boolean = false)
+
+    suspend fun sendSealed(toUin: Int, payloadB64: String, envelopeType: String = "message"): SendResponse =
+        withContext(Dispatchers.IO) {
+            post(
+                "/messages/sealed",
+                gson.toJson(SendRequest(toUin, envelopeType, payloadB64)),
+                authed = false, // sealed-sender is anonymous by design
+                SendResponse::class.java,
+            )
+        }
+
+    // ── plumbing ─────────────────────────────────────────────────────
+
+    private fun <T> post(path: String, json: String, authed: Boolean, type: Class<T>): T {
+        val builder = Request.Builder()
+            .url("$baseUrl$path")
+            .post(json.toRequestBody(JSON))
+        if (authed) token?.let { builder.header("Authorization", "Bearer $it") }
+        return execute(builder.build(), type)
+    }
+
+    private fun <T> get(path: String, authed: Boolean, type: Class<T>): T {
+        val builder = Request.Builder().url("$baseUrl$path").get()
+        if (authed) token?.let { builder.header("Authorization", "Bearer $it") }
+        return execute(builder.build(), type)
+    }
+
+    private fun <T> execute(request: Request, type: Class<T>): T {
         client.newCall(request).execute().use { resp ->
             val text = resp.body?.string().orEmpty()
             if (!resp.isSuccessful) {
-                throw IOException("register failed: HTTP ${resp.code} ${text.take(200)}")
+                throw IOException("HTTP ${resp.code}: ${text.take(200)}")
             }
-            gson.fromJson(text, RegisterResponse::class.java)
-                ?: throw IOException("register: empty/unparseable response")
+            return gson.fromJson(text, type) ?: throw IOException("empty/unparseable response")
         }
     }
 
