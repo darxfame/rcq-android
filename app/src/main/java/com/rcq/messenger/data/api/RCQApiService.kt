@@ -460,9 +460,9 @@ data class SealedMessageRequest(
     val ciphertext: String,
     @kotlinx.serialization.SerialName("signal_type") val signalType: Int,
     val kind: String = "text",
-    val text: String? = null,
     @kotlinx.serialization.SerialName("media_id") val mediaId: String? = null,
     @kotlinx.serialization.SerialName("reply_to_id") val replyToId: String? = null
+    // NO plaintext field — server must never see message content
 )
 
 @kotlinx.serialization.Serializable

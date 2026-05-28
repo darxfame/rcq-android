@@ -384,9 +384,9 @@ class ChatRepository @Inject constructor(
             ciphertext = encrypted.ciphertext,
             signalType = encrypted.signalType,
             kind = message.kind.name.lowercase(),
-            text = message.content.ifBlank { null },
             mediaId = message.mediaId,
             replyToId = message.replyToId
+            // plaintext never leaves the device — it's inside ciphertext
         )
 
         api.sendSealedMessage(request).let { response ->
