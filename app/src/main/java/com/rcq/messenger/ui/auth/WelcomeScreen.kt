@@ -22,6 +22,7 @@ import com.rcq.messenger.ui.theme.*
 @Composable
 fun WelcomeScreen(
     onCreateAccount: (String) -> Unit,
+    onRestoreAccount: () -> Unit = {},
     isLoading: Boolean = false,
     error: String? = null
 ) {
@@ -115,6 +116,19 @@ fun WelcomeScreen(
                         fontWeight = FontWeight.SemiBold
                     )
                 }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            TextButton(
+                onClick = onRestoreAccount,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = "Restore existing account",
+                    color = Primary,
+                    style = MaterialTheme.typography.bodyMedium
+                )
             }
 
             Spacer(modifier = Modifier.weight(1f))

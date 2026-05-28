@@ -93,6 +93,10 @@ class AuthViewModel @Inject constructor(
         }
     }
 
+    fun recheckAuth() {
+        checkExistingAuth()
+    }
+
     fun startRegistration(nickname: String) {
         viewModelScope.launch {
             _isLoading.value = true

@@ -2,8 +2,9 @@ package com.rcq.messenger.ui.chat
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -22,8 +23,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.rcq.messenger.domain.model.Message
+import com.rcq.messenger.media.RecordingState
 import com.rcq.messenger.domain.model.MessageStatus
 import com.rcq.messenger.domain.model.MessageKind
 import com.rcq.messenger.ui.chat.components.ReplyPreview
@@ -44,7 +48,12 @@ fun ChatScreen(
     val isLoading by viewModel.isLoading.collectAsState()
     val currentUserId by viewModel.currentUserId.collectAsState()
     val chatTitle by viewModel.chatTitle.collectAsState()
+    val recordingState by viewModel.recordingState.collectAsState()
     val listState = rememberLazyListState()
+
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri -> uri?.let { viewModel.sendPhotoMessage(it) } }
 
     LaunchedEffect(chatId) {
         viewModel.loadChat(chatId)
@@ -126,24 +135,38 @@ fun ChatScreen(
                 text = messageText,
                 onTextChange = viewModel::updateMessageText,
                 onSend = viewModel::sendMessage,
-                onAttach = { /* Attach media */ },
-                onVoice = { /* Voice message */ }
+                onAttach = { photoPickerLauncher.launch("image/*") },
+                onVoice = {
+                    if (recordingState == RecordingState.RECORDING) {
+                        viewModel.stopAndSendVoiceMessage()
+                    } else {
+                        viewModel.startVoiceRecording()
+                    }
+                },
+                isRecording = recordingState == RecordingState.RECORDING
             )
         }
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun MessageBubble(
     message: Message,
     isOwnMessage: Boolean,
     onReply: () -> Unit
 ) {
+    var showMenu by remember { mutableStateOf(false) }
+
+    Box {
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 4.dp)
-            .clickable(onClick = onReply),
+            .combinedClickable(
+                onClick = {},
+                onLongClick = { showMenu = true }
+            ),
         horizontalAlignment = if (isOwnMessage) Alignment.End else Alignment.Start
     ) {
         if (message.replyToId != null) {
@@ -242,6 +265,30 @@ fun MessageBubble(
                     Text("M", color = TextOnPrimary, style = MaterialTheme.typography.labelMedium)
                 }
             }
+        }
+    }
+
+        DropdownMenu(
+            expanded = showMenu,
+            onDismissRequest = { showMenu = false }
+        ) {
+            DropdownMenuItem(
+                text = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.Reply,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Reply")
+                    }
+                },
+                onClick = {
+                    showMenu = false
+                    onReply()
+                }
+            )
         }
     }
 }
@@ -365,31 +412,38 @@ fun MessageInput(
     onTextChange: (String) -> Unit,
     onSend: () -> Unit,
     onAttach: () -> Unit,
-    onVoice: () -> Unit
+    onVoice: () -> Unit,
+    isRecording: Boolean = false
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Surface)
+            .background(if (isRecording) Error.copy(alpha = 0.08f) else Surface)
             .padding(8.dp),
         verticalAlignment = Alignment.Bottom
     ) {
-        IconButton(onClick = onAttach) {
-            Icon(Icons.Default.Add, "Attach", tint = TextSecondary)
+        if (!isRecording) {
+            IconButton(onClick = onAttach) {
+                Icon(Icons.Default.Add, "Attach", tint = TextSecondary)
+            }
         }
 
         TextField(
-            value = text,
-            onValueChange = onTextChange,
+            value = if (isRecording) "Recording..." else text,
+            onValueChange = if (isRecording) { _ -> } else onTextChange,
             modifier = Modifier.weight(1f),
+            enabled = !isRecording,
             placeholder = { Text("Message...", color = TextTertiary) },
             colors = TextFieldDefaults.colors(
                 focusedContainerColor = SurfaceVariant,
                 unfocusedContainerColor = SurfaceVariant,
+                disabledContainerColor = SurfaceVariant,
                 focusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
                 unfocusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
+                disabledIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
                 focusedTextColor = TextPrimary,
-                unfocusedTextColor = TextPrimary
+                unfocusedTextColor = TextPrimary,
+                disabledTextColor = Error
             ),
             shape = RoundedCornerShape(24.dp),
             maxLines = 4
@@ -397,7 +451,7 @@ fun MessageInput(
 
         Spacer(modifier = Modifier.width(8.dp))
 
-        if (text.isNotBlank()) {
+        if (text.isNotBlank() && !isRecording) {
             IconButton(
                 onClick = onSend,
                 modifier = Modifier
@@ -407,8 +461,20 @@ fun MessageInput(
                 Icon(Icons.AutoMirrored.Filled.Send, "Send", tint = OnPrimary)
             }
         } else {
-            IconButton(onClick = onVoice) {
-                Icon(Icons.Default.Mic, "Voice", tint = TextSecondary)
+            IconButton(
+                onClick = onVoice,
+                modifier = Modifier
+                    .size(48.dp)
+                    .background(
+                        if (isRecording) Error else androidx.compose.ui.graphics.Color.Transparent,
+                        CircleShape
+                    )
+            ) {
+                Icon(
+                    if (isRecording) Icons.Default.Stop else Icons.Default.Mic,
+                    if (isRecording) "Stop recording" else "Voice",
+                    tint = if (isRecording) OnPrimary else TextSecondary
+                )
             }
         }
     }

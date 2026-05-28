@@ -16,7 +16,72 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.rcq.messenger.data.repository.UserRepository
+import com.rcq.messenger.domain.model.User
 import com.rcq.messenger.ui.theme.*
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
+import javax.inject.Inject
+
+@HiltViewModel
+class SettingsViewModel @Inject constructor(
+    private val userRepository: UserRepository,
+    private val dataStore: DataStore<Preferences>
+) : ViewModel() {
+
+    private val KEY_NICKNAME = stringPreferencesKey("nickname")
+
+    val editNickname = MutableStateFlow("")
+    val editBio = MutableStateFlow("")
+    val showEditDialog = MutableStateFlow(false)
+    val isLoading = MutableStateFlow(false)
+    val error: MutableStateFlow<String?> = MutableStateFlow(null)
+
+    private var currentUser: User? = null
+
+    fun loadCurrentUser() {
+        viewModelScope.launch {
+            userRepository.getCurrentUser().onSuccess { user ->
+                currentUser = user
+            }
+        }
+    }
+
+    fun openEditDialog(currentNickname: String, currentBio: String) {
+        editNickname.value = currentNickname
+        editBio.value = currentBio
+        error.value = null
+        showEditDialog.value = true
+    }
+
+    fun saveProfile() {
+        val user = currentUser ?: return
+        viewModelScope.launch {
+            isLoading.value = true
+            error.value = null
+            userRepository.updateProfile(
+                user.copy(nickname = editNickname.value, bio = editBio.value)
+            ).onSuccess { updated ->
+                dataStore.edit { prefs ->
+                    prefs[KEY_NICKNAME] = updated.nickname
+                }
+                showEditDialog.value = false
+            }.onFailure { e ->
+                error.value = e.message ?: "Failed to update profile"
+            }
+            isLoading.value = false
+        }
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -24,10 +89,72 @@ fun SettingsScreen(
     currentUin: Long?,
     nickname: String,
     recoveryPhrase: List<String>,
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    viewModel: SettingsViewModel = hiltViewModel()
 ) {
     var showLogoutDialog by remember { mutableStateOf(false) }
     var showRecoveryPhrase by remember { mutableStateOf(false) }
+
+    val showEditDialog by viewModel.showEditDialog.collectAsState()
+    val editNickname by viewModel.editNickname.collectAsState()
+    val editBio by viewModel.editBio.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
+    val error by viewModel.error.collectAsState()
+
+    LaunchedEffect(Unit) {
+        viewModel.loadCurrentUser()
+    }
+
+    if (showEditDialog) {
+        AlertDialog(
+            onDismissRequest = { viewModel.showEditDialog.value = false },
+            title = { Text("Edit Profile") },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = editNickname,
+                        onValueChange = { viewModel.editNickname.value = it },
+                        label = { Text("Nickname") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = editBio,
+                        onValueChange = { viewModel.editBio.value = it },
+                        label = { Text("Bio") },
+                        maxLines = 4,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    if (error != null) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = error!!,
+                            color = Error,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = { viewModel.saveProfile() },
+                    enabled = !isLoading
+                ) {
+                    if (isLoading) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    } else {
+                        Text("Save")
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.showEditDialog.value = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 
     if (showRecoveryPhrase && recoveryPhrase.isNotEmpty()) {
         AlertDialog(
@@ -108,6 +235,12 @@ fun SettingsScreen(
 
             item {
                 SettingsSection(title = "Account") {
+                    SettingsItem(
+                        icon = Icons.Default.Edit,
+                        title = "Edit Profile",
+                        subtitle = "Change nickname and bio",
+                        onClick = { viewModel.openEditDialog(nickname, "") }
+                    )
                     SettingsItem(
                         icon = Icons.Default.Person,
                         title = "Profile",

@@ -229,8 +229,15 @@ fun AuthNavigation(navController: NavHostController, authViewModel: AuthViewMode
                 composable(AuthScreen.Welcome.route) {
                     WelcomeScreen(
                         onCreateAccount = { authViewModel.startRegistration(it) },
+                        onRestoreAccount = { navController.navigate(AuthScreen.RestoreId.route) },
                         isLoading = isLoading,
                         error = error
+                    )
+                }
+                composable(AuthScreen.RestoreId.route) {
+                    AccountRecoveryScreen(
+                        onBack = { navController.popBackStack() },
+                        onRecoveryComplete = { authViewModel.recheckAuth() }
                     )
                 }
             }

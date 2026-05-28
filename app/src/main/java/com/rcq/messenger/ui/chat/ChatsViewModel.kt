@@ -1,5 +1,6 @@
 package com.rcq.messenger.ui.chat
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rcq.messenger.data.repository.ChatRepository
@@ -8,6 +9,9 @@ import com.rcq.messenger.domain.model.Chat
 import com.rcq.messenger.domain.model.Message
 import com.rcq.messenger.domain.model.MessageKind
 import com.rcq.messenger.domain.model.MessageStatus
+import com.rcq.messenger.media.MediaService
+import com.rcq.messenger.media.MediaType
+import com.rcq.messenger.media.VoiceRecorder
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.*
@@ -55,7 +59,9 @@ class ChatsViewModel @Inject constructor(
 @HiltViewModel
 class ChatViewModel @Inject constructor(
     private val chatRepository: ChatRepository,
-    private val userRepository: UserRepository
+    private val userRepository: UserRepository,
+    private val mediaService: MediaService,
+    private val voiceRecorder: VoiceRecorder
 ) : ViewModel() {
 
     private val _messages = MutableStateFlow<List<Message>>(emptyList())
@@ -159,6 +165,70 @@ class ChatViewModel @Inject constructor(
             chatRepository.sendMessage(chatId, message)
                 .onFailure { _sendError.value = "Send failed: ${it.message}" }
         }
+    }
+
+    // Voice recording state forwarded from VoiceRecorder
+    val recordingState = voiceRecorder.recordingState
+
+    fun sendPhotoMessage(uri: Uri) {
+        val chatId = this.chatId
+        if (chatId.isEmpty()) return
+        viewModelScope.launch {
+            val chat = chatRepository.getChat(chatId) ?: return@launch
+            mediaService.uploadMedia(uri, MediaType.IMAGE, chat.targetId).onSuccess { result ->
+                val message = Message(
+                    id = java.util.UUID.randomUUID().toString(),
+                    chatId = chatId,
+                    senderId = _currentUserId.value,
+                    isFromMe = true,
+                    kind = MessageKind.PHOTO,
+                    content = "",
+                    mediaId = result.mediaId,
+                    fileName = result.mimeType,
+                    fileSizeBytes = result.size,
+                    timestamp = System.currentTimeMillis(),
+                    status = MessageStatus.SENDING
+                )
+                chatRepository.sendMessage(chatId, message)
+                    .onFailure { _sendError.value = "Failed to send photo: ${it.message}" }
+            }.onFailure { _sendError.value = "Upload failed: ${it.message}" }
+        }
+    }
+
+    fun startVoiceRecording() {
+        voiceRecorder.startRecording()
+    }
+
+    fun stopAndSendVoiceMessage() {
+        val chatId = this.chatId
+        if (chatId.isEmpty()) return
+        viewModelScope.launch {
+            voiceRecorder.stopRecording().onSuccess { file ->
+                val uri = android.net.Uri.fromFile(file)
+                val chat = chatRepository.getChat(chatId) ?: return@launch
+                mediaService.uploadMedia(uri, MediaType.VOICE, chat.targetId).onSuccess { result ->
+                    val duration = voiceRecorder.getVoiceDuration(file)
+                    val message = Message(
+                        id = java.util.UUID.randomUUID().toString(),
+                        chatId = chatId,
+                        senderId = _currentUserId.value,
+                        isFromMe = true,
+                        kind = MessageKind.VOICE,
+                        content = "",
+                        mediaId = result.mediaId,
+                        durationSec = duration / 1000.0,
+                        timestamp = System.currentTimeMillis(),
+                        status = MessageStatus.SENDING
+                    )
+                    chatRepository.sendMessage(chatId, message)
+                        .onFailure { _sendError.value = "Failed to send voice: ${it.message}" }
+                }.onFailure { _sendError.value = "Upload failed: ${it.message}" }
+            }.onFailure { _sendError.value = "Recording failed: ${it.message}" }
+        }
+    }
+
+    fun cancelVoiceRecording() {
+        voiceRecorder.cancelRecording()
     }
 
     fun loadMoreMessages() {

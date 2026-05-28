@@ -1,5 +1,6 @@
 package com.rcq.messenger.ui.auth
 
+import android.content.Context
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -13,16 +14,28 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.longPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.preferencesDataStore
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.rcq.messenger.data.repository.UserRepository
+import com.rcq.messenger.di.PreferencesKeys
+import com.rcq.messenger.domain.model.User
 import com.rcq.messenger.ui.theme.*
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+
+private val Context.authDataStore: DataStore<Preferences> by preferencesDataStore(name = "auth_prefs")
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -407,7 +420,20 @@ fun RecoveryFailedStep(
 }
 
 @HiltViewModel
-class AccountRecoveryViewModel @Inject constructor() : ViewModel() {
+class AccountRecoveryViewModel @Inject constructor(
+    private val userRepository: UserRepository,
+    private val dataStore: DataStore<Preferences>,
+    @ApplicationContext private val context: Context
+) : ViewModel() {
+
+    companion object {
+        private val KEY_UIN = longPreferencesKey("uin")
+        private val KEY_TOKEN = stringPreferencesKey("token")
+        private val KEY_NICKNAME = stringPreferencesKey("nickname")
+        private val KEY_IDENTITY_KEY = stringPreferencesKey("identity_key")
+        private val KEY_SIGNING_KEY = stringPreferencesKey("signing_key")
+        private val KEY_RECOVERY_PHRASE = stringPreferencesKey("recovery_phrase")
+    }
 
     private val _uiState = MutableStateFlow(AccountRecoveryUiState())
     val uiState: StateFlow<AccountRecoveryUiState> = _uiState.asStateFlow()
@@ -429,33 +455,49 @@ class AccountRecoveryViewModel @Inject constructor() : ViewModel() {
     fun checkAccount() {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
-
-            try {
-                // TODO: Implement actual account check via API
-                kotlinx.coroutines.delay(2000) // Simulate API call
-
-                // For now, always proceed to backup keys step
-                _uiState.value = _uiState.value.copy(
-                    isLoading = false,
-                    step = RecoveryStep.BACKUP_KEYS
-                )
-            } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(
-                    isLoading = false,
-                    error = "Аккаунт с таким UIN не найден"
-                )
-            }
+            val result = userRepository.getUserByUin(_uiState.value.uin.toLong())
+            result.fold(
+                onSuccess = { user ->
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        step = RecoveryStep.BACKUP_KEYS,
+                        foundUser = user
+                    )
+                },
+                onFailure = {
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        error = "Аккаунт с таким UIN не найден"
+                    )
+                }
+            )
         }
     }
 
     fun restoreAccount() {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, error = null)
-
+            val phrase = _uiState.value.backupData.trim()
+            val words = phrase.split("\\s+".toRegex()).filter { it.isNotEmpty() }
+            if (words.size != 24) {
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    error = "Неверный формат резервной копии. Ожидается 24 слова."
+                )
+                return@launch
+            }
             try {
-                // TODO: Implement actual key restoration
-                kotlinx.coroutines.delay(3000) // Simulate restoration
-
+                val user = _uiState.value.foundUser
+                val uin = user?.id ?: _uiState.value.uin.toLong()
+                val nickname = user?.nickname ?: ""
+                context.authDataStore.edit { prefs ->
+                    prefs[KEY_UIN] = uin
+                    prefs[KEY_NICKNAME] = nickname
+                    prefs[KEY_RECOVERY_PHRASE] = words.joinToString(" ")
+                }
+                dataStore.edit { prefs ->
+                    prefs[PreferencesKeys.USER_UIN] = uin
+                }
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
                     step = RecoveryStep.SUCCESS
@@ -480,7 +522,8 @@ data class AccountRecoveryUiState(
     val uin: String = "",
     val backupData: String = "",
     val isLoading: Boolean = false,
-    val error: String? = null
+    val error: String? = null,
+    val foundUser: User? = null
 )
 
 enum class RecoveryStep {
