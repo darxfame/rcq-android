@@ -30,7 +30,8 @@ class AuthViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val webSocketService: com.rcq.messenger.data.websocket.WebSocketService,
     private val cryptoService: CryptoService,
-    private val eciesKeyStore: EciesKeyStore
+    private val eciesKeyStore: EciesKeyStore,
+    private val chatRepository: com.rcq.messenger.data.repository.ChatRepository
 ) : ViewModel() {
 
     private val _authState = MutableStateFlow<AuthState>(AuthState.Loading)
@@ -86,7 +87,10 @@ class AuthViewModel @Inject constructor(
                     _currentUin.value = uin
                     _isAuthenticated.value = true
                     _authState.value = AuthState.Authenticated
-                    // Connect WebSocket after successful authentication
+                    // Load ECIES keys so incoming iOS messages can be decrypted
+                    eciesKeyStore.loadOrGenerate(cryptoService.ecies)
+                    cryptoService.ecies.ownUin = uin
+                    chatRepository.setCurrentUserUin(uin)
                     webSocketService.connect()
                 } else {
                     _authState.value = AuthState.Onboarding
@@ -149,6 +153,8 @@ class AuthViewModel @Inject constructor(
                     }
 
                     _currentUin.value = uin
+                    cryptoService.ecies.ownUin = uin
+                    chatRepository.setCurrentUserUin(uin)
                     // Upload Signal key bundle so peers can start encrypted sessions with us
                     runCatching {
                         val signalBundle = cryptoService.generateSignalBundle()
