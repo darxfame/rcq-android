@@ -1,0 +1,90 @@
+package app.rcq.android.data
+
+import android.content.Context
+import android.content.SharedPreferences
+import app.rcq.android.ui.ThemeMode
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+
+/**
+ * Client-side, non-secret preference state — the Android analogue of the
+ * iOS `FavoritesStore` / `ArchiveStore` / `SoundService` mute set /
+ * `RemovedContactsStore`, plus the appearance setting. Everything is a
+ * set of thread keys ("peer:<uin>" or "group:<id>") so the same store
+ * serves 1:1 and group rows. State is exposed as StateFlows the Compose
+ * UI collects, and mirrored into a plain (unencrypted) SharedPreferences
+ * — none of this is sensitive.
+ *
+ * Call [init] once from `MainActivity.onCreate` before composing.
+ */
+object LocalStores {
+    private lateinit var prefs: SharedPreferences
+
+    private val _favorites = MutableStateFlow<Set<String>>(emptySet())
+    val favorites: StateFlow<Set<String>> = _favorites.asStateFlow()
+
+    private val _muted = MutableStateFlow<Set<String>>(emptySet())
+    val muted: StateFlow<Set<String>> = _muted.asStateFlow()
+
+    private val _archived = MutableStateFlow<Set<String>>(emptySet())
+    val archived: StateFlow<Set<String>> = _archived.asStateFlow()
+
+    /** UINs of contacts the user removed — incoming sealed messages from
+     *  them are dropped client-side (sealed sender means the server can't
+     *  filter by sender). Mirrors iOS RemovedContactsStore. */
+    private val _removed = MutableStateFlow<Set<Int>>(emptySet())
+    val removed: StateFlow<Set<Int>> = _removed.asStateFlow()
+
+    private val _themeMode = MutableStateFlow(ThemeMode.SYSTEM)
+    val themeMode: StateFlow<ThemeMode> = _themeMode.asStateFlow()
+
+    fun init(context: Context) {
+        if (::prefs.isInitialized) return
+        prefs = context.applicationContext.getSharedPreferences("rcq_local", Context.MODE_PRIVATE)
+        _favorites.value = prefs.getStringSet(K_FAV, emptySet())!!.toSet()
+        _muted.value = prefs.getStringSet(K_MUTE, emptySet())!!.toSet()
+        _archived.value = prefs.getStringSet(K_ARCH, emptySet())!!.toSet()
+        _removed.value = prefs.getStringSet(K_REMOVED, emptySet())!!.mapNotNull { it.toIntOrNull() }.toSet()
+        _themeMode.value = runCatching { ThemeMode.valueOf(prefs.getString(K_THEME, null) ?: "SYSTEM") }
+            .getOrDefault(ThemeMode.SYSTEM)
+    }
+
+    // ── thread-key helpers ───────────────────────────────────────────
+    fun peerThread(uin: Int) = "peer:$uin"
+    fun groupThread(id: Int) = "group:$id"
+
+    fun isFavorite(thread: String) = thread in _favorites.value
+    fun toggleFavorite(thread: String) = toggle(_favorites, K_FAV, thread)
+
+    fun isMuted(thread: String) = thread in _muted.value
+    fun toggleMute(thread: String) = toggle(_muted, K_MUTE, thread)
+
+    fun isArchived(thread: String) = thread in _archived.value
+    fun toggleArchive(thread: String) = toggle(_archived, K_ARCH, thread)
+
+    fun isRemoved(uin: Int) = uin in _removed.value
+    fun addRemoved(uin: Int) {
+        if (uin in _removed.value) return
+        _removed.value = _removed.value + uin
+        prefs.edit().putStringSet(K_REMOVED, _removed.value.map(Int::toString).toSet()).apply()
+    }
+
+    fun setThemeMode(mode: ThemeMode) {
+        _themeMode.value = mode
+        prefs.edit().putString(K_THEME, mode.name).apply()
+    }
+
+    private fun toggle(flow: MutableStateFlow<Set<String>>, key: String, thread: String) {
+        flow.value = if (thread in flow.value) flow.value - thread else flow.value + thread
+        // StringSet must be copied — SharedPreferences keeps the same
+        // instance otherwise and silently no-ops on the next read.
+        prefs.edit().putStringSet(key, flow.value.toSet()).apply()
+    }
+
+    private const val K_FAV = "favorites"
+    private const val K_MUTE = "muted"
+    private const val K_ARCH = "archived"
+    private const val K_REMOVED = "removed"
+    private const val K_THEME = "theme_mode"
+}

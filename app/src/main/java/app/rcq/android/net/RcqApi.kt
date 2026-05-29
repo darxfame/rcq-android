@@ -91,6 +91,10 @@ class RcqApi(private val baseUrl: String = DEFAULT_BASE_URL) {
         val uin: Int,
         val nickname: String?,
         val status: String?,
+        val status_message: String? = null,
+        val blocked: Boolean = false,
+        val gender: String? = null,
+        val last_seen: String? = null,   // ISO-8601, null when hidden/online
         val identity_key: String?,
         val signing_key: String?,
     )
@@ -122,6 +126,25 @@ class RcqApi(private val baseUrl: String = DEFAULT_BASE_URL) {
 
     suspend fun respondContact(requestId: Int, accept: Boolean): RespondResponse = withContext(Dispatchers.IO) {
         post("/contacts/respond", gson.toJson(RespondBody(requestId, accept)), authed = true, RespondResponse::class.java)
+    }
+
+    data class BlockResponse(val blocked: Boolean = false)
+
+    /** Toggle block on a contact (server flips the flag). */
+    suspend fun blockContact(uin: Int): BlockResponse = withContext(Dispatchers.IO) {
+        post("/contacts/$uin/block", "{}", authed = true, BlockResponse::class.java)
+    }
+
+    /** ICQ-style mutual remove (DELETE /contacts/{uin}, 204). */
+    suspend fun removeContact(uin: Int) = withContext(Dispatchers.IO) {
+        sendNoResult("DELETE", "/contacts/$uin", null, authed = true)
+    }
+
+    data class ReportBody(val target_uin: Int, val reason: String, val context: String = "")
+
+    /** File an abuse report (POST /reports). */
+    suspend fun report(targetUin: Int, reason: String, context: String = "") = withContext(Dispatchers.IO) {
+        sendNoResult("POST", "/reports", gson.toJson(ReportBody(targetUin, reason, context)), authed = true)
     }
 
     // ── presence + account (rcq-spec 3.3 / 2.4) ──────────────────────

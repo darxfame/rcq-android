@@ -7,12 +7,14 @@ import app.rcq.android.crypto.IdentityKeys
 import app.rcq.android.crypto.MediaCrypto
 import app.rcq.android.crypto.Reply
 import app.rcq.android.crypto.SealedSender
+import app.rcq.android.data.LocalStores
 import app.rcq.android.data.MessageDb
 import app.rcq.android.data.SecureStore
 import app.rcq.android.model.ChatMessage
 import app.rcq.android.model.Contact
 import app.rcq.android.model.DeliveryState
 import app.rcq.android.model.PendingRequest
+import app.rcq.android.model.UserStatus
 import app.rcq.android.net.RcqApi
 import app.rcq.android.net.RcqSocket
 import com.google.gson.JsonObject
@@ -55,6 +57,12 @@ class Session(context: Context) {
     private val _typingFrom = MutableStateFlow<Int?>(null)
     val typingFrom: StateFlow<Int?> = _typingFrom.asStateFlow()
     private var typingSeq = 0
+
+    /** Own presence status, reflected in the header status picker. */
+    private val _status = MutableStateFlow(UserStatus.ONLINE)
+    val status: StateFlow<UserStatus> = _status.asStateFlow()
+
+    val nickname: String get() = store.nickname ?: "—"
 
     // uin -> recipient X25519 identity public (raw), from contacts or lookup.
     private val peerIdentityCache = HashMap<Int, ByteArray>()
@@ -117,9 +125,30 @@ class Session(context: Context) {
 
     fun stop() = socket.disconnect()
 
-    /** Publish own presence status (online|away|dnd). Soft-fail. */
-    suspend fun setStatus(status: String) {
-        runCatching { api.setStatus(status) }
+    /** Publish own presence status. Optimistic local update, soft-fail
+     *  on the network call. */
+    suspend fun setStatus(status: UserStatus) {
+        _status.value = status
+        runCatching { api.setStatus(status.wire) }
+    }
+
+    // ── contact moderation ───────────────────────────────────────────
+
+    /** Toggle block server-side, then refresh the roster. */
+    suspend fun toggleBlock(uin: Int) {
+        runCatching { api.blockContact(uin) }
+        runCatching { refreshContacts() }
+    }
+
+    /** Mutual remove + local silent-drop of future sealed messages. */
+    suspend fun removeContact(uin: Int) {
+        LocalStores.addRemoved(uin)
+        runCatching { api.removeContact(uin) }
+        runCatching { refreshContacts() }
+    }
+
+    suspend fun report(uin: Int, reason: String) {
+        runCatching { api.report(uin, reason) }
     }
 
     /** Irreversible account burn: wipe server-side, then everything local
@@ -221,6 +250,9 @@ class Session(context: Context) {
     private fun ingest(payloadB64: String) {
         runCatching {
             val dec = SealedSender.decryptV1(payloadB64, identityPriv(), identityPub())
+            // Removed contacts are silently dropped — sealed sender means
+            // the server can't filter by sender, so we gate on receipt.
+            if (LocalStores.isRemoved(dec.senderUin)) return@runCatching
             val now = System.currentTimeMillis()
             when (val env = dec.envelope) {
                 is Envelope.Text ->
@@ -252,7 +284,17 @@ class Session(context: Context) {
 
     private suspend fun refreshContacts() {
         _contacts.value = api.contacts().map {
-            Contact(it.uin, it.nickname ?: "#${it.uin}", it.identity_key ?: "", it.signing_key, it.status)
+            Contact(
+                uin = it.uin,
+                nickname = it.nickname ?: "#${it.uin}",
+                identityKey = it.identity_key ?: "",
+                signingKey = it.signing_key,
+                status = it.status,
+                statusMessage = it.status_message,
+                blocked = it.blocked,
+                gender = it.gender,
+                lastSeen = parseIso(it.last_seen),
+            )
         }
         // Seed the identity cache so sends to contacts skip a lookup.
         _contacts.value.forEach { c ->
@@ -270,6 +312,21 @@ class Session(context: Context) {
 
     fun contactName(uin: Int): String =
         _contacts.value.firstOrNull { it.uin == uin }?.nickname ?: "#$uin"
+
+    fun contact(uin: Int): Contact? = _contacts.value.firstOrNull { it.uin == uin }
+
+    /** Parse a server ISO-8601 timestamp (with or without timezone) to
+     *  epoch millis. Pydantic emits naive UTC for `last_seen`; tolerate
+     *  both forms. */
+    private fun parseIso(s: String?): Long? {
+        if (s.isNullOrBlank()) return null
+        return runCatching { java.time.Instant.parse(s).toEpochMilli() }
+            .recoverCatching { java.time.OffsetDateTime.parse(s).toInstant().toEpochMilli() }
+            .recoverCatching {
+                java.time.LocalDateTime.parse(s).toInstant(java.time.ZoneOffset.UTC).toEpochMilli()
+            }
+            .getOrNull()
+    }
 
     // ── WS events ────────────────────────────────────────────────────
 

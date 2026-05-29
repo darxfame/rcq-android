@@ -4,10 +4,17 @@ package app.rcq.android.model
 data class Contact(
     val uin: Int,
     val nickname: String,
-    val identityKey: String,      // base64 raw X25519 public
-    val signingKey: String?,      // base64 raw Ed25519 public
-    val status: String? = null,   // online|away|dnd|offline
-)
+    val identityKey: String,        // base64 raw X25519 public
+    val signingKey: String?,        // base64 raw Ed25519 public
+    val status: String? = null,     // online|away|dnd|offline
+    val statusMessage: String? = null,
+    val blocked: Boolean = false,
+    val gender: String? = null,     // "m" | "f" | null (visibility-gated)
+    val lastSeen: Long? = null,     // epoch millis, null when hidden/online
+) {
+    /** Presence as a typed enum (server never sends `invisible` for peers). */
+    val presence: UserStatus get() = UserStatus.from(status)
+}
 
 /** An inbound contact request awaiting the user's accept/decline. */
 data class PendingRequest(

@@ -41,6 +41,10 @@ dependencies {
     implementation(libs.androidx.compose.material.icons)
     implementation(libs.androidx.navigation.compose)
 
+    // QR generation for the "my code" sheet (rcq://add/<uin>). Pure-Java
+    // BitMatrix → Bitmap; no UI dependency.
+    implementation(libs.zxing.core)
+
     // Networking (HTTP + WebSocket) and JSON — used by the API + WS
     // layers added in the next milestones.
     implementation(libs.okhttp)
