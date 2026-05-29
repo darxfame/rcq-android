@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -25,9 +26,13 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.Block
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Flag
+import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.PersonAdd
@@ -40,6 +45,7 @@ import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.filled.Unarchive
 import androidx.compose.material.icons.outlined.Block
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -54,6 +60,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -70,6 +77,7 @@ import androidx.compose.ui.unit.sp
 import app.rcq.android.Session
 import app.rcq.android.data.LocalStores
 import app.rcq.android.model.Contact
+import app.rcq.android.model.RcqGroup
 import app.rcq.android.model.UserStatus
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -87,11 +95,13 @@ internal fun HomeScreen(
     session: Session,
     uin: Int,
     onOpenChat: (Int) -> Unit,
+    onOpenGroup: (Int) -> Unit,
     onOpenSettings: () -> Unit,
 ) {
     val c = RcqTheme.colors
     val scope = rememberCoroutineScope()
     val contacts by session.contacts.collectAsState()
+    val groups by session.groups.collectAsState()
     val pending by session.pending.collectAsState()
     val connected by session.connected.collectAsState()
     val messages by session.messages.collectAsState()
@@ -102,10 +112,13 @@ internal fun HomeScreen(
     var showAdd by remember { mutableStateOf(false) }
     var showQr by remember { mutableStateOf(false) }
     var showSearch by remember { mutableStateOf(false) }
-    var previewTarget by remember { mutableStateOf<Contact?>(null) }
+    var showCreateGroup by remember { mutableStateOf(false) }
+    var previewContact by remember { mutableStateOf<Contact?>(null) }
+    var previewGroup by remember { mutableStateOf<RcqGroup?>(null) }
     var reportTarget by remember { mutableStateOf<Contact?>(null) }
 
     var collapsedFavorites by remember { mutableStateOf(false) }
+    var collapsedGroups by remember { mutableStateOf(false) }
     var collapsedOnline by remember { mutableStateOf(false) }
     var collapsedOffline by remember { mutableStateOf(false) }
     var collapsedArchive by remember { mutableStateOf(true) }
@@ -118,6 +131,7 @@ internal fun HomeScreen(
     val onlineContacts = byRecency(nonArchived.filter { it.presence != UserStatus.OFFLINE })
     val offlineContacts = byRecency(nonArchived.filter { it.presence == UserStatus.OFFLINE })
     val archivedContacts = byRecency(contacts.filter { LocalStores.peerThread(it.uin) in archived })
+    val visibleGroups = groups.filterNot { LocalStores.groupThread(it.id) in archived }
 
     Box(Modifier.fillMaxSize().background(c.bgPrimary)) {
         Column(Modifier.fillMaxSize()) {
@@ -141,14 +155,36 @@ internal fun HomeScreen(
                     }
                 }
 
-                if (contacts.isEmpty() && pending.isEmpty()) {
+                if (contacts.isEmpty() && groups.isEmpty() && pending.isEmpty()) {
                     item(key = "empty") { EmptyState(onAdd = { showAdd = true }) }
                 }
 
-                contactSection("Favorites", favContacts, collapsedFavorites, "fav", { collapsedFavorites = !collapsedFavorites }, onOpenChat) { previewTarget = it }
-                contactSection("Online", onlineContacts, collapsedOnline, "on", { collapsedOnline = !collapsedOnline }, onOpenChat) { previewTarget = it }
-                contactSection("Offline", offlineContacts, collapsedOffline, "off", { collapsedOffline = !collapsedOffline }, onOpenChat) { previewTarget = it }
-                contactSection("Archive", archivedContacts, collapsedArchive, "arch", { collapsedArchive = !collapsedArchive }, onOpenChat) { previewTarget = it }
+                contactSection("Favorites", favContacts, collapsedFavorites, "fav", { collapsedFavorites = !collapsedFavorites }, onOpenChat, onLongPress = { previewContact = it })
+
+                // Groups — header always shows a "+" to create, like iOS.
+                item(key = "grp-h") {
+                    SectionHeader("Groups", visibleGroups.size, collapsedGroups, { collapsedGroups = !collapsedGroups }) {
+                        Icon(Icons.Filled.Add, "New group", tint = c.accent, modifier = Modifier.size(20.dp).clip(CircleShape).clickable { showCreateGroup = true })
+                    }
+                }
+                if (!collapsedGroups) {
+                    if (visibleGroups.isEmpty()) {
+                        item(key = "grp-empty") {
+                            Row(Modifier.fillMaxWidth().clickable { showCreateGroup = true }.padding(horizontal = 10.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Icon(Icons.Filled.Add, null, tint = c.accent, modifier = Modifier.size(18.dp))
+                                Text("Create a group", color = c.textPrimary, fontSize = 13.sp)
+                            }
+                        }
+                    } else {
+                        items(items = visibleGroups, key = { it.id }) { g: RcqGroup ->
+                            GroupRow(group = g, ownUin = uin, onClick = { onOpenGroup(g.id) }, onLongPress = { previewGroup = g })
+                        }
+                    }
+                }
+
+                contactSection("Online", onlineContacts, collapsedOnline, "on", { collapsedOnline = !collapsedOnline }, onOpenChat, onLongPress = { previewContact = it })
+                contactSection("Offline", offlineContacts, collapsedOffline, "off", { collapsedOffline = !collapsedOffline }, onOpenChat, onLongPress = { previewContact = it })
+                contactSection("Archive", archivedContacts, collapsedArchive, "arch", { collapsedArchive = !collapsedArchive }, onOpenChat, onLongPress = { previewContact = it })
 
                 item(key = "tail") { Spacer(Modifier.height(8.dp)) }
             }
@@ -169,11 +205,22 @@ internal fun HomeScreen(
             )
         }
 
-        previewTarget?.let { ct ->
+        previewContact?.let { ct ->
             PreviewOverlay(
-                contact = ct,
-                actions = contactActions(ct, session, scope, onOpenChat) { reportTarget = it },
-                onDismiss = { previewTarget = null },
+                title = ct.nickname,
+                subtitle = "#${ct.uin}",
+                avatar = { StatusIcon(ct.presence, size = 36.dp) },
+                actions = contactActions(ct, session, scope, onOpenChat, onReport = { reportTarget = it }),
+                onDismiss = { previewContact = null },
+            )
+        }
+        previewGroup?.let { g ->
+            PreviewOverlay(
+                title = g.name,
+                subtitle = if (g.members.size == 1) "1 member" else "${g.members.size} members",
+                avatar = { GroupAvatar(size = 36.dp) },
+                actions = groupActions(g, uin, session, scope, onOpenGroup),
+                onDismiss = { previewGroup = null },
             )
         }
     }
@@ -185,6 +232,16 @@ internal fun HomeScreen(
         )
     }
     if (showQr) QrDialog(uin = uin, onDismiss = { showQr = false })
+    if (showCreateGroup) {
+        CreateGroupDialog(
+            contacts = contacts,
+            onCreate = { name, members ->
+                scope.launch { runCatching { session.createGroup(name, members) }.onSuccess { onOpenGroup(it.id) } }
+                showCreateGroup = false
+            },
+            onDismiss = { showCreateGroup = false },
+        )
+    }
     reportTarget?.let { ct ->
         ReportDialog(
             name = ct.nickname,
@@ -213,6 +270,30 @@ private fun contactActions(
         ContextAction(if (contact.blocked) "Unblock" else "Block", if (contact.blocked) Icons.Outlined.Block else Icons.Filled.Block, destructive = !contact.blocked) { scope.launch { session.toggleBlock(contact.uin) } },
         ContextAction("Report", Icons.Filled.Flag, destructive = true) { onReport(contact) },
         ContextAction("Remove", Icons.Filled.PersonRemove, destructive = true) { scope.launch { session.removeContact(contact.uin) } },
+    )
+}
+
+private fun groupActions(
+    group: RcqGroup,
+    ownUin: Int,
+    session: Session,
+    scope: CoroutineScope,
+    onOpenGroup: (Int) -> Unit,
+): List<ContextAction> {
+    val thread = LocalStores.groupThread(group.id)
+    val fav = LocalStores.isFavorite(thread)
+    val muted = LocalStores.isMuted(thread)
+    val archived = LocalStores.isArchived(thread)
+    val isOwner = group.ownerUin == ownUin
+    return listOf(
+        ContextAction("Open chat", Icons.AutoMirrored.Filled.Chat) { onOpenGroup(group.id) },
+        ContextAction(if (fav) "Remove favorite" else "Add to favorites", if (fav) Icons.Filled.Star else Icons.Filled.StarBorder) { LocalStores.toggleFavorite(thread) },
+        ContextAction(if (muted) "Unmute" else "Mute", if (muted) Icons.Filled.Notifications else Icons.Filled.NotificationsOff) { LocalStores.toggleMute(thread) },
+        ContextAction(if (archived) "Unarchive" else "Archive", if (archived) Icons.Filled.Unarchive else Icons.Filled.Archive) { LocalStores.toggleArchive(thread) },
+        if (isOwner)
+            ContextAction("Delete group", Icons.Filled.Delete, destructive = true) { scope.launch { session.deleteGroup(group.id) } }
+        else
+            ContextAction("Leave group", Icons.AutoMirrored.Filled.ExitToApp, destructive = true) { scope.launch { session.leaveGroup(group.id) } },
     )
 }
 
@@ -268,6 +349,44 @@ private fun LazyListScope.contactSection(
     if (!collapsed) {
         items(rows, key = { "${keyPrefix}_${it.uin}" }) { ct ->
             ContactRowItem(ct, onClick = { onOpenChat(ct.uin) }, onLongPress = { onLongPress(ct) })
+        }
+    }
+}
+
+@Composable
+private fun GroupAvatar(size: androidx.compose.ui.unit.Dp) {
+    val c = RcqTheme.colors
+    Box(Modifier.size(size).clip(CircleShape).background(c.accent), contentAlignment = Alignment.Center) {
+        Icon(Icons.Filled.Groups, null, tint = Color.White, modifier = Modifier.size(size * 0.6f))
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun GroupRow(group: RcqGroup, ownUin: Int, onClick: () -> Unit, onLongPress: () -> Unit) {
+    val c = RcqTheme.colors
+    val src = remember { MutableInteractionSource() }
+    val pressed by src.collectIsPressedAsState()
+    val scale by animateFloatAsState(if (pressed) 0.97f else 1f, label = "press")
+    val muted = LocalStores.isMuted(LocalStores.groupThread(group.id))
+    Row(
+        Modifier.fillMaxWidth().scale(scale)
+            .combinedClickable(interactionSource = src, indication = null, onClick = onClick, onLongClick = onLongPress)
+            .background(c.bgPrimary).padding(horizontal = 10.dp, vertical = 7.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Box(Modifier.width(36.dp), contentAlignment = Alignment.Center) { GroupAvatar(28.dp) }
+        Column(Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(group.name, color = c.textPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (group.ownerUin == ownUin) Text("👑", fontSize = 11.sp)
+                if (muted) Icon(Icons.Filled.NotificationsOff, null, tint = c.textSecondary, modifier = Modifier.size(11.dp))
+            }
+            Text(
+                if (group.members.size == 1) "1 member" else "${group.members.size} members",
+                color = c.textMono, fontSize = 12.sp, fontFamily = FontFamily.Monospace,
+            )
         }
     }
 }
@@ -396,7 +515,13 @@ private fun androidx.compose.foundation.layout.RowScope.BarButton(icon: ImageVec
 }
 
 @Composable
-private fun PreviewOverlay(contact: Contact, actions: List<ContextAction>, onDismiss: () -> Unit) {
+private fun PreviewOverlay(
+    title: String,
+    subtitle: String,
+    avatar: @Composable () -> Unit,
+    actions: List<ContextAction>,
+    onDismiss: () -> Unit,
+) {
     val c = RcqTheme.colors
     var shown by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { shown = true }
@@ -420,10 +545,10 @@ private fun PreviewOverlay(contact: Contact, actions: List<ContextAction>, onDis
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                StatusIcon(contact.presence, size = 36.dp)
+                avatar()
                 Column {
-                    Text(contact.nickname, color = c.textPrimary, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
-                    Text("#${contact.uin}", color = c.textMono, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+                    Text(title, color = c.textPrimary, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                    Text(subtitle, color = c.textMono, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
                 }
             }
             Box(Modifier.fillMaxWidth().height(1.dp).background(c.divider))
@@ -503,6 +628,52 @@ private fun AddContactDialog(onAdd: (Int) -> Unit, onDismiss: () -> Unit) {
             val target = input.toIntOrNull()
             TextButton(enabled = target != null, onClick = { target?.let(onAdd) }) {
                 Text("Send request", color = if (target != null) c.accent else c.textSecondary)
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = c.textSecondary) } },
+    )
+}
+
+@Composable
+private fun CreateGroupDialog(contacts: List<Contact>, onCreate: (String, List<Int>) -> Unit, onDismiss: () -> Unit) {
+    val c = RcqTheme.colors
+    var name by remember { mutableStateOf("") }
+    val selected = remember { mutableStateMapOf<Int, Boolean>() }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = c.bgSecondary,
+        title = { Text("New group", color = c.textPrimary) },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Group name", color = c.textSecondary) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(8.dp))
+                Text("Add members", color = c.textSecondary, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                LazyColumn(Modifier.heightIn(max = 260.dp)) {
+                    items(contacts, key = { it.uin }) { ct ->
+                        Row(
+                            Modifier.fillMaxWidth().clickable { selected[ct.uin] = !(selected[ct.uin] ?: false) }.padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Checkbox(checked = selected[ct.uin] ?: false, onCheckedChange = { selected[ct.uin] = it })
+                            StatusIcon(ct.presence, size = 22.dp)
+                            Spacer(Modifier.width(8.dp))
+                            Text(ct.nickname, color = c.textPrimary, fontSize = 15.sp)
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            val members = selected.filterValues { it }.keys.toList()
+            val ok = name.isNotBlank()
+            TextButton(enabled = ok, onClick = { onCreate(name.trim(), members) }) {
+                Text("Create", color = if (ok) c.accent else c.textSecondary)
             }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = c.textSecondary) } },

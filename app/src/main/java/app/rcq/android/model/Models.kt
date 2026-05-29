@@ -33,7 +33,7 @@ enum class DeliveryState { SENDING, SENT, DELIVERED, FAILED }
  *  drain from showing twice (rcq-spec 6.3.1). */
 data class ChatMessage(
     val id: String,
-    val peerUin: Int,
+    val peerUin: Int,             // 1:1 peer; 0 for group messages
     val fromMe: Boolean,
     val body: String,             // text, or caption for media
     val sentAt: Long,
@@ -43,4 +43,6 @@ data class ChatMessage(
     val mediaKey: String? = null,
     val replyToSnippet: String? = null,
     val replyToAuthor: String? = null,
+    val groupId: Int? = null,     // non-null => this message belongs to a group thread
+    val senderUin: Int? = null,   // group message author (for sender labels)
 )

@@ -147,6 +147,80 @@ class RcqApi(private val baseUrl: String = DEFAULT_BASE_URL) {
         sendNoResult("POST", "/reports", gson.toJson(ReportBody(targetUin, reason, context)), authed = true)
     }
 
+    // ── groups (rcq-spec 6.4) ────────────────────────────────────────
+
+    data class GroupMemberOut(
+        val uin: Int,
+        val nickname: String?,
+        val role: String?,
+        val status: String?,
+        val identity_key: String?,
+        val signing_key: String?,
+    )
+
+    data class GroupOut(
+        val id: Int,
+        val name: String?,
+        val description: String? = null,
+        val owner_uin: Int = 0,
+        val post_policy: String? = null,
+        val is_closed: Boolean = false,
+        val members_hidden: Boolean = false,
+        val pinned_text: String? = null,
+        val avatar_media_id: String? = null,
+        val avatar_media_key: String? = null,
+        val created_at: String? = null,
+        val members: List<GroupMemberOut> = emptyList(),
+    )
+
+    suspend fun groups(): List<GroupOut> = withContext(Dispatchers.IO) {
+        get("/groups", authed = true, Array<GroupOut>::class.java).toList()
+    }
+
+    data class CreateGroupBody(val name: String, val member_uins: List<Int>)
+
+    suspend fun createGroup(name: String, memberUins: List<Int>): GroupOut = withContext(Dispatchers.IO) {
+        post("/groups", gson.toJson(CreateGroupBody(name, memberUins)), authed = true, GroupOut::class.java)
+    }
+
+    suspend fun groupInfo(id: Int): GroupOut = withContext(Dispatchers.IO) {
+        get("/groups/$id", authed = true, GroupOut::class.java)
+    }
+
+    suspend fun joinGroup(id: Int): GroupOut = withContext(Dispatchers.IO) {
+        post("/groups/$id/join", "{}", authed = true, GroupOut::class.java)
+    }
+
+    data class AddMemberBody(val uin: Int)
+
+    suspend fun addGroupMember(id: Int, uin: Int): GroupOut = withContext(Dispatchers.IO) {
+        post("/groups/$id/members", gson.toJson(AddMemberBody(uin)), authed = true, GroupOut::class.java)
+    }
+
+    /** Self-leave or owner-kick (DELETE /groups/{id}/members/{uin}). */
+    suspend fun leaveGroup(id: Int, memberUin: Int) = withContext(Dispatchers.IO) {
+        sendNoResult("DELETE", "/groups/$id/members/$memberUin", null, authed = true)
+    }
+
+    /** Owner-only group delete. */
+    suspend fun deleteGroup(id: Int) = withContext(Dispatchers.IO) {
+        sendNoResult("DELETE", "/groups/$id", null, authed = true)
+    }
+
+    data class GroupPayload(val to_uin: Int, val payload: String)
+    data class GroupSendBody(val group_id: Int, val envelope_type: String, val payloads: List<GroupPayload>)
+
+    /** Group send: per-recipient fan-out (anonymous, like 1:1 sealed). */
+    suspend fun sendGroupSealed(groupId: Int, payloads: List<GroupPayload>, envelopeType: String = "message"): SendResponse =
+        withContext(Dispatchers.IO) {
+            post(
+                "/messages/group-sealed",
+                gson.toJson(GroupSendBody(groupId, envelopeType, payloads)),
+                authed = false,
+                SendResponse::class.java,
+            )
+        }
+
     // ── presence + account (rcq-spec 3.3 / 2.4) ──────────────────────
 
     data class StatusBody(val status: String, val status_message: String? = null)

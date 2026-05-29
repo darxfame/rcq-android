@@ -36,6 +36,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AddPhotoAlternate
+import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -74,39 +75,67 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+/** What a chat thread is pointed at — a 1:1 peer or a group. */
+sealed interface ChatTarget {
+    data class Peer(val uin: Int) : ChatTarget
+    data class Group(val id: Int) : ChatTarget
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-internal fun ChatScreen(session: Session, peer: Int, onBack: () -> Unit) {
+internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit, onOpenGroupInfo: (Int) -> Unit = {}) {
     val c = RcqTheme.colors
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
-    val all by session.messages.collectAsState()
-    val messages = all[peer] ?: emptyList()
+    val ownUin = session.uin ?: 0
+
+    val isGroup = target is ChatTarget.Group
+    val groupId = (target as? ChatTarget.Group)?.id
+    val peer = (target as? ChatTarget.Peer)?.uin
+
+    val peerAll by session.messages.collectAsState()
+    val groupAll by session.groupMessages.collectAsState()
     val contacts by session.contacts.collectAsState()
-    val peerContact = contacts.firstOrNull { it.uin == peer }
+    val groups by session.groups.collectAsState()
     val typingFrom by session.typingFrom.collectAsState()
-    val isTyping = typingFrom == peer
+
+    val messages = if (isGroup) groupAll[groupId] ?: emptyList() else peerAll[peer] ?: emptyList()
+    val peerContact = peer?.let { p -> contacts.firstOrNull { it.uin == p } }
+    val group = groupId?.let { gid -> groups.firstOrNull { it.id == gid } }
+    val canPost = group?.canPost(ownUin) ?: true
+    val isTyping = !isGroup && typingFrom == peer
+
     var draft by remember { mutableStateOf("") }
     var actionMsg by remember { mutableStateOf<ChatMessage?>(null) }
     var replyTarget by remember { mutableStateOf<ChatMessage?>(null) }
     val listState = rememberLazyListState()
 
+    fun authorName(m: ChatMessage): String = when {
+        m.fromMe -> "You"
+        isGroup -> group?.memberName(m.senderUin ?: 0) ?: "#${m.senderUin}"
+        else -> session.contactName(peer ?: 0)
+    }
+
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) scope.launch {
             val jpeg = withContext(Dispatchers.IO) { compressImage(context, uri) }
-            if (jpeg != null) runCatching { session.sendPhoto(peer, jpeg, null) }
+            if (jpeg != null) runCatching {
+                if (isGroup) session.sendGroupPhoto(groupId!!, jpeg, null) else session.sendPhoto(peer!!, jpeg, null)
+            }
         }
     }
 
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) listState.animateScrollToItem(messages.size - 1)
     }
-    DisposableEffect(peer) { onDispose { session.sendTyping(peer, false) } }
+    DisposableEffect(target) { onDispose { if (!isGroup && peer != null) session.sendTyping(peer, false) } }
 
     Column(Modifier.fillMaxSize().background(c.bgPrimary).imePadding()) {
-        // Header with live presence.
+        // Header.
         Row(
-            Modifier.fillMaxWidth().background(c.bgSecondary.copy(alpha = 0.6f)).padding(horizontal = 8.dp, vertical = 8.dp),
+            Modifier.fillMaxWidth().background(c.bgSecondary.copy(alpha = 0.6f))
+                .clickable(enabled = isGroup) { groupId?.let(onOpenGroupInfo) }
+                .padding(horizontal = 8.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
@@ -114,11 +143,22 @@ internal fun ChatScreen(session: Session, peer: Int, onBack: () -> Unit) {
                 modifier = Modifier.size(26.dp).clip(CircleShape).clickable(onClick = onBack),
             )
             Spacer(Modifier.width(6.dp))
-            StatusIcon(peerContact?.presence ?: UserStatus.OFFLINE, size = 26.dp)
+            if (isGroup) {
+                Box(Modifier.size(28.dp).clip(CircleShape).background(c.accent), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Filled.Groups, null, tint = Color.White, modifier = Modifier.size(17.dp))
+                }
+            } else {
+                StatusIcon(peerContact?.presence ?: UserStatus.OFFLINE, size = 26.dp)
+            }
             Spacer(Modifier.width(8.dp))
             Column(Modifier.weight(1f)) {
-                Text(session.contactName(peer), color = c.textPrimary, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                val title = if (isGroup) (group?.name ?: "Group") else session.contactName(peer ?: 0)
+                Text(title, color = c.textPrimary, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 val sub = when {
+                    isGroup -> {
+                        val n = group?.members?.size ?: 0
+                        if (n == 1) "1 member" else "$n members"
+                    }
                     isTyping -> "typing…"
                     peerContact == null -> "#$peer"
                     peerContact.presence == UserStatus.OFFLINE && peerContact.lastSeen != null -> "last seen ${relativeLastSeen(peerContact.lastSeen)}"
@@ -128,10 +168,18 @@ internal fun ChatScreen(session: Session, peer: Int, onBack: () -> Unit) {
             }
         }
 
+        // Pinned banner (groups).
+        group?.pinnedText?.takeIf { it.isNotBlank() }?.let { pin ->
+            Row(Modifier.fillMaxWidth().background(c.bgSecondary).padding(horizontal = 12.dp, vertical = 6.dp)) {
+                Text("📌 $pin", color = c.textSecondary, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
+        }
+
         LazyColumn(state = listState, modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             items(messages, key = { it.id }) { m ->
                 MessageBubble(
                     session, m,
+                    senderName = if (isGroup && !m.fromMe) authorName(m) else null,
                     onRetry = { scope.launch { runCatching { session.resend(m) } } },
                     onLongPress = { actionMsg = m },
                 )
@@ -143,50 +191,39 @@ internal fun ChatScreen(session: Session, peer: Int, onBack: () -> Unit) {
                 Box(Modifier.width(3.dp).height(34.dp).clip(RoundedCornerShape(2.dp)).background(c.accent))
                 Spacer(Modifier.width(8.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(if (rt.fromMe) "You" else session.contactName(peer), color = c.accent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    Text(authorName(rt), color = c.accent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                     Text(previewOf(rt), color = c.textSecondary, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 Text("✕", color = c.textSecondary, modifier = Modifier.clickable { replyTarget = null }.padding(8.dp))
             }
         }
 
-        // Composer — rounded capsule input, attach + send.
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.Bottom,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Icon(
-                Icons.Filled.AddPhotoAlternate, "Attach", tint = c.textSecondary,
-                modifier = Modifier.size(40.dp).clip(CircleShape).clickable { picker.launch("image/*") }.padding(8.dp),
+        if (!canPost) {
+            Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                Text("Only the owner can post in this group.", color = c.textSecondary, fontSize = 13.sp)
+            }
+        } else {
+            Composer(
+                draft = draft,
+                accentColor = c.accent,
+                onDraftChange = {
+                    draft = it
+                    if (!isGroup && peer != null) session.sendTyping(peer, it.isNotBlank())
+                },
+                onAttach = { picker.launch("image/*") },
+                onSend = {
+                    val body = draft.trim(); draft = ""
+                    val reply = replyTarget?.let { Reply(it.id, previewOf(it), authorName(it)) }
+                    replyTarget = null
+                    if (!isGroup && peer != null) session.sendTyping(peer, false)
+                    scope.launch {
+                        runCatching {
+                            if (isGroup) session.sendGroupText(groupId!!, body, reply)
+                            else session.sendText(peer!!, body, reply)
+                        }
+                    }
+                },
             )
-            Box(
-                Modifier.weight(1f).heightIn(min = 40.dp).clip(RoundedCornerShape(20.dp)).background(c.bgSecondary).padding(horizontal = 14.dp, vertical = 10.dp),
-                contentAlignment = Alignment.CenterStart,
-            ) {
-                if (draft.isEmpty()) Text("Message", color = c.textSecondary, fontSize = 15.sp)
-                BasicTextField(
-                    value = draft,
-                    onValueChange = { draft = it; session.sendTyping(peer, it.isNotBlank()) },
-                    textStyle = TextStyle(color = c.textPrimary, fontSize = 15.sp),
-                    cursorBrush = SolidColor(c.accent),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-            val canSend = draft.isNotBlank()
-            Box(
-                Modifier.size(40.dp).clip(CircleShape).background(if (canSend) c.accent else c.bgSecondary)
-                    .clickable(enabled = canSend) {
-                        val body = draft.trim(); draft = ""
-                        val reply = replyTarget?.let { Reply(it.id, previewOf(it), if (it.fromMe) "You" else session.contactName(peer)) }
-                        replyTarget = null
-                        session.sendTyping(peer, false)
-                        scope.launch { runCatching { session.sendText(peer, body, reply) } }
-                    },
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(Icons.AutoMirrored.Filled.Send, "Send", tint = if (canSend) Color.White else c.textSecondary, modifier = Modifier.size(20.dp))
-            }
         }
     }
 
@@ -216,6 +253,42 @@ internal fun ChatScreen(session: Session, peer: Int, onBack: () -> Unit) {
 }
 
 @Composable
+private fun Composer(draft: String, accentColor: Color, onDraftChange: (String) -> Unit, onAttach: () -> Unit, onSend: () -> Unit) {
+    val c = RcqTheme.colors
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.Bottom,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Icon(
+            Icons.Filled.AddPhotoAlternate, "Attach", tint = c.textSecondary,
+            modifier = Modifier.size(40.dp).clip(CircleShape).clickable(onClick = onAttach).padding(8.dp),
+        )
+        Box(
+            Modifier.weight(1f).heightIn(min = 40.dp).clip(RoundedCornerShape(20.dp)).background(c.bgSecondary).padding(horizontal = 14.dp, vertical = 10.dp),
+            contentAlignment = Alignment.CenterStart,
+        ) {
+            if (draft.isEmpty()) Text("Message", color = c.textSecondary, fontSize = 15.sp)
+            BasicTextField(
+                value = draft,
+                onValueChange = onDraftChange,
+                textStyle = TextStyle(color = c.textPrimary, fontSize = 15.sp),
+                cursorBrush = SolidColor(accentColor),
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        val canSend = draft.isNotBlank()
+        Box(
+            Modifier.size(40.dp).clip(CircleShape).background(if (canSend) c.accent else c.bgSecondary)
+                .clickable(enabled = canSend, onClick = onSend),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(Icons.AutoMirrored.Filled.Send, "Send", tint = if (canSend) Color.White else c.textSecondary, modifier = Modifier.size(20.dp))
+        }
+    }
+}
+
+@Composable
 private fun MessageAction(label: String, danger: Boolean = false, onClick: () -> Unit) {
     Text(
         label,
@@ -230,11 +303,13 @@ private fun previewOf(m: ChatMessage): String =
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun MessageBubble(session: Session, m: ChatMessage, onRetry: () -> Unit, onLongPress: () -> Unit) {
+private fun MessageBubble(session: Session, m: ChatMessage, senderName: String?, onRetry: () -> Unit, onLongPress: () -> Unit) {
     val c = RcqTheme.colors
     val failed = m.state == DeliveryState.FAILED
-    val onText = if (m.fromMe && !c.isDark) c.textPrimary else c.textPrimary
     Column(Modifier.fillMaxWidth(), horizontalAlignment = if (m.fromMe) Alignment.End else Alignment.Start) {
+        if (senderName != null) {
+            Text(senderName, color = c.accent, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 4.dp, bottom = 1.dp))
+        }
         if (m.kind == "photo") {
             Box(Modifier.combinedClickable(onClick = {}, onLongClick = onLongPress)) { PhotoBubble(session, m) }
             if (m.body.isNotEmpty()) {
@@ -259,7 +334,7 @@ private fun MessageBubble(session: Session, m: ChatMessage, onRetry: () -> Unit,
                         Text(m.replyToSnippet, color = c.textSecondary, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
-                Text(m.body, color = onText, fontSize = 15.sp)
+                Text(m.body, color = c.textPrimary, fontSize = 15.sp)
             }
         }
         Row(

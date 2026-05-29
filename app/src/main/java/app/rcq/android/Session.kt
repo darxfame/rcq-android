@@ -13,7 +13,9 @@ import app.rcq.android.data.SecureStore
 import app.rcq.android.model.ChatMessage
 import app.rcq.android.model.Contact
 import app.rcq.android.model.DeliveryState
+import app.rcq.android.model.GroupMember
 import app.rcq.android.model.PendingRequest
+import app.rcq.android.model.RcqGroup
 import app.rcq.android.model.UserStatus
 import app.rcq.android.net.RcqApi
 import app.rcq.android.net.RcqSocket
@@ -40,6 +42,7 @@ class Session(context: Context) {
     private val api = RcqApi()
     private val socket = RcqSocket()
     private val db = MessageDb(context.applicationContext)
+    private val gson = com.google.gson.Gson()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private val _contacts = MutableStateFlow<List<Contact>>(emptyList())
@@ -50,6 +53,13 @@ class Session(context: Context) {
 
     private val _messages = MutableStateFlow<Map<Int, List<ChatMessage>>>(emptyMap())
     val messages: StateFlow<Map<Int, List<ChatMessage>>> = _messages.asStateFlow()
+
+    private val _groups = MutableStateFlow<List<RcqGroup>>(emptyList())
+    val groups: StateFlow<List<RcqGroup>> = _groups.asStateFlow()
+
+    /** Group threads keyed by group id (separate from the 1:1 [messages]). */
+    private val _groupMessages = MutableStateFlow<Map<Int, List<ChatMessage>>>(emptyMap())
+    val groupMessages: StateFlow<Map<Int, List<ChatMessage>>> = _groupMessages.asStateFlow()
 
     private val _connected = MutableStateFlow(false)
     val connected: StateFlow<Boolean> = _connected.asStateFlow()
@@ -121,6 +131,7 @@ class Session(context: Context) {
         scope.launch { runCatching { drainQueue() } }
         scope.launch { runCatching { refreshContacts() } }
         scope.launch { runCatching { refreshPending() } }
+        scope.launch { runCatching { refreshGroups() } }
     }
 
     fun stop() = socket.disconnect()
@@ -151,6 +162,167 @@ class Session(context: Context) {
         runCatching { api.report(uin, reason) }
     }
 
+    // ── groups ───────────────────────────────────────────────────────
+
+    private fun mapGroup(g: RcqApi.GroupOut): RcqGroup = RcqGroup(
+        id = g.id,
+        name = g.name ?: "Group ${g.id}",
+        description = g.description,
+        ownerUin = g.owner_uin,
+        postPolicy = g.post_policy ?: "all",
+        isClosed = g.is_closed,
+        membersHidden = g.members_hidden,
+        pinnedText = g.pinned_text,
+        avatarMediaId = g.avatar_media_id,
+        avatarMediaKey = g.avatar_media_key,
+        members = g.members.map {
+            GroupMember(
+                uin = it.uin,
+                nickname = it.nickname ?: "#${it.uin}",
+                role = it.role ?: "member",
+                status = it.status,
+                identityKey = it.identity_key ?: "",
+                signingKey = it.signing_key,
+            )
+        },
+        createdAt = parseIso(g.created_at),
+    )
+
+    private suspend fun refreshGroups() {
+        _groups.value = api.groups().map(::mapGroup).sortedByDescending { it.createdAt ?: 0L }
+    }
+
+    /** Upsert a group from a WS event. If the embedded roster no longer
+     *  contains us (we left / were removed), drop it locally instead —
+     *  mirrors the iOS GroupService.upsert rule. */
+    private fun upsertGroup(g: RcqGroup) {
+        val me = store.uin
+        // Self-removal rule: drop a group we're no longer a member of. Guard
+        // on a non-empty roster so a partial/empty WS payload (e.g. the
+        // server echoing group_created back to the creator) can't nuke a
+        // group we just created.
+        if (me != null && g.members.isNotEmpty() && g.members.none { it.uin == me }) {
+            _groups.value = _groups.value.filterNot { it.id == g.id }
+            return
+        }
+        _groups.value = (_groups.value.filterNot { it.id == g.id } + g)
+            .sortedByDescending { it.createdAt ?: 0L }
+    }
+
+    fun group(id: Int): RcqGroup? = _groups.value.firstOrNull { it.id == id }
+    fun groupName(id: Int): String = group(id)?.name ?: "Group $id"
+
+    suspend fun createGroup(name: String, memberUins: List<Int>): RcqGroup {
+        val g = mapGroup(api.createGroup(name, memberUins))
+        upsertGroup(g)
+        return g
+    }
+
+    suspend fun addGroupMember(id: Int, uin: Int) {
+        runCatching { upsertGroup(mapGroup(api.addGroupMember(id, uin))) }
+    }
+
+    suspend fun leaveGroup(id: Int) {
+        val me = store.uin ?: return
+        runCatching { api.leaveGroup(id, me) }
+        _groups.value = _groups.value.filterNot { it.id == id }
+    }
+
+    suspend fun deleteGroup(id: Int) {
+        runCatching { api.deleteGroup(id) }
+        _groups.value = _groups.value.filterNot { it.id == id }
+    }
+
+    suspend fun sendGroupText(groupId: Int, text: String, replyTo: app.rcq.android.crypto.Reply? = null) {
+        val env = Envelope.text(text, replyTo)
+        sendGroupEnvelope(groupId, env, env.id, text, kind = "text", replyTo = replyTo)
+    }
+
+    suspend fun sendGroupPhoto(groupId: Int, jpeg: ByteArray, caption: String?) {
+        val key = MediaCrypto.newKey()
+        val blob = MediaCrypto.seal(jpeg, key)
+        val keyB64 = Base64.encodeToString(key, Base64.NO_WRAP)
+        val upload = api.uploadBlob(blob)
+        imageCache[upload.media_id] = jpeg
+        val env = Envelope.photo(upload.media_id, keyB64, caption)
+        sendGroupEnvelope(groupId, env, env.id, caption ?: "", kind = "photo", mediaId = upload.media_id, mediaKey = keyB64)
+    }
+
+    /** Encrypt the envelope once per member (skipping self) and fan out in
+     *  a single /messages/group-sealed POST. No group key — each blob is a
+     *  v=1 sealed envelope, identical to 1:1 (rcq-spec 6.4). */
+    private suspend fun sendGroupEnvelope(
+        groupId: Int,
+        env: Envelope,
+        id: String,
+        body: String,
+        kind: String,
+        mediaId: String? = null,
+        mediaKey: String? = null,
+        replyTo: app.rcq.android.crypto.Reply? = null,
+    ) {
+        val me = store.uin ?: return
+        storeGroup(
+            ChatMessage(
+                id = id, peerUin = 0, fromMe = true, body = body,
+                sentAt = System.currentTimeMillis(), state = DeliveryState.SENDING,
+                kind = kind, mediaId = mediaId, mediaKey = mediaKey,
+                replyToSnippet = replyTo?.snippet, replyToAuthor = replyTo?.authorName,
+                groupId = groupId, senderUin = me,
+            )
+        )
+        fanOutGroup(groupId, env, id)
+    }
+
+    /** Encrypt [env] once per member (skipping self) and POST the fan-out;
+     *  flips the local bubble's delivery state. Shared by send + resend. */
+    private suspend fun fanOutGroup(groupId: Int, env: Envelope, id: String) {
+        val me = store.uin ?: return
+        val group = group(groupId) ?: return
+        try {
+            val payloads = group.members
+                .filter { it.uin != me && it.identityKey.isNotEmpty() }
+                .map { m ->
+                    RcqApi.GroupPayload(
+                        to_uin = m.uin,
+                        payload = SealedSender.encryptV1(
+                            envelope = env,
+                            recipientIdentityPub = Base64.decode(m.identityKey, Base64.NO_WRAP),
+                            ownUin = me,
+                            signingPriv = signingPriv(),
+                            signingPub = signingPub(),
+                        ),
+                    )
+                }
+            val resp = if (payloads.isEmpty()) {
+                // Lone member (everyone else left) — nothing to send, treat as sent.
+                RcqApi.SendResponse(delivered = false)
+            } else {
+                api.sendGroupSealed(groupId, payloads)
+            }
+            updateGroupMsgState(groupId, id, if (resp.delivered) DeliveryState.DELIVERED else DeliveryState.SENT)
+        } catch (e: Exception) {
+            updateGroupMsgState(groupId, id, DeliveryState.FAILED)
+        }
+    }
+
+    /** Decrypt + store an inbound group message under its group thread. */
+    private fun ingestGroup(payloadB64: String, groupId: Int) {
+        runCatching {
+            val dec = SealedSender.decryptV1(payloadB64, identityPriv(), identityPub())
+            val now = System.currentTimeMillis()
+            when (val env = dec.envelope) {
+                is Envelope.Text -> storeGroup(
+                    ChatMessage(env.id, 0, false, env.text, now, kind = "text", groupId = groupId, senderUin = dec.senderUin, replyToSnippet = env.replyTo?.snippet, replyToAuthor = env.replyTo?.authorName)
+                )
+                is Envelope.Photo -> storeGroup(
+                    ChatMessage(env.id, 0, false, env.caption ?: "", now, kind = "photo", mediaId = env.mediaId, mediaKey = env.mediaKey, groupId = groupId, senderUin = dec.senderUin)
+                )
+                is Envelope.Unknown -> Unit
+            }
+        }
+    }
+
     /** Irreversible account burn: wipe server-side, then everything local
      *  (identity keychain + message DB + in-memory flows). After this the
      *  app is back to a fresh-install state. */
@@ -163,6 +335,8 @@ class Session(context: Context) {
         _contacts.value = emptyList()
         _pending.value = emptyList()
         _messages.value = emptyMap()
+        _groups.value = emptyList()
+        _groupMessages.value = emptyMap()
         _typingFrom.value = null
         started = false
     }
@@ -178,9 +352,15 @@ class Session(context: Context) {
     /** Local-only delete (removes from this device; no wire message). */
     fun deleteLocal(msg: ChatMessage) {
         db.delete(msg.id)
-        val cur = _messages.value.toMutableMap()
-        cur[msg.peerUin] = (cur[msg.peerUin] ?: emptyList()).filterNot { it.id == msg.id }
-        _messages.value = cur
+        if (msg.groupId != null) {
+            val cur = _groupMessages.value.toMutableMap()
+            cur[msg.groupId] = (cur[msg.groupId] ?: emptyList()).filterNot { it.id == msg.id }
+            _groupMessages.value = cur
+        } else {
+            val cur = _messages.value.toMutableMap()
+            cur[msg.peerUin] = (cur[msg.peerUin] ?: emptyList()).filterNot { it.id == msg.id }
+            _messages.value = cur
+        }
     }
 
     /** Encrypt+upload an already-compressed JPEG, then send a photo
@@ -200,6 +380,14 @@ class Session(context: Context) {
     /** Retry a previously-failed outgoing message (same UUID, so no dup). */
     suspend fun resend(msg: ChatMessage) {
         if (!msg.fromMe || msg.state != DeliveryState.FAILED) return
+        if (msg.groupId != null) {
+            val env: Envelope = if (msg.kind == "photo" && msg.mediaId != null && msg.mediaKey != null)
+                Envelope.Photo(msg.id, msg.mediaId, msg.mediaKey, msg.body.ifEmpty { null })
+            else Envelope.Text(msg.id, msg.body)
+            updateGroupMsgState(msg.groupId, msg.id, DeliveryState.SENDING)
+            fanOutGroup(msg.groupId, env, msg.id)
+            return
+        }
         updateMessageState(msg.id, msg.peerUin, DeliveryState.SENDING)
         val env: Envelope = if (msg.kind == "photo" && msg.mediaId != null && msg.mediaKey != null) {
             Envelope.Photo(msg.id, msg.mediaId, msg.mediaKey, msg.body.ifEmpty { null })
@@ -265,7 +453,10 @@ class Session(context: Context) {
     }
 
     private suspend fun drainQueue() {
-        api.drainQueue().forEach { q -> q.payload?.let(::ingest) }
+        api.drainQueue().forEach { q ->
+            val payload = q.payload ?: return@forEach
+            if (q.group_id != null) ingestGroup(payload, q.group_id) else ingest(payload)
+        }
     }
 
     // ── contacts ─────────────────────────────────────────────────────
@@ -332,7 +523,23 @@ class Session(context: Context) {
 
     private fun handleEvent(type: String, obj: JsonObject) {
         when (type) {
-            "message", "system" -> obj.get("payload")?.asString?.let(::ingest)
+            "message", "system" -> {
+                val payload = obj.get("payload")?.asString
+                val gid = obj.get("group_id")?.takeIf { !it.isJsonNull }?.asInt
+                if (payload != null) {
+                    if (gid != null) ingestGroup(payload, gid) else ingest(payload)
+                }
+            }
+            "group_created", "group_membership_changed" -> {
+                obj.getAsJsonObject("group")?.let { gj ->
+                    scope.launch {
+                        runCatching { upsertGroup(mapGroup(gson.fromJson(gj, RcqApi.GroupOut::class.java))) }
+                    }
+                }
+            }
+            "group_deleted" -> {
+                obj.get("group_id")?.asInt?.let { gid -> _groups.value = _groups.value.filterNot { it.id == gid } }
+            }
             "contact_request", "contact_response", "contact_removed" -> {
                 scope.launch { runCatching { refreshContacts() }; runCatching { refreshPending() } }
             }
@@ -355,7 +562,9 @@ class Session(context: Context) {
     // ── persistence + flow updates ───────────────────────────────────
 
     private fun loadMessagesFromDb() {
-        _messages.value = db.all().groupBy { it.peerUin }
+        val all = db.all()
+        _messages.value = all.filter { it.groupId == null }.groupBy { it.peerUin }
+        _groupMessages.value = all.filter { it.groupId != null }.groupBy { it.groupId!! }
     }
 
     private fun store(msg: ChatMessage) {
@@ -371,6 +580,21 @@ class Session(context: Context) {
         val cur = _messages.value.toMutableMap()
         cur[peer] = (cur[peer] ?: emptyList()).map { if (it.id == id) it.copy(state = state) else it }
         _messages.value = cur
+    }
+
+    private fun storeGroup(msg: ChatMessage) {
+        if (!db.insert(msg)) return
+        val gid = msg.groupId ?: return
+        val cur = _groupMessages.value.toMutableMap()
+        cur[gid] = ((cur[gid] ?: emptyList()) + msg).sortedBy { it.sentAt }
+        _groupMessages.value = cur
+    }
+
+    private fun updateGroupMsgState(groupId: Int, id: String, state: DeliveryState) {
+        db.updateState(id, state)
+        val cur = _groupMessages.value.toMutableMap()
+        cur[groupId] = (cur[groupId] ?: emptyList()).map { if (it.id == id) it.copy(state = state) else it }
+        _groupMessages.value = cur
     }
 
     // ── own key material (derived from stored privates) ──────────────

@@ -30,6 +30,8 @@ import androidx.compose.ui.unit.sp
 import app.rcq.android.data.LocalStores
 import app.rcq.android.ui.CapsuleButton
 import app.rcq.android.ui.ChatScreen
+import app.rcq.android.ui.ChatTarget
+import app.rcq.android.ui.GroupInfoScreen
 import app.rcq.android.ui.HomeScreen
 import app.rcq.android.ui.RcqTheme
 import app.rcq.android.ui.SettingsScreen
@@ -61,7 +63,8 @@ private fun RcqApp(session: Session) {
     var state by remember {
         mutableStateOf<UiState>(session.uin?.let { UiState.Registered(it) } ?: UiState.Onboarding)
     }
-    var chatPeer by remember { mutableStateOf<Int?>(null) }
+    var chatTarget by remember { mutableStateOf<ChatTarget?>(null) }
+    var groupInfoId by remember { mutableStateOf<Int?>(null) }
     var showSettings by remember { mutableStateOf(false) }
 
     LaunchedEffect(state) {
@@ -84,15 +87,30 @@ private fun RcqApp(session: Session) {
         contentAlignment = Alignment.Center,
     ) {
         val s = state
-        val peer = chatPeer
+        val target = chatTarget
+        val infoId = groupInfoId
         when {
-            s is UiState.Registered && peer != null -> ChatScreen(session, peer, onBack = { chatPeer = null })
+            s is UiState.Registered && infoId != null -> GroupInfoScreen(
+                session, infoId,
+                onBack = { groupInfoId = null },
+                onLeft = { groupInfoId = null; chatTarget = null },
+            )
+            s is UiState.Registered && target != null -> ChatScreen(
+                session, target,
+                onBack = { chatTarget = null },
+                onOpenGroupInfo = { groupInfoId = it },
+            )
             s is UiState.Registered && showSettings -> SettingsScreen(
                 session, s.uin,
                 onBack = { showSettings = false },
-                onBurned = { showSettings = false; chatPeer = null; state = UiState.Onboarding },
+                onBurned = { showSettings = false; chatTarget = null; state = UiState.Onboarding },
             )
-            s is UiState.Registered -> HomeScreen(session, s.uin, onOpenChat = { chatPeer = it }, onOpenSettings = { showSettings = true })
+            s is UiState.Registered -> HomeScreen(
+                session, s.uin,
+                onOpenChat = { chatTarget = ChatTarget.Peer(it) },
+                onOpenGroup = { chatTarget = ChatTarget.Group(it) },
+                onOpenSettings = { showSettings = true },
+            )
             s is UiState.Onboarding -> Onboarding(onStart = ::register)
             s is UiState.Registering -> Registering()
             s is UiState.Failed -> Failed(s.message, onRetry = ::register)
