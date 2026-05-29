@@ -20,8 +20,8 @@ class GroupRepository @Inject constructor(
     suspend fun syncGroups(): Result<Unit> = runCatching {
         val response = api.getGroups()
         if (response.isSuccessful) {
-            val groups = response.body()?.toList() ?: emptyList()
-            groupDao.insertGroups(groups.map { it.toEntity() })
+            val groups = response.body() ?: emptyList()
+            groupDao.insertGroups(groups.map { it.toGroupEntity() })
         }
     }
 
@@ -60,6 +60,17 @@ class GroupRepository @Inject constructor(
         }
     }
 }
+
+private fun com.rcq.messenger.data.api.GroupApiResponse.toGroupEntity() = GroupEntity(
+    id = id.toString(),
+    name = name,
+    avatarUrl = null,
+    description = description,
+    creatorId = ownerUin.toLong(),
+    memberIds = members.map { it.uin.toLong() },
+    adminIds = members.filter { it.role == "admin" || it.role == "owner" }.map { it.uin.toLong() },
+    createdAt = System.currentTimeMillis()
+)
 
 private fun GroupEntity.toDomain() = Group(
     id = id, name = name, avatarUrl = avatarUrl, description = description ?: "",

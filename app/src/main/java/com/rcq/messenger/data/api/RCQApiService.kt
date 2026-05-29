@@ -101,9 +101,8 @@ interface RCQApiService {
         @Body reaction: Reaction
     ): Response<Message>
 
-    // Groups — server returns {"groups":[...]} wrapper
     @GET("groups")
-    suspend fun getGroups(): Response<GroupsResponse>
+    suspend fun getGroups(): Response<List<GroupApiResponse>>
 
     @POST("groups")
     suspend fun createGroup(@Body request: CreateGroupRequest): Response<Group>
@@ -454,28 +453,44 @@ data class MediaUsageResponse(
     val fileCount: Int
 )
 
+// Matches iOS RCQGroup exactly (confirmed from rcq-ios/Models/Group.swift)
 @kotlinx.serialization.Serializable
-data class GroupsResponse(
-    val groups: List<Group> = emptyList(),
-    val items: List<Group> = emptyList(),  // alt key some servers use
-    val data: List<Group> = emptyList()    // alt key
-) {
-    fun toList(): List<Group> = groups.ifEmpty { items.ifEmpty { data } }
-}
+data class GroupApiResponse(
+    val id: Int,
+    val name: String,
+    val description: String? = null,
+    @kotlinx.serialization.SerialName("owner_uin") val ownerUin: Int,
+    @kotlinx.serialization.SerialName("avatar_seed") val avatarSeed: Int = 0,
+    @kotlinx.serialization.SerialName("post_policy") val postPolicy: String = "all",
+    @kotlinx.serialization.SerialName("is_closed") val isClosed: Boolean = false,
+    @kotlinx.serialization.SerialName("members_hidden") val membersHidden: Boolean = false,
+    @kotlinx.serialization.SerialName("pinned_text") val pinnedText: String? = null,
+    @kotlinx.serialization.SerialName("created_at") val createdAt: String = "",
+    val members: List<GroupMemberApi> = emptyList()
+)
 
 @kotlinx.serialization.Serializable
+data class GroupMemberApi(
+    val uin: Int,
+    val nickname: String,
+    val role: String = "member",
+    @kotlinx.serialization.SerialName("identity_key") val identityKey: String = "",
+    @kotlinx.serialization.SerialName("signing_key") val signingKey: String = "",
+    @kotlinx.serialization.SerialName("signal_identity_key") val signalIdentityKey: String? = null
+)
+
+// Matches iOS POST /messages/sealed body (rcq-ios/Services/MessageService.swift:655)
+// { to_uin, envelope_type, payload } — payload is the encrypted envelope blob
+@kotlinx.serialization.Serializable
 data class SealedMessageRequest(
-    @kotlinx.serialization.SerialName("recipient_uin") val recipientUin: Long,
-    val ciphertext: String,
-    @kotlinx.serialization.SerialName("signal_type") val signalType: Int,
-    val kind: String = "text",
-    @kotlinx.serialization.SerialName("media_id") val mediaId: String? = null,
-    @kotlinx.serialization.SerialName("reply_to_id") val replyToId: String? = null
-    // NO plaintext field — server must never see message content
+    @kotlinx.serialization.SerialName("to_uin") val toUin: Long,
+    @kotlinx.serialization.SerialName("envelope_type") val envelopeType: String = "message",
+    val payload: String  // AES/Signal-encrypted envelope — no plaintext
 )
 
 @kotlinx.serialization.Serializable
 data class SealedMessageResponse(
-    val id: String,
-    @kotlinx.serialization.SerialName("sent_at") val sentAt: Long = System.currentTimeMillis()
+    val delivered: Boolean = false,
+    val queued: Boolean = false,
+    val id: String = ""
 )

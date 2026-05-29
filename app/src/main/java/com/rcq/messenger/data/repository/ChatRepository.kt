@@ -416,14 +416,11 @@ class ChatRepository @Inject constructor(
         )
         messageDao.updateMessage(localEntity)
 
+        // Matches iOS: { to_uin, envelope_type, payload }
         val request = com.rcq.messenger.data.api.SealedMessageRequest(
-            recipientUin = recipientUin,
-            ciphertext = encrypted.ciphertext,
-            signalType = encrypted.signalType,
-            kind = message.kind.name.lowercase(),
-            mediaId = message.mediaId,
-            replyToId = message.replyToId
-            // plaintext never leaves the device — it's inside ciphertext
+            toUin = recipientUin,
+            envelopeType = "message",
+            payload = encrypted.ciphertext
         )
 
         api.sendSealedMessage(request).let { response ->
