@@ -185,39 +185,6 @@ interface RCQApiService {
         @Body reply: StoryReply
     ): Response<Unit>
 
-    // Marketplace
-    @GET("marketplace")
-    suspend fun getMarketplaceItems(
-        @Query("category") category: MarketplaceCategory? = null
-    ): Response<List<MarketplaceItem>>
-
-    @POST("marketplace")
-    suspend fun createListing(@Body item: MarketplaceItem): Response<MarketplaceItem>
-
-    @GET("marketplace/{id}")
-    suspend fun getItem(@Path("id") itemId: String): Response<MarketplaceItem>
-
-    @POST("marketplace/{id}/buy")
-    suspend fun buyItem(@Path("id") itemId: String): Response<Unit>
-
-    @POST("marketplace/{id}/bid")
-    suspend fun placeBid(
-        @Path("id") itemId: String,
-        @Body bid: Bid
-    ): Response<Bid>
-
-    // Games
-    @GET("games/{type}/state")
-    suspend fun getGameState(@Path("type") gameType: GameType): Response<GameState>
-
-    @POST("games/{type}/bet")
-    suspend fun placeBet(
-        @Path("type") gameType: GameType,
-        @Body bet: Bet
-    ): Response<Bet>
-
-    @POST("games/{type}/cashout")
-    suspend fun cashout(@Path("type") gameType: GameType): Response<Bet>
 
     // Nearby
     @GET("nearby")
