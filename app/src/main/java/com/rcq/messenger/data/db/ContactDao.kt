@@ -41,4 +41,7 @@ interface ContactDao {
 
     @Query("UPDATE contacts SET isFavorite = :isFavorite WHERE userId = :userId")
     suspend fun setFavorite(userId: Long, isFavorite: Boolean)
+
+    @Query("UPDATE contacts SET signingKey = :signingKey WHERE userId = :userId")
+    suspend fun updateSigningKey(userId: Long, signingKey: String)
 }

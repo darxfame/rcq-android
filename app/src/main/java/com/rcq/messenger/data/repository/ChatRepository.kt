@@ -249,6 +249,18 @@ class ChatRepository @Inject constructor(
                                     .getOrNull()
                             }
 
+                            // TOFU / key pinning: verify signer matches stored signing_key
+                            if (decrypted?.signerPubKeyB64 != null) {
+                                val stored = contactDao.getContactByUserId(decrypted.senderUin)?.signingKey
+                                if (stored != null && stored != decrypted.signerPubKeyB64) {
+                                    Log.e("ChatRepository", "ECIES signing key mismatch for ${decrypted.senderUin} — dropping message")
+                                    return@onEach
+                                }
+                                if (stored == null) {
+                                    contactDao.updateSigningKey(decrypted.senderUin, decrypted.signerPubKeyB64)
+                                }
+                            }
+
                             val senderId = decrypted?.senderUin
                                 ?: obj["sender_uin"]?.jsonPrimitive?.longOrNull
                                 ?: obj["senderUIN"]?.jsonPrimitive?.longOrNull ?: 0L

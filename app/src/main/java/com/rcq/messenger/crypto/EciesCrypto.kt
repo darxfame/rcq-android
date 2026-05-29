@@ -90,8 +90,19 @@ class EciesCrypto @Inject constructor() {
 
     // -----------------------------------------------------------------------
     // decryptV1: returns null on any failure
+    //
+    // signerPubKeyB64 is returned so the CALLER can enforce TOFU / key pinning:
+    //   - if the contact has a stored signing_key, caller must verify it matches
+    //   - if unknown sender (no stored key), caller stores this as TOFU
+    // We do NOT trust `from` blindly — the field is inside the AEAD but is
+    // still caller-controlled (attacker could self-encrypt with from=victim).
     // -----------------------------------------------------------------------
-    data class Decrypted(val senderUin: Long, val envelopeJson: JSONObject)
+    data class Decrypted(
+        val senderUin: Long,
+        val envelopeJson: JSONObject,
+        /** Raw 32-byte base64 of the signing key that produced the signature. */
+        val signerPubKeyB64: String
+    )
 
     fun decryptV1(wireB64: String): Decrypted? = runCatching {
         val idKP = identityKeyPair ?: return null
@@ -113,7 +124,8 @@ class EciesCrypto @Inject constructor() {
         val inner = JSONObject(String(plain, Charsets.UTF_8))
         val from = inner.getLong("from")
         val envBytes = Base64.decode(inner.getString("env"), Base64.NO_WRAP)
-        val spubRaw = Base64.decode(inner.getString("spub"), Base64.NO_WRAP)
+        val spubB64 = inner.getString("spub")
+        val spubRaw = Base64.decode(spubB64, Base64.NO_WRAP)
         val sigBytes = Base64.decode(inner.getString("sig"), Base64.NO_WRAP)
 
         if (!Curve.verifySignature(rawToEcPub(spubRaw), ekBytes + envBytes, sigBytes)) {
@@ -121,7 +133,9 @@ class EciesCrypto @Inject constructor() {
             return null
         }
 
-        Decrypted(from, JSONObject(String(envBytes, Charsets.UTF_8)))
+        // Return signerPubKeyB64 so the caller can enforce TOFU / pinning.
+        // We do NOT validate here because we lack DB access — caller must do it.
+        Decrypted(from, JSONObject(String(envBytes, Charsets.UTF_8)), spubB64)
     }.onFailure { Log.w(TAG, "decryptV1 failed: ${it.message}") }.getOrNull()
 
     // -----------------------------------------------------------------------

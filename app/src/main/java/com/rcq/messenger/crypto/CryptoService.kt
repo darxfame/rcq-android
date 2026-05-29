@@ -163,6 +163,8 @@ class CryptoService @Inject constructor(
 
     /**
      * Decrypt a payload — handles ECIES v=1 (iOS), Android v=0, and raw plaintext fallback.
+     * For ECIES results, [DecryptedWrapped.signerPubKeyB64] is populated; callers MUST
+     * verify it against the stored signing_key for the sender (TOFU / key pinning).
      */
     fun decryptWrapped(payload: String): DecryptedWrapped? {
         // Try ECIES v=1 first (iOS-sent messages)
@@ -170,7 +172,11 @@ class CryptoService @Inject constructor(
             val eciesResult = ecies.decryptV1(payload)
             if (eciesResult != null) {
                 val content = ecies.parseEnvelopeText(eciesResult.envelopeJson) ?: ""
-                return DecryptedWrapped(senderUin = eciesResult.senderUin, content = content)
+                return DecryptedWrapped(
+                    senderUin = eciesResult.senderUin,
+                    content = content,
+                    signerPubKeyB64 = eciesResult.signerPubKeyB64
+                )
             }
         }
         // Fallback: Android v=0 format
@@ -206,6 +212,8 @@ class CryptoService @Inject constructor(
 
     data class DecryptedWrapped(
         val senderUin: Long,
-        val content: String
+        val content: String,
+        /** Non-null for ECIES v=1 messages; caller must do TOFU / pinning check. */
+        val signerPubKeyB64: String? = null
     )
 }
