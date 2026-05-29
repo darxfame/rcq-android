@@ -1,10 +1,13 @@
 package com.rcq.messenger.ui.chat
 
 import android.net.Uri
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rcq.messenger.data.repository.ChatRepository
 import com.rcq.messenger.data.repository.UserRepository
+import com.rcq.messenger.di.PreferencesKeys
 import com.rcq.messenger.domain.model.Chat
 import com.rcq.messenger.domain.model.Message
 import com.rcq.messenger.domain.model.MessageKind
@@ -62,7 +65,8 @@ class ChatViewModel @Inject constructor(
     private val chatRepository: ChatRepository,
     private val userRepository: UserRepository,
     private val mediaService: MediaService,
-    private val voiceRecorder: VoiceRecorder
+    private val voiceRecorder: VoiceRecorder,
+    private val dataStore: DataStore<Preferences>
 ) : ViewModel() {
 
     private val _messages = MutableStateFlow<List<Message>>(emptyList())
@@ -95,9 +99,12 @@ class ChatViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            userRepository.getCurrentUser().onSuccess { user ->
-                _currentUserId.value = user.id
-                chatRepository.setCurrentUserUin(user.id)
+            dataStore.data.collect { prefs ->
+                val uin = prefs[PreferencesKeys.USER_UIN] ?: 0L
+                if (uin != 0L) {
+                    _currentUserId.value = uin
+                    chatRepository.setCurrentUserUin(uin)
+                }
             }
         }
     }

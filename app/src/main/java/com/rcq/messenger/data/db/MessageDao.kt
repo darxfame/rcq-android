@@ -6,11 +6,14 @@ import com.rcq.messenger.domain.model.MessageEntity
 
 @Dao
 interface MessageDao {
-    @Query("SELECT * FROM messages WHERE chatId = :chatId ORDER BY timestamp DESC LIMIT :limit OFFSET :offset")
+    @Query("SELECT * FROM messages WHERE chatId = :chatId ORDER BY timestamp ASC LIMIT :limit OFFSET :offset")
     fun getMessages(chatId: String, limit: Int = 50, offset: Int = 0): Flow<List<MessageEntity>>
 
-    @Query("SELECT * FROM messages WHERE chatId = :chatId AND timestamp < :before ORDER BY timestamp DESC LIMIT :limit")
+    @Query("SELECT * FROM messages WHERE chatId = :chatId AND timestamp < :before ORDER BY timestamp ASC LIMIT :limit")
     suspend fun getMessagesBefore(chatId: String, before: Long, limit: Int): List<MessageEntity>
+
+    @Query("DELETE FROM messages")
+    suspend fun clearAll()
 
     @Query("SELECT * FROM messages WHERE id = :id")
     suspend fun getMessage(id: String): MessageEntity?

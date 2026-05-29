@@ -418,6 +418,12 @@ class ChatRepository @Inject constructor(
         }
     }
 
+    suspend fun clearAllData() {
+        chatDao.clearAll()
+        messageDao.clearAll()
+        contactDao.clearAll()
+    }
+
     suspend fun getChat(chatId: String): Chat? {
         chatDao.getChat(chatId)?.let { return it.toDomain() }
         // For group chats, create a ChatEntity on first access so messages can be stored
@@ -587,7 +593,8 @@ class ChatRepository @Inject constructor(
                         continue
                     }
                 }
-                val wrapped = cryptoService.encryptWrapped(message.senderId, memberUin, message.content)
+                val memberIdentityKey = contactDao.getContactByUserId(memberUin)?.identityKey
+                val wrapped = cryptoService.encryptWrapped(message.senderId, memberUin, message.content, memberIdentityKey)
                 recipients.add(com.rcq.messenger.data.api.GroupSealedRecipient(
                     toUin = memberUin, payload = wrapped.payload
                 ))

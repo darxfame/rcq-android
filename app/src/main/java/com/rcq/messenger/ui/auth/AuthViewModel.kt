@@ -188,13 +188,9 @@ class AuthViewModel @Inject constructor(
 
     fun logout() {
         viewModelScope.launch {
-            // Clear both DataStores
-            context.dataStore.edit { prefs ->
-                prefs.clear()
-            }
-            dataStore.edit { prefs ->
-                prefs.clear()
-            }
+            chatRepository.clearAllData()
+            context.dataStore.edit { prefs -> prefs.clear() }
+            dataStore.edit { prefs -> prefs.clear() }
             _isAuthenticated.value = false
             _authState.value = AuthState.Onboarding
             _currentUin.value = null

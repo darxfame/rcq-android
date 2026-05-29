@@ -32,4 +32,7 @@ interface ChatDao {
 
     @Query("UPDATE chats SET updatedAt = :timestamp WHERE id = :chatId")
     suspend fun updateTimestamp(chatId: String, timestamp: Long)
+
+    @Query("DELETE FROM chats")
+    suspend fun clearAll()
 }

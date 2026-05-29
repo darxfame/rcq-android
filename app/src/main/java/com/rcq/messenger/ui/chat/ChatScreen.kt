@@ -58,6 +58,9 @@ fun ChatScreen(
     val playbackState by viewModel.playbackState.collectAsState()
     val activeVoiceId by viewModel.activeVoiceId.collectAsState()
     val listState = rememberLazyListState()
+    LaunchedEffect(messages.size) {
+        if (messages.isNotEmpty()) listState.animateScrollToItem(messages.size - 1)
+    }
     var showAttachMenu by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val locationPermissionState = rememberPermissionState(android.Manifest.permission.ACCESS_FINE_LOCATION)
