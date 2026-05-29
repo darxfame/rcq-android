@@ -177,7 +177,7 @@ internal fun HomeScreen(
                         }
                     } else {
                         items(items = visibleGroups, key = { it.id }) { g: RcqGroup ->
-                            GroupRow(group = g, ownUin = uin, onClick = { onOpenGroup(g.id) }, onLongPress = { previewGroup = g })
+                            GroupRow(group = g, ownUin = uin, session = session, onClick = { onOpenGroup(g.id) }, onLongPress = { previewGroup = g })
                         }
                     }
                 }
@@ -218,7 +218,7 @@ internal fun HomeScreen(
             PreviewOverlay(
                 title = g.name,
                 subtitle = if (g.members.size == 1) "1 member" else "${g.members.size} members",
-                avatar = { GroupAvatar(size = 36.dp) },
+                avatar = { GroupAvatar(g, session, 36.dp) },
                 actions = groupActions(g, uin, session, scope, onOpenGroup),
                 onDismiss = { previewGroup = null },
             )
@@ -353,17 +353,9 @@ private fun LazyListScope.contactSection(
     }
 }
 
-@Composable
-private fun GroupAvatar(size: androidx.compose.ui.unit.Dp) {
-    val c = RcqTheme.colors
-    Box(Modifier.size(size).clip(CircleShape).background(c.accent), contentAlignment = Alignment.Center) {
-        Icon(Icons.Filled.Groups, null, tint = Color.White, modifier = Modifier.size(size * 0.6f))
-    }
-}
-
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun GroupRow(group: RcqGroup, ownUin: Int, onClick: () -> Unit, onLongPress: () -> Unit) {
+private fun GroupRow(group: RcqGroup, ownUin: Int, session: Session, onClick: () -> Unit, onLongPress: () -> Unit) {
     val c = RcqTheme.colors
     val src = remember { MutableInteractionSource() }
     val pressed by src.collectIsPressedAsState()
@@ -376,7 +368,7 @@ private fun GroupRow(group: RcqGroup, ownUin: Int, onClick: () -> Unit, onLongPr
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Box(Modifier.width(36.dp), contentAlignment = Alignment.Center) { GroupAvatar(28.dp) }
+        Box(Modifier.width(36.dp), contentAlignment = Alignment.Center) { GroupAvatar(group, session, 28.dp) }
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(group.name, color = c.textPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)

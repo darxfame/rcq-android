@@ -136,6 +136,14 @@ class Session(context: Context) {
 
     fun stop() = socket.disconnect()
 
+    /** Wipe local message history (both 1:1 and group threads) without
+     *  touching the account. Mirrors iOS "Clear history". */
+    fun clearHistory() {
+        db.wipe()
+        _messages.value = emptyMap()
+        _groupMessages.value = emptyMap()
+    }
+
     /** Publish own presence status. Optimistic local update, soft-fail
      *  on the network call. */
     suspend fun setStatus(status: UserStatus) {
@@ -232,6 +240,40 @@ class Session(context: Context) {
         runCatching { api.deleteGroup(id) }
         _groups.value = _groups.value.filterNot { it.id == id }
     }
+
+    /** Owner/admin: compress + encrypt + upload an avatar blob, then PATCH
+     *  the group with the new media id + per-blob key. Throws on failure
+     *  so the caller can surface it. */
+    suspend fun setGroupAvatar(id: Int, jpeg: ByteArray) {
+        val key = MediaCrypto.newKey()
+        val blob = MediaCrypto.seal(jpeg, key)
+        val keyB64 = Base64.encodeToString(key, Base64.NO_WRAP)
+        val upload = api.uploadBlob(blob)
+        imageCache[upload.media_id] = jpeg
+        upsertGroup(mapGroup(api.patchGroup(id, RcqApi.GroupPatchBody(avatar_media_id = upload.media_id, avatar_media_key = keyB64))))
+    }
+
+    /** Owner/admin: rename / re-describe / re-pin a group. */
+    suspend fun patchGroup(id: Int, name: String? = null, description: String? = null, pinnedText: String? = null) {
+        upsertGroup(mapGroup(api.patchGroup(id, RcqApi.GroupPatchBody(name = name, description = description, pinned_text = pinnedText))))
+    }
+
+    // ── own profile + privacy ────────────────────────────────────────
+
+    suspend fun loadProfile(): RcqApi.MeProfile? {
+        val me = store.uin ?: return null
+        return runCatching { api.getMe(me) }.getOrNull()
+    }
+
+    suspend fun updateProfile(body: RcqApi.UpdateMeBody): RcqApi.MeProfile? {
+        val updated = runCatching { api.updateMe(body) }.getOrNull()
+        // Reflect a nickname change locally (the header reads store.nickname).
+        if (updated != null && !body.nickname.isNullOrBlank()) store.updateNickname(body.nickname)
+        return updated
+    }
+
+    /** Contacts the user has blocked (for the Blocked Users settings screen). */
+    fun blockedContacts(): List<Contact> = _contacts.value.filter { it.blocked }
 
     suspend fun sendGroupText(groupId: Int, text: String, replyTo: app.rcq.android.crypto.Reply? = null) {
         val env = Envelope.text(text, replyTo)

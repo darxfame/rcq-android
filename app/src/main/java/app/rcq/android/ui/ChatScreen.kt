@@ -144,9 +144,7 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
             )
             Spacer(Modifier.width(6.dp))
             if (isGroup) {
-                Box(Modifier.size(28.dp).clip(CircleShape).background(c.accent), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Filled.Groups, null, tint = Color.White, modifier = Modifier.size(17.dp))
-                }
+                GroupAvatar(group, session, 28.dp)
             } else {
                 StatusIcon(peerContact?.presence ?: UserStatus.OFFLINE, size = 26.dp)
             }

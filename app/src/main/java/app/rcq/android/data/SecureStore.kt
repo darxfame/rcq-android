@@ -69,6 +69,11 @@ class SecureStore(context: Context) {
             .apply()
     }
 
+    /** Update just the cached display nickname (after a profile edit). */
+    fun updateNickname(nickname: String) {
+        prefs.edit().putString(K_NICK, nickname).apply()
+    }
+
     fun wipe() = prefs.edit().clear().apply()
 
     private companion object {

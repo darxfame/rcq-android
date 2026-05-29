@@ -207,6 +207,22 @@ class RcqApi(private val baseUrl: String = DEFAULT_BASE_URL) {
         sendNoResult("DELETE", "/groups/$id", null, authed = true)
     }
 
+    /** Partial group update (owner/admin). Only non-null fields are sent
+     *  (Gson omits nulls by default), so a PATCH that only swaps the
+     *  avatar leaves name/policy/pin untouched. */
+    data class GroupPatchBody(
+        val name: String? = null,
+        val description: String? = null,
+        val post_policy: String? = null,
+        val pinned_text: String? = null,
+        val avatar_media_id: String? = null,
+        val avatar_media_key: String? = null,
+    )
+
+    suspend fun patchGroup(id: Int, body: GroupPatchBody): GroupOut = withContext(Dispatchers.IO) {
+        request("PATCH", "/groups/$id", gson.toJson(body), authed = true, GroupOut::class.java)
+    }
+
     data class GroupPayload(val to_uin: Int, val payload: String)
     data class GroupSendBody(val group_id: Int, val envelope_type: String, val payloads: List<GroupPayload>)
 
@@ -232,6 +248,55 @@ class RcqApi(private val baseUrl: String = DEFAULT_BASE_URL) {
     /** DELETE /auth/account — irreversible burn (rcq-spec 2.4). */
     suspend fun deleteAccount() = withContext(Dispatchers.IO) {
         sendNoResult("DELETE", "/auth/account", null, authed = true)
+    }
+
+    // ── own profile + privacy (GET /users/{uin}/info, PUT /me) ───────
+
+    /** Own profile + privacy mirror. Visibility/policy fields are only
+     *  populated by the server when viewing your own account. */
+    data class MeProfile(
+        val uin: Int = 0,
+        val nickname: String? = null,
+        val first_name: String? = null,
+        val last_name: String? = null,
+        val age: Int? = null,
+        val gender: String? = null,
+        val city: String? = null,
+        val country: String? = null,
+        val about: String? = null,
+        val interests: List<String> = emptyList(),
+        val homepage: String? = null,
+        val status_message: String? = null,
+        val last_seen_visibility: String? = null,
+        val gender_visibility: String? = null,
+        val profile_visibility: String? = null,
+        val group_invite_policy: String? = null,
+        val read_receipts_visibility: String? = null,
+    )
+
+    suspend fun getMe(uin: Int): MeProfile = withContext(Dispatchers.IO) {
+        get("/users/$uin/info", authed = true, MeProfile::class.java)
+    }
+
+    /** Partial profile/privacy update (PUT /me). Gson omits null fields,
+     *  so only what the caller sets is changed. */
+    data class UpdateMeBody(
+        val nickname: String? = null,
+        val status_message: String? = null,
+        val gender: String? = null,
+        val age: Int? = null,
+        val city: String? = null,
+        val country: String? = null,
+        val about: String? = null,
+        val last_seen_visibility: String? = null,
+        val gender_visibility: String? = null,
+        val profile_visibility: String? = null,
+        val group_invite_policy: String? = null,
+        val read_receipts_visibility: String? = null,
+    )
+
+    suspend fun updateMe(body: UpdateMeBody): MeProfile = withContext(Dispatchers.IO) {
+        request("PUT", "/users/me", gson.toJson(body), authed = true, MeProfile::class.java)
     }
 
     private fun sendNoResult(method: String, path: String, json: String?, authed: Boolean) {
@@ -286,6 +351,13 @@ class RcqApi(private val baseUrl: String = DEFAULT_BASE_URL) {
 
     private fun <T> get(path: String, authed: Boolean, type: Class<T>): T {
         val builder = Request.Builder().url("$baseUrl$path").get()
+        if (authed) token?.let { builder.header("Authorization", "Bearer $it") }
+        return execute(builder.build(), type)
+    }
+
+    /** Generic verb + JSON body → typed response. Used for PATCH/PUT. */
+    private fun <T> request(method: String, path: String, json: String, authed: Boolean, type: Class<T>): T {
+        val builder = Request.Builder().url("$baseUrl$path").method(method, json.toRequestBody(JSON))
         if (authed) token?.let { builder.header("Authorization", "Bearer $it") }
         return execute(builder.build(), type)
     }

@@ -1,31 +1,43 @@
 package app.rcq.android.ui
 
+import android.graphics.BitmapFactory
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Female
+import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Male
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import app.rcq.android.Session
+import app.rcq.android.model.RcqGroup
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -84,6 +96,32 @@ internal fun SectionHeader(
         Text("($count)", color = c.textSecondary, fontSize = 11.sp)
         Spacer(Modifier.weight(1f))
         trailing?.invoke(this)
+    }
+}
+
+/**
+ * Round group avatar. Loads + decrypts the custom avatar blob via the
+ * session media cache; falls back to the generic groups glyph on an
+ * accent disc (mirrors iOS GroupAvatarView). Reused by the home row,
+ * preview overlay, chat header, and group-info header.
+ */
+@Composable
+internal fun GroupAvatar(group: RcqGroup?, session: Session, size: Dp, glyphSize: Dp = size * 0.55f) {
+    val c = RcqTheme.colors
+    val id = group?.avatarMediaId
+    val key = group?.avatarMediaKey
+    val bytes by produceState<ByteArray?>(initialValue = null, id, key) {
+        value = if (!id.isNullOrEmpty() && !key.isNullOrEmpty()) session.fetchImage(id, key) else null
+    }
+    val image = remember(bytes) {
+        bytes?.let { runCatching { BitmapFactory.decodeByteArray(it, 0, it.size)?.asImageBitmap() }.getOrNull() }
+    }
+    Box(Modifier.size(size).clip(CircleShape).background(c.accent), contentAlignment = Alignment.Center) {
+        if (image != null) {
+            Image(bitmap = image, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+        } else {
+            Icon(Icons.Filled.Groups, null, tint = Color.White, modifier = Modifier.size(glyphSize))
+        }
     }
 }
 

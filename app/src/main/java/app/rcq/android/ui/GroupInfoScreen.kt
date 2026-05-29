@@ -1,5 +1,7 @@
 package app.rcq.android.ui
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -21,11 +23,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -39,18 +44,21 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.rcq.android.Session
-import app.rcq.android.model.UserStatus
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 internal fun GroupInfoScreen(session: Session, groupId: Int, onBack: () -> Unit, onLeft: () -> Unit) {
     val c = RcqTheme.colors
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     val groups by session.groups.collectAsState()
     val contacts by session.contacts.collectAsState()
     val group = groups.firstOrNull { it.id == groupId }
@@ -58,6 +66,14 @@ internal fun GroupInfoScreen(session: Session, groupId: Int, onBack: () -> Unit,
     val isOwner = group?.ownerUin == ownUin
     var confirmDestructive by remember { mutableStateOf(false) }
     var showAddMember by remember { mutableStateOf(false) }
+    var showRename by remember { mutableStateOf(false) }
+
+    val avatarPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) scope.launch {
+            val jpeg = withContext(Dispatchers.IO) { compressImageFor(context, uri) }
+            if (jpeg != null) runCatching { session.setGroupAvatar(groupId, jpeg) }
+        }
+    }
 
     if (group == null) {
         // Group vanished (left/deleted) — bounce back.
@@ -70,11 +86,22 @@ internal fun GroupInfoScreen(session: Session, groupId: Int, onBack: () -> Unit,
             Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = c.accent, modifier = Modifier.size(26.dp).clickable(onClick = onBack))
             Spacer(Modifier.width(12.dp))
             Text("Group info", color = c.textPrimary, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.weight(1f))
+            if (isOwner) {
+                Icon(Icons.Filled.Edit, "Rename", tint = c.accent, modifier = Modifier.size(22.dp).clickable { showRename = true })
+            }
         }
 
         Column(Modifier.fillMaxWidth().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Box(Modifier.size(72.dp).clip(CircleShape).background(c.accent), contentAlignment = Alignment.Center) {
-                Icon(Icons.Filled.Groups, null, tint = Color.White, modifier = Modifier.size(40.dp))
+            Box(contentAlignment = Alignment.BottomEnd) {
+                Box(Modifier.then(if (isOwner) Modifier.clickable { avatarPicker.launch("image/*") } else Modifier)) {
+                    GroupAvatar(group, session, 72.dp, glyphSize = 40.dp)
+                }
+                if (isOwner) {
+                    Box(Modifier.size(26.dp).clip(CircleShape).background(c.accent).clickable { avatarPicker.launch("image/*") }, contentAlignment = Alignment.Center) {
+                        Icon(Icons.Filled.CameraAlt, "Change avatar", tint = Color.White, modifier = Modifier.size(15.dp))
+                    }
+                }
             }
             Text(group.name, color = c.textPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
             Text(if (group.members.size == 1) "1 member" else "${group.members.size} members", color = c.textSecondary, fontSize = 13.sp)
@@ -174,4 +201,51 @@ internal fun GroupInfoScreen(session: Session, groupId: Int, onBack: () -> Unit,
             dismissButton = { TextButton(onClick = { showAddMember = false }) { Text("Close", color = c.textSecondary) } },
         )
     }
+
+    if (showRename) {
+        var name by remember { mutableStateOf(group.name) }
+        var desc by remember { mutableStateOf(group.description ?: "") }
+        AlertDialog(
+            onDismissRequest = { showRename = false },
+            containerColor = c.bgSecondary,
+            title = { Text("Edit group", color = c.textPrimary) },
+            text = {
+                Column {
+                    OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Name", color = c.textSecondary) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    Spacer(Modifier.size(8.dp))
+                    OutlinedTextField(value = desc, onValueChange = { desc = it }, label = { Text("Description", color = c.textSecondary) }, modifier = Modifier.fillMaxWidth())
+                }
+            },
+            confirmButton = {
+                TextButton(enabled = name.isNotBlank(), onClick = {
+                    val n = name.trim(); val d = desc.trim()
+                    showRename = false
+                    scope.launch {
+                        runCatching {
+                            session.patchGroup(
+                                groupId,
+                                name = if (n != group.name) n else null,
+                                description = if (d != (group.description ?: "")) d else null,
+                            )
+                        }
+                    }
+                }) { Text("Save", color = if (name.isNotBlank()) c.accent else c.textSecondary) }
+            },
+            dismissButton = { TextButton(onClick = { showRename = false }) { Text("Cancel", color = c.textSecondary) } },
+        )
+    }
+}
+
+/** Shared JPEG downscale+compress for picked images (avatars). */
+internal fun compressImageFor(context: android.content.Context, uri: android.net.Uri): ByteArray? {
+    val src = context.contentResolver.openInputStream(uri)?.use { android.graphics.BitmapFactory.decodeStream(it) } ?: return null
+    val maxSide = 640
+    val longest = maxOf(src.width, src.height)
+    val scaled = if (longest > maxSide) {
+        val f = maxSide.toFloat() / longest
+        android.graphics.Bitmap.createScaledBitmap(src, (src.width * f).toInt(), (src.height * f).toInt(), true)
+    } else src
+    val out = java.io.ByteArrayOutputStream()
+    scaled.compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, out)
+    return out.toByteArray()
 }
