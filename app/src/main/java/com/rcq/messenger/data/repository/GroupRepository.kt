@@ -31,6 +31,7 @@ class GroupRepository @Inject constructor(
         } else {
             val err = response.errorBody()?.string()
             Log.e(TAG, "syncGroups: server error ${response.code()} — $err")
+            Unit
         }
     }.onFailure { e -> Log.e(TAG, "syncGroups: exception — ${e.message}", e) }
 
