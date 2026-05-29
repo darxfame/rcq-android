@@ -281,29 +281,6 @@ fun SettingsScreen(
             }
 
             item {
-                SettingsSection(title = "Preferences") {
-                    SettingsItem(
-                        icon = Icons.Default.Notifications,
-                        title = "Notifications",
-                        subtitle = "Message, call, group sounds",
-                        onClick = { }
-                    )
-                    SettingsItem(
-                        icon = Icons.Default.Palette,
-                        title = "Appearance",
-                        subtitle = "Theme, colors",
-                        onClick = { }
-                    )
-                    SettingsItem(
-                        icon = Icons.Default.Storage,
-                        title = "Storage",
-                        subtitle = "Auto-download, data usage",
-                        onClick = { }
-                    )
-                }
-            }
-
-            item {
                 SettingsSection(title = "Notifications") {
                     SettingsToggleItem(
                         icon = Icons.Default.Notifications,
