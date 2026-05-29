@@ -21,15 +21,19 @@ import javax.inject.Singleton
 class SessionManager @Inject constructor(
     private val signalKeyStore: SignalKeyStore
 ) {
+    companion object {
+        // RCQ server is single-device per UIN; matches iOS ProtocolAddress(name:uin, deviceId:1)
+        const val DEVICE_ID = 1
+    }
 
     fun encryptMessage(recipientUin: Long, plaintext: String): CiphertextMessage {
-        val address = SignalProtocolAddress(recipientUin.toString(), 1)
+        val address = SignalProtocolAddress(recipientUin.toString(), DEVICE_ID)
         val cipher = SessionCipher(signalKeyStore, address)
         return cipher.encrypt(plaintext.toByteArray(Charsets.UTF_8))
     }
 
     fun decryptMessage(senderUin: Long, ciphertext: CiphertextMessage): String {
-        val address = SignalProtocolAddress(senderUin.toString(), 1)
+        val address = SignalProtocolAddress(senderUin.toString(), DEVICE_ID)
         val cipher = SessionCipher(signalKeyStore, address)
 
         val decrypted = when (ciphertext.type) {
@@ -46,7 +50,7 @@ class SessionManager @Inject constructor(
     }
 
     fun hasSession(recipientUin: Long): Boolean {
-        val address = SignalProtocolAddress(recipientUin.toString(), 1)
+        val address = SignalProtocolAddress(recipientUin.toString(), DEVICE_ID)
         return signalKeyStore.containsSession(address)
     }
 
@@ -56,7 +60,7 @@ class SessionManager @Inject constructor(
         val address = SignalProtocolAddress(recipientUin.toString(), 1)
         val preKeyBundle = PreKeyBundle(
             bundle.registrationId,
-            bundle.deviceId,
+            DEVICE_ID,
             bundle.preKey?.id ?: 0,
             bundle.preKey?.let { Curve.decodePoint(Base64.decode(it.key, Base64.NO_WRAP), 0) },
             bundle.signedPreKey.id,
@@ -68,7 +72,7 @@ class SessionManager @Inject constructor(
     }
 
     fun deleteSession(recipientUin: Long) {
-        val address = SignalProtocolAddress(recipientUin.toString(), 1)
+        val address = SignalProtocolAddress(recipientUin.toString(), DEVICE_ID)
         signalKeyStore.deleteSession(address)
     }
 

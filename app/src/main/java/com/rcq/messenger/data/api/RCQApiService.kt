@@ -108,7 +108,7 @@ interface RCQApiService {
     suspend fun createGroup(@Body request: CreateGroupRequest): Response<Group>
 
     @GET("groups/{id}")
-    suspend fun getGroup(@Path("id") groupId: String): Response<Group>
+    suspend fun getGroup(@Path("id") groupId: String): Response<GroupApiResponse>
 
     @PUT("groups/{id}")
     suspend fun updateGroup(@Path("id") groupId: String, @Body group: Group): Response<Group>
@@ -246,14 +246,18 @@ interface RCQApiService {
     suspend fun updatePresence(@Body request: PresenceUpdateRequest): Response<Unit>
 
     // Signal Protocol E2EE - Pre-Key Management
-    @POST("crypto/register-keys")
-    suspend fun uploadPreKeys(@Body request: UploadPreKeysRequest): Response<UploadPreKeysResponse>
+    @POST("keys/bundle")
+    suspend fun uploadBundle(@Body request: RegisterBundleRequest): Response<Unit>
 
-    @GET("crypto/keys/{uin}")
+    @GET("keys/{uin}/bundle")
     suspend fun fetchPreKeyBundle(@Path("uin") uin: Long): Response<PreKeyBundleResponse>
 
-    @POST("crypto/keys/refresh")
-    suspend fun refreshPreKeys(@Body request: RefreshPreKeysRequest): Response<Unit>
+    @POST("keys/prekeys")
+    suspend fun replenishPreKeys(@Body request: ReplenishPreKeysRequest): Response<Unit>
+
+    // Group sealed-sender fan-out
+    @POST("messages/group-sealed")
+    suspend fun sendGroupSealedMessage(@Body request: GroupSealedMessageRequest): Response<SealedMessageResponse>
 
     // Media Upload/Download
     @Multipart
@@ -396,45 +400,67 @@ data class ContactRequest(
     @kotlinx.serialization.SerialName("state") val status: String = "pending"
 )
 
-// Signal Protocol E2EE Data Classes
-@kotlinx.serialization.Serializable
-data class UploadPreKeysRequest(
-    val preKeys: List<PreKeyData>,
-    val signedPreKey: SignedPreKeyData,
-    val identityKey: String
-)
+// Signal Protocol E2EE Data Classes — field names match server keys.py exactly
 
 @kotlinx.serialization.Serializable
 data class PreKeyData(
     val id: Int,
-    val key: String // Base64-encoded public key
+    @kotlinx.serialization.SerialName("public") val key: String
 )
 
 @kotlinx.serialization.Serializable
 data class SignedPreKeyData(
     val id: Int,
-    val key: String, // Base64-encoded public key
-    val signature: String // Base64-encoded signature
+    @kotlinx.serialization.SerialName("public") val key: String,
+    val signature: String
 )
 
 @kotlinx.serialization.Serializable
-data class UploadPreKeysResponse(
-    val success: Boolean,
-    val message: String? = null
+data class KyberPreKeyData(
+    val id: Int,
+    @kotlinx.serialization.SerialName("public") val key: String,
+    val signature: String
 )
 
+// POST /keys/bundle — BundleIn on the server
+@kotlinx.serialization.Serializable
+data class RegisterBundleRequest(
+    @kotlinx.serialization.SerialName("signal_identity_key") val signalIdentityKey: String,
+    @kotlinx.serialization.SerialName("registration_id") val registrationId: Int,
+    @kotlinx.serialization.SerialName("signed_prekey") val signedPreKey: SignedPreKeyData,
+    @kotlinx.serialization.SerialName("kyber_prekey") val kyberPreKey: KyberPreKeyData,
+    @kotlinx.serialization.SerialName("one_time_prekeys") val oneTimePreKeys: List<PreKeyData> = emptyList()
+)
+
+// POST /keys/prekeys — replenish OPK pool
+@kotlinx.serialization.Serializable
+data class ReplenishPreKeysRequest(
+    @kotlinx.serialization.SerialName("one_time_prekeys") val oneTimePreKeys: List<PreKeyData>
+)
+
+// GET /keys/{uin}/bundle — BundleOut on the server
 @kotlinx.serialization.Serializable
 data class PreKeyBundleResponse(
-    val registrationId: Int,
-    val deviceId: Int,
-    val preKey: PreKeyData?,
-    val signedPreKey: SignedPreKeyData,
-    val identityKey: String
+    val uin: Long,
+    @kotlinx.serialization.SerialName("registration_id") val registrationId: Int,
+    @kotlinx.serialization.SerialName("signal_identity_key") val identityKey: String,
+    @kotlinx.serialization.SerialName("signed_prekey") val signedPreKey: SignedPreKeyData,
+    @kotlinx.serialization.SerialName("kyber_prekey") val kyberPreKey: KyberPreKeyData,
+    @kotlinx.serialization.SerialName("one_time_prekey") val preKey: PreKeyData? = null
+)
+
+// Group sealed-sender fan-out
+@kotlinx.serialization.Serializable
+data class GroupSealedRecipient(
+    @kotlinx.serialization.SerialName("to_uin") val toUin: Long,
+    val payload: String
 )
 
 @kotlinx.serialization.Serializable
-data class RefreshPreKeysRequest(
-    val preKeys: List<PreKeyData>
+data class GroupSealedMessageRequest(
+    @kotlinx.serialization.SerialName("group_id") val groupId: Int,
+    @kotlinx.serialization.SerialName("envelope_type") val envelopeType: String = "message",
+    val payloads: List<GroupSealedRecipient>
 )
 
 // Media API Data Classes

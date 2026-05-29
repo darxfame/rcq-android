@@ -36,7 +36,7 @@ class GroupRepository @Inject constructor(
 
     suspend fun getGroup(groupId: String): Result<Group> = runCatching {
         api.getGroup(groupId).let { response ->
-            if (response.isSuccessful) response.body()!!
+            if (response.isSuccessful) response.body()!!.toGroupEntity().toDomain()
             else throw Exception("Group not found")
         }
     }

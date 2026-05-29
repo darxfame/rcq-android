@@ -1,6 +1,7 @@
 package com.rcq.messenger.ui
 
 import android.Manifest
+import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -10,12 +11,17 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import com.rcq.messenger.ui.theme.RCQTheme
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.flow.MutableStateFlow
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+
+    private val pendingChatId = MutableStateFlow<String?>(null)
 
     private val notifPermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -26,17 +32,23 @@ class MainActivity : ComponentActivity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
+        pendingChatId.value = intent.getStringExtra("chat_id")
         enableEdgeToEdge()
-        val initialChatId = intent.getStringExtra("chat_id")
         setContent {
             RCQTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    RCQApp(initialChatId = initialChatId)
+                    val chatId by pendingChatId.collectAsState()
+                    RCQApp(initialChatId = chatId)
                 }
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        intent.getStringExtra("chat_id")?.let { pendingChatId.value = it }
     }
 }

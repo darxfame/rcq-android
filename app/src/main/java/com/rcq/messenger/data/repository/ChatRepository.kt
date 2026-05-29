@@ -234,25 +234,32 @@ class ChatRepository @Inject constructor(
                             val obj = event.raw
                             val msgId = obj["id"]?.jsonPrimitive?.contentOrNull
                                 ?: obj["message_id"]?.jsonPrimitive?.contentOrNull
-                                ?: return@onEach
-                            val senderId = obj["sender_uin"]?.jsonPrimitive?.longOrNull
-                                ?: obj["senderUIN"]?.jsonPrimitive?.longOrNull ?: 0L
-                            val serverChatId = obj["chat_id"]?.jsonPrimitive?.contentOrNull
-                            val chatId = if (!serverChatId.isNullOrBlank()) serverChatId
-                                         else "direct_$senderId"
-                            // Try to decrypt E2EE ciphertext; fall back to plaintext field
-                            val rawCiphertext = obj["ciphertext"]?.jsonPrimitive?.contentOrNull
-                            val signalType = obj["signal_type"]?.jsonPrimitive?.intOrNull ?: -1
-                            val content = if (rawCiphertext != null && signalType >= 0) {
-                                runCatching {
-                                    cryptoService.decryptMessage(senderId, rawCiphertext, signalType)
-                                }.getOrElse {
-                                    obj["text"]?.jsonPrimitive?.contentOrNull ?: ""
-                                }
-                            } else {
-                                obj["text"]?.jsonPrimitive?.contentOrNull
-                                    ?: obj["content"]?.jsonPrimitive?.contentOrNull ?: ""
+                                ?: java.util.UUID.randomUUID().toString()
+                            val groupId = obj["group_id"]?.jsonPrimitive?.intOrNull
+
+                            // Decrypt Android v=0 wrapped payload {v:0, from, kind, msg}
+                            // Server uses sealed-sender so no from_uin in outer WS packet
+                            val rawPayload = obj["payload"]?.jsonPrimitive?.contentOrNull
+                            val decrypted = rawPayload?.let {
+                                runCatching { cryptoService.decryptWrapped(it) }.getOrNull()
                             }
+
+                            val senderId = decrypted?.senderUin
+                                ?: obj["sender_uin"]?.jsonPrimitive?.longOrNull
+                                ?: obj["senderUIN"]?.jsonPrimitive?.longOrNull ?: 0L
+
+                            val serverChatId = obj["chat_id"]?.jsonPrimitive?.contentOrNull
+                            val chatId = when {
+                                !serverChatId.isNullOrBlank() -> serverChatId
+                                groupId != null -> groupId.toString()
+                                senderId != 0L -> "direct_$senderId"
+                                else -> return@onEach
+                            }
+
+                            val content = decrypted?.content
+                                ?: obj["text"]?.jsonPrimitive?.contentOrNull
+                                ?: obj["content"]?.jsonPrimitive?.contentOrNull ?: ""
+
                             val timestamp = obj["sent_at"]?.jsonPrimitive?.longOrNull
                                 ?: obj["sentAt"]?.jsonPrimitive?.longOrNull
                                 ?: System.currentTimeMillis()
@@ -385,59 +392,122 @@ class ChatRepository @Inject constructor(
     }
 
     suspend fun sendMessage(chatId: String, message: Message): Result<Message> = runCatching {
-        val chat = chatDao.getChat(chatId) ?: throw Exception("Chat not found")
-        val recipientUin = chat.targetId
-
-        // Insert optimistically so message shows immediately in UI
         val optimisticEntity = message.toEntity().copy(status = "SENDING")
         messageDao.insertMessage(optimisticEntity)
 
-        // Build Signal session if we don't have one yet (first message to this contact)
+        // Determine if this is a group chat by checking the groups API
+        val groupResp = runCatching { api.getGroup(chatId) }.getOrNull()
+        if (groupResp?.isSuccessful == true) {
+            val group = groupResp.body()!!
+            sendGroupMessage(chatId, message, group, optimisticEntity)
+        } else {
+            // Direct chat
+            val chat = chatDao.getChat(chatId)
+            if (chat == null) {
+                messageDao.updateMessage(optimisticEntity.copy(status = "FAILED"))
+                throw Exception("Chat not found: $chatId")
+            }
+            sendDirectMessage(message, chat.targetId, optimisticEntity)
+        }
+    }
+
+    private suspend fun sendDirectMessage(
+        message: Message,
+        recipientUin: Long,
+        optimisticEntity: com.rcq.messenger.domain.model.MessageEntity
+    ): Message {
         if (!cryptoService.hasSession(recipientUin)) {
             val bundleResp = api.fetchPreKeyBundle(recipientUin)
             if (bundleResp.isSuccessful && bundleResp.body() != null) {
                 cryptoService.buildSession(recipientUin, bundleResp.body()!!)
             } else {
                 messageDao.updateMessage(optimisticEntity.copy(status = "FAILED"))
-                throw Exception("Cannot fetch key bundle for recipient (${bundleResp.code()})")
+                throw Exception("Cannot fetch key bundle (${bundleResp.code()})")
             }
         }
 
-        val encrypted = runCatching { cryptoService.encryptMessage(recipientUin, message.content) }
-            .getOrElse { e ->
-                messageDao.updateMessage(optimisticEntity.copy(status = "FAILED"))
-                throw e
-            }
+        val wrapped = runCatching {
+            cryptoService.encryptWrapped(message.senderId, recipientUin, message.content)
+        }.getOrElse { e ->
+            messageDao.updateMessage(optimisticEntity.copy(status = "FAILED"))
+            throw e
+        }
 
-        val localEntity = optimisticEntity.copy(
-            ciphertext = encrypted.ciphertext,
-            signalType = encrypted.signalType,
-            isEncrypted = true
-        )
-        messageDao.updateMessage(localEntity)
+        messageDao.updateMessage(optimisticEntity.copy(
+            ciphertext = wrapped.payload, signalType = wrapped.signalType, isEncrypted = true
+        ))
 
-        // Matches iOS: { to_uin, envelope_type, payload }
         val request = com.rcq.messenger.data.api.SealedMessageRequest(
             toUin = recipientUin,
-            envelopeType = "message",
-            payload = encrypted.ciphertext
+            envelopeType = wrapped.envelopeType,
+            payload = wrapped.payload
         )
-
-        api.sendSealedMessage(request).let { response ->
+        return api.sendSealedMessage(request).let { response ->
             if (response.isSuccessful) {
                 val resp = response.body()!!
                 val sent = message.copy(id = resp.id, status = MessageStatus.SENT)
-                val updatedEntity = sent.toEntity().copy(
-                    ciphertext = encrypted.ciphertext,
-                    signalType = encrypted.signalType,
-                    isEncrypted = true,
-                    status = "SENT"
-                )
-                messageDao.updateMessage(updatedEntity)
+                messageDao.updateMessage(sent.toEntity().copy(
+                    ciphertext = wrapped.payload, signalType = wrapped.signalType,
+                    isEncrypted = true, status = "SENT"
+                ))
                 sent
             } else {
-                messageDao.updateMessage(localEntity.copy(status = "FAILED"))
-                throw Exception("Failed to send message: ${response.code()}")
+                messageDao.updateMessage(optimisticEntity.copy(status = "FAILED"))
+                throw Exception("Send failed: ${response.code()}")
+            }
+        }
+    }
+
+    private suspend fun sendGroupMessage(
+        chatId: String,
+        message: Message,
+        group: com.rcq.messenger.data.api.GroupApiResponse,
+        optimisticEntity: com.rcq.messenger.domain.model.MessageEntity
+    ): Message {
+        val recipients = mutableListOf<com.rcq.messenger.data.api.GroupSealedRecipient>()
+
+        for (member in group.members) {
+            val memberUin = member.uin.toLong()
+            if (memberUin == message.senderId) continue // skip self
+
+            try {
+                if (!cryptoService.hasSession(memberUin)) {
+                    val bundleResp = api.fetchPreKeyBundle(memberUin)
+                    if (bundleResp.isSuccessful && bundleResp.body() != null) {
+                        cryptoService.buildSession(memberUin, bundleResp.body()!!)
+                    } else {
+                        Log.w("ChatRepository", "No key bundle for group member $memberUin — skipping")
+                        continue
+                    }
+                }
+                val wrapped = cryptoService.encryptWrapped(message.senderId, memberUin, message.content)
+                recipients.add(com.rcq.messenger.data.api.GroupSealedRecipient(
+                    toUin = memberUin, payload = wrapped.payload
+                ))
+            } catch (e: Exception) {
+                Log.w("ChatRepository", "Encrypt for member $memberUin failed: ${e.message}")
+            }
+        }
+
+        if (recipients.isEmpty()) {
+            messageDao.updateMessage(optimisticEntity.copy(status = "FAILED"))
+            throw Exception("No group members could be encrypted to")
+        }
+
+        val request = com.rcq.messenger.data.api.GroupSealedMessageRequest(
+            groupId = group.id,
+            envelopeType = "message",
+            payloads = recipients
+        )
+
+        return api.sendGroupSealedMessage(request).let { response ->
+            if (response.isSuccessful) {
+                val sent = message.copy(status = MessageStatus.SENT)
+                messageDao.updateMessage(optimisticEntity.copy(status = "SENT"))
+                sent
+            } else {
+                messageDao.updateMessage(optimisticEntity.copy(status = "FAILED"))
+                throw Exception("Group send failed: ${response.code()}")
             }
         }
     }

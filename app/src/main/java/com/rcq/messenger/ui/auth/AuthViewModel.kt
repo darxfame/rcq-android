@@ -143,6 +143,11 @@ class AuthViewModel @Inject constructor(
                     }
 
                     _currentUin.value = uin
+                    // Upload Signal key bundle so peers can start encrypted sessions with us
+                    runCatching {
+                        val signalBundle = cryptoService.generateSignalBundle()
+                        api.uploadBundle(signalBundle)
+                    }
                     _authState.value = AuthState.ShowRecoveryPhrase
                 } else {
                     _error.value = "Registration failed (${response.code()}): ${response.message()}"

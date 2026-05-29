@@ -359,7 +359,8 @@ class WebSocketService @Inject constructor(
                     peerUin = obj["peer_uin"]?.jsonPrimitive?.longOrNull ?: 0
                 )
 
-                // Message events
+                // Message events — server sends envelope_type directly as "type" (sealed sender)
+                "message", "prekey_message", "reaction", "delete", "edit", "read", "bounce",
                 "message_new", "new_message" -> WsEvent.MessageNew(
                     chatId = obj["chat_id"]?.jsonPrimitive?.contentOrNull ?: "",
                     raw = obj
