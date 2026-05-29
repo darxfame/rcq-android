@@ -322,25 +322,27 @@ class Session(context: Context) {
         val me = store.uin ?: return
         val group = group(groupId) ?: return
         try {
-            val payloads = group.members
-                .filter { it.uin != me && it.identityKey.isNotEmpty() }
-                .map { m ->
-                    RcqApi.GroupPayload(
-                        to_uin = m.uin,
-                        payload = SealedSender.encryptV1(
-                            envelope = env,
-                            recipientIdentityPub = Base64.decode(m.identityKey, Base64.NO_WRAP),
-                            ownUin = me,
-                            signingPriv = signingPriv(),
-                            signingPub = signingPub(),
-                        ),
-                    )
+            val resp = withSendRetry {
+                val payloads = group.members
+                    .filter { it.uin != me && it.identityKey.isNotEmpty() }
+                    .map { m ->
+                        RcqApi.GroupPayload(
+                            to_uin = m.uin,
+                            payload = SealedSender.encryptV1(
+                                envelope = env,
+                                recipientIdentityPub = Base64.decode(m.identityKey, Base64.NO_WRAP),
+                                ownUin = me,
+                                signingPriv = signingPriv(),
+                                signingPub = signingPub(),
+                            ),
+                        )
+                    }
+                if (payloads.isEmpty()) {
+                    // Lone member (everyone else left) — nothing to send, treat as sent.
+                    RcqApi.SendResponse(delivered = false)
+                } else {
+                    api.sendGroupSealed(groupId, payloads)
                 }
-            val resp = if (payloads.isEmpty()) {
-                // Lone member (everyone else left) — nothing to send, treat as sent.
-                RcqApi.SendResponse(delivered = false)
-            } else {
-                api.sendGroupSealed(groupId, payloads)
             }
             updateGroupMsgState(groupId, id, if (resp.delivered) DeliveryState.DELIVERED else DeliveryState.SENT)
         } catch (e: Exception) {
@@ -441,18 +443,47 @@ class Session(context: Context) {
 
     private suspend fun sendEnvelope(env: Envelope, id: String, toUin: Int) {
         try {
-            val payload = SealedSender.encryptV1(
-                envelope = env,
-                recipientIdentityPub = recipientKey(toUin),
-                ownUin = store.uin ?: error("not registered"),
-                signingPriv = signingPriv(),
-                signingPub = signingPub(),
-            )
-            val resp = api.sendSealed(toUin, payload)
+            val resp = withSendRetry {
+                val payload = SealedSender.encryptV1(
+                    envelope = env,
+                    recipientIdentityPub = recipientKey(toUin),
+                    ownUin = store.uin ?: error("not registered"),
+                    signingPriv = signingPriv(),
+                    signingPub = signingPub(),
+                )
+                api.sendSealed(toUin, payload)
+            }
             updateMessageState(id, toUin, if (resp.delivered) DeliveryState.DELIVERED else DeliveryState.SENT)
         } catch (e: Exception) {
             updateMessageState(id, toUin, DeliveryState.FAILED)
         }
+    }
+
+    /**
+     * Sends fail *transiently* far more often than they fail for real: a
+     * stale keep-alive socket the server already closed (the classic
+     * "first POST after idle resets, the very next one works"), a DNS
+     * blip, a momentary 5xx from a backend worker. A single attempt then
+     * a permanent FAILED is exactly why a message "sometimes needs a
+     * manual tap-to-retry" — the manual resend only works because the bad
+     * pooled connection got evicted in the meantime. So retry that
+     * automatically: a few quick attempts with backoff before surfacing
+     * FAILED. Safe against duplicates — the envelope UUID is stable across
+     * attempts, so the recipient's INSERT-OR-IGNORE dedups any blob that
+     * actually landed before a lost response.
+     */
+    private suspend fun <T> withSendRetry(attempts: Int = 3, block: suspend () -> T): T {
+        var last: Exception? = null
+        repeat(attempts) { i ->
+            try {
+                return block()
+            } catch (e: Exception) {
+                last = e
+                android.util.Log.w("RCQsend", "send attempt ${i + 1}/$attempts failed: ${e.javaClass.simpleName}: ${e.message}")
+                if (i < attempts - 1) delay(300L * (i + 1) * (i + 1)) // 300ms, then 1.2s
+            }
+        }
+        throw last ?: IllegalStateException("send failed")
     }
 
     /** Download + decrypt a media blob, cached by media id. */
