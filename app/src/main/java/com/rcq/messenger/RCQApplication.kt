@@ -1,6 +1,7 @@
 package com.rcq.messenger
 
 import android.app.Application
+import com.rcq.messenger.data.repository.OutboxProcessor
 import com.rcq.messenger.service.NotificationHelper
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
@@ -12,6 +13,7 @@ class RCQApplication : Application() {
     // Inject eagerly so WebSocket event handler in init{} runs at startup,
     // not lazily when first screen is shown
     @Inject lateinit var chatRepository: com.rcq.messenger.data.repository.ChatRepository
+    @Inject lateinit var outboxProcessor: OutboxProcessor
 
     override fun onCreate() {
         super.onCreate()

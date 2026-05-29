@@ -12,6 +12,7 @@ import com.rcq.messenger.data.db.GroupDao
 import com.rcq.messenger.data.db.StoryDao
 import com.rcq.messenger.data.db.CallDao
 import com.rcq.messenger.data.db.SignalKeyDao
+import com.rcq.messenger.data.db.PendingOutboxDao
 
 @Database(
     entities = [
@@ -23,9 +24,10 @@ import com.rcq.messenger.data.db.SignalKeyDao
         StoryEntity::class,
         StoryItemEntity::class,
         CallEntity::class,
-        SignalKeyEntity::class
+        SignalKeyEntity::class,
+        PendingOutboxEntity::class
     ],
-    version = 12,
+    version = 13,
     exportSchema = false
 )
 @TypeConverters(RoomTypeConverters::class)
@@ -38,6 +40,7 @@ abstract class RCQDatabase : RoomDatabase() {
     abstract fun storyDao(): StoryDao
     abstract fun callDao(): CallDao
     abstract fun signalKeyDao(): SignalKeyDao
+    abstract fun pendingOutboxDao(): PendingOutboxDao
 
     companion object {
         val MIGRATION_6_7 = object : Migration(6, 7) {
@@ -149,6 +152,25 @@ abstract class RCQDatabase : RoomDatabase() {
             override fun migrate(database: SupportSQLiteDatabase) {
                 database.execSQL("ALTER TABLE contacts ADD COLUMN identityKey TEXT")
                 database.execSQL("ALTER TABLE contacts ADD COLUMN signingKey TEXT")
+            }
+        }
+
+
+        val MIGRATION_12_13 = object : Migration(12, 13) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("""
+                    CREATE TABLE IF NOT EXISTS pending_outbox (
+                        localId TEXT NOT NULL PRIMARY KEY,
+                        chatId TEXT NOT NULL,
+                        recipientUin INTEGER NOT NULL,
+                        isGroup INTEGER NOT NULL DEFAULT 0,
+                        plainContent TEXT NOT NULL,
+                        messageKind TEXT NOT NULL DEFAULT 'TEXT',
+                        retryCount INTEGER NOT NULL DEFAULT 0,
+                        maxRetries INTEGER NOT NULL DEFAULT 5,
+                        createdAt INTEGER NOT NULL DEFAULT 0
+                    )
+                """.trimIndent())
             }
         }
 

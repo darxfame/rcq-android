@@ -215,7 +215,8 @@ class ChatRepository @Inject constructor(
     private val groupDao: com.rcq.messenger.data.db.GroupDao,
     private val webSocketService: WebSocketService,
     private val cryptoService: CryptoService,
-    private val notificationHelper: com.rcq.messenger.service.NotificationHelper
+    private val notificationHelper: com.rcq.messenger.service.NotificationHelper,
+    private val outboxDao: PendingOutboxDao
 ) {
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     @Volatile private var currentUserUin: Long = 0L
@@ -495,23 +496,41 @@ class ChatRepository @Inject constructor(
         return messageDao.getMessagesBefore(chatId, before, limit).map { it.toDomain() }
     }
 
-    suspend fun sendMessage(chatId: String, message: Message): Result<Message> = runCatching {
-        val optimisticEntity = message.toEntity().copy(status = "SENDING")
-        messageDao.insertMessage(optimisticEntity)
+    suspend fun sendMessage(chatId: String, message: Message): Result<Message> =
+        runCatching {
+            val optimisticEntity = message.toEntity().copy(status = "SENDING")
+            messageDao.insertMessage(optimisticEntity)
 
-        // Groups are stored in GroupDao; direct chats have "direct_$uin" format
-        val groupEntity = if (!chatId.startsWith("direct_")) groupDao.getGroup(chatId) else null
-        if (groupEntity != null) {
-            sendGroupMessage(chatId, message, groupEntity, optimisticEntity)
-        } else {
-            val chat = chatDao.getChat(chatId)
-            if (chat == null) {
-                messageDao.updateMessage(optimisticEntity.copy(status = "FAILED"))
-                throw Exception("Chat not found: $chatId")
+            val groupEntity = if (!chatId.startsWith("direct_")) groupDao.getGroup(chatId) else null
+            if (groupEntity != null) {
+                sendGroupMessage(chatId, message, groupEntity, optimisticEntity)
+            } else {
+                val chat = chatDao.getChat(chatId)
+                if (chat == null) {
+                    messageDao.updateMessage(optimisticEntity.copy(status = "FAILED"))
+                    throw Exception("Chat not found: $chatId")
+                }
+                sendDirectMessage(message, chat.targetId, optimisticEntity)
             }
-            sendDirectMessage(message, chat.targetId, optimisticEntity)
+        }.onFailure { e ->
+            if (e is java.io.IOException) {
+                val recipientUin = chatDao.getChat(chatId)?.targetId ?: 0L
+                if (recipientUin != 0L) {
+                    outboxDao.insert(
+                        PendingOutboxEntity(
+                            localId = message.id,
+                            chatId = chatId,
+                            recipientUin = recipientUin,
+                            plainContent = message.content,
+                            messageKind = message.kind.name,
+                            createdAt = System.currentTimeMillis()
+                        )
+                    )
+                    messageDao.updateMessageStatus(message.id, "PENDING")
+                    Log.d("ChatRepository", "Queued ${message.id} to outbox (network unavailable)")
+                }
+            }
         }
-    }
 
     private suspend fun sendDirectMessage(
         message: Message,
@@ -560,7 +579,7 @@ class ChatRepository @Inject constructor(
                 messageDao.insertMessage(sentEntity)
                 message.copy(id = finalId, status = MessageStatus.SENT)
             } else {
-                messageDao.updateMessage(optimisticEntity.copy(status = "FAILED"))
+                messageDao.updateMessage(optimisticEntity.copy(status = "PENDING"))
                 throw Exception("Send failed: ${response.code()}")
             }
         }

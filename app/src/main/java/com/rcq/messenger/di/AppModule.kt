@@ -8,6 +8,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import androidx.room.Room
 import com.rcq.messenger.data.api.RCQApiService
 import com.rcq.messenger.data.db.*
+import com.rcq.messenger.domain.model.PendingOutboxEntity
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -88,7 +89,8 @@ object AppModule {
             RCQDatabase.MIGRATION_8_9,
             RCQDatabase.MIGRATION_9_10,
             RCQDatabase.MIGRATION_10_11,
-            RCQDatabase.MIGRATION_11_12
+            RCQDatabase.MIGRATION_11_12,
+            RCQDatabase.MIGRATION_12_13
         ).build()
     }
 
@@ -112,6 +114,9 @@ object AppModule {
 
     @Provides
     fun provideCallDao(database: RCQDatabase): CallDao = database.callDao()
+
+    @Provides
+    fun providePendingOutboxDao(database: RCQDatabase): PendingOutboxDao = database.pendingOutboxDao()
 
     @Provides
     fun provideSignalKeyDao(database: RCQDatabase): com.rcq.messenger.data.db.SignalKeyDao = database.signalKeyDao()
