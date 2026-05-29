@@ -82,6 +82,11 @@ class Session(context: Context) {
     @Volatile
     private var started = false
 
+    // True once the WebSocket has connected at least once; gates the
+    // reconnect-driven graph resync so the initial launch doesn't double up.
+    @Volatile
+    private var everConnected = false
+
     init {
         if (store.isRegistered) {
             api.setToken(store.token)
@@ -126,12 +131,30 @@ class Session(context: Context) {
             uin = uin,
             token = token,
             onEvent = ::handleEvent,
-            onState = { _connected.value = it },
+            onState = { up ->
+                _connected.value = up
+                if (up) {
+                    // A reconnect (after an offline gap) re-pulls the graph so
+                    // a roster that failed to load earlier recovers without a
+                    // cold start. The first connect is skipped — start() below
+                    // already kicked the initial load.
+                    if (everConnected) syncGraph()
+                    everConnected = true
+                }
+            },
         )
-        scope.launch { runCatching { drainQueue() } }
-        scope.launch { runCatching { refreshContacts() } }
-        scope.launch { runCatching { refreshPending() } }
-        scope.launch { runCatching { refreshGroups() } }
+        syncGraph()
+    }
+
+    /** Pull the contact graph + offline queue, each retried and
+     *  soft-failing independently. A transient failure at launch used to
+     *  strand the UI with an empty roster until the next cold start; the
+     *  retry (and the reconnect-driven re-call) make it recover on its own. */
+    private fun syncGraph() {
+        scope.launch { runCatching { withRetry { drainQueue() } } }
+        scope.launch { runCatching { withRetry { refreshContacts() } } }
+        scope.launch { runCatching { withRetry { refreshPending() } } }
+        scope.launch { runCatching { withRetry { refreshGroups() } } }
     }
 
     fun stop() = socket.disconnect()
@@ -322,7 +345,7 @@ class Session(context: Context) {
         val me = store.uin ?: return
         val group = group(groupId) ?: return
         try {
-            val resp = withSendRetry {
+            val resp = withRetry {
                 val payloads = group.members
                     .filter { it.uin != me && it.identityKey.isNotEmpty() }
                     .map { m ->
@@ -444,7 +467,7 @@ class Session(context: Context) {
 
     private suspend fun sendEnvelope(env: Envelope, id: String, toUin: Int) {
         try {
-            val resp = withSendRetry {
+            val resp = withRetry {
                 val payload = SealedSender.encryptV1(
                     envelope = env,
                     recipientIdentityPub = recipientKey(toUin),
@@ -461,30 +484,30 @@ class Session(context: Context) {
     }
 
     /**
-     * Sends fail *transiently* far more often than they fail for real: a
-     * stale keep-alive socket the server already closed (the classic
-     * "first POST after idle resets, the very next one works"), a DNS
-     * blip, a momentary 5xx from a backend worker. A single attempt then
-     * a permanent FAILED is exactly why a message "sometimes needs a
-     * manual tap-to-retry" — the manual resend only works because the bad
-     * pooled connection got evicted in the meantime. So retry that
-     * automatically: a few quick attempts with backoff before surfacing
-     * FAILED. Safe against duplicates — the envelope UUID is stable across
-     * attempts, so the recipient's INSERT-OR-IGNORE dedups any blob that
-     * actually landed before a lost response.
+     * Network calls fail *transiently* far more often than they fail for
+     * real: a stale keep-alive socket the server already closed (the
+     * classic "first POST after idle resets, the very next one works"), a
+     * DNS blip, a momentary 5xx from a backend worker. A single attempt
+     * then giving up is why a message "sometimes needs a manual
+     * tap-to-retry" — and why the contact roster sometimes comes up empty
+     * until the next cold start. So retry automatically: a few quick
+     * attempts with backoff. For sends this is duplicate-safe — the
+     * envelope UUID is stable across attempts, so the recipient's
+     * INSERT-OR-IGNORE dedups any blob that landed before a lost response;
+     * for idempotent GETs (roster, queue) a retry is free.
      */
-    private suspend fun <T> withSendRetry(attempts: Int = 3, block: suspend () -> T): T {
+    private suspend fun <T> withRetry(attempts: Int = 3, block: suspend () -> T): T {
         var last: Exception? = null
         repeat(attempts) { i ->
             try {
                 return block()
             } catch (e: Exception) {
                 last = e
-                android.util.Log.w("RCQsend", "send attempt ${i + 1}/$attempts failed: ${e.javaClass.simpleName}: ${e.message}")
+                android.util.Log.w("RCQnet", "attempt ${i + 1}/$attempts failed: ${e.javaClass.simpleName}: ${e.message}")
                 if (i < attempts - 1) delay(300L * (i + 1) * (i + 1)) // 300ms, then 1.2s
             }
         }
-        throw last ?: IllegalStateException("send failed")
+        throw last ?: IllegalStateException("request failed")
     }
 
     /** React to [target] with [emoji]: optimistic local add (deduped) then
@@ -506,7 +529,7 @@ class Session(context: Context) {
      *  Reuses the send-retry but tracks no delivery state. */
     private suspend fun sendControl(toUin: Int, env: Envelope) {
         runCatching {
-            withSendRetry {
+            withRetry {
                 val payload = SealedSender.encryptV1(
                     envelope = env,
                     recipientIdentityPub = recipientKey(toUin),
@@ -538,7 +561,7 @@ class Session(context: Context) {
                         ),
                     )
                 }
-            if (payloads.isNotEmpty()) withSendRetry { api.sendGroupSealed(groupId, payloads) }
+            if (payloads.isNotEmpty()) withRetry { api.sendGroupSealed(groupId, payloads) }
         }
     }
 
