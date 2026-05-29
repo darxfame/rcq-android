@@ -187,7 +187,7 @@ util/         - Utility functions and extensions
 ### Git Workflow
 - Main development on `phase-1-core-messaging` branch
 - Commit messages in Russian (project requirement)
-- Push changes after each completed task
+- **ОБЯЗАТЕЛЬНО:** После каждого коммита НЕМЕДЛЕННО пушить: `git push origin phase-1-core-messaging`
 - Use conventional commit format when possible
 
 ## Project Status
