@@ -52,6 +52,14 @@ sealed interface Envelope {
         val sizeBytes: Long,
         val caption: String?,
     ) : Envelope
+    /** Voice note (iOS kind "voice"). Audio bytes live in an encrypted
+     *  blob; [durationSec] drives the bubble timer. */
+    data class Voice(
+        val id: String,
+        val mediaId: String,
+        val mediaKey: String,
+        val durationSec: Double,
+    ) : Envelope
     data class Unknown(val kind: String) : Envelope
 
     /** Serialize to the exact JSON bytes that get signed and shipped.
@@ -104,6 +112,13 @@ sealed interface Envelope {
             addProperty("size", sizeBytes)
             if (!caption.isNullOrEmpty()) addProperty("caption", caption)
         }.toString().toByteArray(Charsets.UTF_8)
+        is Voice -> JsonObject().apply {
+            addProperty("kind", "voice")
+            addProperty("id", id)
+            addProperty("mediaID", mediaId)
+            addProperty("mediaKey", mediaKey)
+            addProperty("durationSec", durationSec)
+        }.toString().toByteArray(Charsets.UTF_8)
         is Unknown -> JsonObject().apply { addProperty("kind", kind) }
             .toString().toByteArray(Charsets.UTF_8)
     }
@@ -125,6 +140,9 @@ sealed interface Envelope {
 
         fun file(mediaId: String, mediaKey: String, fileName: String, mime: String, sizeBytes: Long, caption: String?): File =
             File(UUID.randomUUID().toString().uppercase(), mediaId, mediaKey, fileName, mime, sizeBytes, caption)
+
+        fun voice(mediaId: String, mediaKey: String, durationSec: Double): Voice =
+            Voice(UUID.randomUUID().toString().uppercase(), mediaId, mediaKey, durationSec)
 
         fun fromJsonBytes(bytes: ByteArray): Envelope {
             val obj = JsonParser.parseString(String(bytes, Charsets.UTF_8)).asJsonObject
@@ -164,6 +182,12 @@ sealed interface Envelope {
                     mime = obj.get("mime")?.asString ?: "application/octet-stream",
                     sizeBytes = obj.get("size")?.asLong ?: 0L,
                     caption = obj.get("caption")?.asString,
+                )
+                "voice" -> Voice(
+                    id = id,
+                    mediaId = obj.get("mediaID")?.asString.orEmpty(),
+                    mediaKey = obj.get("mediaKey")?.asString.orEmpty(),
+                    durationSec = obj.get("durationSec")?.asDouble ?: 0.0,
                 )
                 else -> Unknown(kind ?: "unknown")
             }

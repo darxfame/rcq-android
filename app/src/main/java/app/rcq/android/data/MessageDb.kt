@@ -40,7 +40,8 @@ class MessageDb(context: Context) : SQLiteOpenHelper(context.applicationContext,
               edited     INTEGER NOT NULL DEFAULT 0,
               file_name  TEXT,
               file_mime  TEXT,
-              file_size  INTEGER
+              file_size  INTEGER,
+              duration_sec INTEGER
             )
             """.trimIndent()
         )
@@ -77,6 +78,9 @@ class MessageDb(context: Context) : SQLiteOpenHelper(context.applicationContext,
             db.execSQL("ALTER TABLE messages ADD COLUMN file_mime TEXT")
             db.execSQL("ALTER TABLE messages ADD COLUMN file_size INTEGER")
         }
+        if (oldVersion < 9) {
+            db.execSQL("ALTER TABLE messages ADD COLUMN duration_sec INTEGER")
+        }
     }
 
     /** Insert; returns true if it was new (false if the UUID already existed). */
@@ -100,6 +104,7 @@ class MessageDb(context: Context) : SQLiteOpenHelper(context.applicationContext,
             put("file_name", msg.fileName)
             put("file_mime", msg.fileMime)
             put("file_size", msg.fileSize)
+            put("duration_sec", msg.durationSec)
         }
         val rowId = writableDatabase.insertWithOnConflict(
             "messages", null, values, SQLiteDatabase.CONFLICT_IGNORE,
@@ -135,7 +140,7 @@ class MessageDb(context: Context) : SQLiteOpenHelper(context.applicationContext,
     fun all(): List<ChatMessage> {
         val out = ArrayList<ChatMessage>()
         readableDatabase.rawQuery(
-            "SELECT id, peer_uin, from_me, body, sent_at, state, kind, media_id, media_key, reply_snippet, reply_author, group_id, sender_uin, reactions, edited, file_name, file_mime, file_size FROM messages ORDER BY sent_at ASC", null,
+            "SELECT id, peer_uin, from_me, body, sent_at, state, kind, media_id, media_key, reply_snippet, reply_author, group_id, sender_uin, reactions, edited, file_name, file_mime, file_size, duration_sec FROM messages ORDER BY sent_at ASC", null,
         ).use { c ->
             while (c.moveToNext()) {
                 out.add(
@@ -158,6 +163,7 @@ class MessageDb(context: Context) : SQLiteOpenHelper(context.applicationContext,
                         fileName = c.getString(15),
                         fileMime = c.getString(16),
                         fileSize = if (c.isNull(17)) null else c.getLong(17),
+                        durationSec = if (c.isNull(18)) null else c.getInt(18),
                     )
                 )
             }
@@ -167,7 +173,7 @@ class MessageDb(context: Context) : SQLiteOpenHelper(context.applicationContext,
 
     private companion object {
         const val NAME = "rcq-messages.db"
-        const val VERSION = 8
+        const val VERSION = 9
         // Delimiter for the joined reactions column; not a valid emoji char.
         const val REACTION_DELIM = "\u0001"
     }

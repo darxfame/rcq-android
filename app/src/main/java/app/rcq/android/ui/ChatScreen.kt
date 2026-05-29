@@ -1,13 +1,16 @@
 package app.rcq.android.ui
 
+import android.Manifest
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.provider.OpenableColumns
+import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -39,7 +42,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AddPhotoAlternate
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -70,11 +77,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.rcq.android.Session
 import app.rcq.android.crypto.Reply
+import app.rcq.android.media.VoiceRecorder
 import app.rcq.android.model.ChatMessage
 import app.rcq.android.model.DeliveryState
 import app.rcq.android.model.UserStatus
 import java.io.ByteArrayOutputStream
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -139,6 +148,34 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
             }
         }
     }
+
+    // ── voice recording ──────────────────────────────────────────────
+    val recorder = remember { VoiceRecorder(context.cacheDir) }
+    var recording by remember { mutableStateOf(false) }
+    var recElapsed by remember { mutableStateOf(0) }
+    LaunchedEffect(recording) {
+        if (recording) { recElapsed = 0; while (true) { delay(1000); recElapsed++ } }
+    }
+    DisposableEffect(Unit) { onDispose { recorder.cancel() } }
+    fun startRecording() { if (runCatching { recorder.start() }.isSuccess) recording = true }
+    val micPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) startRecording()
+    }
+    fun onMic() {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) startRecording()
+        else micPermission.launch(Manifest.permission.RECORD_AUDIO)
+    }
+    fun stopAndSendVoice() {
+        recording = false
+        val res = recorder.stop() ?: return
+        scope.launch {
+            runCatching {
+                if (isGroup) session.sendGroupVoice(groupId!!, res.first, res.second)
+                else session.sendVoice(peer!!, res.first, res.second)
+            }
+        }
+    }
+    fun cancelRecording() { recording = false; recorder.cancel() }
 
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) listState.animateScrollToItem(messages.size - 1)
@@ -249,6 +286,11 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
                         }
                     }
                 },
+                recording = recording,
+                recElapsed = recElapsed,
+                onMic = { onMic() },
+                onStopVoice = { stopAndSendVoice() },
+                onCancelVoice = { cancelRecording() },
             )
         }
     }
@@ -344,8 +386,43 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
 }
 
 @Composable
-private fun Composer(draft: String, accentColor: Color, onDraftChange: (String) -> Unit, onAttach: () -> Unit, onSend: () -> Unit) {
+private fun Composer(
+    draft: String,
+    accentColor: Color,
+    onDraftChange: (String) -> Unit,
+    onAttach: () -> Unit,
+    onSend: () -> Unit,
+    recording: Boolean,
+    recElapsed: Int,
+    onMic: () -> Unit,
+    onStopVoice: () -> Unit,
+    onCancelVoice: () -> Unit,
+) {
     val c = RcqTheme.colors
+    if (recording) {
+        // Recording bar: cancel · ● rec timer · send.
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Icon(
+                Icons.Filled.Close, "Cancel", tint = c.textSecondary,
+                modifier = Modifier.size(40.dp).clip(CircleShape).clickable(onClick = onCancelVoice).padding(8.dp),
+            )
+            Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Box(Modifier.size(10.dp).clip(CircleShape).background(Color(0xFFE5484D)))
+                Text("Recording  ${formatDuration(recElapsed)}", color = c.textPrimary, fontSize = 15.sp)
+            }
+            Box(
+                Modifier.size(40.dp).clip(CircleShape).background(c.accent).clickable(onClick = onStopVoice),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Icons.AutoMirrored.Filled.Send, "Send", tint = Color.White, modifier = Modifier.size(20.dp))
+            }
+        }
+        return
+    }
     Row(
         Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
         verticalAlignment = Alignment.Bottom,
@@ -371,13 +448,21 @@ private fun Composer(draft: String, accentColor: Color, onDraftChange: (String) 
         val canSend = draft.isNotBlank()
         Box(
             Modifier.size(40.dp).clip(CircleShape).background(if (canSend) c.accent else c.bgSecondary)
-                .clickable(enabled = canSend, onClick = onSend),
+                .clickable(onClick = { if (canSend) onSend() else onMic() }),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(Icons.AutoMirrored.Filled.Send, "Send", tint = if (canSend) Color.White else c.textSecondary, modifier = Modifier.size(20.dp))
+            Icon(
+                if (canSend) Icons.AutoMirrored.Filled.Send else Icons.Filled.Mic,
+                if (canSend) "Send" else "Record voice",
+                tint = if (canSend) Color.White else c.textSecondary,
+                modifier = Modifier.size(20.dp),
+            )
         }
     }
 }
+
+/** m:ss for a duration in seconds. */
+private fun formatDuration(sec: Int): String = "%d:%02d".format(sec / 60, sec % 60)
 
 @Composable
 private fun MessageAction(label: String, danger: Boolean = false, onClick: () -> Unit) {
@@ -392,6 +477,7 @@ private fun MessageAction(label: String, danger: Boolean = false, onClick: () ->
 private fun previewOf(m: ChatMessage): String = when (m.kind) {
     "photo" -> "📷 Photo"
     "file" -> "📎 ${m.fileName ?: "File"}"
+    "voice" -> "🎤 Voice"
     else -> m.body.take(100)
 }
 
@@ -414,6 +500,8 @@ private fun MessageBubble(session: Session, m: ChatMessage, senderName: String?,
             }
         } else if (m.kind == "file") {
             FileBubble(session, m, onLongPress)
+        } else if (m.kind == "voice") {
+            VoiceBubble(session, m, onLongPress)
         } else {
             Column(
                 Modifier
@@ -508,6 +596,55 @@ private fun FileBubble(session: Session, m: ChatMessage, onLongPress: () -> Unit
             Text(m.fileName ?: "file", color = c.textPrimary, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(formatFileSize(m.fileSize ?: 0L), color = c.textSecondary, fontSize = 11.sp)
         }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun VoiceBubble(session: Session, m: ChatMessage, onLongPress: () -> Unit) {
+    val c = RcqTheme.colors
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var playing by remember { mutableStateOf(false) }
+    val player = remember { android.media.MediaPlayer() }
+    DisposableEffect(Unit) { onDispose { runCatching { player.release() } } }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(if (m.fromMe) c.bubbleSelf else c.bubbleOther)
+            .combinedClickable(
+                onClick = {
+                    if (playing) {
+                        runCatching { player.pause() }
+                        playing = false
+                    } else {
+                        val mid = m.mediaId; val key = m.mediaKey
+                        if (mid != null && key != null) scope.launch {
+                            val bytes = session.fetchImage(mid, key) ?: return@launch
+                            runCatching {
+                                val f = java.io.File(context.cacheDir, "voice-${m.id}.m4a")
+                                if (!f.exists() || f.length() == 0L) f.writeBytes(bytes)
+                                player.reset()
+                                player.setDataSource(f.absolutePath)
+                                player.setOnCompletionListener { playing = false }
+                                player.prepare()
+                                player.start()
+                                playing = true
+                            }
+                        }
+                    }
+                },
+                onLongClick = onLongPress,
+            )
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+    ) {
+        Icon(
+            if (playing) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+            "Play voice", tint = c.accent, modifier = Modifier.size(26.dp),
+        )
+        Text("🎤 ${formatDuration(m.durationSec ?: 0)}", color = c.textPrimary, fontSize = 14.sp)
     }
 }
 

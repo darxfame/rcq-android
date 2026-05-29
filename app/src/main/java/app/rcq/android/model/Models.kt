@@ -50,4 +50,5 @@ data class ChatMessage(
     val fileName: String? = null, // kind == "file": original name
     val fileMime: String? = null, // kind == "file": MIME type
     val fileSize: Long? = null,   // kind == "file": size in bytes
+    val durationSec: Int? = null, // kind == "voice": clip length in seconds
 )
