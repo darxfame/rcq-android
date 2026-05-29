@@ -363,7 +363,7 @@ class ChatViewModel @Inject constructor(
             val oldest = _messages.value.minByOrNull { it.timestamp } ?: return@launch
             val more = chatRepository.loadMoreMessages(chatId, oldest.timestamp)
             _messages.value = (_messages.value + more).distinctBy { it.id }
-                .sortedByDescending { it.timestamp }
+                .sortedBy { it.timestamp }
         }
     }
 }

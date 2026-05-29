@@ -4,7 +4,11 @@ import android.util.Log
 import com.rcq.messenger.data.api.*
 import com.rcq.messenger.data.db.*
 import com.rcq.messenger.domain.model.*
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import com.rcq.messenger.di.PreferencesKeys
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -12,12 +16,18 @@ import javax.inject.Singleton
 @Singleton
 class GroupRepository @Inject constructor(
     private val api: RCQApiService,
-    private val groupDao: GroupDao
+    private val groupDao: GroupDao,
+    private val dataStore: DataStore<Preferences>
 ) {
     companion object { private const val TAG = "GroupRepository" }
 
-    fun getGroups(): Flow<List<Group>> = groupDao.getGroups().map { entities ->
-        entities.map { it.toDomain() }
+    fun getGroups(): Flow<List<Group>> = combine(
+        groupDao.getGroups(),
+        dataStore.data.map { it[PreferencesKeys.USER_UIN] ?: 0L }
+    ) { entities, ownUin ->
+        entities
+            .filter { ownUin == 0L || ownUin in it.memberIds }
+            .map { it.toDomain() }
     }
 
     suspend fun syncGroups(): Result<Unit> = runCatching {
