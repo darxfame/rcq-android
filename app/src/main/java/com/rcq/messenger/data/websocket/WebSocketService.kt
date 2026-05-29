@@ -1,9 +1,15 @@
 package com.rcq.messenger.data.websocket
 
+import android.content.Context
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import android.util.Log
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import com.rcq.messenger.di.PreferencesKeys
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlinx.serialization.json.*
@@ -161,6 +167,7 @@ class ReconnectStrategy(
 
 @Singleton
 class WebSocketService @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val dataStore: DataStore<Preferences>
 ) {
     companion object {
@@ -178,6 +185,38 @@ class WebSocketService @Inject constructor(
     @Volatile
     private var intentionalDisconnect = false
     private val reconnectStrategy = ReconnectStrategy()
+
+    // Shared OkHttpClient — reused across reconnects to avoid thread pool leaks
+    private val okHttpClient = OkHttpClient.Builder()
+        .readTimeout(0, TimeUnit.MILLISECONDS)
+        .pingInterval(PING_INTERVAL_SECONDS, TimeUnit.SECONDS)
+        .build()
+
+    // Reconnect immediately when network becomes available
+    private val networkCallback = object : ConnectivityManager.NetworkCallback() {
+        override fun onAvailable(network: Network) {
+            Log.d(TAG, "Network available — triggering reconnect")
+            if (!intentionalDisconnect &&
+                _connectionState.value != ConnectionState.CONNECTED &&
+                _connectionState.value != ConnectionState.CONNECTING
+            ) {
+                reconnectJob?.cancel()
+                reconnectStrategy.reset()
+                scope.launch {
+                    _connectionState.value = ConnectionState.CONNECTING
+                    createWebSocket()
+                }
+            }
+        }
+    }
+
+    init {
+        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val req = NetworkRequest.Builder()
+            .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            .build()
+        cm.registerNetworkCallback(req, networkCallback)
+    }
 
     private val _connectionState = MutableStateFlow(ConnectionState.DISCONNECTED)
     val connectionState: StateFlow<ConnectionState> = _connectionState.asStateFlow()
@@ -244,16 +283,11 @@ class WebSocketService @Inject constructor(
         val wsUrl = "$WS_BASE_URL/$uin?token=$token"
         Log.d(TAG, "Connecting WebSocket: $wsUrl")
 
-        val client = OkHttpClient.Builder()
-            .readTimeout(0, TimeUnit.MILLISECONDS)
-            .pingInterval(PING_INTERVAL_SECONDS, TimeUnit.SECONDS)
-            .build()
-
         val request = Request.Builder()
             .url(wsUrl)
             .build()
 
-        webSocket = client.newWebSocket(request, object : WebSocketListener() {
+        webSocket = okHttpClient.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
                 Log.d(TAG, "WebSocket connected")
                 _connectionState.value = ConnectionState.CONNECTED

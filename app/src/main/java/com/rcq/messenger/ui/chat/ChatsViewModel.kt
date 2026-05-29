@@ -128,7 +128,7 @@ class ChatViewModel @Inject constructor(
         // Observe DB flow — doesn't block, sets loading false on first emission
         messagesJob = chatRepository.getMessages(chatId)
             .onEach { msgs ->
-                _messages.value = msgs.sortedByDescending { it.timestamp }
+                _messages.value = msgs.sortedBy { it.timestamp }
                 _isLoading.value = false
             }
             .launchIn(viewModelScope)

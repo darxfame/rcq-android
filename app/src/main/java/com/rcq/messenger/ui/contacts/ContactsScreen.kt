@@ -31,10 +31,14 @@ import com.rcq.messenger.domain.model.Contact
 import com.rcq.messenger.domain.model.Group
 import com.rcq.messenger.ui.theme.*
 import dagger.hilt.android.lifecycle.HiltViewModel
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import com.rcq.messenger.di.PreferencesKeys
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -46,14 +50,21 @@ class ContactsViewModel @Inject constructor(
     private val chatRepository: ChatRepository,
     private val userRepository: UserRepository,
     private val contactDao: ContactDao,
-    private val groupRepository: GroupRepository
+    private val groupRepository: GroupRepository,
+    private val dataStore: DataStore<Preferences>
 ) : ViewModel() {
 
     val contacts: StateFlow<List<Contact>> = contactRepository.getContacts()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val groups: StateFlow<List<Group>> = groupRepository.getGroups()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    // Only show groups where the current user is a member
+    val groups: StateFlow<List<Group>> = combine(
+        groupRepository.getGroups(),
+        dataStore.data.map { it[PreferencesKeys.USER_UIN] ?: 0L }
+    ) { allGroups, ownUin ->
+        if (ownUin == 0L) emptyList()
+        else allGroups.filter { it.memberIds.contains(ownUin) }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val pendingRequestsCount: StateFlow<Int> = contactRepository.pendingRequests
         .map { it.size }
