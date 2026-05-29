@@ -8,7 +8,6 @@ import androidx.datastore.preferences.preferencesDataStore
 import androidx.room.Room
 import com.rcq.messenger.data.api.RCQApiService
 import com.rcq.messenger.data.db.*
-import com.rcq.messenger.data.ws.WebSocketManager
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -88,7 +87,8 @@ object AppModule {
             RCQDatabase.MIGRATION_7_8,
             RCQDatabase.MIGRATION_8_9,
             RCQDatabase.MIGRATION_9_10,
-            RCQDatabase.MIGRATION_10_11
+            RCQDatabase.MIGRATION_10_11,
+            RCQDatabase.MIGRATION_11_12
         ).build()
     }
 
@@ -114,16 +114,8 @@ object AppModule {
     fun provideCallDao(database: RCQDatabase): CallDao = database.callDao()
 
     @Provides
-    fun providePetDao(database: RCQDatabase): PetDao = database.petDao()
-
-    @Provides
     fun provideSignalKeyDao(database: RCQDatabase): com.rcq.messenger.data.db.SignalKeyDao = database.signalKeyDao()
 
-    @Provides
-    @Singleton
-    fun provideWebSocketManager(okHttpClient: OkHttpClient, json: Json): WebSocketManager {
-        return WebSocketManager(okHttpClient, json)
-    }
 
     @Provides
     @Singleton

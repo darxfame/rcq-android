@@ -29,8 +29,6 @@ import com.rcq.messenger.ui.common.BottomNavBar
 import com.rcq.messenger.ui.stories.*
 import com.rcq.messenger.ui.calls.*
 import com.rcq.messenger.ui.audio.AudioRoomsScreen
-import com.rcq.messenger.ui.games.GamesScreen
-import com.rcq.messenger.ui.market.MarketplaceScreen
 import com.rcq.messenger.ui.settings.SettingsScreen
 import com.rcq.messenger.ui.profile.ProfileScreen
 import com.rcq.messenger.ui.calls.CallScreen
@@ -45,7 +43,6 @@ sealed class Screen(
     data object Contacts : Screen("contacts", "Contacts", Icons.Filled.Person, Icons.Outlined.Person)
     data object AudioRooms : Screen("audio_rooms", "Rooms", Icons.Filled.Mic, Icons.Outlined.Mic)
     data object Stories : Screen("stories", "Stories", Icons.Filled.Circle, Icons.Outlined.Circle)
-    data object Games : Screen("games", "Games", Icons.Filled.SportsEsports, Icons.Outlined.SportsEsports)
     data object Settings : Screen("settings", "Settings", Icons.Filled.Settings, Icons.Outlined.Settings)
 }
 
@@ -62,16 +59,12 @@ object Routes {
     const val CALL = "call/{callId}"
     const val GROUP = "group/{groupId}"
     const val STORY_VIEWER = "story/{userId}"
-    const val MARKETPLACE_ITEM = "marketplace/{itemId}"
-    const val GAME = "game/{gameType}"
     const val USER_PROFILE = "profile/{userId}"
 
     fun chat(chatId: String) = "chat/$chatId"
     fun call(callId: String) = "call/$callId"
     fun group(groupId: String) = "group/$groupId"
     fun storyViewer(userId: Long) = "story/$userId"
-    fun marketplaceItem(itemId: String) = "marketplace/$itemId"
-    fun game(gameType: String) = "game/$gameType"
     fun userProfile(userId: Long) = "profile/$userId"
 }
 
@@ -221,16 +214,6 @@ fun MainScaffold(
             composable("story/{userId}") { backStackEntry ->
                 val userId = backStackEntry.arguments?.getString("userId")?.toLongOrNull() ?: return@composable
                 StoryViewerScreen(userId = userId, onBack = { navController.popBackStack() })
-            }
-            composable("games") {
-                GamesScreen(
-                    onGameClick = { gameType: String -> navController.navigate("game/$gameType") }
-                )
-            }
-            composable("marketplace") {
-                MarketplaceScreen(
-                    onItemClick = { itemId -> navController.navigate(Routes.marketplaceItem(itemId)) }
-                )
             }
         }
     }

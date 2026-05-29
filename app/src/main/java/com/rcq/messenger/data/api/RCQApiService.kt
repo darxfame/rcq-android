@@ -219,16 +219,6 @@ interface RCQApiService {
     @POST("games/{type}/cashout")
     suspend fun cashout(@Path("type") gameType: GameType): Response<Bet>
 
-    // Pets
-    @GET("pets")
-    suspend fun getUserPets(): Response<List<Pet>>
-
-    @POST("pets/{id}/equip")
-    suspend fun equipPet(@Path("id") petId: String): Response<Unit>
-
-    @POST("pets/{id}/unequip")
-    suspend fun unequipPet(@Path("id") petId: String): Response<Unit>
-
     // Nearby
     @GET("nearby")
     suspend fun getNearbyUsers(

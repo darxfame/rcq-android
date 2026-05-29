@@ -11,7 +11,6 @@ import com.rcq.messenger.data.db.MessageDao
 import com.rcq.messenger.data.db.GroupDao
 import com.rcq.messenger.data.db.StoryDao
 import com.rcq.messenger.data.db.CallDao
-import com.rcq.messenger.data.db.PetDao
 import com.rcq.messenger.data.db.SignalKeyDao
 
 @Database(
@@ -24,10 +23,9 @@ import com.rcq.messenger.data.db.SignalKeyDao
         StoryEntity::class,
         StoryItemEntity::class,
         CallEntity::class,
-        PetEntity::class,
         SignalKeyEntity::class
     ],
-    version = 11,
+    version = 12,
     exportSchema = false
 )
 @TypeConverters(RoomTypeConverters::class)
@@ -39,8 +37,6 @@ abstract class RCQDatabase : RoomDatabase() {
     abstract fun groupDao(): GroupDao
     abstract fun storyDao(): StoryDao
     abstract fun callDao(): CallDao
-    abstract fun petDao(): PetDao
-
     abstract fun signalKeyDao(): SignalKeyDao
 
     companion object {
@@ -153,6 +149,12 @@ abstract class RCQDatabase : RoomDatabase() {
             override fun migrate(database: SupportSQLiteDatabase) {
                 database.execSQL("ALTER TABLE contacts ADD COLUMN identityKey TEXT")
                 database.execSQL("ALTER TABLE contacts ADD COLUMN signingKey TEXT")
+            }
+        }
+
+        val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("DROP TABLE IF EXISTS pets")
             }
         }
     }

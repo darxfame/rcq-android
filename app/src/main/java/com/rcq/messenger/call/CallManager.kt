@@ -2,25 +2,23 @@ package com.rcq.messenger.call
 
 import android.content.Context
 import android.content.Intent
-import com.rcq.messenger.data.ws.WebSocketManager
-import com.rcq.messenger.domain.model.WebSocketEvent
+import com.rcq.messenger.data.websocket.WebSocketService
+import com.rcq.messenger.data.websocket.WsEvent
 import com.rcq.messenger.service.CallService
 import com.rcq.messenger.service.CallState
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.webrtc.IceCandidate
-import org.webrtc.SessionDescription
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class CallManager @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val webSocketManager: WebSocketManager,
+    private val webSocketService: WebSocketService,
     private val json: Json
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -39,12 +37,12 @@ class CallManager @Inject constructor(
 
     private fun observeWebSocketEvents() {
         scope.launch {
-            webSocketManager.eventFlow.collect { event ->
-                when (event.type) {
-                    WebSocketEvent.TYPE_CALL_OFFER -> handleCallOffer(event)
-                    WebSocketEvent.TYPE_CALL_ANSWER -> handleCallAnswer(event)
-                    WebSocketEvent.TYPE_CALL_ICE_CANDIDATE -> handleIceCandidate(event)
-                    WebSocketEvent.TYPE_CALL_END -> handleCallEnd(event)
+            webSocketService.events.collect { event ->
+                when (event) {
+                    is WsEvent.CallOffer -> handleCallOffer(event)
+                    is WsEvent.CallAnswer -> handleCallAnswer(event)
+                    is WsEvent.CallIceCandidate -> handleIceCandidate(event)
+                    is WsEvent.CallEnd -> handleCallEnd(event)
                     else -> {}
                 }
             }
@@ -60,184 +58,83 @@ class CallManager @Inject constructor(
             state = CallState.CONNECTING
         )
         _currentCall.value = callInfo
-
-        // Start CallService
-        val intent = Intent(context, CallService::class.java)
-        context.startService(intent)
-
-        // Send call offer via WebSocket
-        val offer = CallOfferData(
-            callId = callInfo.callId,
-            targetUin = targetUin,
-            isVideoCall = isVideoCall,
-            sdp = null // Will be set by WebRTC
+        context.startService(Intent(context, CallService::class.java))
+        webSocketService.sendMessage(
+            """{"type":"call_offer","call_id":"${callInfo.callId}","to_uin":$targetUin,"is_video":$isVideoCall}"""
         )
-
-        sendWebSocketMessage("call_offer", offer)
     }
 
     fun acceptCall(callId: String) {
-        val incoming = _incomingCall.value
-        if (incoming?.callId == callId) {
-            val callInfo = CallInfo(
-                callId = callId,
-                targetUin = incoming.callerUin,
-                isVideoCall = incoming.isVideoCall,
-                isOutgoing = false,
-                state = CallState.CONNECTING
-            )
-            _currentCall.value = callInfo
-            _incomingCall.value = null
-
-            // Start CallService
-            val intent = Intent(context, CallService::class.java)
-            context.startService(intent)
-
-            // Send answer via WebSocket
-            val answer = CallAnswerData(
-                callId = callId,
-                accepted = true,
-                sdp = null // Will be set by WebRTC
-            )
-
-            sendWebSocketMessage("call_answer", answer)
-        }
+        val incoming = _incomingCall.value ?: return
+        if (incoming.callId != callId) return
+        val callInfo = CallInfo(
+            callId = callId,
+            targetUin = incoming.callerUin,
+            isVideoCall = incoming.isVideoCall,
+            isOutgoing = false,
+            state = CallState.CONNECTING
+        )
+        _currentCall.value = callInfo
+        _incomingCall.value = null
+        context.startService(Intent(context, CallService::class.java))
+        webSocketService.sendMessage(
+            """{"type":"call_answer","call_id":"$callId","accepted":true}"""
+        )
     }
 
     fun declineCall(callId: String) {
         _incomingCall.value = null
-
-        val answer = CallAnswerData(
-            callId = callId,
-            accepted = false,
-            sdp = null
+        webSocketService.sendMessage(
+            """{"type":"call_answer","call_id":"$callId","accepted":false}"""
         )
-
-        sendWebSocketMessage("call_answer", answer)
     }
 
     fun endCall() {
-        val currentCall = _currentCall.value
-        if (currentCall != null) {
-            // Send end call message
-            val endCall = CallEndData(
-                callId = currentCall.callId,
-                reason = "user_hangup"
-            )
+        val call = _currentCall.value ?: return
+        webSocketService.sendMessage(
+            """{"type":"call_end","call_id":"${call.callId}","reason":"user_hangup"}"""
+        )
+        context.stopService(Intent(context, CallService::class.java))
+        _currentCall.value = null
+    }
 
-            sendWebSocketMessage("call_end", endCall)
+    private fun handleCallOffer(event: WsEvent.CallOffer) {
+        _incomingCall.value = IncomingCallInfo(
+            callId = event.callId,
+            callerUin = event.fromUin,
+            callerName = "User ${event.fromUin}",
+            isVideoCall = event.callType == "video",
+            timestamp = System.currentTimeMillis()
+        )
+    }
 
-            // Stop CallService
-            val intent = Intent(context, CallService::class.java)
-            context.stopService(intent)
+    private fun handleCallAnswer(event: WsEvent.CallAnswer) {
+        val call = _currentCall.value ?: return
+        if (call.callId != event.callId) return
+        _currentCall.value = call.copy(state = CallState.CONNECTED)
+    }
 
+    private fun handleIceCandidate(event: WsEvent.CallIceCandidate) {
+        val sdpMid = event.raw["sdp_mid"]?.toString()?.trim('"')
+        val sdpMLineIndex = event.raw["sdp_mline_index"]?.toString()?.toIntOrNull() ?: 0
+        val candidate = event.raw["candidate"]?.toString()?.trim('"') ?: return
+        callService?.addIceCandidate(IceCandidate(sdpMid, sdpMLineIndex, candidate))
+    }
+
+    private fun handleCallEnd(event: WsEvent.CallEnd) {
+        if (_currentCall.value?.callId == event.callId) {
+            context.stopService(Intent(context, CallService::class.java))
             _currentCall.value = null
         }
-    }
-
-    private fun handleCallOffer(event: WebSocketEvent) {
-        try {
-            val data = json.decodeFromString<Map<String, String>>(event.data ?: "{}")
-            val incomingCall = IncomingCallInfo(
-                callId = data["callId"] ?: "",
-                callerUin = data["fromUin"]?.toLongOrNull() ?: 0L,
-                callerName = "User ${data["fromUin"]}", // TODO: получить имя из UserRepository
-                isVideoCall = data["callType"] == "video",
-                timestamp = System.currentTimeMillis()
-            )
-            _incomingCall.value = incomingCall
-        } catch (e: Exception) {
-            // Log error parsing call offer
+        if (_incomingCall.value?.callId == event.callId) {
+            _incomingCall.value = null
         }
     }
 
-    private fun handleCallAnswer(event: WebSocketEvent) {
-        try {
-            val data = json.decodeFromString<Map<String, String>>(event.data ?: "{}")
-            val currentCall = _currentCall.value
-            val callId = data["callId"]
-            if (currentCall?.callId == callId) {
-                val accepted = data["accepted"]?.toBoolean() ?: false
-                if (accepted) {
-                    _currentCall.value = currentCall?.copy(state = CallState.CONNECTED)
-                } else {
-                    _currentCall.value = null
-                    // Stop CallService
-                    val intent = Intent(context, CallService::class.java)
-                    context.stopService(intent)
-                }
-            }
-        } catch (e: Exception) {
-            // Log error parsing call answer
-        }
-    }
+    private fun generateCallId() = "call_${System.currentTimeMillis()}_${(1000..9999).random()}"
 
-    private fun handleIceCandidate(event: WebSocketEvent) {
-        try {
-            val data = json.decodeFromString<Map<String, String>>(event.data ?: "{}")
-            val sdpMid = data["sdpMid"]
-            val sdpMLineIndex = data["sdpMLineIndex"]?.toIntOrNull() ?: 0
-            val candidate = data["candidate"]
-
-            if (candidate != null) {
-                callService?.addIceCandidate(
-                    IceCandidate(sdpMid, sdpMLineIndex, candidate)
-                )
-            }
-        } catch (e: Exception) {
-            // Log error parsing ICE candidate
-        }
-    }
-
-    private fun handleCallEnd(event: WebSocketEvent) {
-        try {
-            val data = json.decodeFromString<Map<String, String>>(event.data ?: "{}")
-            val callId = data["callId"]
-            val currentCall = _currentCall.value
-            if (currentCall?.callId == callId) {
-                _currentCall.value = null
-
-                // Stop CallService
-                val intent = Intent(context, CallService::class.java)
-                context.stopService(intent)
-            }
-
-            // Clear incoming call if it matches
-            val incomingCall = _incomingCall.value
-            if (incomingCall?.callId == callId) {
-                _incomingCall.value = null
-            }
-        } catch (e: Exception) {
-            // Log error parsing call end
-        }
-    }
-
-    private fun sendWebSocketMessage(type: String, data: Any) {
-        scope.launch {
-            try {
-                val dataJson = json.encodeToString(data)
-                val event = WebSocketEvent(
-                    type = type,
-                    data = dataJson
-                )
-                webSocketManager.sendMessage(event)
-            } catch (e: Exception) {
-                // Handle error
-            }
-        }
-    }
-
-    private fun generateCallId(): String {
-        return "call_${System.currentTimeMillis()}_${(1000..9999).random()}"
-    }
-
-    fun bindCallService(service: CallService) {
-        callService = service
-    }
-
-    fun unbindCallService() {
-        callService = null
-    }
+    fun bindCallService(service: CallService) { callService = service }
+    fun unbindCallService() { callService = null }
 }
 
 @Serializable
@@ -257,33 +154,4 @@ data class IncomingCallInfo(
     val callerName: String,
     val isVideoCall: Boolean,
     val timestamp: Long
-)
-
-@Serializable
-data class CallOfferData(
-    val callId: String,
-    val targetUin: Long,
-    val isVideoCall: Boolean,
-    val sdp: String?
-)
-
-@Serializable
-data class CallAnswerData(
-    val callId: String,
-    val accepted: Boolean,
-    val sdp: String?
-)
-
-@Serializable
-data class CallEndData(
-    val callId: String,
-    val reason: String
-)
-
-@Serializable
-data class IceCandidateData(
-    val callId: String,
-    val candidate: String,
-    val sdpMid: String,
-    val sdpMLineIndex: Int
 )
