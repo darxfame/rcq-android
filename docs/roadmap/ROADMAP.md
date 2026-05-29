@@ -58,3 +58,37 @@ All critical messaging features.
 - Voice/video calls stable
 - Accessibility
 - Screenshot parity tests
+
+## Phase UI — JIMM/ICQ Visual Redesign (добавлено 2026-05-29)
+
+**Цель:** Воссоздать визуальный стиль классического JIMM ICQ клиента.
+**Приоритет:** Высокий (между Phase 1 и Phase 2)
+
+### Вдохновение
+- JIMM — Java ICQ-клиент для мобильных (2003-2008)
+- ICQ 2002 desktop: белый фон, зелёный акцент #6BB12C, голубые баблы
+- iOS ref (`reference/ios/RCQ/Utils/Theme.swift`) — прямой источник токенов
+
+### Задачи для дизайнеров
+- Разработать компонентную библиотеку в стиле JIMM/ICQ:
+  * Список чатов: avatar слева, nickname bold, preview серый, timestamp справа
+  * Баббл: радиус 6dp, self=голубой #DCEEFCA, other=серый
+  * Status dot: 9dp, цвета по спеке (green/yellow/red/purple/gray)
+  * Tab bar: иконки в стиле ICQ (flower logo как акцент)
+  * Input bar: закруглённый, кнопка Send зелёная
+  * Контакты: по аналогии с ICQ contact list (группы, статусы)
+- Figma-файл с токенами из Theme.swift (уже реализованы в Color.kt)
+- Screenshot-сравнение iOS ref ↔ Android для каждого экрана
+
+### Что уже сделано (foundation)
+- Color.kt: ICQ-палитра (light + dark), все цвета из iOS Theme.swift ✅
+- Theme.kt: RCQColorScheme, LocalRCQColors, light/dark поддержка ✅
+- Metrics.kt: размеры из iOS (avatar, bubble radius, padding) ✅
+
+### Что нужно дизайнерам → разработчикам
+1. ChatListRow — переработать под JIMM-стиль
+2. MessageBubble — радиус 6dp, ICQ-цвета, timestamp в стиле ICQ
+3. ContactRow — статус-дот, monospace UIN
+4. NavigationBar — иконки в ICQ-стиле
+5. InputBar — закруглённый, зелёная кнопка
+6. ProfileView — аватар, статус, UIN monospace
