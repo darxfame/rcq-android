@@ -35,7 +35,8 @@ class MessageDb(context: Context) : SQLiteOpenHelper(context.applicationContext,
               reply_snippet TEXT,
               reply_author  TEXT,
               group_id   INTEGER,
-              sender_uin INTEGER
+              sender_uin INTEGER,
+              reactions  TEXT
             )
             """.trimIndent()
         )
@@ -61,6 +62,9 @@ class MessageDb(context: Context) : SQLiteOpenHelper(context.applicationContext,
             db.execSQL("ALTER TABLE messages ADD COLUMN sender_uin INTEGER")
             db.execSQL("CREATE INDEX IF NOT EXISTS idx_messages_group ON messages(group_id, sent_at)")
         }
+        if (oldVersion < 6) {
+            db.execSQL("ALTER TABLE messages ADD COLUMN reactions TEXT")
+        }
     }
 
     /** Insert; returns true if it was new (false if the UUID already existed). */
@@ -79,6 +83,7 @@ class MessageDb(context: Context) : SQLiteOpenHelper(context.applicationContext,
             put("reply_author", msg.replyToAuthor)
             put("group_id", msg.groupId)
             put("sender_uin", msg.senderUin)
+            put("reactions", msg.reactions.joinToString(REACTION_DELIM))
         }
         val rowId = writableDatabase.insertWithOnConflict(
             "messages", null, values, SQLiteDatabase.CONFLICT_IGNORE,
@@ -88,6 +93,11 @@ class MessageDb(context: Context) : SQLiteOpenHelper(context.applicationContext,
 
     fun updateState(id: String, state: DeliveryState) {
         val values = ContentValues().apply { put("state", state.name) }
+        writableDatabase.update("messages", values, "id = ?", arrayOf(id))
+    }
+
+    fun updateReactions(id: String, reactions: List<String>) {
+        val values = ContentValues().apply { put("reactions", reactions.joinToString(REACTION_DELIM)) }
         writableDatabase.update("messages", values, "id = ?", arrayOf(id))
     }
 
@@ -102,7 +112,7 @@ class MessageDb(context: Context) : SQLiteOpenHelper(context.applicationContext,
     fun all(): List<ChatMessage> {
         val out = ArrayList<ChatMessage>()
         readableDatabase.rawQuery(
-            "SELECT id, peer_uin, from_me, body, sent_at, state, kind, media_id, media_key, reply_snippet, reply_author, group_id, sender_uin FROM messages ORDER BY sent_at ASC", null,
+            "SELECT id, peer_uin, from_me, body, sent_at, state, kind, media_id, media_key, reply_snippet, reply_author, group_id, sender_uin, reactions FROM messages ORDER BY sent_at ASC", null,
         ).use { c ->
             while (c.moveToNext()) {
                 out.add(
@@ -120,6 +130,7 @@ class MessageDb(context: Context) : SQLiteOpenHelper(context.applicationContext,
                         replyToAuthor = c.getString(10),
                         groupId = if (c.isNull(11)) null else c.getInt(11),
                         senderUin = if (c.isNull(12)) null else c.getInt(12),
+                        reactions = c.getString(13)?.split(REACTION_DELIM)?.filter { it.isNotEmpty() } ?: emptyList(),
                     )
                 )
             }
@@ -129,6 +140,8 @@ class MessageDb(context: Context) : SQLiteOpenHelper(context.applicationContext,
 
     private companion object {
         const val NAME = "rcq-messages.db"
-        const val VERSION = 5
+        const val VERSION = 6
+        // Delimiter for the joined reactions column; not a valid emoji char.
+        const val REACTION_DELIM = "\u0001"
     }
 }

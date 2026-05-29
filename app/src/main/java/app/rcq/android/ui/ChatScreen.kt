@@ -244,6 +244,20 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
             title = { Text(if (m.kind == "photo") "Photo" else "Message", color = c.textPrimary) },
             text = {
                 Column {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                    ) {
+                        listOf("👍", "❤️", "😂", "😮", "😢", "🔥").forEach { e ->
+                            Text(
+                                e, fontSize = 24.sp,
+                                modifier = Modifier.clip(CircleShape).clickable {
+                                    scope.launch { runCatching { session.sendReaction(m, e) } }
+                                    actionMsg = null
+                                }.padding(4.dp),
+                            )
+                        }
+                    }
                     MessageAction("Reply") { replyTarget = m; actionMsg = null }
                     if (m.kind != "photo") MessageAction("Copy") {
                         val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
@@ -345,6 +359,19 @@ private fun MessageBubble(session: Session, m: ChatMessage, senderName: String?,
                     }
                 }
                 Text(m.body, color = c.textPrimary, fontSize = 15.sp)
+            }
+        }
+        if (m.reactions.isNotEmpty()) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(3.dp),
+                modifier = Modifier.padding(top = 2.dp, start = 4.dp, end = 4.dp),
+            ) {
+                m.reactions.distinct().forEach { emoji ->
+                    Text(
+                        emoji, fontSize = 13.sp,
+                        modifier = Modifier.clip(RoundedCornerShape(10.dp)).background(c.bgSecondary).padding(horizontal = 6.dp, vertical = 2.dp),
+                    )
+                }
             }
         }
         Row(

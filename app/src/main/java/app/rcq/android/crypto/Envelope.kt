@@ -25,6 +25,10 @@ sealed interface Envelope {
     /** Photo. `mediaId`/`mediaKey` point at the out-of-band encrypted
      *  blob (rcq-spec 9). caption may be empty. */
     data class Photo(val id: String, val mediaId: String, val mediaKey: String, val caption: String?) : Envelope
+    /** A reaction to another message (iOS kind "reaction"). Carries no own
+     *  message id; [targetId] is the reacted message's UUID, [asset] the
+     *  emoji (null clears, currently treated as a no-op on receipt). */
+    data class Reaction(val targetId: String, val asset: String?) : Envelope
     data class Unknown(val kind: String) : Envelope
 
     /** Serialize to the exact JSON bytes that get signed and shipped.
@@ -49,6 +53,11 @@ sealed interface Envelope {
             addProperty("mediaKey", mediaKey)
             if (!caption.isNullOrEmpty()) addProperty("caption", caption)
         }.toString().toByteArray(Charsets.UTF_8)
+        is Reaction -> JsonObject().apply {
+            addProperty("kind", "reaction")
+            addProperty("targetID", targetId)
+            if (asset != null) addProperty("asset", asset)
+        }.toString().toByteArray(Charsets.UTF_8)
         is Unknown -> JsonObject().apply { addProperty("kind", kind) }
             .toString().toByteArray(Charsets.UTF_8)
     }
@@ -59,6 +68,8 @@ sealed interface Envelope {
 
         fun photo(mediaId: String, mediaKey: String, caption: String?): Photo =
             Photo(UUID.randomUUID().toString().uppercase(), mediaId, mediaKey, caption)
+
+        fun reaction(targetId: String, asset: String?): Reaction = Reaction(targetId, asset)
 
         fun fromJsonBytes(bytes: ByteArray): Envelope {
             val obj = JsonParser.parseString(String(bytes, Charsets.UTF_8)).asJsonObject
@@ -77,6 +88,10 @@ sealed interface Envelope {
                     mediaId = obj.get("mediaID")?.asString.orEmpty(),
                     mediaKey = obj.get("mediaKey")?.asString.orEmpty(),
                     caption = obj.get("caption")?.asString,
+                )
+                "reaction" -> Reaction(
+                    targetId = obj.get("targetID")?.asString.orEmpty(),
+                    asset = obj.get("asset")?.asString,
                 )
                 else -> Unknown(kind ?: "unknown")
             }

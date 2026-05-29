@@ -362,6 +362,7 @@ class Session(context: Context) {
                 is Envelope.Photo -> storeGroup(
                     ChatMessage(env.id, 0, false, env.caption ?: "", now, kind = "photo", mediaId = env.mediaId, mediaKey = env.mediaKey, groupId = groupId, senderUin = dec.senderUin)
                 )
+                is Envelope.Reaction -> env.asset?.let { addGroupReaction(groupId, env.targetId, it) }
                 is Envelope.Unknown -> Unit
             }
         }
@@ -486,6 +487,61 @@ class Session(context: Context) {
         throw last ?: IllegalStateException("send failed")
     }
 
+    /** React to [target] with [emoji]: optimistic local add (deduped) then
+     *  a sealed `reaction` envelope to the 1:1 peer or fanned out to the
+     *  group. A reaction has no bubble or delivery state of its own, so it
+     *  rides the best-effort control path, not [sendEnvelope]. */
+    suspend fun sendReaction(target: ChatMessage, emoji: String) {
+        val env = Envelope.reaction(target.id, emoji)
+        if (target.groupId != null) {
+            addGroupReaction(target.groupId, target.id, emoji)
+            fanOutControl(target.groupId, env)
+        } else {
+            addPeerReaction(target.peerUin, target.id, emoji)
+            sendControl(target.peerUin, env)
+        }
+    }
+
+    /** Encrypt + send a control envelope (e.g. a reaction) to one peer.
+     *  Reuses the send-retry but tracks no delivery state. */
+    private suspend fun sendControl(toUin: Int, env: Envelope) {
+        runCatching {
+            withSendRetry {
+                val payload = SealedSender.encryptV1(
+                    envelope = env,
+                    recipientIdentityPub = recipientKey(toUin),
+                    ownUin = store.uin ?: error("not registered"),
+                    signingPriv = signingPriv(),
+                    signingPub = signingPub(),
+                )
+                api.sendSealed(toUin, payload)
+            }
+        }
+    }
+
+    /** Fan a control envelope out to every other group member, best effort. */
+    private suspend fun fanOutControl(groupId: Int, env: Envelope) {
+        val me = store.uin ?: return
+        val group = group(groupId) ?: return
+        runCatching {
+            val payloads = group.members
+                .filter { it.uin != me && it.identityKey.isNotEmpty() }
+                .map { m ->
+                    RcqApi.GroupPayload(
+                        to_uin = m.uin,
+                        payload = SealedSender.encryptV1(
+                            envelope = env,
+                            recipientIdentityPub = Base64.decode(m.identityKey, Base64.NO_WRAP),
+                            ownUin = me,
+                            signingPriv = signingPriv(),
+                            signingPub = signingPub(),
+                        ),
+                    )
+                }
+            if (payloads.isNotEmpty()) withSendRetry { api.sendGroupSealed(groupId, payloads) }
+        }
+    }
+
     /** Download + decrypt a media blob, cached by media id. */
     suspend fun fetchImage(mediaId: String, mediaKey: String): ByteArray? {
         imageCache[mediaId]?.let { return it }
@@ -520,6 +576,7 @@ class Session(context: Context) {
                     store(ChatMessage(env.id, dec.senderUin, false, env.text, now, replyToSnippet = env.replyTo?.snippet, replyToAuthor = env.replyTo?.authorName))
                 is Envelope.Photo ->
                     store(ChatMessage(env.id, dec.senderUin, false, env.caption ?: "", now, kind = "photo", mediaId = env.mediaId, mediaKey = env.mediaKey))
+                is Envelope.Reaction -> env.asset?.let { addPeerReaction(dec.senderUin, env.targetId, it) }
                 is Envelope.Unknown -> Unit
             }
         }
@@ -695,6 +752,40 @@ class Session(context: Context) {
         val cur = _groupMessages.value.toMutableMap()
         cur[groupId] = (cur[groupId] ?: emptyList()).map { if (it.id == id) it.copy(state = state) else it }
         _groupMessages.value = cur
+    }
+
+    /** Add [emoji] to a 1:1 message's reaction set (deduped), persisting +
+     *  publishing the change. No-op if the message isn't in the thread or
+     *  the emoji is already present. */
+    private fun addPeerReaction(peer: Int, targetId: String, emoji: String) {
+        val cur = _messages.value.toMutableMap()
+        val list = cur[peer] ?: return
+        var changed = false
+        val updated = list.map { m ->
+            if (m.id == targetId && !m.reactions.contains(emoji)) {
+                changed = true
+                val r = m.reactions + emoji
+                db.updateReactions(targetId, r)
+                m.copy(reactions = r)
+            } else m
+        }
+        if (changed) { cur[peer] = updated; _messages.value = cur }
+    }
+
+    /** Group analogue of [addPeerReaction]. */
+    private fun addGroupReaction(groupId: Int, targetId: String, emoji: String) {
+        val cur = _groupMessages.value.toMutableMap()
+        val list = cur[groupId] ?: return
+        var changed = false
+        val updated = list.map { m ->
+            if (m.id == targetId && !m.reactions.contains(emoji)) {
+                changed = true
+                val r = m.reactions + emoji
+                db.updateReactions(targetId, r)
+                m.copy(reactions = r)
+            } else m
+        }
+        if (changed) { cur[groupId] = updated; _groupMessages.value = cur }
     }
 
     // ── own key material (derived from stored privates) ──────────────
