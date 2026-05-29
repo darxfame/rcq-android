@@ -236,102 +236,90 @@ class ChatRepository @Inject constructor(
                     is WsEvent.MessageNew -> {
                         try {
                             val obj = event.raw
-                            Log.d("ChatRepository", "WS MessageNew raw keys: ${obj.keys}")
-                            val msgId = obj["id"]?.jsonPrimitive?.contentOrNull
-                                ?: obj["message_id"]?.jsonPrimitive?.contentOrNull
-                                ?: java.util.UUID.randomUUID().toString()
                             val groupId = obj["group_id"]?.jsonPrimitive?.intOrNull
 
+                            // payload is the only source of id, kind, sender — never the raw WS object
                             val rawPayload = obj["payload"]?.jsonPrimitive?.contentOrNull
-                            val decrypted = rawPayload?.let {
-                                runCatching { cryptoService.decryptWrapped(it) }
-                                    .onFailure { e -> Log.w("ChatRepository", "decryptWrapped failed: ${e.message}") }
-                                    .getOrNull()
+                            if (rawPayload == null) {
+                                Log.w("ChatRepository", "WS MessageNew: missing payload, dropping")
+                                return@onEach
+                            }
+                            val decrypted = runCatching { cryptoService.decryptWrapped(rawPayload) }
+                                .onFailure { e -> Log.w("ChatRepository", "decryptWrapped failed: ${e.message}") }
+                                .getOrNull()
+                            if (decrypted == null) {
+                                Log.w("ChatRepository", "WS MessageNew: decrypt null (key mismatch or malformed)")
+                                return@onEach
                             }
 
-                            // TOFU / key pinning: verify signer matches stored signing_key
-                            if (decrypted?.signerPubKeyB64 != null) {
+                            // TOFU / key pinning
+                            if (decrypted.signerPubKeyB64 != null) {
                                 val stored = contactDao.getContactByUserId(decrypted.senderUin)?.signingKey
                                 if (stored != null && stored != decrypted.signerPubKeyB64) {
-                                    Log.e("ChatRepository", "ECIES signing key mismatch for ${decrypted.senderUin} — dropping message")
+                                    Log.e("ChatRepository", "ECIES signing key mismatch for ${decrypted.senderUin} — dropping")
                                     return@onEach
                                 }
-                                if (stored == null) {
-                                    contactDao.updateSigningKey(decrypted.senderUin, decrypted.signerPubKeyB64)
-                                }
+                                if (stored == null) contactDao.updateSigningKey(decrypted.senderUin, decrypted.signerPubKeyB64)
                             }
 
-                            val senderId = decrypted?.senderUin
-                                ?: obj["sender_uin"]?.jsonPrimitive?.longOrNull
-                                ?: obj["senderUIN"]?.jsonPrimitive?.longOrNull ?: 0L
-                            Log.d("ChatRepository", "WS msg: id=$msgId groupId=$groupId senderId=$senderId decrypted=${decrypted != null} content='${decrypted?.content?.take(30)}'")
-
-                            // Skip own messages — already in DB via optimistic insert
+                            val senderId = decrypted.senderUin
                             if (currentUserUin != 0L && senderId == currentUserUin) return@onEach
 
-                            val serverChatId = obj["chat_id"]?.jsonPrimitive?.contentOrNull
                             val chatId = when {
-                                !serverChatId.isNullOrBlank() -> serverChatId
                                 groupId != null -> groupId.toString()
                                 senderId != 0L -> "direct_$senderId"
-                                else -> return@onEach
+                                else -> { Log.w("ChatRepository", "WS MessageNew: cannot determine chatId"); return@onEach }
                             }
 
-                            val content = decrypted?.content
-                                ?: obj["text"]?.jsonPrimitive?.contentOrNull
-                                ?: obj["content"]?.jsonPrimitive?.contentOrNull ?: ""
+                            // server_time is ISO-8601; fall back to now
+                            val serverTimeStr = obj["server_time"]?.jsonPrimitive?.contentOrNull
+                            val timestamp = serverTimeStr?.let {
+                                runCatching { java.time.Instant.parse(it).toEpochMilli() }.getOrNull()
+                            } ?: System.currentTimeMillis()
 
-                            val timestamp = obj["sent_at"]?.jsonPrimitive?.longOrNull
-                                ?: obj["sentAt"]?.jsonPrimitive?.longOrNull
-                                ?: System.currentTimeMillis()
-                            val kindStr = obj["kind"]?.jsonPrimitive?.contentOrNull ?: "text"
                             val msg = com.rcq.messenger.domain.model.Message(
-                                id = msgId,
+                                id = decrypted.messageId,
                                 chatId = chatId,
                                 senderId = senderId,
                                 isFromMe = false,
                                 kind = runCatching {
-                                    json.decodeFromString<com.rcq.messenger.domain.model.MessageKind>("\"$kindStr\"")
+                                    json.decodeFromString<com.rcq.messenger.domain.model.MessageKind>("\"${decrypted.kind}\"")
                                 }.getOrDefault(com.rcq.messenger.domain.model.MessageKind.TEXT),
-                                content = content,
+                                content = decrypted.content,
                                 timestamp = timestamp
                             )
+                            Log.d("ChatRepository", "WS ingest: id=${msg.id} chatId=$chatId kind=${decrypted.kind} sender=$senderId content='${decrypted.content.take(40)}'")
                             messageDao.insertMessage(msg.toEntity())
 
-                            // Update chat metadata: increment unread count and update timestamp
-                            try {
-                                val now = System.currentTimeMillis()
-                                val existingChat = chatDao.getChat(msg.chatId)
-                                val senderName = existingChat?.targetNickname ?: "New message"
-                                notificationHelper.showMessageNotification(
-                                    chatId = msg.chatId,
-                                    senderName = senderName,
-                                    message = msg.content.ifBlank { "📎 Attachment" }
-                                )
-                                if (existingChat != null) {
-                                    chatDao.incrementUnreadCount(msg.chatId, now)
-                                } else {
-                                    // Create minimal chat entry so it appears in the list
-                                    val newChat = ChatEntity(
-                                        id = msg.chatId,
-                                        targetId = msg.senderId,
-                                        targetNickname = msg.replyToAuthorName ?: "Unknown",
-                                        targetAvatar = null,
-                                        unreadCount = 1,
-                                        isPinned = false,
-                                        isMuted = false,
-                                        isArchived = false,
-                                        createdAt = now,
-                                        updatedAt = now
-                                    )
-                                    chatDao.insertChat(newChat)
-                                }
-                            } catch (e: Exception) {
-                                Log.e("ChatRepository", "Failed to update chat metadata: ${'$'}{e.message}")
+                            // Upsert chat row + notification
+                            val now = System.currentTimeMillis()
+                            val existingChat = chatDao.getChat(chatId)
+                            val senderName = existingChat?.targetNickname
+                                ?: contactDao.getContactByUserId(senderId)?.nickname
+                                ?: senderId.toString()
+                            notificationHelper.showMessageNotification(
+                                chatId = chatId,
+                                senderName = senderName,
+                                message = msg.content.ifBlank { "📎 Attachment" }
+                            )
+                            if (existingChat != null) {
+                                chatDao.incrementUnreadCount(chatId, now)
+                            } else {
+                                chatDao.insertChat(ChatEntity(
+                                    id = chatId,
+                                    targetId = senderId,
+                                    targetNickname = senderName,
+                                    targetAvatar = null,
+                                    unreadCount = 1,
+                                    isPinned = false,
+                                    isMuted = false,
+                                    isArchived = false,
+                                    createdAt = now,
+                                    updatedAt = now
+                                ))
                             }
-
                         } catch (e: Exception) {
-                            Log.e("ChatRepository", "Failed to handle incoming message: ${'$'}{e.message}")
+                            Log.e("ChatRepository", "Failed to handle incoming message: ${e.message}")
                         }
                     }
                     else -> { /* ignore other events for now */ }
@@ -380,27 +368,34 @@ class ChatRepository @Inject constructor(
                 senderId != 0L -> "direct_$senderId"
                 else -> return false
             }
-            val msgId = java.util.UUID.randomUUID().toString()
+            val timestamp = row.receivedAt?.let {
+                runCatching { java.time.Instant.parse(it).toEpochMilli() }.getOrNull()
+            } ?: System.currentTimeMillis()
             val msg = com.rcq.messenger.domain.model.Message(
-                id = msgId,
+                id = decrypted.messageId,   // use envelope UUID — enables dedup on re-fetch
                 chatId = chatId,
                 senderId = senderId,
                 isFromMe = false,
-                kind = com.rcq.messenger.domain.model.MessageKind.TEXT,
+                kind = runCatching {
+                    json.decodeFromString<com.rcq.messenger.domain.model.MessageKind>("\"${decrypted.kind}\"")
+                }.getOrDefault(com.rcq.messenger.domain.model.MessageKind.TEXT),
                 content = decrypted.content,
-                timestamp = System.currentTimeMillis(),
+                timestamp = timestamp,
                 receivedWhileAway = true
             )
             messageDao.insertMessage(msg.toEntity())
-            val existingChat = chatDao.getChat(chatId)
             val now = System.currentTimeMillis()
+            val existingChat = chatDao.getChat(chatId)
+            val senderName = existingChat?.targetNickname
+                ?: contactDao.getContactByUserId(senderId)?.nickname
+                ?: senderId.toString()
             if (existingChat != null) {
                 chatDao.incrementUnreadCount(chatId, now)
             } else {
-                val newChat = com.rcq.messenger.domain.model.ChatEntity(
+                chatDao.insertChat(com.rcq.messenger.domain.model.ChatEntity(
                     id = chatId,
                     targetId = senderId,
-                    targetNickname = "Unknown",
+                    targetNickname = senderName,
                     targetAvatar = null,
                     unreadCount = 1,
                     isPinned = false,
@@ -408,8 +403,7 @@ class ChatRepository @Inject constructor(
                     isArchived = false,
                     createdAt = now,
                     updatedAt = now
-                )
-                chatDao.insertChat(newChat)
+                ))
             }
             true
         } catch (e: Exception) {

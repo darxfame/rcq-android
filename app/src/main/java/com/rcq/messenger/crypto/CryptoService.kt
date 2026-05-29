@@ -163,6 +163,7 @@ class CryptoService @Inject constructor(
 
     /**
      * Decrypt a payload — handles ECIES v=1 (iOS), Android v=0, and raw plaintext fallback.
+     * Preserves the full envelope: id, kind, and content are all returned.
      * For ECIES results, [DecryptedWrapped.signerPubKeyB64] is populated; callers MUST
      * verify it against the stored signing_key for the sender (TOFU / key pinning).
      */
@@ -171,25 +172,42 @@ class CryptoService @Inject constructor(
         if (ecies.isReady()) {
             val eciesResult = ecies.decryptV1(payload)
             if (eciesResult != null) {
-                val content = ecies.parseEnvelopeText(eciesResult.envelopeJson) ?: ""
+                val env = eciesResult.envelopeJson
+                val kind = env.optString("kind", "text")
+                val messageId = env.optString("id").takeIf { it.isNotEmpty() }
+                    ?: java.util.UUID.randomUUID().toString()
+                val content = when (kind) {
+                    "text" -> env.optString("text", "")
+                    "photo", "video", "voice", "file" -> env.optString("caption", "")
+                    "location" -> env.optString("caption", "")
+                    else -> ""
+                }
                 return DecryptedWrapped(
                     senderUin = eciesResult.senderUin,
+                    messageId = messageId,
+                    kind = kind,
                     content = content,
-                    signerPubKeyB64 = eciesResult.signerPubKeyB64
+                    signerPubKeyB64 = eciesResult.signerPubKeyB64,
+                    envelopeJson = env
                 )
             }
         }
-        // Fallback: Android v=0 format
+        // Fallback: Android v=0 Signal-wrapped format
         return runCatching {
             val jsonStr = String(Base64.decode(payload, Base64.NO_WRAP), Charsets.UTF_8)
             val obj = JSONObject(jsonStr)
             if (obj.optInt("v", -1) != 0) return null
             val senderUin = obj.getLong("from")
-            val kind = obj.getString("kind")
+            val signalKind = obj.getString("kind")
             val msgB64 = obj.getString("msg")
-            val signalType = if (kind == "prekey") CiphertextMessage.PREKEY_TYPE else CiphertextMessage.WHISPER_TYPE
-            val content = decryptMessage(senderUin, msgB64, signalType)
-            DecryptedWrapped(senderUin = senderUin, content = content)
+            val signalType = if (signalKind == "prekey") CiphertextMessage.PREKEY_TYPE else CiphertextMessage.WHISPER_TYPE
+            val plaintext = decryptMessage(senderUin, msgB64, signalType)
+            val env = runCatching { JSONObject(plaintext) }.getOrNull()
+            val kind = env?.optString("kind", "text") ?: "text"
+            val messageId = env?.optString("id")?.takeIf { it.isNotEmpty() }
+                ?: java.util.UUID.randomUUID().toString()
+            val content = env?.optString("text", plaintext) ?: plaintext
+            DecryptedWrapped(senderUin = senderUin, messageId = messageId, kind = kind, content = content)
         }.getOrNull()
     }
 
@@ -212,8 +230,12 @@ class CryptoService @Inject constructor(
 
     data class DecryptedWrapped(
         val senderUin: Long,
+        val messageId: String,
+        val kind: String = "text",
         val content: String,
         /** Non-null for ECIES v=1 messages; caller must do TOFU / pinning check. */
-        val signerPubKeyB64: String? = null
+        val signerPubKeyB64: String? = null,
+        /** Full envelope JSON for callers that need extra fields (mediaID, etc.). */
+        val envelopeJson: org.json.JSONObject? = null
     )
 }
