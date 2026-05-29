@@ -79,6 +79,14 @@ class Session(context: Context) {
     // media_id -> decrypted plaintext bytes (sender seeds it; receiver caches).
     private val imageCache = java.util.concurrent.ConcurrentHashMap<String, ByteArray>()
 
+    // Own read-receipt privacy ("everyone"|"contacts"|"nobody"); loaded on
+    // start, gates whether we emit read receipts. Default everyone.
+    @Volatile
+    private var readReceiptsVisibility: String = "everyone"
+    // 1:1 inbound message ids we've already acked with a read receipt
+    // (in-memory; re-acking after restart is harmless/idempotent).
+    private val ackedReads = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+
     @Volatile
     private var started = false
 
@@ -155,6 +163,14 @@ class Session(context: Context) {
         scope.launch { runCatching { withRetry { refreshContacts() } } }
         scope.launch { runCatching { withRetry { refreshPending() } } }
         scope.launch { runCatching { withRetry { refreshGroups() } } }
+        scope.launch { runCatching { withRetry { loadOwnReadReceiptSetting() } } }
+    }
+
+    /** Cache the owner's read-receipt visibility so we honour a "nobody"
+     *  setting before emitting any receipts. */
+    private suspend fun loadOwnReadReceiptSetting() {
+        val me = store.uin ?: return
+        api.getMe(me).read_receipts_visibility?.let { readReceiptsVisibility = it }
     }
 
     fun stop() = socket.disconnect()
@@ -292,6 +308,8 @@ class Session(context: Context) {
         val updated = runCatching { api.updateMe(body) }.getOrNull()
         // Reflect a nickname change locally (the header reads store.nickname).
         if (updated != null && !body.nickname.isNullOrBlank()) store.updateNickname(body.nickname)
+        // Keep the read-receipt gate in sync when the user changes it.
+        if (updated != null) body.read_receipts_visibility?.let { readReceiptsVisibility = it }
         return updated
     }
 
@@ -395,6 +413,7 @@ class Session(context: Context) {
                     val t = _groupMessages.value[groupId]?.firstOrNull { it.id == env.targetId }
                     if (t != null && t.senderUin == dec.senderUin) editInFlow(_groupMessages, groupId, env.targetId, env.text)
                 }
+                is Envelope.ReadReceipt -> Unit  // group read receipts not surfaced per-message
                 is Envelope.Unknown -> Unit
             }
         }
@@ -558,6 +577,38 @@ class Session(context: Context) {
         }
     }
 
+    /** Acknowledge every still-unacked inbound 1:1 message from [peer] with
+     *  a read receipt — unless the user set read receipts to "nobody".
+     *  Called when the thread is opened and when a message arrives into the
+     *  open thread. In-memory [ackedReads] keeps us from re-sending. */
+    fun sendReadReceipts(peer: Int) {
+        if (readReceiptsVisibility == "nobody") return
+        val ids = (_messages.value[peer] ?: return)
+            .filter { !it.fromMe }
+            .map { it.id }
+            .filterNot { ackedReads.contains(it) }
+        if (ids.isEmpty()) return
+        ackedReads.addAll(ids)
+        scope.launch { sendControl(peer, Envelope.readReceipt(ids)) }
+    }
+
+    /** Inbound read receipt: flip our own sent messages to READ once [peer]
+     *  reports seeing them. Only touches `fromMe` bubbles. */
+    private fun applyReadReceipt(peer: Int, ids: List<String>) {
+        val idSet = ids.toHashSet()
+        val cur = _messages.value.toMutableMap()
+        val list = cur[peer] ?: return
+        var changed = false
+        val updated = list.map { m ->
+            if (m.fromMe && m.state != DeliveryState.READ && idSet.contains(m.id)) {
+                changed = true
+                db.updateState(m.id, DeliveryState.READ)
+                m.copy(state = DeliveryState.READ)
+            } else m
+        }
+        if (changed) { cur[peer] = updated; _messages.value = cur }
+    }
+
     /** Encrypt + send a control envelope (e.g. a reaction) to one peer.
      *  Reuses the send-retry but tracks no delivery state. */
     private suspend fun sendControl(toUin: Int, env: Envelope) {
@@ -642,6 +693,7 @@ class Session(context: Context) {
                     val t = _messages.value[dec.senderUin]?.firstOrNull { it.id == env.targetId }
                     if (t != null && !t.fromMe) editInFlow(_messages, dec.senderUin, env.targetId, env.text)
                 }
+                is Envelope.ReadReceipt -> applyReadReceipt(dec.senderUin, env.targetIds)
                 is Envelope.Unknown -> Unit
             }
         }
@@ -769,6 +821,8 @@ class Session(context: Context) {
         cur[msg.peerUin] = ((cur[msg.peerUin] ?: emptyList()) + msg).sortedBy { it.sentAt }
         _messages.value = cur
         bumpUnreadIfInbound(msg, LocalStores.peerThread(msg.peerUin))
+        // Arrived into the open thread → ack it immediately with a receipt.
+        if (!msg.fromMe && LocalStores.peerThread(msg.peerUin) == activeThread) sendReadReceipts(msg.peerUin)
     }
 
     /** Bump the unread badge for a genuinely-new inbound message, unless

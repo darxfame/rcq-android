@@ -134,6 +134,7 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
     val thisThread = if (isGroup) app.rcq.android.data.LocalStores.groupThread(groupId!!) else app.rcq.android.data.LocalStores.peerThread(peer!!)
     DisposableEffect(target) {
         session.openThread(thisThread)
+        if (!isGroup && peer != null) session.sendReadReceipts(peer)
         onDispose {
             session.closeThread()
             if (!isGroup && peer != null) session.sendTyping(peer, false)
@@ -419,7 +420,7 @@ private fun MessageBubble(session: Session, m: ChatMessage, senderName: String?,
             if (m.edited) Text("edited", color = c.textSecondary, fontSize = 10.sp)
             if (m.fromMe) {
                 if (failed) Text("failed · tap to retry", color = Color(0xFFE5484D), fontSize = 10.sp, modifier = Modifier.clickable(onClick = onRetry))
-                else Text(stateGlyph(m.state), color = c.textSecondary, fontSize = 10.sp)
+                else Text(stateGlyph(m.state), color = if (m.state == DeliveryState.READ) c.accent else c.textSecondary, fontSize = 10.sp)
             }
         }
     }
@@ -460,5 +461,6 @@ private fun stateGlyph(s: DeliveryState): String = when (s) {
     DeliveryState.SENDING -> "·"
     DeliveryState.SENT -> "✓"
     DeliveryState.DELIVERED -> "✓✓"
+    DeliveryState.READ -> "✓✓"
     DeliveryState.FAILED -> "✕"
 }

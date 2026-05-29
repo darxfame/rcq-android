@@ -24,8 +24,8 @@ data class PendingRequest(
 )
 
 /** Delivery state of an outgoing message. Incoming messages are always
- *  DELIVERED. Mirrors the iOS DeliveryState minus read receipts. */
-enum class DeliveryState { SENDING, SENT, DELIVERED, FAILED }
+ *  DELIVERED. READ is set when the peer sends back a read receipt. */
+enum class DeliveryState { SENDING, SENT, DELIVERED, FAILED, READ }
 
 /** A single chat message, persisted locally (the server doesn't keep
  *  messages after delivery). `id` is the envelope UUID — the dedup key

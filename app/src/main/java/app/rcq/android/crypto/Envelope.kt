@@ -1,5 +1,6 @@
 package app.rcq.android.crypto
 
+import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import java.util.UUID
@@ -35,6 +36,10 @@ sealed interface Envelope {
     /** Edit (iOS kind "edit"): the author replaces the body of message
      *  [targetId] with [text]. */
     data class Edit(val targetId: String, val text: String) : Envelope
+    /** Read receipt (iOS kind "read"): the recipient acknowledges seeing
+     *  the messages [targetIds]. The original sender flips those bubbles
+     *  to READ. */
+    data class ReadReceipt(val targetIds: List<String>) : Envelope
     data class Unknown(val kind: String) : Envelope
 
     /** Serialize to the exact JSON bytes that get signed and shipped.
@@ -73,6 +78,10 @@ sealed interface Envelope {
             addProperty("targetID", targetId)
             addProperty("text", text)
         }.toString().toByteArray(Charsets.UTF_8)
+        is ReadReceipt -> JsonObject().apply {
+            addProperty("kind", "read")
+            add("targetIDs", JsonArray().apply { targetIds.forEach { add(it) } })
+        }.toString().toByteArray(Charsets.UTF_8)
         is Unknown -> JsonObject().apply { addProperty("kind", kind) }
             .toString().toByteArray(Charsets.UTF_8)
     }
@@ -89,6 +98,8 @@ sealed interface Envelope {
         fun delete(targetId: String): Delete = Delete(targetId)
 
         fun edit(targetId: String, text: String): Edit = Edit(targetId, text)
+
+        fun readReceipt(targetIds: List<String>): ReadReceipt = ReadReceipt(targetIds)
 
         fun fromJsonBytes(bytes: ByteArray): Envelope {
             val obj = JsonParser.parseString(String(bytes, Charsets.UTF_8)).asJsonObject
@@ -116,6 +127,9 @@ sealed interface Envelope {
                 "edit" -> Edit(
                     targetId = obj.get("targetID")?.asString.orEmpty(),
                     text = obj.get("text")?.asString.orEmpty(),
+                )
+                "read" -> ReadReceipt(
+                    obj.getAsJsonArray("targetIDs")?.mapNotNull { it.asString } ?: emptyList(),
                 )
                 else -> Unknown(kind ?: "unknown")
             }
