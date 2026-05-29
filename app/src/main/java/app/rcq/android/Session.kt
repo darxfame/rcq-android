@@ -615,6 +615,32 @@ class Session(context: Context) {
         val cur = _messages.value.toMutableMap()
         cur[msg.peerUin] = ((cur[msg.peerUin] ?: emptyList()) + msg).sortedBy { it.sentAt }
         _messages.value = cur
+        bumpUnreadIfInbound(msg, LocalStores.peerThread(msg.peerUin))
+    }
+
+    /** Bump the unread badge for a genuinely-new inbound message, unless
+     *  the user is currently looking at that thread. Own (fromMe)
+     *  messages never count. */
+    private fun bumpUnreadIfInbound(msg: ChatMessage, thread: String) {
+        if (msg.fromMe) return
+        if (thread == activeThread) { LocalStores.clearUnread(thread); return }
+        LocalStores.bumpUnread(thread)
+    }
+
+    /** The thread the user currently has open (or null). Set by the UI so
+     *  inbound messages to it don't raise a badge, and so a message that
+     *  arrives while it's open is immediately marked read. */
+    @Volatile
+    var activeThread: String? = null
+        private set
+
+    fun openThread(thread: String) {
+        activeThread = thread
+        LocalStores.clearUnread(thread)
+    }
+
+    fun closeThread() {
+        activeThread = null
     }
 
     private fun updateMessageState(id: String, peer: Int, state: DeliveryState) {
@@ -630,6 +656,7 @@ class Session(context: Context) {
         val cur = _groupMessages.value.toMutableMap()
         cur[gid] = ((cur[gid] ?: emptyList()) + msg).sortedBy { it.sentAt }
         _groupMessages.value = cur
+        bumpUnreadIfInbound(msg, LocalStores.groupThread(gid))
     }
 
     private fun updateGroupMsgState(groupId: Int, id: String, state: DeliveryState) {

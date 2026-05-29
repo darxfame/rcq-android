@@ -125,6 +125,27 @@ internal fun GroupAvatar(group: RcqGroup?, session: Session, size: Dp, glyphSize
     }
 }
 
+/** Red unread-count capsule, anchored top-end over an avatar (iOS-style).
+ *  Renders nothing when [count] is 0. */
+@Composable
+internal fun UnreadBadge(count: Int, modifier: Modifier = Modifier) {
+    if (count <= 0) return
+    val c = RcqTheme.colors
+    Box(
+        modifier
+            .clip(RoundedCornerShape(percent = 50))
+            .background(c.statusBusy)
+            .padding(horizontal = 5.dp, vertical = 1.dp),
+    ) {
+        Text(
+            if (count > 99) "99+" else "$count",
+            color = Color.White,
+            fontSize = 9.sp,
+            fontWeight = FontWeight.Bold,
+        )
+    }
+}
+
 @Composable
 internal fun GenderIcon(gender: String?) {
     when (gender?.lowercase()) {

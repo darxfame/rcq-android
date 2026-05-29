@@ -39,6 +39,13 @@ object LocalStores {
     private val _themeMode = MutableStateFlow(ThemeMode.SYSTEM)
     val themeMode: StateFlow<ThemeMode> = _themeMode.asStateFlow()
 
+    /** Persistent per-thread unread counters, keyed "peer:<uin>"/"group:<id>".
+     *  Mirrors the iOS UnreadStore: survives cold starts (contacts reload
+     *  from the server, which doesn't track per-client unread), bumped on
+     *  inbound message, cleared when the chat opens. */
+    private val _unread = MutableStateFlow<Map<String, Int>>(emptyMap())
+    val unread: StateFlow<Map<String, Int>> = _unread.asStateFlow()
+
     fun init(context: Context) {
         if (::prefs.isInitialized) return
         prefs = context.applicationContext.getSharedPreferences("rcq_local", Context.MODE_PRIVATE)
@@ -48,6 +55,7 @@ object LocalStores {
         _removed.value = prefs.getStringSet(K_REMOVED, emptySet())!!.mapNotNull { it.toIntOrNull() }.toSet()
         _themeMode.value = runCatching { ThemeMode.valueOf(prefs.getString(K_THEME, null) ?: "SYSTEM") }
             .getOrDefault(ThemeMode.SYSTEM)
+        _unread.value = loadUnread()
     }
 
     // ── thread-key helpers ───────────────────────────────────────────
@@ -75,6 +83,36 @@ object LocalStores {
         prefs.edit().putString(K_THEME, mode.name).apply()
     }
 
+    // ── unread counters ──────────────────────────────────────────────
+    fun unreadOf(thread: String): Int = _unread.value[thread] ?: 0
+
+    fun bumpUnread(thread: String) {
+        val cur = _unread.value.toMutableMap()
+        cur[thread] = (cur[thread] ?: 0) + 1
+        _unread.value = cur
+        persistUnread()
+    }
+
+    fun clearUnread(thread: String) {
+        if (_unread.value[thread] == null) return
+        _unread.value = _unread.value - thread
+        persistUnread()
+    }
+
+    /** Encode the map as a CSV "thread=count" StringSet for SharedPreferences. */
+    private fun persistUnread() {
+        prefs.edit().putStringSet(K_UNREAD, _unread.value.map { "${it.key}=${it.value}" }.toSet()).apply()
+    }
+
+    private fun loadUnread(): Map<String, Int> =
+        prefs.getStringSet(K_UNREAD, emptySet())!!.mapNotNull { entry ->
+            val i = entry.lastIndexOf('=')
+            if (i <= 0) return@mapNotNull null
+            val k = entry.substring(0, i)
+            val v = entry.substring(i + 1).toIntOrNull() ?: return@mapNotNull null
+            k to v
+        }.toMap()
+
     private fun toggle(flow: MutableStateFlow<Set<String>>, key: String, thread: String) {
         flow.value = if (thread in flow.value) flow.value - thread else flow.value + thread
         // StringSet must be copied — SharedPreferences keeps the same
@@ -87,4 +125,5 @@ object LocalStores {
     private const val K_ARCH = "archived"
     private const val K_REMOVED = "removed"
     private const val K_THEME = "theme_mode"
+    private const val K_UNREAD = "unread"
 }

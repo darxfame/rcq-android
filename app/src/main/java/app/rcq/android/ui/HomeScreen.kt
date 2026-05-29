@@ -108,6 +108,7 @@ internal fun HomeScreen(
     val ownStatus by session.status.collectAsState()
     val favorites by LocalStores.favorites.collectAsState()
     val archived by LocalStores.archived.collectAsState()
+    val unread by LocalStores.unread.collectAsState()
 
     var showAdd by remember { mutableStateOf(false) }
     var showQr by remember { mutableStateOf(false) }
@@ -123,8 +124,12 @@ internal fun HomeScreen(
     var collapsedOffline by remember { mutableStateOf(false) }
     var collapsedArchive by remember { mutableStateOf(true) }
 
+    // Unread threads float to the top (iOS parity), then by recency.
     fun byRecency(list: List<Contact>) =
-        list.sortedByDescending { messages[it.uin]?.lastOrNull()?.sentAt ?: 0L }
+        list.sortedWith(
+            compareByDescending<Contact> { (unread[LocalStores.peerThread(it.uin)] ?: 0) > 0 }
+                .thenByDescending { messages[it.uin]?.lastOrNull()?.sentAt ?: 0L },
+        )
 
     val nonArchived = contacts.filterNot { LocalStores.peerThread(it.uin) in archived }
     val favContacts = byRecency(nonArchived.filter { LocalStores.peerThread(it.uin) in favorites })
@@ -159,7 +164,7 @@ internal fun HomeScreen(
                     item(key = "empty") { EmptyState(onAdd = { showAdd = true }) }
                 }
 
-                contactSection("Favorites", favContacts, collapsedFavorites, "fav", { collapsedFavorites = !collapsedFavorites }, onOpenChat, onLongPress = { previewContact = it })
+                contactSection("Favorites", favContacts, collapsedFavorites, "fav", unread, { collapsedFavorites = !collapsedFavorites }, onOpenChat, onLongPress = { previewContact = it })
 
                 // Groups — header always shows a "+" to create, like iOS.
                 item(key = "grp-h") {
@@ -177,14 +182,14 @@ internal fun HomeScreen(
                         }
                     } else {
                         items(items = visibleGroups, key = { it.id }) { g: RcqGroup ->
-                            GroupRow(group = g, ownUin = uin, session = session, onClick = { onOpenGroup(g.id) }, onLongPress = { previewGroup = g })
+                            GroupRow(group = g, ownUin = uin, session = session, unread = unread[LocalStores.groupThread(g.id)] ?: 0, onClick = { onOpenGroup(g.id) }, onLongPress = { previewGroup = g })
                         }
                     }
                 }
 
-                contactSection("Online", onlineContacts, collapsedOnline, "on", { collapsedOnline = !collapsedOnline }, onOpenChat, onLongPress = { previewContact = it })
-                contactSection("Offline", offlineContacts, collapsedOffline, "off", { collapsedOffline = !collapsedOffline }, onOpenChat, onLongPress = { previewContact = it })
-                contactSection("Archive", archivedContacts, collapsedArchive, "arch", { collapsedArchive = !collapsedArchive }, onOpenChat, onLongPress = { previewContact = it })
+                contactSection("Online", onlineContacts, collapsedOnline, "on", unread, { collapsedOnline = !collapsedOnline }, onOpenChat, onLongPress = { previewContact = it })
+                contactSection("Offline", offlineContacts, collapsedOffline, "off", unread, { collapsedOffline = !collapsedOffline }, onOpenChat, onLongPress = { previewContact = it })
+                contactSection("Archive", archivedContacts, collapsedArchive, "arch", unread, { collapsedArchive = !collapsedArchive }, onOpenChat, onLongPress = { previewContact = it })
 
                 item(key = "tail") { Spacer(Modifier.height(8.dp)) }
             }
@@ -340,22 +345,30 @@ private fun LazyListScope.contactSection(
     rows: List<Contact>,
     collapsed: Boolean,
     keyPrefix: String,
+    unread: Map<String, Int>,
     onToggle: () -> Unit,
     onOpenChat: (Int) -> Unit,
     onLongPress: (Contact) -> Unit,
 ) {
     if (rows.isEmpty()) return
-    item(key = "h_$keyPrefix") { SectionHeader(title, rows.size, collapsed, onToggle) }
+    // Aggregate unread for the section header badge (shown when collapsed
+    // so a folded section still signals new messages — iOS parity).
+    val sectionUnread = rows.sumOf { unread[LocalStores.peerThread(it.uin)] ?: 0 }
+    item(key = "h_$keyPrefix") {
+        SectionHeader(title, rows.size, collapsed, onToggle) {
+            UnreadBadge(sectionUnread)
+        }
+    }
     if (!collapsed) {
         items(rows, key = { "${keyPrefix}_${it.uin}" }) { ct ->
-            ContactRowItem(ct, onClick = { onOpenChat(ct.uin) }, onLongPress = { onLongPress(ct) })
+            ContactRowItem(ct, unread = unread[LocalStores.peerThread(ct.uin)] ?: 0, onClick = { onOpenChat(ct.uin) }, onLongPress = { onLongPress(ct) })
         }
     }
 }
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun GroupRow(group: RcqGroup, ownUin: Int, session: Session, onClick: () -> Unit, onLongPress: () -> Unit) {
+private fun GroupRow(group: RcqGroup, ownUin: Int, session: Session, unread: Int, onClick: () -> Unit, onLongPress: () -> Unit) {
     val c = RcqTheme.colors
     val src = remember { MutableInteractionSource() }
     val pressed by src.collectIsPressedAsState()
@@ -368,7 +381,10 @@ private fun GroupRow(group: RcqGroup, ownUin: Int, session: Session, onClick: ()
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Box(Modifier.width(36.dp), contentAlignment = Alignment.Center) { GroupAvatar(group, session, 28.dp) }
+        Box(Modifier.width(36.dp), contentAlignment = Alignment.Center) {
+            GroupAvatar(group, session, 28.dp)
+            UnreadBadge(unread, Modifier.align(Alignment.TopEnd))
+        }
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(group.name, color = c.textPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -385,7 +401,7 @@ private fun GroupRow(group: RcqGroup, ownUin: Int, session: Session, onClick: ()
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun ContactRowItem(contact: Contact, onClick: () -> Unit, onLongPress: () -> Unit) {
+private fun ContactRowItem(contact: Contact, unread: Int, onClick: () -> Unit, onLongPress: () -> Unit) {
     val c = RcqTheme.colors
     val src = remember { MutableInteractionSource() }
     val pressed by src.collectIsPressedAsState()
@@ -404,6 +420,7 @@ private fun ContactRowItem(contact: Contact, onClick: () -> Unit, onLongPress: (
     ) {
         Box(Modifier.width(36.dp), contentAlignment = Alignment.Center) {
             StatusIcon(contact.presence, size = 28.dp)
+            UnreadBadge(unread, Modifier.align(Alignment.TopEnd))
         }
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {

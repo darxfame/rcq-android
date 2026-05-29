@@ -128,7 +128,19 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) listState.animateScrollToItem(messages.size - 1)
     }
-    DisposableEffect(target) { onDispose { if (!isGroup && peer != null) session.sendTyping(peer, false) } }
+    // Mark this thread active+read while open; clear again on a new
+    // message arriving here is handled in Session.bumpUnreadIfInbound.
+    val thisThread = if (isGroup) app.rcq.android.data.LocalStores.groupThread(groupId!!) else app.rcq.android.data.LocalStores.peerThread(peer!!)
+    DisposableEffect(target) {
+        session.openThread(thisThread)
+        onDispose {
+            session.closeThread()
+            if (!isGroup && peer != null) session.sendTyping(peer, false)
+        }
+    }
+    // A message can land while the chat is already open — re-clear so the
+    // badge never lingers after the user has seen it.
+    LaunchedEffect(messages.size) { app.rcq.android.data.LocalStores.clearUnread(thisThread) }
 
     Column(Modifier.fillMaxSize().background(c.bgPrimary).imePadding()) {
         // Header.
