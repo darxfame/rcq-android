@@ -16,7 +16,9 @@ data class User(
     val customNickname: String? = null,
     @kotlinx.serialization.SerialName("equipped_pet") val equippedPet: EquippedPet? = null,
     val tokens: Long = 0,
-    @kotlinx.serialization.SerialName("is_premium") val isPremium: Boolean = false
+    @kotlinx.serialization.SerialName("is_premium") val isPremium: Boolean = false,
+    @kotlinx.serialization.SerialName("identity_key") val identityKey: String? = null,
+    @kotlinx.serialization.SerialName("signing_key") val signingKey: String? = null
 )
 
 @Serializable

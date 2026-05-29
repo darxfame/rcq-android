@@ -11,6 +11,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rcq.messenger.crypto.CryptoService
 import com.rcq.messenger.crypto.CryptoService.RegistrationBundle
+import com.rcq.messenger.crypto.EciesKeyStore
 import com.rcq.messenger.data.api.RCQApiService
 import com.rcq.messenger.data.api.RegisterRequest
 import com.rcq.messenger.di.PreferencesKeys
@@ -28,7 +29,8 @@ class AuthViewModel @Inject constructor(
     private val dataStore: DataStore<Preferences>,
     @ApplicationContext private val context: Context,
     private val webSocketService: com.rcq.messenger.data.websocket.WebSocketService,
-    private val cryptoService: CryptoService
+    private val cryptoService: CryptoService,
+    private val eciesKeyStore: EciesKeyStore
 ) : ViewModel() {
 
     private val _authState = MutableStateFlow<AuthState>(AuthState.Loading)
@@ -104,16 +106,20 @@ class AuthViewModel @Inject constructor(
             _nickname.value = nickname
 
             try {
-                // Generate registration bundle (identity + signing keys)
+                // Load/generate ECIES key pairs (raw Curve25519 — iOS-compatible)
+                eciesKeyStore.loadOrGenerate(cryptoService.ecies)
+                val identityKeyB64 = eciesKeyStore.identityPubB64(cryptoService.ecies)
+                val signingKeyB64 = eciesKeyStore.signingPubB64(cryptoService.ecies)
+
                 val bundle = cryptoService.generateRegistrationBundle()
                 _pendingBundle.value = bundle
 
-                // Register with server
+                // Register with server using raw 32-byte ECIES keys (iOS format)
                 val response = api.register(
                     RegisterRequest(
                         nickname = nickname,
-                        identity_key = bundle.identityKey,
-                        signing_key = bundle.signedPreKey
+                        identity_key = identityKeyB64,
+                        signing_key = signingKeyB64
                     )
                 )
 
@@ -122,8 +128,8 @@ class AuthViewModel @Inject constructor(
                     val uin = body.uin
                     val token = body.token
 
-                    // Generate recovery phrase from keys
-                    val recoveryPhrase = generateRecoveryPhrase(bundle.identityKey, bundle.signedPreKey)
+                    // Generate recovery phrase from ECIES keys
+                    val recoveryPhrase = generateRecoveryPhrase(identityKeyB64, signingKeyB64)
                     _recoveryPhrase.value = recoveryPhrase
                     _showRecoveryPhrase.value = true
 
@@ -132,8 +138,8 @@ class AuthViewModel @Inject constructor(
                         prefs[KEY_UIN] = uin
                         prefs[KEY_TOKEN] = token
                         prefs[KEY_NICKNAME] = nickname
-                        prefs[KEY_IDENTITY_KEY] = bundle.identityKey
-                        prefs[KEY_SIGNING_KEY] = bundle.signedPreKey
+                        prefs[KEY_IDENTITY_KEY] = identityKeyB64
+                        prefs[KEY_SIGNING_KEY] = signingKeyB64
                         prefs[KEY_RECOVERY_PHRASE] = recoveryPhrase.joinToString(" ")
                     }
                     // Also save to main DataStore for AuthInterceptor and WebSocketService

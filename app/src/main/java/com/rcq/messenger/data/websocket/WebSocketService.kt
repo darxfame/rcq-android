@@ -397,14 +397,16 @@ class WebSocketService @Inject constructor(
                     messageId = obj["message_id"]?.jsonPrimitive?.contentOrNull ?: ""
                 )
 
-                // Typing events
+                // Typing events — server sends from_uin (not user_id)
                 "typing_started", "typing" -> WsEvent.TypingStarted(
                     chatId = obj["chat_id"]?.jsonPrimitive?.contentOrNull ?: "",
-                    userId = obj["user_id"]?.jsonPrimitive?.longOrNull ?: 0
+                    userId = obj["from_uin"]?.jsonPrimitive?.longOrNull
+                        ?: obj["user_id"]?.jsonPrimitive?.longOrNull ?: 0
                 )
                 "typing_stopped" -> WsEvent.TypingStopped(
                     chatId = obj["chat_id"]?.jsonPrimitive?.contentOrNull ?: "",
-                    userId = obj["user_id"]?.jsonPrimitive?.longOrNull ?: 0
+                    userId = obj["from_uin"]?.jsonPrimitive?.longOrNull
+                        ?: obj["user_id"]?.jsonPrimitive?.longOrNull ?: 0
                 )
 
                 // Presence events
@@ -429,9 +431,10 @@ class WebSocketService @Inject constructor(
                         ?: obj["user_id"]?.jsonPrimitive?.longOrNull ?: 0
                 )
 
-                // Group events
-                "group_updated" -> WsEvent.GroupUpdated(
-                    groupId = obj["group_id"]?.jsonPrimitive?.contentOrNull ?: ""
+                // Group events — server sends group_created/group_membership_changed/group_deleted
+                "group_created", "group_membership_changed", "group_updated" -> WsEvent.GroupUpdated(
+                    groupId = obj["group"]?.jsonObject?.get("id")?.jsonPrimitive?.contentOrNull
+                        ?: obj["group_id"]?.jsonPrimitive?.contentOrNull ?: ""
                 )
                 "group_member_joined", "group_member_added" -> WsEvent.GroupMemberJoined(
                     groupId = obj["group_id"]?.jsonPrimitive?.contentOrNull ?: "",

@@ -15,5 +15,7 @@ data class ContactEntity(
     val isFavorite: Boolean = false,
     val notificationSound: String? = null,
     val customNickname: String? = null,
-    val addedAt: Long = System.currentTimeMillis()
+    val addedAt: Long = System.currentTimeMillis(),
+    val identityKey: String? = null,
+    val signingKey: String? = null
 )

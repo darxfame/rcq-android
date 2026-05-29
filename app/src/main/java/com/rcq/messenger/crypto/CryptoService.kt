@@ -14,7 +14,8 @@ import javax.inject.Singleton
 @Singleton
 class CryptoService @Inject constructor(
     private val sessionManager: SessionManager,
-    private val keyStore: SignalKeyStore
+    private val keyStore: SignalKeyStore,
+    val ecies: EciesCrypto
 ) {
 
     /**
@@ -124,24 +125,55 @@ class CryptoService @Inject constructor(
     }
 
     /**
-     * Encrypt plaintext and wrap with sender UIN so receiver can decrypt
-     * without server revealing the sender (Android wire format v=0).
+     * Encrypt plaintext as iOS-compatible ECIES v=1 when ECIES is ready,
+     * otherwise fall back to Android v=0 (Signal-only) for backward compat.
+     *
+     * [recipientIdentityKeyB64] — raw 32-byte Curve25519 pub of the recipient
+     *   (the `identity_key` field the recipient registered with).
      */
-    fun encryptWrapped(senderUin: Long, recipientUin: Long, text: String): EncryptedWrapped {
+    fun encryptWrapped(
+        senderUin: Long,
+        recipientUin: Long,
+        text: String,
+        recipientIdentityKeyB64: String? = null
+    ): EncryptedWrapped {
+        // Prefer ECIES v=1 when we have the recipient's ECIES identity key
+        if (ecies.isReady() && !recipientIdentityKeyB64.isNullOrEmpty()) {
+            return runCatching {
+                val msgId = java.util.UUID.randomUUID().toString()
+                val envJson = ecies.buildTextEnvelope(msgId, text)
+                val payload = ecies.encryptV1(envJson, recipientIdentityKeyB64)
+                EncryptedWrapped(payload = payload, envelopeType = "message", signalType = 0)
+            }.getOrElse {
+                android.util.Log.w("CryptoService", "ECIES v=1 encrypt failed, falling back: ${it.message}")
+                encryptV0(senderUin, recipientUin, text)
+            }
+        }
+        return encryptV0(senderUin, recipientUin, text)
+    }
+
+    private fun encryptV0(senderUin: Long, recipientUin: Long, text: String): EncryptedWrapped {
         val ciphertext = sessionManager.encryptMessage(recipientUin, text)
         val kind = if (ciphertext.type == CiphertextMessage.PREKEY_TYPE) "prekey" else "signal"
         val msgB64 = Base64.encodeToString(ciphertext.serialize(), Base64.NO_WRAP)
         val inner = """{"v":0,"from":$senderUin,"kind":"$kind","msg":"$msgB64"}"""
         val payload = Base64.encodeToString(inner.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
-        val envelopeType = if (ciphertext.type == CiphertextMessage.PREKEY_TYPE) "prekey_message" else "message"
-        return EncryptedWrapped(payload = payload, envelopeType = envelopeType, signalType = ciphertext.type)
+        return EncryptedWrapped(payload = payload, envelopeType = "message", signalType = ciphertext.type)
     }
 
     /**
-     * Decrypt a wrapped payload produced by encryptWrapped().
-     * Returns null if the payload is not the Android v=0 format (e.g. iOS format).
+     * Decrypt a payload — handles ECIES v=1 (iOS), Android v=0, and raw plaintext fallback.
      */
     fun decryptWrapped(payload: String): DecryptedWrapped? {
+        // Try ECIES v=1 first (iOS-sent messages)
+        if (ecies.isReady()) {
+            val eciesResult = ecies.decryptV1(payload)
+            if (eciesResult != null) {
+                val content = ecies.parseEnvelopeText(eciesResult.envelopeJson) ?: ""
+                return DecryptedWrapped(senderUin = eciesResult.senderUin, content = content)
+            }
+        }
+        // Fallback: Android v=0 format
         return runCatching {
             val jsonStr = String(Base64.decode(payload, Base64.NO_WRAP), Charsets.UTF_8)
             val obj = JSONObject(jsonStr)

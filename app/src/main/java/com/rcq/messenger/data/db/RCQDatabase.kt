@@ -27,7 +27,7 @@ import com.rcq.messenger.data.db.SignalKeyDao
         PetEntity::class,
         SignalKeyEntity::class
     ],
-    version = 10,
+    version = 11,
     exportSchema = false
 )
 @TypeConverters(RoomTypeConverters::class)
@@ -146,6 +146,13 @@ abstract class RCQDatabase : RoomDatabase() {
                         `salePrice` INTEGER
                     )
                 """.trimIndent())
+            }
+        }
+
+        val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE contacts ADD COLUMN identityKey TEXT")
+                database.execSQL("ALTER TABLE contacts ADD COLUMN signingKey TEXT")
             }
         }
     }

@@ -332,22 +332,77 @@ class ChatRepository @Inject constructor(
         scope.launch {
             runCatching {
                 val response = api.getMessageQueue()
-                if (response.isSuccessful) {
-                    val msgs = response.body() ?: return@runCatching
-                    val ackIds = mutableListOf<String>()
-                    msgs.forEach { msg ->
-                        if (messageDao.getMessage(msg.id) == null) {
-                            messageDao.insertMessage(msg.toEntity())
-                            val chat = chatDao.getChat(msg.chatId)
-                            if (chat != null) chatDao.incrementUnreadCount(msg.chatId, System.currentTimeMillis())
-                        }
-                        ackIds.add(msg.id)
+                if (!response.isSuccessful) return@runCatching
+                val rows = response.body() ?: return@runCatching
+                val directAckIds = mutableListOf<Int>()
+                val groupAckIds = mutableListOf<Int>()
+                for (row in rows) {
+                    val ingested = ingestQueueRow(row)
+                    if (ingested) {
+                        if (row.groupId == null) directAckIds.add(row.id)
+                        else groupAckIds.add(row.id)
                     }
-                    if (ackIds.isNotEmpty()) {
-                        runCatching { api.ackMessageQueue(ackIds) }
+                }
+                if (directAckIds.isNotEmpty() || groupAckIds.isNotEmpty()) {
+                    runCatching {
+                        api.ackMessageQueue(
+                            com.rcq.messenger.data.api.QueueAckBody(
+                                directIds = directAckIds,
+                                groupIds = groupAckIds
+                            )
+                        )
                     }
                 }
             }
+        }
+    }
+
+    private suspend fun ingestQueueRow(row: com.rcq.messenger.data.api.QueuedMessage): Boolean {
+        return try {
+            val decrypted = runCatching { cryptoService.decryptWrapped(row.payload) }.getOrNull()
+                ?: return false
+            val senderId = decrypted.senderUin
+            if (currentUserUin != 0L && senderId == currentUserUin) return true
+            val chatId = when {
+                row.groupId != null -> row.groupId.toString()
+                senderId != 0L -> "direct_$senderId"
+                else -> return false
+            }
+            val msgId = java.util.UUID.randomUUID().toString()
+            val msg = com.rcq.messenger.domain.model.Message(
+                id = msgId,
+                chatId = chatId,
+                senderId = senderId,
+                isFromMe = false,
+                kind = com.rcq.messenger.domain.model.MessageKind.TEXT,
+                content = decrypted.content,
+                timestamp = System.currentTimeMillis(),
+                receivedWhileAway = true
+            )
+            messageDao.insertMessage(msg.toEntity())
+            val existingChat = chatDao.getChat(chatId)
+            val now = System.currentTimeMillis()
+            if (existingChat != null) {
+                chatDao.incrementUnreadCount(chatId, now)
+            } else {
+                val newChat = com.rcq.messenger.domain.model.ChatEntity(
+                    id = chatId,
+                    targetId = senderId,
+                    targetNickname = "Unknown",
+                    targetAvatar = null,
+                    unreadCount = 1,
+                    isPinned = false,
+                    isMuted = false,
+                    isArchived = false,
+                    createdAt = now,
+                    updatedAt = now
+                )
+                chatDao.insertChat(newChat)
+            }
+            true
+        } catch (e: Exception) {
+            Log.e("ChatRepository", "ingestQueueRow failed: ${e.message}")
+            false
         }
     }
 
@@ -461,8 +516,11 @@ class ChatRepository @Inject constructor(
             }
         }
 
+        val recipientIdentityKey = contactDao.getContactByUserId(recipientUin)?.identityKey
         val wrapped = runCatching {
-            cryptoService.encryptWrapped(message.senderId, recipientUin, message.content)
+            cryptoService.encryptWrapped(
+                message.senderId, recipientUin, message.content, recipientIdentityKey
+            )
         }.getOrElse { e ->
             messageDao.updateMessage(optimisticEntity.copy(status = "FAILED"))
             throw e
@@ -604,7 +662,9 @@ private fun User.toContactEntity() = ContactEntity(
     isBlocked = isBlocked,
     isFavorite = isFavorite,
     notificationSound = notificationSound,
-    customNickname = customNickname
+    customNickname = customNickname,
+    identityKey = identityKey,
+    signingKey = signingKey
 )
 
 private fun ChatEntity.toDomain() = Chat(

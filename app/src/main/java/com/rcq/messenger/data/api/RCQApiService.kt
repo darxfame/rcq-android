@@ -62,10 +62,10 @@ interface RCQApiService {
     suspend fun createChat(@Body request: CreateChatRequest): Response<Chat>
 
     @GET("messages/queue")
-    suspend fun getMessageQueue(): Response<List<Message>>
+    suspend fun getMessageQueue(@Query("ack") ack: String = "1"): Response<List<QueuedMessage>>
 
     @POST("messages/queue/ack")
-    suspend fun ackMessageQueue(@Body ids: List<String>): Response<Unit>
+    suspend fun ackMessageQueue(@Body body: QueueAckBody): Response<QueueAckResult>
 
     @POST("messages/sealed")
     suspend fun sendSealedMessage(@Body request: SealedMessageRequest): Response<SealedMessageResponse>
@@ -521,4 +521,25 @@ data class SealedMessageResponse(
     val delivered: Boolean = false,
     val queued: Boolean = false,
     val id: String = ""
+)
+
+// Offline queue — matches server OfflineMessage / OfflineGroupMessage schemas
+@kotlinx.serialization.Serializable
+data class QueuedMessage(
+    val id: Int,
+    @kotlinx.serialization.SerialName("envelope_type") val envelopeType: String,
+    val payload: String,
+    @kotlinx.serialization.SerialName("received_at") val receivedAt: String,
+    @kotlinx.serialization.SerialName("group_id") val groupId: Int? = null
+)
+
+@kotlinx.serialization.Serializable
+data class QueueAckBody(
+    @kotlinx.serialization.SerialName("direct_ids") val directIds: List<Int>,
+    @kotlinx.serialization.SerialName("group_ids") val groupIds: List<Int>
+)
+
+@kotlinx.serialization.Serializable
+data class QueueAckResult(
+    val deleted: Int = 0
 )
