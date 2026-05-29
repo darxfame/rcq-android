@@ -8,9 +8,11 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -56,6 +58,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import app.rcq.android.crypto.Reply
 import app.rcq.android.model.ChatMessage
 import app.rcq.android.model.Contact
 import app.rcq.android.model.DeliveryState
@@ -309,6 +312,8 @@ private fun ChatScreen(session: Session, peer: Int, onBack: () -> Unit) {
     val messages = all[peer] ?: emptyList()
     val typingFrom by session.typingFrom.collectAsState()
     var draft by remember { mutableStateOf("") }
+    var actionMsg by remember { mutableStateOf<ChatMessage?>(null) }
+    var replyTarget by remember { mutableStateOf<ChatMessage?>(null) }
     val listState = rememberLazyListState()
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
@@ -333,7 +338,24 @@ private fun ChatScreen(session: Session, peer: Int, onBack: () -> Unit) {
             }
         }
         LazyColumn(state = listState, modifier = Modifier.weight(1f).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            items(messages) { m -> MessageBubble(session, m, onRetry = { scope.launch { runCatching { session.resend(m) } } }) }
+            items(messages) { m ->
+                MessageBubble(
+                    session, m,
+                    onRetry = { scope.launch { runCatching { session.resend(m) } } },
+                    onLongPress = { actionMsg = m },
+                )
+            }
+        }
+        replyTarget?.let { rt ->
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
+                Box(Modifier.width(3.dp).height(34.dp).clip(RoundedCornerShape(2.dp)).background(Accent))
+                Spacer(Modifier.width(8.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(if (rt.fromMe) "You" else session.contactName(peer), color = Accent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    Text(previewOf(rt), color = TextSecondary, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                Text("✕", color = TextSecondary, modifier = Modifier.clickable { replyTarget = null }.padding(8.dp))
+            }
         }
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
             Text("📎", fontSize = 22.sp, modifier = Modifier.clickable { picker.launch("image/*") }.padding(end = 10.dp))
@@ -350,20 +372,60 @@ private fun ChatScreen(session: Session, peer: Int, onBack: () -> Unit) {
                 modifier = Modifier.clip(RoundedCornerShape(percent = 50)).background(if (canSend) Accent else Surface)
                     .clickable(enabled = canSend) {
                         val body = draft.trim(); draft = ""
+                        val reply = replyTarget?.let { Reply(it.id, previewOf(it), if (it.fromMe) "You" else session.contactName(peer)) }
+                        replyTarget = null
                         session.sendTyping(peer, false)
-                        scope.launch { runCatching { session.sendText(peer, body) } }
+                        scope.launch { runCatching { session.sendText(peer, body, reply) } }
                     }.padding(horizontal = 18.dp, vertical = 14.dp),
             ) { Text("Send", color = Color.White, fontWeight = FontWeight.SemiBold) }
         }
     }
+
+    actionMsg?.let { m ->
+        AlertDialog(
+            onDismissRequest = { actionMsg = null },
+            containerColor = Surface,
+            title = { Text(if (m.kind == "photo") "Photo" else "Message", color = TextPrimary) },
+            text = {
+                Column {
+                    MessageAction("Reply") { replyTarget = m; actionMsg = null }
+                    if (m.kind != "photo") MessageAction("Copy") {
+                        val cm = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                        cm.setPrimaryClip(android.content.ClipData.newPlainText("message", m.body))
+                        actionMsg = null
+                    }
+                    if (m.fromMe && m.state == DeliveryState.FAILED) MessageAction("Retry") {
+                        scope.launch { runCatching { session.resend(m) } }; actionMsg = null
+                    }
+                    MessageAction("Delete for me", danger = true) { session.deleteLocal(m); actionMsg = null }
+                }
+            },
+            confirmButton = {},
+            dismissButton = { TextButton(onClick = { actionMsg = null }) { Text("Cancel", color = TextSecondary) } },
+        )
+    }
 }
 
 @Composable
-private fun MessageBubble(session: Session, m: ChatMessage, onRetry: () -> Unit) {
+private fun MessageAction(label: String, danger: Boolean = false, onClick: () -> Unit) {
+    Text(
+        label,
+        color = if (danger) Color(0xFFE5484D) else TextPrimary,
+        fontSize = 16.sp,
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 12.dp),
+    )
+}
+
+private fun previewOf(m: ChatMessage): String =
+    if (m.kind == "photo") "📷 Photo" else m.body.take(100)
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun MessageBubble(session: Session, m: ChatMessage, onRetry: () -> Unit, onLongPress: () -> Unit) {
     val failed = m.state == DeliveryState.FAILED
     Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = if (m.fromMe) Alignment.End else Alignment.Start) {
         if (m.kind == "photo") {
-            PhotoBubble(session, m)
+            Box(modifier = Modifier.combinedClickable(onClick = {}, onLongClick = onLongPress)) { PhotoBubble(session, m) }
             if (m.body.isNotEmpty()) {
                 Text(
                     m.body,
@@ -373,16 +435,24 @@ private fun MessageBubble(session: Session, m: ChatMessage, onRetry: () -> Unit)
                 )
             }
         } else {
-            Text(
-                m.body,
-                color = if (m.fromMe) Color.White else TextPrimary,
-                fontSize = 15.sp,
+            Column(
                 modifier = Modifier
                     .clip(RoundedCornerShape(14.dp))
                     .background(if (m.fromMe) Accent else Surface)
-                    .then(if (failed) Modifier.clickable(onClick = onRetry) else Modifier)
+                    .combinedClickable(onClick = { if (failed) onRetry() }, onLongClick = onLongPress)
                     .padding(horizontal = 12.dp, vertical = 8.dp),
-            )
+            ) {
+                if (m.replyToSnippet != null) {
+                    Column(
+                        modifier = Modifier.padding(bottom = 4.dp).clip(RoundedCornerShape(6.dp))
+                            .background(Color.White.copy(alpha = 0.12f)).padding(horizontal = 8.dp, vertical = 4.dp),
+                    ) {
+                        Text(m.replyToAuthor.orEmpty(), color = if (m.fromMe) Color.White else Accent, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                        Text(m.replyToSnippet, color = if (m.fromMe) Color.White.copy(alpha = 0.85f) else TextSecondary, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+                Text(m.body, color = if (m.fromMe) Color.White else TextPrimary, fontSize = 15.sp)
+            }
         }
         Row(
             verticalAlignment = Alignment.CenterVertically,

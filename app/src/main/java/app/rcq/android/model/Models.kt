@@ -34,4 +34,6 @@ data class ChatMessage(
     val kind: String = "text",    // "text" | "photo"
     val mediaId: String? = null,
     val mediaKey: String? = null,
+    val replyToSnippet: String? = null,
+    val replyToAuthor: String? = null,
 )

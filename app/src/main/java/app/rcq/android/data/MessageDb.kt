@@ -31,7 +31,9 @@ class MessageDb(context: Context) : SQLiteOpenHelper(context.applicationContext,
               state     TEXT NOT NULL DEFAULT 'DELIVERED',
               kind      TEXT NOT NULL DEFAULT 'text',
               media_id  TEXT,
-              media_key TEXT
+              media_key TEXT,
+              reply_snippet TEXT,
+              reply_author  TEXT
             )
             """.trimIndent()
         )
@@ -47,6 +49,10 @@ class MessageDb(context: Context) : SQLiteOpenHelper(context.applicationContext,
             db.execSQL("ALTER TABLE messages ADD COLUMN media_id TEXT")
             db.execSQL("ALTER TABLE messages ADD COLUMN media_key TEXT")
         }
+        if (oldVersion < 4) {
+            db.execSQL("ALTER TABLE messages ADD COLUMN reply_snippet TEXT")
+            db.execSQL("ALTER TABLE messages ADD COLUMN reply_author TEXT")
+        }
     }
 
     /** Insert; returns true if it was new (false if the UUID already existed). */
@@ -61,6 +67,8 @@ class MessageDb(context: Context) : SQLiteOpenHelper(context.applicationContext,
             put("kind", msg.kind)
             put("media_id", msg.mediaId)
             put("media_key", msg.mediaKey)
+            put("reply_snippet", msg.replyToSnippet)
+            put("reply_author", msg.replyToAuthor)
         }
         val rowId = writableDatabase.insertWithOnConflict(
             "messages", null, values, SQLiteDatabase.CONFLICT_IGNORE,
@@ -77,10 +85,14 @@ class MessageDb(context: Context) : SQLiteOpenHelper(context.applicationContext,
         writableDatabase.execSQL("DELETE FROM messages")
     }
 
+    fun delete(id: String) {
+        writableDatabase.delete("messages", "id = ?", arrayOf(id))
+    }
+
     fun all(): List<ChatMessage> {
         val out = ArrayList<ChatMessage>()
         readableDatabase.rawQuery(
-            "SELECT id, peer_uin, from_me, body, sent_at, state, kind, media_id, media_key FROM messages ORDER BY sent_at ASC", null,
+            "SELECT id, peer_uin, from_me, body, sent_at, state, kind, media_id, media_key, reply_snippet, reply_author FROM messages ORDER BY sent_at ASC", null,
         ).use { c ->
             while (c.moveToNext()) {
                 out.add(
@@ -94,6 +106,8 @@ class MessageDb(context: Context) : SQLiteOpenHelper(context.applicationContext,
                         kind = c.getString(6) ?: "text",
                         mediaId = c.getString(7),
                         mediaKey = c.getString(8),
+                        replyToSnippet = c.getString(9),
+                        replyToAuthor = c.getString(10),
                     )
                 )
             }
@@ -103,6 +117,6 @@ class MessageDb(context: Context) : SQLiteOpenHelper(context.applicationContext,
 
     private companion object {
         const val NAME = "rcq-messages.db"
-        const val VERSION = 3
+        const val VERSION = 4
     }
 }

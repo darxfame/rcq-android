@@ -16,8 +16,12 @@ import java.util.UUID
  * iOS uses uppercase UUID strings; we emit the same. Optional fields
  * (ttl, fwdName, reply) are omitted, matching iOS `encodeIfPresent`.
  */
+/** Quoted-message context, matching the iOS ReplyContext Codable
+ *  ({id, snippet, authorName}), carried under the "reply" key. */
+data class Reply(val id: String, val snippet: String, val authorName: String)
+
 sealed interface Envelope {
-    data class Text(val id: String, val text: String) : Envelope
+    data class Text(val id: String, val text: String, val replyTo: Reply? = null) : Envelope
     /** Photo. `mediaId`/`mediaKey` point at the out-of-band encrypted
      *  blob (rcq-spec 9). caption may be empty. */
     data class Photo(val id: String, val mediaId: String, val mediaKey: String, val caption: String?) : Envelope
@@ -30,6 +34,13 @@ sealed interface Envelope {
             addProperty("kind", "text")
             addProperty("id", id)
             addProperty("text", text)
+            replyTo?.let {
+                add("reply", JsonObject().apply {
+                    addProperty("id", it.id)
+                    addProperty("snippet", it.snippet)
+                    addProperty("authorName", it.authorName)
+                })
+            }
         }.toString().toByteArray(Charsets.UTF_8)
         is Photo -> JsonObject().apply {
             addProperty("kind", "photo")
@@ -43,8 +54,8 @@ sealed interface Envelope {
     }
 
     companion object {
-        fun text(body: String): Text =
-            Text(id = UUID.randomUUID().toString().uppercase(), text = body)
+        fun text(body: String, replyTo: Reply? = null): Text =
+            Text(id = UUID.randomUUID().toString().uppercase(), text = body, replyTo = replyTo)
 
         fun photo(mediaId: String, mediaKey: String, caption: String?): Photo =
             Photo(UUID.randomUUID().toString().uppercase(), mediaId, mediaKey, caption)
@@ -52,8 +63,15 @@ sealed interface Envelope {
         fun fromJsonBytes(bytes: ByteArray): Envelope {
             val obj = JsonParser.parseString(String(bytes, Charsets.UTF_8)).asJsonObject
             val id = obj.get("id")?.asString ?: UUID.randomUUID().toString()
+            val reply = obj.getAsJsonObject("reply")?.let {
+                Reply(
+                    id = it.get("id")?.asString.orEmpty(),
+                    snippet = it.get("snippet")?.asString.orEmpty(),
+                    authorName = it.get("authorName")?.asString.orEmpty(),
+                )
+            }
             return when (val kind = obj.get("kind")?.asString) {
-                "text" -> Text(id, obj.get("text")?.asString.orEmpty())
+                "text" -> Text(id, obj.get("text")?.asString.orEmpty(), reply)
                 "photo" -> Photo(
                     id = id,
                     mediaId = obj.get("mediaID")?.asString.orEmpty(),

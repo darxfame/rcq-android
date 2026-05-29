@@ -5,6 +5,7 @@ import android.util.Base64
 import app.rcq.android.crypto.Envelope
 import app.rcq.android.crypto.IdentityKeys
 import app.rcq.android.crypto.MediaCrypto
+import app.rcq.android.crypto.Reply
 import app.rcq.android.crypto.SealedSender
 import app.rcq.android.data.MessageDb
 import app.rcq.android.data.SecureStore
@@ -139,10 +140,18 @@ class Session(context: Context) {
 
     // ── messaging ────────────────────────────────────────────────────
 
-    suspend fun sendText(toUin: Int, text: String) {
-        val env = Envelope.text(text)
-        store(ChatMessage(env.id, toUin, fromMe = true, body = text, sentAt = System.currentTimeMillis(), state = DeliveryState.SENDING))
+    suspend fun sendText(toUin: Int, text: String, replyTo: Reply? = null) {
+        val env = Envelope.text(text, replyTo)
+        store(ChatMessage(env.id, toUin, fromMe = true, body = text, sentAt = System.currentTimeMillis(), state = DeliveryState.SENDING, replyToSnippet = replyTo?.snippet, replyToAuthor = replyTo?.authorName))
         sendEnvelope(env, env.id, toUin)
+    }
+
+    /** Local-only delete (removes from this device; no wire message). */
+    fun deleteLocal(msg: ChatMessage) {
+        db.delete(msg.id)
+        val cur = _messages.value.toMutableMap()
+        cur[msg.peerUin] = (cur[msg.peerUin] ?: emptyList()).filterNot { it.id == msg.id }
+        _messages.value = cur
     }
 
     /** Encrypt+upload an already-compressed JPEG, then send a photo
@@ -215,7 +224,7 @@ class Session(context: Context) {
             val now = System.currentTimeMillis()
             when (val env = dec.envelope) {
                 is Envelope.Text ->
-                    store(ChatMessage(env.id, dec.senderUin, false, env.text, now))
+                    store(ChatMessage(env.id, dec.senderUin, false, env.text, now, replyToSnippet = env.replyTo?.snippet, replyToAuthor = env.replyTo?.authorName))
                 is Envelope.Photo ->
                     store(ChatMessage(env.id, dec.senderUin, false, env.caption ?: "", now, kind = "photo", mediaId = env.mediaId, mediaKey = env.mediaKey))
                 is Envelope.Unknown -> Unit
