@@ -2,6 +2,12 @@ package com.rcq.messenger.crypto
 
 import android.util.Base64
 import android.util.Log
+import net.i2p.crypto.eddsa.EdDSAEngine
+import net.i2p.crypto.eddsa.EdDSAPrivateKey
+import net.i2p.crypto.eddsa.EdDSAPublicKey
+import net.i2p.crypto.eddsa.spec.EdDSANamedCurveTable
+import net.i2p.crypto.eddsa.spec.EdDSAPrivateKeySpec
+import net.i2p.crypto.eddsa.spec.EdDSAPublicKeySpec
 import org.bouncycastle.crypto.modes.ChaCha20Poly1305
 import org.bouncycastle.crypto.params.AEADParameters
 import org.bouncycastle.crypto.params.KeyParameter
@@ -17,9 +23,13 @@ import javax.inject.Singleton
 /**
  * iOS-compatible ECIES v=1 wire format.
  *
+ * ECDH key (identityKeyPair): Curve25519/X25519 — used for key agreement only.
+ * Signing key (ed25519PrivKey): Ed25519 — MUST be proper Ed25519 (not X25519).
+ *   iOS uses Curve25519.Signing which is actually Ed25519 (Edwards25519).
+ *   Sending X25519 Montgomery bytes as spub causes iOS signature verification to fail.
+ *
  * Wire: base64({"v":1,"ek":"<eph Curve25519 pub 32B b64>","ct":"<nonce+ct+tag b64>"})
- * Plaintext: {"from":ownUIN,"spub":"<signing pub b64>","sig":"<ed25519 sig b64>","env":"<Envelope JSON b64>"}
- * Envelope JSON: {"kind":"text","id":"<UUID>","text":"..."} etc.
+ * Plaintext: {"from":ownUIN,"spub":"<Ed25519 pub 32B b64>","sig":"<ed25519 sig b64>","env":"<Envelope JSON b64>"}
  */
 @Singleton
 class EciesCrypto @Inject constructor() {
@@ -30,13 +40,21 @@ class EciesCrypto @Inject constructor() {
         private val HKDF_INFO_V1 = "RCQ-1to1-v1".toByteArray(Charsets.UTF_8)
         private const val NONCE_LEN = 12
         private const val TAG_BITS = 128
+        private val ED25519_SPEC = EdDSANamedCurveTable.getByName("Ed25519")
     }
 
     var ownUin: Long = 0L
-    var identityKeyPair: ECKeyPair? = null
-    var signingKeyPair: ECKeyPair? = null
+    var identityKeyPair: ECKeyPair? = null   // X25519 for ECDH
+    var ed25519PrivKey: EdDSAPrivateKey? = null  // Ed25519 for signing
 
-    fun isReady() = ownUin != 0L && identityKeyPair != null && signingKeyPair != null
+    fun isReady() = ownUin != 0L && identityKeyPair != null && ed25519PrivKey != null
+
+    /** Raw 32-byte Ed25519 public key for registration (iOS-compatible signing_key). */
+    fun signingPubKeyBytes(): ByteArray =
+        (ed25519PrivKey?.let { EdDSAPublicKey(EdDSAPublicKeySpec(it.abyte, ED25519_SPEC)) }?.abyte)
+            ?: ByteArray(32)
+
+    fun signingPubKeyB64(): String = Base64.encodeToString(signingPubKeyBytes(), Base64.NO_WRAP)
 
     // Envelope JSON builders (iOS codec keys)
     fun buildTextEnvelope(id: String, text: String): JSONObject = JSONObject().apply {
@@ -49,17 +67,17 @@ class EciesCrypto @Inject constructor() {
         if (envJson.optString("kind") == "text") envJson.optString("text").takeIf { it.isNotEmpty() } else null
 
     // -----------------------------------------------------------------------
-    // encryptV1: returns base64 wire payload
+    // encryptV1 — returns base64 wire payload
     // -----------------------------------------------------------------------
     fun encryptV1(envelopeJson: JSONObject, recipientIdentityKeyB64: String): String {
         val idKP = identityKeyPair ?: error("ECIES identityKeyPair not loaded")
-        val sigKP = signingKeyPair ?: error("ECIES signingKeyPair not loaded")
+        val sigPriv = ed25519PrivKey ?: error("ECIES ed25519PrivKey not loaded")
 
         val recipientRaw = Base64.decode(recipientIdentityKeyB64, Base64.NO_WRAP)
         val recipientPub = rawToEcPub(recipientRaw)
 
         val ephemeral = Curve.generateKeyPair()
-        val ekBytes = ecPubToRaw(ephemeral.publicKey)
+        val ekBytes = ecPubToRaw(ephemeral.publicKey)  // 32-byte X25519 pub
 
         val shared = Curve.calculateAgreement(recipientPub, ephemeral.privateKey)
         val aeadKey = HKDF.deriveSecrets(shared, ekBytes + recipientRaw, HKDF_INFO_V1, 32)
@@ -67,8 +85,9 @@ class EciesCrypto @Inject constructor() {
         val envBytes = envelopeJson.toString().toByteArray(Charsets.UTF_8)
         val envB64 = Base64.encodeToString(envBytes, Base64.NO_WRAP)
 
-        val sig = Curve.calculateSignature(sigKP.privateKey, ekBytes + envBytes)
-        val spubB64 = Base64.encodeToString(ecPubToRaw(sigKP.publicKey), Base64.NO_WRAP)
+        // Sign with proper Ed25519
+        val sig = ed25519Sign(sigPriv, ekBytes + envBytes)
+        val spubB64 = signingPubKeyB64()
 
         val inner = JSONObject().apply {
             put("from", ownUin)
@@ -89,18 +108,11 @@ class EciesCrypto @Inject constructor() {
     }
 
     // -----------------------------------------------------------------------
-    // decryptV1: returns null on any failure
-    //
-    // signerPubKeyB64 is returned so the CALLER can enforce TOFU / key pinning:
-    //   - if the contact has a stored signing_key, caller must verify it matches
-    //   - if unknown sender (no stored key), caller stores this as TOFU
-    // We do NOT trust `from` blindly — the field is inside the AEAD but is
-    // still caller-controlled (attacker could self-encrypt with from=victim).
+    // decryptV1 — returns null on any failure
     // -----------------------------------------------------------------------
     data class Decrypted(
         val senderUin: Long,
         val envelopeJson: JSONObject,
-        /** Raw 32-byte base64 of the signing key that produced the signature. */
         val signerPubKeyB64: String
     )
 
@@ -128,20 +140,38 @@ class EciesCrypto @Inject constructor() {
         val spubRaw = Base64.decode(spubB64, Base64.NO_WRAP)
         val sigBytes = Base64.decode(inner.getString("sig"), Base64.NO_WRAP)
 
-        if (!Curve.verifySignature(rawToEcPub(spubRaw), ekBytes + envBytes, sigBytes)) {
-            Log.w(TAG, "decryptV1: sig verify failed from $from")
+        // Verify with Ed25519 (iOS sends Ed25519 spub)
+        if (!ed25519Verify(spubRaw, ekBytes + envBytes, sigBytes)) {
+            Log.w(TAG, "decryptV1: Ed25519 sig verify failed from $from")
             return null
         }
 
-        // Return signerPubKeyB64 so the caller can enforce TOFU / pinning.
-        // We do NOT validate here because we lack DB access — caller must do it.
         Decrypted(from, JSONObject(String(envBytes, Charsets.UTF_8)), spubB64)
     }.onFailure { Log.w(TAG, "decryptV1 failed: ${it.message}") }.getOrNull()
 
     // -----------------------------------------------------------------------
+    // Ed25519 sign/verify (net.i2p.crypto:eddsa — proper Ed25519 not XEdDSA)
+    // -----------------------------------------------------------------------
+    private fun ed25519Sign(priv: EdDSAPrivateKey, data: ByteArray): ByteArray {
+        val engine = EdDSAEngine()
+        engine.initSign(priv)
+        return engine.signOneShot(data)
+    }
+
+    private fun ed25519Verify(pubKeyBytes: ByteArray, data: ByteArray, sig: ByteArray): Boolean {
+        return runCatching {
+            val pubSpec = EdDSAPublicKeySpec(pubKeyBytes, ED25519_SPEC)
+            val pub = EdDSAPublicKey(pubSpec)
+            val engine = EdDSAEngine()
+            engine.initVerify(pub)
+            engine.verifyOneShot(data, sig)
+        }.getOrElse { false }
+    }
+
+    // -----------------------------------------------------------------------
     // ChaCha20-Poly1305 via BouncyCastle
     // encrypt: returns nonce(12) + ciphertext + tag(16)
-    // decrypt: input is ciphertext+tag (nonce provided separately)
+    // decrypt: input is ciphertext+tag, nonce provided separately
     // -----------------------------------------------------------------------
     private fun chacha(
         input: ByteArray, key: ByteArray, nonce: ByteArray,
@@ -157,7 +187,7 @@ class EciesCrypto @Inject constructor() {
     }
 
     // -----------------------------------------------------------------------
-    // Key format helpers
+    // X25519 key format helpers (for ECDH identity key only, not signing)
     // libsignal serialize() = 0x05 prefix + 32 bytes; iOS uses raw 32 bytes
     // -----------------------------------------------------------------------
     fun ecPubToRaw(pub: ECPublicKey): ByteArray = pub.serialize().copyOfRange(1, 33)
