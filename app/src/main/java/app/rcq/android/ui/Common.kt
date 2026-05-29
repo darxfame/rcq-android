@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -131,16 +132,21 @@ internal fun GroupAvatar(group: RcqGroup?, session: Session, size: Dp, glyphSize
 internal fun UnreadBadge(count: Int, modifier: Modifier = Modifier) {
     if (count <= 0) return
     val c = RcqTheme.colors
+    // 16dp min square keeps a single digit perfectly round; extra
+    // horizontal padding only kicks in for 2+ digits, growing it into a
+    // pill. contentAlignment centres the glyph so it never looks offset.
     Box(
         modifier
+            .defaultMinSize(minWidth = 16.dp, minHeight = 16.dp)
             .clip(RoundedCornerShape(percent = 50))
             .background(c.statusBusy)
-            .padding(horizontal = 5.dp, vertical = 1.dp),
+            .padding(horizontal = 4.dp),
+        contentAlignment = Alignment.Center,
     ) {
         Text(
             if (count > 99) "99+" else "$count",
             color = Color.White,
-            fontSize = 9.sp,
+            fontSize = 10.sp,
             fontWeight = FontWeight.Bold,
         )
     }
