@@ -29,6 +29,12 @@ sealed interface Envelope {
      *  message id; [targetId] is the reacted message's UUID, [asset] the
      *  emoji (null clears, currently treated as a no-op on receipt). */
     data class Reaction(val targetId: String, val asset: String?) : Envelope
+    /** Delete-for-everyone (iOS kind "delete"): the author retracts the
+     *  message [targetId] for all recipients. */
+    data class Delete(val targetId: String) : Envelope
+    /** Edit (iOS kind "edit"): the author replaces the body of message
+     *  [targetId] with [text]. */
+    data class Edit(val targetId: String, val text: String) : Envelope
     data class Unknown(val kind: String) : Envelope
 
     /** Serialize to the exact JSON bytes that get signed and shipped.
@@ -58,6 +64,15 @@ sealed interface Envelope {
             addProperty("targetID", targetId)
             if (asset != null) addProperty("asset", asset)
         }.toString().toByteArray(Charsets.UTF_8)
+        is Delete -> JsonObject().apply {
+            addProperty("kind", "delete")
+            addProperty("targetID", targetId)
+        }.toString().toByteArray(Charsets.UTF_8)
+        is Edit -> JsonObject().apply {
+            addProperty("kind", "edit")
+            addProperty("targetID", targetId)
+            addProperty("text", text)
+        }.toString().toByteArray(Charsets.UTF_8)
         is Unknown -> JsonObject().apply { addProperty("kind", kind) }
             .toString().toByteArray(Charsets.UTF_8)
     }
@@ -70,6 +85,10 @@ sealed interface Envelope {
             Photo(UUID.randomUUID().toString().uppercase(), mediaId, mediaKey, caption)
 
         fun reaction(targetId: String, asset: String?): Reaction = Reaction(targetId, asset)
+
+        fun delete(targetId: String): Delete = Delete(targetId)
+
+        fun edit(targetId: String, text: String): Edit = Edit(targetId, text)
 
         fun fromJsonBytes(bytes: ByteArray): Envelope {
             val obj = JsonParser.parseString(String(bytes, Charsets.UTF_8)).asJsonObject
@@ -92,6 +111,11 @@ sealed interface Envelope {
                 "reaction" -> Reaction(
                     targetId = obj.get("targetID")?.asString.orEmpty(),
                     asset = obj.get("asset")?.asString,
+                )
+                "delete" -> Delete(obj.get("targetID")?.asString.orEmpty())
+                "edit" -> Edit(
+                    targetId = obj.get("targetID")?.asString.orEmpty(),
+                    text = obj.get("text")?.asString.orEmpty(),
                 )
                 else -> Unknown(kind ?: "unknown")
             }

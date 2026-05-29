@@ -46,4 +46,5 @@ data class ChatMessage(
     val groupId: Int? = null,     // non-null => this message belongs to a group thread
     val senderUin: Int? = null,   // group message author (for sender labels)
     val reactions: List<String> = emptyList(),  // emoji reacted onto this message
+    val edited: Boolean = false,  // body was replaced by a later edit envelope
 )

@@ -386,6 +386,15 @@ class Session(context: Context) {
                     ChatMessage(env.id, 0, false, env.caption ?: "", now, kind = "photo", mediaId = env.mediaId, mediaKey = env.mediaKey, groupId = groupId, senderUin = dec.senderUin)
                 )
                 is Envelope.Reaction -> env.asset?.let { addGroupReaction(groupId, env.targetId, it) }
+                is Envelope.Delete -> {
+                    // Author-only: match the deleter against the message's sender.
+                    val t = _groupMessages.value[groupId]?.firstOrNull { it.id == env.targetId }
+                    if (t != null && t.senderUin == dec.senderUin) deleteInFlow(_groupMessages, groupId, env.targetId)
+                }
+                is Envelope.Edit -> {
+                    val t = _groupMessages.value[groupId]?.firstOrNull { it.id == env.targetId }
+                    if (t != null && t.senderUin == dec.senderUin) editInFlow(_groupMessages, groupId, env.targetId, env.text)
+                }
                 is Envelope.Unknown -> Unit
             }
         }
@@ -525,6 +534,30 @@ class Session(context: Context) {
         }
     }
 
+    /** Retract [target] for everyone (iOS delete-for-everyone). Only the
+     *  author may; removes it locally and tells the other side(s). */
+    suspend fun sendDeleteForEveryone(target: ChatMessage) {
+        if (!target.fromMe) return
+        val env = Envelope.delete(target.id)
+        if (target.groupId != null) fanOutControl(target.groupId, env)
+        else sendControl(target.peerUin, env)
+        deleteLocal(target)
+    }
+
+    /** Replace the body of [target] (text only, author only) and tell the
+     *  other side(s) via an `edit` envelope. */
+    suspend fun sendEdit(target: ChatMessage, newText: String) {
+        if (!target.fromMe || target.kind != "text" || newText.isBlank()) return
+        val env = Envelope.edit(target.id, newText)
+        if (target.groupId != null) {
+            editInFlow(_groupMessages, target.groupId, target.id, newText)
+            fanOutControl(target.groupId, env)
+        } else {
+            editInFlow(_messages, target.peerUin, target.id, newText)
+            sendControl(target.peerUin, env)
+        }
+    }
+
     /** Encrypt + send a control envelope (e.g. a reaction) to one peer.
      *  Reuses the send-retry but tracks no delivery state. */
     private suspend fun sendControl(toUin: Int, env: Envelope) {
@@ -600,6 +633,15 @@ class Session(context: Context) {
                 is Envelope.Photo ->
                     store(ChatMessage(env.id, dec.senderUin, false, env.caption ?: "", now, kind = "photo", mediaId = env.mediaId, mediaKey = env.mediaKey))
                 is Envelope.Reaction -> env.asset?.let { addPeerReaction(dec.senderUin, env.targetId, it) }
+                is Envelope.Delete -> {
+                    // Author-only: a peer can only retract their own message.
+                    val t = _messages.value[dec.senderUin]?.firstOrNull { it.id == env.targetId }
+                    if (t != null && !t.fromMe) deleteInFlow(_messages, dec.senderUin, env.targetId)
+                }
+                is Envelope.Edit -> {
+                    val t = _messages.value[dec.senderUin]?.firstOrNull { it.id == env.targetId }
+                    if (t != null && !t.fromMe) editInFlow(_messages, dec.senderUin, env.targetId, env.text)
+                }
                 is Envelope.Unknown -> Unit
             }
         }
@@ -793,6 +835,27 @@ class Session(context: Context) {
             } else m
         }
         if (changed) { cur[peer] = updated; _messages.value = cur }
+    }
+
+    /** Replace a message's body in a thread flow (+ DB), flagging it edited.
+     *  Caller enforces who's allowed to edit (own send, or inbound author). */
+    private fun editInFlow(flow: MutableStateFlow<Map<Int, List<ChatMessage>>>, key: Int, id: String, text: String) {
+        val cur = flow.value.toMutableMap()
+        val list = cur[key] ?: return
+        if (list.none { it.id == id }) return
+        db.updateBody(id, text)
+        cur[key] = list.map { if (it.id == id) it.copy(body = text, edited = true) else it }
+        flow.value = cur
+    }
+
+    /** Remove a message from a thread flow (+ DB). Caller enforces authority. */
+    private fun deleteInFlow(flow: MutableStateFlow<Map<Int, List<ChatMessage>>>, key: Int, id: String) {
+        val cur = flow.value.toMutableMap()
+        val list = cur[key] ?: return
+        if (list.none { it.id == id }) return
+        db.delete(id)
+        cur[key] = list.filterNot { it.id == id }
+        flow.value = cur
     }
 
     /** Group analogue of [addPeerReaction]. */

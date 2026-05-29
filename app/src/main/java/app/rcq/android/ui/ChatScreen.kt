@@ -107,6 +107,7 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
 
     var draft by remember { mutableStateOf("") }
     var actionMsg by remember { mutableStateOf<ChatMessage?>(null) }
+    var editMsg by remember { mutableStateOf<ChatMessage?>(null) }
     var replyTarget by remember { mutableStateOf<ChatMessage?>(null) }
     val listState = rememberLazyListState()
 
@@ -264,14 +265,49 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
                         cm.setPrimaryClip(ClipData.newPlainText("message", m.body))
                         actionMsg = null
                     }
+                    if (m.fromMe && m.kind != "photo") MessageAction("Edit") { editMsg = m; actionMsg = null }
                     if (m.fromMe && m.state == DeliveryState.FAILED) MessageAction("Retry") {
                         scope.launch { runCatching { session.resend(m) } }; actionMsg = null
+                    }
+                    if (m.fromMe) MessageAction("Delete for everyone", danger = true) {
+                        scope.launch { runCatching { session.sendDeleteForEveryone(m) } }; actionMsg = null
                     }
                     MessageAction("Delete for me", danger = true) { session.deleteLocal(m); actionMsg = null }
                 }
             },
             confirmButton = {},
             dismissButton = { TextButton(onClick = { actionMsg = null }) { Text("Cancel", color = c.textSecondary) } },
+        )
+    }
+
+    editMsg?.let { m ->
+        var editText by remember(m.id) { mutableStateOf(m.body) }
+        AlertDialog(
+            onDismissRequest = { editMsg = null },
+            containerColor = c.bgSecondary,
+            title = { Text("Edit message", color = c.textPrimary) },
+            text = {
+                Box(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(c.bgPrimary).padding(horizontal = 12.dp, vertical = 10.dp),
+                ) {
+                    BasicTextField(
+                        value = editText,
+                        onValueChange = { editText = it },
+                        textStyle = TextStyle(color = c.textPrimary, fontSize = 15.sp),
+                        cursorBrush = SolidColor(c.accent),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val newText = editText.trim()
+                    val orig = m
+                    editMsg = null
+                    if (newText.isNotEmpty() && newText != orig.body) scope.launch { runCatching { session.sendEdit(orig, newText) } }
+                }) { Text("Save", color = c.accent) }
+            },
+            dismissButton = { TextButton(onClick = { editMsg = null }) { Text("Cancel", color = c.textSecondary) } },
         )
     }
 }
@@ -380,6 +416,7 @@ private fun MessageBubble(session: Session, m: ChatMessage, senderName: String?,
             modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
         ) {
             Text(formatTime(m.sentAt), color = c.textSecondary, fontSize = 10.sp)
+            if (m.edited) Text("edited", color = c.textSecondary, fontSize = 10.sp)
             if (m.fromMe) {
                 if (failed) Text("failed · tap to retry", color = Color(0xFFE5484D), fontSize = 10.sp, modifier = Modifier.clickable(onClick = onRetry))
                 else Text(stateGlyph(m.state), color = c.textSecondary, fontSize = 10.sp)
