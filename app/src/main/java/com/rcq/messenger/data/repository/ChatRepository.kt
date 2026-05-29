@@ -236,6 +236,7 @@ class ChatRepository @Inject constructor(
                     is WsEvent.MessageNew -> {
                         try {
                             val obj = event.raw
+                            Log.d("ChatRepository", "WS MessageNew raw keys: ${obj.keys}")
                             val msgId = obj["id"]?.jsonPrimitive?.contentOrNull
                                 ?: obj["message_id"]?.jsonPrimitive?.contentOrNull
                                 ?: java.util.UUID.randomUUID().toString()
@@ -243,12 +244,15 @@ class ChatRepository @Inject constructor(
 
                             val rawPayload = obj["payload"]?.jsonPrimitive?.contentOrNull
                             val decrypted = rawPayload?.let {
-                                runCatching { cryptoService.decryptWrapped(it) }.getOrNull()
+                                runCatching { cryptoService.decryptWrapped(it) }
+                                    .onFailure { e -> Log.w("ChatRepository", "decryptWrapped failed: ${e.message}") }
+                                    .getOrNull()
                             }
 
                             val senderId = decrypted?.senderUin
                                 ?: obj["sender_uin"]?.jsonPrimitive?.longOrNull
                                 ?: obj["senderUIN"]?.jsonPrimitive?.longOrNull ?: 0L
+                            Log.d("ChatRepository", "WS msg: id=$msgId groupId=$groupId senderId=$senderId decrypted=${decrypted != null} content='${decrypted?.content?.take(30)}'")
 
                             // Skip own messages — already in DB via optimistic insert
                             if (currentUserUin != 0L && senderId == currentUserUin) return@onEach
@@ -476,14 +480,15 @@ class ChatRepository @Inject constructor(
         return api.sendSealedMessage(request).let { response ->
             if (response.isSuccessful) {
                 val resp = response.body()!!
-                // Replace optimistic (UUID) record with server-assigned ID to avoid duplicates
-                messageDao.deleteMessage(message.id)
-                val sentEntity = message.copy(id = resp.id, status = MessageStatus.SENT).toEntity().copy(
+                // Use server-assigned ID if non-empty, otherwise keep optimistic UUID
+                val finalId = resp.id.ifBlank { message.id }
+                if (finalId != message.id) messageDao.deleteMessage(message.id)
+                val sentEntity = message.copy(id = finalId, status = MessageStatus.SENT).toEntity().copy(
                     ciphertext = wrapped.payload, signalType = wrapped.signalType,
                     isEncrypted = true, status = "SENT"
                 )
                 messageDao.insertMessage(sentEntity)
-                message.copy(id = resp.id, status = MessageStatus.SENT)
+                message.copy(id = finalId, status = MessageStatus.SENT)
             } else {
                 messageDao.updateMessage(optimisticEntity.copy(status = "FAILED"))
                 throw Exception("Send failed: ${response.code()}")

@@ -1,5 +1,6 @@
 package com.rcq.messenger.data.repository
 
+import android.util.Log
 import com.rcq.messenger.data.api.*
 import com.rcq.messenger.data.db.*
 import com.rcq.messenger.domain.model.*
@@ -13,20 +14,28 @@ class GroupRepository @Inject constructor(
     private val api: RCQApiService,
     private val groupDao: GroupDao
 ) {
+    companion object { private const val TAG = "GroupRepository" }
+
     fun getGroups(): Flow<List<Group>> = groupDao.getGroups().map { entities ->
         entities.map { it.toDomain() }
     }
 
     suspend fun syncGroups(): Result<Unit> = runCatching {
+        Log.d(TAG, "syncGroups: fetching from server...")
         val response = api.getGroups()
+        Log.d(TAG, "syncGroups: HTTP ${response.code()}")
         if (response.isSuccessful) {
             val groups = response.body() ?: emptyList()
+            Log.d(TAG, "syncGroups: got ${groups.size} groups: ${groups.map { "${it.id}/${it.name}" }}")
             groupDao.insertGroups(groups.map { it.toGroupEntity() })
+        } else {
+            val err = response.errorBody()?.string()
+            Log.e(TAG, "syncGroups: server error ${response.code()} — $err")
         }
-    }
+    }.onFailure { e -> Log.e(TAG, "syncGroups: exception — ${e.message}", e) }
 
     suspend fun createGroup(name: String, memberIds: List<Long>): Result<Group> = runCatching {
-        api.createGroup(CreateGroupRequest(name, memberIds)).let { response ->
+        api.createGroup(CreateGroupRequest(name = name, memberUins = memberIds)).let { response ->
             if (response.isSuccessful) response.body()!!.also {
                 groupDao.insertGroup(it.toEntity())
             }

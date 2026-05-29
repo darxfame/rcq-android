@@ -305,8 +305,7 @@ data class CreateChatRequest(
 @kotlinx.serialization.Serializable
 data class CreateGroupRequest(
     val name: String,
-    val memberIds: List<Long>,
-    val avatarUrl: String? = null
+    @kotlinx.serialization.SerialName("member_uins") val memberUins: List<Long>
 )
 
 @kotlinx.serialization.Serializable

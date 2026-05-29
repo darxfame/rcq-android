@@ -79,7 +79,9 @@ class ContactsViewModel @Inject constructor(
         viewModelScope.launch {
             _isLoading.value = true
             contactRepository.syncContacts()
+                .onFailure { android.util.Log.e("ContactsVM", "syncContacts failed: ${it.message}") }
             groupRepository.syncGroups()
+                .onFailure { android.util.Log.e("ContactsVM", "syncGroups failed: ${it.message}") }
             _isLoading.value = false
         }
     }

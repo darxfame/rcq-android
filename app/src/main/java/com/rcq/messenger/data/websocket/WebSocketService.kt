@@ -650,7 +650,7 @@ class WebSocketService @Inject constructor(
                 )
 
                 else -> {
-                    Log.w(TAG, "Unknown WebSocket event type: $type")
+                    Log.w(TAG, "Unknown WS event type: $type — raw: ${obj.toString().take(200)}")
                     WsEvent.Unknown(type, obj)
                 }
             }
