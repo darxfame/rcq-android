@@ -25,8 +25,10 @@ import androidx.lifecycle.viewModelScope
 import com.rcq.messenger.data.db.ContactDao
 import com.rcq.messenger.data.repository.ChatRepository
 import com.rcq.messenger.data.repository.ContactRepository
+import com.rcq.messenger.data.repository.GroupRepository
 import com.rcq.messenger.data.repository.UserRepository
 import com.rcq.messenger.domain.model.Contact
+import com.rcq.messenger.domain.model.Group
 import com.rcq.messenger.ui.theme.*
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -43,10 +45,14 @@ class ContactsViewModel @Inject constructor(
     private val contactRepository: ContactRepository,
     private val chatRepository: ChatRepository,
     private val userRepository: UserRepository,
-    private val contactDao: ContactDao
+    private val contactDao: ContactDao,
+    private val groupRepository: GroupRepository
 ) : ViewModel() {
 
     val contacts: StateFlow<List<Contact>> = contactRepository.getContacts()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val groups: StateFlow<List<Group>> = groupRepository.getGroups()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val pendingRequestsCount: StateFlow<Int> = contactRepository.pendingRequests
@@ -73,6 +79,7 @@ class ContactsViewModel @Inject constructor(
         viewModelScope.launch {
             _isLoading.value = true
             contactRepository.syncContacts()
+            groupRepository.syncGroups()
             _isLoading.value = false
         }
     }
@@ -121,10 +128,12 @@ fun ContactsScreen(
     viewModel: ContactsViewModel = hiltViewModel(),
     onContactClick: (Long) -> Unit,
     onChatClick: (String) -> Unit = {},
+    onGroupClick: (String) -> Unit = {},
     onAddContact: () -> Unit,
     onPendingRequests: () -> Unit = {}
 ) {
     val contacts by viewModel.contacts.collectAsState()
+    val groups by viewModel.groups.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val pendingCount by viewModel.pendingRequestsCount.collectAsState()
     val editingContact by viewModel.editingContact.collectAsState()
@@ -261,19 +270,35 @@ fun ContactsScreen(
                 singleLine = true
             )
 
-            if (filteredContacts.isEmpty() && !isLoading) {
+            if (filteredContacts.isEmpty() && groups.isEmpty() && !isLoading) {
                 EmptyContactsState(onAddContact = onAddContact)
             } else {
                 LazyColumn {
-                    items(filteredContacts, key = { it.id }) { contact ->
-                        ContactItem(
-                            contact = contact,
-                            onClick = { viewModel.openOrCreateChat(contact.userId) },
-                            onToggleFavorite = { viewModel.toggleFavorite(contact.userId, contact.isFavorite) },
-                            onEditNickname = { viewModel.startEditNickname(contact) },
-                            onBlock = { viewModel.blockContact(contact.userId) },
-                            onRemove = { viewModel.removeContact(contact.userId) }
-                        )
+                    if (groups.isNotEmpty()) {
+                        item(key = "header_groups") {
+                            SectionHeader(title = "Groups (${groups.size})")
+                        }
+                        items(groups, key = { "group_${it.id}" }) { group ->
+                            GroupContactItem(
+                                group = group,
+                                onClick = { onGroupClick(group.id) }
+                            )
+                        }
+                    }
+                    if (filteredContacts.isNotEmpty()) {
+                        item(key = "header_contacts") {
+                            SectionHeader(title = "Contacts (${filteredContacts.size})")
+                        }
+                        items(filteredContacts, key = { it.id }) { contact ->
+                            ContactItem(
+                                contact = contact,
+                                onClick = { viewModel.openOrCreateChat(contact.userId) },
+                                onToggleFavorite = { viewModel.toggleFavorite(contact.userId, contact.isFavorite) },
+                                onEditNickname = { viewModel.startEditNickname(contact) },
+                                onBlock = { viewModel.blockContact(contact.userId) },
+                                onRemove = { viewModel.removeContact(contact.userId) }
+                            )
+                        }
                     }
                 }
             }
@@ -388,6 +413,54 @@ fun ContactItem(
                 text = { Text("Remove") },
                 leadingIcon = { Icon(Icons.Default.Delete, null, tint = Error) },
                 onClick = { menuExpanded = false; onRemove() }
+            )
+        }
+    }
+}
+
+@Composable
+private fun SectionHeader(title: String) {
+    Text(
+        text = title,
+        style = MaterialTheme.typography.labelMedium,
+        color = TextSecondary,
+        fontWeight = FontWeight.SemiBold,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 6.dp)
+    )
+}
+
+@Composable
+private fun GroupContactItem(group: Group, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(48.dp)
+                .clip(CircleShape)
+                .background(Primary.copy(alpha = 0.15f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(Icons.Default.Group, contentDescription = null, tint = Primary)
+        }
+        Spacer(modifier = Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = group.name,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Medium,
+                color = TextPrimary
+            )
+            Text(
+                text = "${group.memberCount} members",
+                style = MaterialTheme.typography.bodySmall,
+                color = TextSecondary
             )
         }
     }

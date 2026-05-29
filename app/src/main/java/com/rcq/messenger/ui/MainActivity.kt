@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 class MainActivity : ComponentActivity() {
 
     private val pendingChatId = MutableStateFlow<String?>(null)
+    private val pendingScreen = MutableStateFlow<String?>(null)
 
     private val notifPermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -32,7 +33,7 @@ class MainActivity : ComponentActivity() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
-        pendingChatId.value = intent.getStringExtra("chat_id")
+        handleIntent(intent)
         enableEdgeToEdge()
         setContent {
             RCQTheme {
@@ -41,7 +42,8 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background
                 ) {
                     val chatId by pendingChatId.collectAsState()
-                    RCQApp(initialChatId = chatId)
+                    val screen by pendingScreen.collectAsState()
+                    RCQApp(initialChatId = chatId, initialScreen = screen)
                 }
             }
         }
@@ -49,6 +51,11 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        handleIntent(intent)
+    }
+
+    private fun handleIntent(intent: Intent) {
         intent.getStringExtra("chat_id")?.let { pendingChatId.value = it }
+        intent.getStringExtra("screen")?.let { pendingScreen.value = it }
     }
 }

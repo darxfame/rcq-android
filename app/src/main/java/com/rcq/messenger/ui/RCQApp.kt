@@ -80,14 +80,17 @@ val bottomNavItems = listOf(
 )
 
 @Composable
-fun RCQApp(initialChatId: String? = null) {
+fun RCQApp(initialChatId: String? = null, initialScreen: String? = null) {
     val navController = rememberNavController()
     val authViewModel: AuthViewModel = hiltViewModel()
     val isAuthenticated by authViewModel.isAuthenticated.collectAsState()
 
-    LaunchedEffect(isAuthenticated, initialChatId) {
-        if (isAuthenticated && initialChatId != null) {
-            navController.navigate(Routes.chat(initialChatId))
+    LaunchedEffect(isAuthenticated, initialChatId, initialScreen) {
+        if (!isAuthenticated) return@LaunchedEffect
+        when {
+            initialChatId != null -> navController.navigate(Routes.chat(initialChatId))
+            initialScreen == "contacts" -> navController.navigate(Screen.Contacts.route)
+            initialScreen == "call" -> { /* handled via call_id extra separately */ }
         }
     }
 
@@ -146,6 +149,7 @@ fun MainScaffold(
                 ContactsScreen(
                     onContactClick = { userId -> navController.navigate(Routes.userProfile(userId)) },
                     onChatClick = { chatId -> navController.navigate(Routes.chat(chatId)) },
+                    onGroupClick = { groupId -> navController.navigate(Routes.chat(groupId)) },
                     onAddContact = { navController.navigate("add_contact") },
                     onPendingRequests = { navController.navigate("pending_requests") }
                 )

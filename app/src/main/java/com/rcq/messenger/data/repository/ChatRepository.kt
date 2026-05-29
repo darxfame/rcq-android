@@ -212,11 +212,15 @@ class ChatRepository @Inject constructor(
     private val chatDao: ChatDao,
     private val contactDao: ContactDao,
     private val messageDao: MessageDao,
+    private val groupDao: com.rcq.messenger.data.db.GroupDao,
     private val webSocketService: WebSocketService,
     private val cryptoService: CryptoService,
     private val notificationHelper: com.rcq.messenger.service.NotificationHelper
 ) {
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    @Volatile private var currentUserUin: Long = 0L
+
+    fun setCurrentUserUin(uin: Long) { currentUserUin = uin }
 
     init {
         fetchOfflineQueue()
@@ -237,8 +241,6 @@ class ChatRepository @Inject constructor(
                                 ?: java.util.UUID.randomUUID().toString()
                             val groupId = obj["group_id"]?.jsonPrimitive?.intOrNull
 
-                            // Decrypt Android v=0 wrapped payload {v:0, from, kind, msg}
-                            // Server uses sealed-sender so no from_uin in outer WS packet
                             val rawPayload = obj["payload"]?.jsonPrimitive?.contentOrNull
                             val decrypted = rawPayload?.let {
                                 runCatching { cryptoService.decryptWrapped(it) }.getOrNull()
@@ -247,6 +249,9 @@ class ChatRepository @Inject constructor(
                             val senderId = decrypted?.senderUin
                                 ?: obj["sender_uin"]?.jsonPrimitive?.longOrNull
                                 ?: obj["senderUIN"]?.jsonPrimitive?.longOrNull ?: 0L
+
+                            // Skip own messages — already in DB via optimistic insert
+                            if (currentUserUin != 0L && senderId == currentUserUin) return@onEach
 
                             val serverChatId = obj["chat_id"]?.jsonPrimitive?.contentOrNull
                             val chatId = when {
@@ -324,19 +329,47 @@ class ChatRepository @Inject constructor(
             runCatching {
                 val response = api.getMessageQueue()
                 if (response.isSuccessful) {
-                    response.body()?.forEach { msg ->
+                    val msgs = response.body() ?: return@runCatching
+                    val ackIds = mutableListOf<String>()
+                    msgs.forEach { msg ->
                         if (messageDao.getMessage(msg.id) == null) {
                             messageDao.insertMessage(msg.toEntity())
                             val chat = chatDao.getChat(msg.chatId)
                             if (chat != null) chatDao.incrementUnreadCount(msg.chatId, System.currentTimeMillis())
                         }
+                        ackIds.add(msg.id)
+                    }
+                    if (ackIds.isNotEmpty()) {
+                        runCatching { api.ackMessageQueue(ackIds) }
                     }
                 }
             }
         }
     }
 
-    suspend fun getChat(chatId: String): Chat? = chatDao.getChat(chatId)?.toDomain()
+    suspend fun getChat(chatId: String): Chat? {
+        chatDao.getChat(chatId)?.let { return it.toDomain() }
+        // For group chats, create a ChatEntity on first access so messages can be stored
+        if (!chatId.startsWith("direct_")) {
+            val group = groupDao.getGroup(chatId) ?: return null
+            val now = System.currentTimeMillis()
+            val entity = ChatEntity(
+                id = chatId,
+                targetId = group.creatorId,
+                targetNickname = group.name,
+                targetAvatar = group.avatarUrl,
+                unreadCount = 0,
+                isPinned = false,
+                isMuted = false,
+                isArchived = false,
+                createdAt = now,
+                updatedAt = now
+            )
+            chatDao.insertChat(entity)
+            return entity.toDomain()
+        }
+        return null
+    }
 
     fun getChats(): Flow<List<Chat>> = chatDao.getChats().map { entities ->
         entities.map { it.toDomain() }
@@ -395,13 +428,11 @@ class ChatRepository @Inject constructor(
         val optimisticEntity = message.toEntity().copy(status = "SENDING")
         messageDao.insertMessage(optimisticEntity)
 
-        // Determine if this is a group chat by checking the groups API
-        val groupResp = runCatching { api.getGroup(chatId) }.getOrNull()
-        if (groupResp?.isSuccessful == true) {
-            val group = groupResp.body()!!
-            sendGroupMessage(chatId, message, group, optimisticEntity)
+        // Groups are stored in GroupDao; direct chats have "direct_$uin" format
+        val groupEntity = if (!chatId.startsWith("direct_")) groupDao.getGroup(chatId) else null
+        if (groupEntity != null) {
+            sendGroupMessage(chatId, message, groupEntity, optimisticEntity)
         } else {
-            // Direct chat
             val chat = chatDao.getChat(chatId)
             if (chat == null) {
                 messageDao.updateMessage(optimisticEntity.copy(status = "FAILED"))
@@ -445,12 +476,14 @@ class ChatRepository @Inject constructor(
         return api.sendSealedMessage(request).let { response ->
             if (response.isSuccessful) {
                 val resp = response.body()!!
-                val sent = message.copy(id = resp.id, status = MessageStatus.SENT)
-                messageDao.updateMessage(sent.toEntity().copy(
+                // Replace optimistic (UUID) record with server-assigned ID to avoid duplicates
+                messageDao.deleteMessage(message.id)
+                val sentEntity = message.copy(id = resp.id, status = MessageStatus.SENT).toEntity().copy(
                     ciphertext = wrapped.payload, signalType = wrapped.signalType,
                     isEncrypted = true, status = "SENT"
-                ))
-                sent
+                )
+                messageDao.insertMessage(sentEntity)
+                message.copy(id = resp.id, status = MessageStatus.SENT)
             } else {
                 messageDao.updateMessage(optimisticEntity.copy(status = "FAILED"))
                 throw Exception("Send failed: ${response.code()}")
@@ -461,13 +494,12 @@ class ChatRepository @Inject constructor(
     private suspend fun sendGroupMessage(
         chatId: String,
         message: Message,
-        group: com.rcq.messenger.data.api.GroupApiResponse,
+        group: com.rcq.messenger.domain.model.GroupEntity,
         optimisticEntity: com.rcq.messenger.domain.model.MessageEntity
     ): Message {
         val recipients = mutableListOf<com.rcq.messenger.data.api.GroupSealedRecipient>()
 
-        for (member in group.members) {
-            val memberUin = member.uin.toLong()
+        for (memberUin in group.memberIds) {
             if (memberUin == message.senderId) continue // skip self
 
             try {
@@ -494,17 +526,21 @@ class ChatRepository @Inject constructor(
             throw Exception("No group members could be encrypted to")
         }
 
+        val groupIdInt = group.id.toIntOrNull() ?: run {
+            messageDao.updateMessage(optimisticEntity.copy(status = "FAILED"))
+            throw Exception("Invalid group id: ${group.id}")
+        }
+
         val request = com.rcq.messenger.data.api.GroupSealedMessageRequest(
-            groupId = group.id,
+            groupId = groupIdInt,
             envelopeType = "message",
             payloads = recipients
         )
 
         return api.sendGroupSealedMessage(request).let { response ->
             if (response.isSuccessful) {
-                val sent = message.copy(status = MessageStatus.SENT)
                 messageDao.updateMessage(optimisticEntity.copy(status = "SENT"))
-                sent
+                message.copy(status = MessageStatus.SENT)
             } else {
                 messageDao.updateMessage(optimisticEntity.copy(status = "FAILED"))
                 throw Exception("Group send failed: ${response.code()}")

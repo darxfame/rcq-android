@@ -64,6 +64,9 @@ interface RCQApiService {
     @GET("messages/queue")
     suspend fun getMessageQueue(): Response<List<Message>>
 
+    @POST("messages/queue/ack")
+    suspend fun ackMessageQueue(@Body ids: List<String>): Response<Unit>
+
     @POST("messages/sealed")
     suspend fun sendSealedMessage(@Body request: SealedMessageRequest): Response<SealedMessageResponse>
 

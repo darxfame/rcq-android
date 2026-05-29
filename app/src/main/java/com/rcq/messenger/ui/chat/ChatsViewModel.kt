@@ -97,6 +97,7 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             userRepository.getCurrentUser().onSuccess { user ->
                 _currentUserId.value = user.id
+                chatRepository.setCurrentUserUin(user.id)
             }
         }
     }
