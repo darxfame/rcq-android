@@ -40,6 +40,18 @@ sealed interface Envelope {
      *  the messages [targetIds]. The original sender flips those bubbles
      *  to READ. */
     data class ReadReceipt(val targetIds: List<String>) : Envelope
+    /** File attachment (iOS kind "file"). Like [Photo] the bytes live in an
+     *  out-of-band encrypted blob; [fileName]/[mime]/[sizeBytes] describe it
+     *  for the bubble. */
+    data class File(
+        val id: String,
+        val mediaId: String,
+        val mediaKey: String,
+        val fileName: String,
+        val mime: String,
+        val sizeBytes: Long,
+        val caption: String?,
+    ) : Envelope
     data class Unknown(val kind: String) : Envelope
 
     /** Serialize to the exact JSON bytes that get signed and shipped.
@@ -82,6 +94,16 @@ sealed interface Envelope {
             addProperty("kind", "read")
             add("targetIDs", JsonArray().apply { targetIds.forEach { add(it) } })
         }.toString().toByteArray(Charsets.UTF_8)
+        is File -> JsonObject().apply {
+            addProperty("kind", "file")
+            addProperty("id", id)
+            addProperty("mediaID", mediaId)
+            addProperty("mediaKey", mediaKey)
+            addProperty("fname", fileName)
+            addProperty("mime", mime)
+            addProperty("size", sizeBytes)
+            if (!caption.isNullOrEmpty()) addProperty("caption", caption)
+        }.toString().toByteArray(Charsets.UTF_8)
         is Unknown -> JsonObject().apply { addProperty("kind", kind) }
             .toString().toByteArray(Charsets.UTF_8)
     }
@@ -100,6 +122,9 @@ sealed interface Envelope {
         fun edit(targetId: String, text: String): Edit = Edit(targetId, text)
 
         fun readReceipt(targetIds: List<String>): ReadReceipt = ReadReceipt(targetIds)
+
+        fun file(mediaId: String, mediaKey: String, fileName: String, mime: String, sizeBytes: Long, caption: String?): File =
+            File(UUID.randomUUID().toString().uppercase(), mediaId, mediaKey, fileName, mime, sizeBytes, caption)
 
         fun fromJsonBytes(bytes: ByteArray): Envelope {
             val obj = JsonParser.parseString(String(bytes, Charsets.UTF_8)).asJsonObject
@@ -130,6 +155,15 @@ sealed interface Envelope {
                 )
                 "read" -> ReadReceipt(
                     obj.getAsJsonArray("targetIDs")?.mapNotNull { it.asString } ?: emptyList(),
+                )
+                "file" -> File(
+                    id = id,
+                    mediaId = obj.get("mediaID")?.asString.orEmpty(),
+                    mediaKey = obj.get("mediaKey")?.asString.orEmpty(),
+                    fileName = obj.get("fname")?.asString ?: "file",
+                    mime = obj.get("mime")?.asString ?: "application/octet-stream",
+                    sizeBytes = obj.get("size")?.asLong ?: 0L,
+                    caption = obj.get("caption")?.asString,
                 )
                 else -> Unknown(kind ?: "unknown")
             }

@@ -47,4 +47,7 @@ data class ChatMessage(
     val senderUin: Int? = null,   // group message author (for sender labels)
     val reactions: List<String> = emptyList(),  // emoji reacted onto this message
     val edited: Boolean = false,  // body was replaced by a later edit envelope
+    val fileName: String? = null, // kind == "file": original name
+    val fileMime: String? = null, // kind == "file": MIME type
+    val fileSize: Long? = null,   // kind == "file": size in bytes
 )

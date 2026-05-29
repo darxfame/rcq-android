@@ -3,9 +3,12 @@ package app.rcq.android.ui
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.provider.OpenableColumns
+import androidx.core.content.FileProvider
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -109,6 +112,7 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
     var actionMsg by remember { mutableStateOf<ChatMessage?>(null) }
     var editMsg by remember { mutableStateOf<ChatMessage?>(null) }
     var replyTarget by remember { mutableStateOf<ChatMessage?>(null) }
+    var attachMenu by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
 
     fun authorName(m: ChatMessage): String = when {
@@ -122,6 +126,16 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
             val jpeg = withContext(Dispatchers.IO) { compressImage(context, uri) }
             if (jpeg != null) runCatching {
                 if (isGroup) session.sendGroupPhoto(groupId!!, jpeg, null) else session.sendPhoto(peer!!, jpeg, null)
+            }
+        }
+    }
+
+    val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) scope.launch {
+            val picked = withContext(Dispatchers.IO) { readPickedFile(context, uri) }
+            if (picked != null) runCatching {
+                if (isGroup) session.sendGroupFile(groupId!!, picked.bytes, picked.name, picked.mime)
+                else session.sendFile(peer!!, picked.bytes, picked.name, picked.mime)
             }
         }
     }
@@ -222,7 +236,7 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
                     draft = it
                     if (!isGroup && peer != null) session.sendTyping(peer, it.isNotBlank())
                 },
-                onAttach = { picker.launch("image/*") },
+                onAttach = { attachMenu = true },
                 onSend = {
                     val body = draft.trim(); draft = ""
                     val reply = replyTarget?.let { Reply(it.id, previewOf(it), authorName(it)) }
@@ -261,12 +275,12 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
                         }
                     }
                     MessageAction("Reply") { replyTarget = m; actionMsg = null }
-                    if (m.kind != "photo") MessageAction("Copy") {
+                    if (m.kind == "text") MessageAction("Copy") {
                         val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                         cm.setPrimaryClip(ClipData.newPlainText("message", m.body))
                         actionMsg = null
                     }
-                    if (m.fromMe && m.kind != "photo") MessageAction("Edit") { editMsg = m; actionMsg = null }
+                    if (m.fromMe && m.kind == "text") MessageAction("Edit") { editMsg = m; actionMsg = null }
                     if (m.fromMe && m.state == DeliveryState.FAILED) MessageAction("Retry") {
                         scope.launch { runCatching { session.resend(m) } }; actionMsg = null
                     }
@@ -309,6 +323,22 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
                 }) { Text("Save", color = c.accent) }
             },
             dismissButton = { TextButton(onClick = { editMsg = null }) { Text("Cancel", color = c.textSecondary) } },
+        )
+    }
+
+    if (attachMenu) {
+        AlertDialog(
+            onDismissRequest = { attachMenu = false },
+            containerColor = c.bgSecondary,
+            title = { Text("Attach", color = c.textPrimary) },
+            text = {
+                Column {
+                    MessageAction("Photo") { attachMenu = false; picker.launch("image/*") }
+                    MessageAction("File") { attachMenu = false; filePicker.launch("*/*") }
+                }
+            },
+            confirmButton = {},
+            dismissButton = { TextButton(onClick = { attachMenu = false }) { Text("Cancel", color = c.textSecondary) } },
         )
     }
 }
@@ -359,8 +389,11 @@ private fun MessageAction(label: String, danger: Boolean = false, onClick: () ->
     )
 }
 
-private fun previewOf(m: ChatMessage): String =
-    if (m.kind == "photo") "📷 Photo" else m.body.take(100)
+private fun previewOf(m: ChatMessage): String = when (m.kind) {
+    "photo" -> "📷 Photo"
+    "file" -> "📎 ${m.fileName ?: "File"}"
+    else -> m.body.take(100)
+}
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -379,6 +412,8 @@ private fun MessageBubble(session: Session, m: ChatMessage, senderName: String?,
                     modifier = Modifier.padding(top = 2.dp).clip(RoundedCornerShape(10.dp)).background(if (m.fromMe) c.bubbleSelf else c.bubbleOther).padding(horizontal = 10.dp, vertical = 6.dp),
                 )
             }
+        } else if (m.kind == "file") {
+            FileBubble(session, m, onLongPress)
         } else {
             Column(
                 Modifier
@@ -442,6 +477,75 @@ private fun PhotoBubble(session: Session, m: ChatMessage) {
             CircularProgressIndicator(color = c.accent, modifier = Modifier.size(22.dp))
         }
     }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun FileBubble(session: Session, m: ChatMessage, onLongPress: () -> Unit) {
+    val c = RcqTheme.colors
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        modifier = Modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(if (m.fromMe) c.bubbleSelf else c.bubbleOther)
+            .combinedClickable(
+                onClick = {
+                    val mid = m.mediaId; val key = m.mediaKey
+                    if (mid != null && key != null) scope.launch {
+                        val bytes = session.fetchImage(mid, key)
+                        if (bytes != null) openFile(context, bytes, m.fileName ?: "file", m.fileMime ?: "application/octet-stream")
+                    }
+                },
+                onLongClick = onLongPress,
+            )
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+    ) {
+        Text("📄", fontSize = 22.sp)
+        Column {
+            Text(m.fileName ?: "file", color = c.textPrimary, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(formatFileSize(m.fileSize ?: 0L), color = c.textSecondary, fontSize = 11.sp)
+        }
+    }
+}
+
+/** Read a picked file's bytes + display name + MIME from a content URI. */
+private fun readPickedFile(context: Context, uri: Uri): PickedFile? = runCatching {
+    val cr = context.contentResolver
+    var name = "file"
+    cr.query(uri, null, null, null, null)?.use { cur ->
+        val idx = cur.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+        if (idx >= 0 && cur.moveToFirst()) cur.getString(idx)?.let { name = it }
+    }
+    val mime = cr.getType(uri) ?: "application/octet-stream"
+    val bytes = cr.openInputStream(uri)?.use { it.readBytes() } ?: return@runCatching null
+    PickedFile(bytes, name, mime)
+}.getOrNull()
+
+private data class PickedFile(val bytes: ByteArray, val name: String, val mime: String)
+
+/** Write decrypted bytes to the cache and hand them to a viewer via a
+ *  FileProvider URI (chooser fallback so the user can always save it). */
+private fun openFile(context: Context, bytes: ByteArray, fileName: String, mime: String) {
+    runCatching {
+        val dir = java.io.File(context.cacheDir, "files").apply { mkdirs() }
+        val f = java.io.File(dir, fileName.replace('/', '_'))
+        f.writeBytes(bytes)
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", f)
+        val view = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, mime)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        context.startActivity(Intent.createChooser(view, fileName).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
+    }
+}
+
+private fun formatFileSize(bytes: Long): String = when {
+    bytes >= 1_000_000 -> "%.1f MB".format(bytes / 1_000_000.0)
+    bytes >= 1_000 -> "%.0f KB".format(bytes / 1000.0)
+    else -> "$bytes B"
 }
 
 private fun compressImage(context: Context, uri: Uri): ByteArray? {

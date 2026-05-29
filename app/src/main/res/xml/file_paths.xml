@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Decrypted attachments are written to cacheDir/files/ before being
+         handed to a viewer via FileProvider (see ChatScreen.openFile). -->
+    <cache-path name="files" path="files/" />
+</paths>

@@ -37,7 +37,10 @@ class MessageDb(context: Context) : SQLiteOpenHelper(context.applicationContext,
               group_id   INTEGER,
               sender_uin INTEGER,
               reactions  TEXT,
-              edited     INTEGER NOT NULL DEFAULT 0
+              edited     INTEGER NOT NULL DEFAULT 0,
+              file_name  TEXT,
+              file_mime  TEXT,
+              file_size  INTEGER
             )
             """.trimIndent()
         )
@@ -69,6 +72,11 @@ class MessageDb(context: Context) : SQLiteOpenHelper(context.applicationContext,
         if (oldVersion < 7) {
             db.execSQL("ALTER TABLE messages ADD COLUMN edited INTEGER NOT NULL DEFAULT 0")
         }
+        if (oldVersion < 8) {
+            db.execSQL("ALTER TABLE messages ADD COLUMN file_name TEXT")
+            db.execSQL("ALTER TABLE messages ADD COLUMN file_mime TEXT")
+            db.execSQL("ALTER TABLE messages ADD COLUMN file_size INTEGER")
+        }
     }
 
     /** Insert; returns true if it was new (false if the UUID already existed). */
@@ -89,6 +97,9 @@ class MessageDb(context: Context) : SQLiteOpenHelper(context.applicationContext,
             put("sender_uin", msg.senderUin)
             put("reactions", msg.reactions.joinToString(REACTION_DELIM))
             put("edited", if (msg.edited) 1 else 0)
+            put("file_name", msg.fileName)
+            put("file_mime", msg.fileMime)
+            put("file_size", msg.fileSize)
         }
         val rowId = writableDatabase.insertWithOnConflict(
             "messages", null, values, SQLiteDatabase.CONFLICT_IGNORE,
@@ -124,7 +135,7 @@ class MessageDb(context: Context) : SQLiteOpenHelper(context.applicationContext,
     fun all(): List<ChatMessage> {
         val out = ArrayList<ChatMessage>()
         readableDatabase.rawQuery(
-            "SELECT id, peer_uin, from_me, body, sent_at, state, kind, media_id, media_key, reply_snippet, reply_author, group_id, sender_uin, reactions, edited FROM messages ORDER BY sent_at ASC", null,
+            "SELECT id, peer_uin, from_me, body, sent_at, state, kind, media_id, media_key, reply_snippet, reply_author, group_id, sender_uin, reactions, edited, file_name, file_mime, file_size FROM messages ORDER BY sent_at ASC", null,
         ).use { c ->
             while (c.moveToNext()) {
                 out.add(
@@ -144,6 +155,9 @@ class MessageDb(context: Context) : SQLiteOpenHelper(context.applicationContext,
                         senderUin = if (c.isNull(12)) null else c.getInt(12),
                         reactions = c.getString(13)?.split(REACTION_DELIM)?.filter { it.isNotEmpty() } ?: emptyList(),
                         edited = c.getInt(14) == 1,
+                        fileName = c.getString(15),
+                        fileMime = c.getString(16),
+                        fileSize = if (c.isNull(17)) null else c.getLong(17),
                     )
                 )
             }
@@ -153,7 +167,7 @@ class MessageDb(context: Context) : SQLiteOpenHelper(context.applicationContext,
 
     private companion object {
         const val NAME = "rcq-messages.db"
-        const val VERSION = 7
+        const val VERSION = 8
         // Delimiter for the joined reactions column; not a valid emoji char.
         const val REACTION_DELIM = "\u0001"
     }

@@ -343,6 +343,9 @@ class Session(context: Context) {
         mediaId: String? = null,
         mediaKey: String? = null,
         replyTo: app.rcq.android.crypto.Reply? = null,
+        fileName: String? = null,
+        fileMime: String? = null,
+        fileSize: Long? = null,
     ) {
         val me = store.uin ?: return
         storeGroup(
@@ -352,6 +355,7 @@ class Session(context: Context) {
                 kind = kind, mediaId = mediaId, mediaKey = mediaKey,
                 replyToSnippet = replyTo?.snippet, replyToAuthor = replyTo?.authorName,
                 groupId = groupId, senderUin = me,
+                fileName = fileName, fileMime = fileMime, fileSize = fileSize,
             )
         )
         fanOutGroup(groupId, env, id)
@@ -402,6 +406,9 @@ class Session(context: Context) {
                 )
                 is Envelope.Photo -> storeGroup(
                     ChatMessage(env.id, 0, false, env.caption ?: "", now, kind = "photo", mediaId = env.mediaId, mediaKey = env.mediaKey, groupId = groupId, senderUin = dec.senderUin)
+                )
+                is Envelope.File -> storeGroup(
+                    ChatMessage(env.id, 0, false, env.caption ?: "", now, kind = "file", mediaId = env.mediaId, mediaKey = env.mediaKey, fileName = env.fileName, fileMime = env.mime, fileSize = env.sizeBytes, groupId = groupId, senderUin = dec.senderUin)
                 )
                 is Envelope.Reaction -> env.asset?.let { addGroupReaction(groupId, env.targetId, it) }
                 is Envelope.Delete -> {
@@ -473,23 +480,51 @@ class Session(context: Context) {
         sendEnvelope(env, env.id, toUin)
     }
 
+    /** Encrypt+upload arbitrary file bytes, then send a file envelope (same
+     *  blob path as photos; rcq-spec 9). [fileName]/[mime]/size describe it. */
+    suspend fun sendFile(toUin: Int, bytes: ByteArray, fileName: String, mime: String) {
+        val key = MediaCrypto.newKey()
+        val blob = MediaCrypto.seal(bytes, key)
+        val keyB64 = Base64.encodeToString(key, Base64.NO_WRAP)
+        val upload = api.uploadBlob(blob)
+        imageCache[upload.media_id] = bytes
+        val size = bytes.size.toLong()
+        val env = Envelope.file(upload.media_id, keyB64, fileName, mime, size, null)
+        store(ChatMessage(env.id, toUin, true, "", System.currentTimeMillis(), DeliveryState.SENDING, kind = "file", mediaId = upload.media_id, mediaKey = keyB64, fileName = fileName, fileMime = mime, fileSize = size))
+        sendEnvelope(env, env.id, toUin)
+    }
+
+    /** Group file: encrypt once, fan out per member (same as group photo). */
+    suspend fun sendGroupFile(groupId: Int, bytes: ByteArray, fileName: String, mime: String) {
+        val key = MediaCrypto.newKey()
+        val blob = MediaCrypto.seal(bytes, key)
+        val keyB64 = Base64.encodeToString(key, Base64.NO_WRAP)
+        val upload = api.uploadBlob(blob)
+        imageCache[upload.media_id] = bytes
+        val size = bytes.size.toLong()
+        val env = Envelope.file(upload.media_id, keyB64, fileName, mime, size, null)
+        sendGroupEnvelope(groupId, env, env.id, "", kind = "file", mediaId = upload.media_id, mediaKey = keyB64, fileName = fileName, fileMime = mime, fileSize = size)
+    }
+
+    /** Rebuild the wire envelope for a stored outgoing message (resend). */
+    private fun resendEnvelope(msg: ChatMessage): Envelope = when {
+        msg.kind == "photo" && msg.mediaId != null && msg.mediaKey != null ->
+            Envelope.Photo(msg.id, msg.mediaId, msg.mediaKey, msg.body.ifEmpty { null })
+        msg.kind == "file" && msg.mediaId != null && msg.mediaKey != null ->
+            Envelope.File(msg.id, msg.mediaId, msg.mediaKey, msg.fileName ?: "file", msg.fileMime ?: "application/octet-stream", msg.fileSize ?: 0L, msg.body.ifEmpty { null })
+        else -> Envelope.Text(msg.id, msg.body)
+    }
+
     /** Retry a previously-failed outgoing message (same UUID, so no dup). */
     suspend fun resend(msg: ChatMessage) {
         if (!msg.fromMe || msg.state != DeliveryState.FAILED) return
+        val env = resendEnvelope(msg)
         if (msg.groupId != null) {
-            val env: Envelope = if (msg.kind == "photo" && msg.mediaId != null && msg.mediaKey != null)
-                Envelope.Photo(msg.id, msg.mediaId, msg.mediaKey, msg.body.ifEmpty { null })
-            else Envelope.Text(msg.id, msg.body)
             updateGroupMsgState(msg.groupId, msg.id, DeliveryState.SENDING)
             fanOutGroup(msg.groupId, env, msg.id)
             return
         }
         updateMessageState(msg.id, msg.peerUin, DeliveryState.SENDING)
-        val env: Envelope = if (msg.kind == "photo" && msg.mediaId != null && msg.mediaKey != null) {
-            Envelope.Photo(msg.id, msg.mediaId, msg.mediaKey, msg.body.ifEmpty { null })
-        } else {
-            Envelope.Text(msg.id, msg.body)
-        }
         sendEnvelope(env, msg.id, msg.peerUin)
     }
 
@@ -683,6 +718,8 @@ class Session(context: Context) {
                     store(ChatMessage(env.id, dec.senderUin, false, env.text, now, replyToSnippet = env.replyTo?.snippet, replyToAuthor = env.replyTo?.authorName))
                 is Envelope.Photo ->
                     store(ChatMessage(env.id, dec.senderUin, false, env.caption ?: "", now, kind = "photo", mediaId = env.mediaId, mediaKey = env.mediaKey))
+                is Envelope.File ->
+                    store(ChatMessage(env.id, dec.senderUin, false, env.caption ?: "", now, kind = "file", mediaId = env.mediaId, mediaKey = env.mediaKey, fileName = env.fileName, fileMime = env.mime, fileSize = env.sizeBytes))
                 is Envelope.Reaction -> env.asset?.let { addPeerReaction(dec.senderUin, env.targetId, it) }
                 is Envelope.Delete -> {
                     // Author-only: a peer can only retract their own message.
