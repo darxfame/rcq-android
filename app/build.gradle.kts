@@ -22,8 +22,20 @@ android {
             useSupportLibrary = true
         }
 
-        buildConfigField("String", "API_BASE_URL", "\"https://api.rcq.app/\"")
+    }
 
+    flavorDimensions += "env"
+    productFlavors {
+        create("production") {
+            dimension = "env"
+            buildConfigField("String", "API_BASE_URL", "\"https://api.rcq.app/\"")
+        }
+        create("staging") {
+            dimension = "env"
+            applicationIdSuffix = ".staging"
+            versionNameSuffix = "-staging"
+            buildConfigField("String", "API_BASE_URL", "\"https://api.staging.rcq.app/\"")
+        }
     }
 
     buildTypes {
@@ -71,6 +83,9 @@ android {
 }
 
 dependencies {
+    // Logging
+    implementation("com.jakewharton.timber:timber:5.0.1")
+
     // Core Android
     implementation("androidx.core:core-ktx:1.12.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
