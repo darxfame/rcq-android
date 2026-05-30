@@ -29,10 +29,13 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Autorenew
 import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Restore
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.outlined.Block
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
@@ -63,7 +66,7 @@ import app.rcq.android.net.RcqApi
 import kotlinx.coroutines.launch
 
 /** Sub-screens inside Settings (kept self-contained, no nav graph). */
-private enum class SettingsRoute { ROOT, PROFILE, PRIVACY, NOTIFICATIONS, BLOCKED }
+private enum class SettingsRoute { ROOT, PROFILE, PRIVACY, NOTIFICATIONS, BLOCKED, CUSTOM_SERVER }
 
 @Composable
 internal fun SettingsScreen(session: Session, uin: Int, onBack: () -> Unit, onBurned: () -> Unit, onMigrated: (Int) -> Unit) {
@@ -77,9 +80,17 @@ internal fun SettingsScreen(session: Session, uin: Int, onBack: () -> Unit, onBu
             onOpen = { route = it },
         )
         SettingsRoute.PROFILE -> ProfileEditScreen(session) { route = SettingsRoute.ROOT }
-        SettingsRoute.PRIVACY -> PrivacyScreen(session) { route = SettingsRoute.ROOT }
+        SettingsRoute.PRIVACY -> PrivacyScreen(
+            session,
+            onOpenCustomServer = { route = SettingsRoute.CUSTOM_SERVER },
+        ) { route = SettingsRoute.ROOT }
         SettingsRoute.NOTIFICATIONS -> NotificationsScreen { route = SettingsRoute.ROOT }
         SettingsRoute.BLOCKED -> BlockedUsersScreen(session) { route = SettingsRoute.ROOT }
+        SettingsRoute.CUSTOM_SERVER -> CustomServerScreen(
+            session,
+            onBack = { route = SettingsRoute.ROOT },
+            onSwitched = { newUin -> onMigrated(newUin); onBack() },
+        )
     }
 }
 
@@ -320,7 +331,7 @@ private fun ProfileEditScreen(session: Session, onBack: () -> Unit) {
 // ── Privacy & Network ────────────────────────────────────────────────
 
 @Composable
-private fun PrivacyScreen(session: Session, onBack: () -> Unit) {
+private fun PrivacyScreen(session: Session, onOpenCustomServer: () -> Unit, onBack: () -> Unit) {
     val c = RcqTheme.colors
     val scope = rememberCoroutineScope()
     var lastSeen by remember { mutableStateOf("everyone") }
@@ -349,6 +360,18 @@ private fun PrivacyScreen(session: Session, onBack: () -> Unit) {
             VisibilityPicker("Gender", genderVis, listOf("everyone", "contacts", "nobody")) { genderVis = it; save(RcqApi.UpdateMeBody(gender_visibility = it)) }
             VisibilityPicker("Who can add me to groups", invitePolicy, listOf("everyone", "contacts", "nobody")) { invitePolicy = it; save(RcqApi.UpdateMeBody(group_invite_policy = it)) }
             VisibilityPicker("Read receipts", receipts, listOf("everyone", "contacts", "nobody")) { receipts = it; save(RcqApi.UpdateMeBody(read_receipts_visibility = it)) }
+
+            Spacer(Modifier.height(4.dp))
+            SectionLabel("Network")
+            SettingsGroup {
+                val host = session.currentServer
+                SettingsRow(
+                    Icons.Filled.Dns,
+                    "Custom server",
+                    value = if (host == RcqApi.DEFAULT_HOST) "Default" else host,
+                    onClick = onOpenCustomServer,
+                )
+            }
         }
     }
 }
@@ -401,6 +424,122 @@ private fun BlockedUsersScreen(session: Session, onBack: () -> Unit) {
                 }
             }
         }
+    }
+}
+
+// ── Custom server ────────────────────────────────────────────────────
+
+/** Point this device at a different backend (iOS CustomServerSheet
+ *  parity). Switching is destructive — the current UIN/token/contacts
+ *  only exist on the current server — so we confirm, then burn the
+ *  account and mint a fresh identity on the chosen server. */
+@Composable
+private fun CustomServerScreen(session: Session, onBack: () -> Unit, onSwitched: (Int) -> Unit) {
+    val c = RcqTheme.colors
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val current = session.currentServer
+    var draft by remember { mutableStateOf(current) }
+    var switching by remember { mutableStateOf(false) }
+    var confirm by remember { mutableStateOf(false) }
+    var resetting by remember { mutableStateOf(false) }
+
+    // Bare host the user typed (scheme/path stripped); blank → default.
+    fun normalized(s: String): String = s.trim()
+        .removePrefix("https://").removePrefix("http://").removePrefix("wss://").removePrefix("ws://")
+        .substringBefore('/').trim()
+        .ifBlank { RcqApi.DEFAULT_HOST }
+
+    val target = normalized(draft)
+    val isDirty = target != current
+    val onCustom = current != RcqApi.DEFAULT_HOST
+
+    fun applySwitch(input: String?) {
+        switching = true
+        scope.launch {
+            val newUin = runCatching { session.switchServer(input) }.getOrNull()
+            switching = false
+            if (newUin != null) {
+                Toast.makeText(context, "Connected to ${session.currentServer}", Toast.LENGTH_LONG).show()
+                onSwitched(newUin)
+            } else {
+                Toast.makeText(context, "Couldn't reach that server. Nothing changed.", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    Column(Modifier.fillMaxSize().background(c.bgPrimary)) {
+        SettingsTopBar("Custom server", onBack, trailing = {
+            TextButton(enabled = isDirty && !switching, onClick = { confirm = true }) {
+                Text("Save", color = if (isDirty && !switching) c.accent else c.textSecondary)
+            }
+        })
+
+        Column(Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+            Text(
+                "Connect to an organisation's island or your own self-hosted RCQ server instead of the public one.",
+                color = c.textSecondary, fontSize = 14.sp,
+            )
+
+            // Current server card.
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.bgSecondary).padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("CURRENT SERVER", color = c.textSecondary, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                Text(current, color = c.textPrimary, fontSize = 15.sp, fontFamily = FontFamily.Monospace)
+            }
+
+            Field("Server host", draft) { draft = it }
+
+            // Destructive-switch warning.
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(c.bgSecondary).padding(12.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Icon(Icons.Filled.Warning, null, tint = Color(0xFFE0A106), modifier = Modifier.size(20.dp))
+                Text(
+                    "Switching servers starts a new account. Your current UIN, contacts and groups live on the current server and won't move. This can't be undone.",
+                    color = c.textSecondary, fontSize = 12.sp,
+                )
+            }
+
+            if (onCustom) {
+                Spacer(Modifier.height(2.dp))
+                Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(percent = 50)).background(c.bgSecondary)
+                        .clickable(enabled = !switching) { resetting = true }.padding(vertical = 13.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Filled.Restore, null, tint = Color(0xFFE5484D), modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Reset to the public server", color = Color(0xFFE5484D), fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                }
+            }
+
+            if (switching) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+                    Text("Switching…", color = c.textSecondary, fontSize = 13.sp)
+                }
+            }
+        }
+    }
+
+    if (confirm) {
+        ConfirmDialog(
+            title = "Switch to $target?",
+            body = "This starts a fresh account on $target. Your current account on $current stays where it is but won't be reachable from this device anymore.",
+            confirm = "Switch", destructive = true,
+            onConfirm = { confirm = false; applySwitch(draft) },
+            onDismiss = { confirm = false },
+        )
+    }
+    if (resetting) {
+        ConfirmDialog(
+            title = "Reset to the public server?",
+            body = "Starts a fresh account on ${RcqApi.DEFAULT_HOST}. Your account on $current stays where it is but won't be reachable from this device anymore.",
+            confirm = "Reset", destructive = true,
+            onConfirm = { resetting = false; applySwitch(null) },
+            onDismiss = { resetting = false },
+        )
     }
 }
 
