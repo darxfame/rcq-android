@@ -80,7 +80,11 @@ internal fun ContactInfoScreen(session: Session, uin: Int, onBack: () -> Unit, o
     var profile by remember { mutableStateOf<RcqApi.MeProfile?>(null) }
     var confirmRemove by remember { mutableStateOf(false) }
 
-    LaunchedEffect(uin) { profile = session.loadPeerProfile(uin) }
+    LaunchedEffect(uin) {
+        profile = session.loadPeerProfile(uin)
+        // Tell them we looked (fire-and-forget; tallied on their device).
+        runCatching { session.sendVisit(uin) }
+    }
 
     val nickname = profile?.nickname ?: contact?.nickname ?: session.contactName(uin)
     val presence = contact?.presence ?: UserStatus.OFFLINE

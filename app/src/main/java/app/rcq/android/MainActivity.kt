@@ -45,6 +45,7 @@ import app.rcq.android.ui.ChatTarget
 import app.rcq.android.ui.ContactInfoScreen
 import app.rcq.android.ui.GroupInfoScreen
 import app.rcq.android.ui.HomeScreen
+import app.rcq.android.ui.ProfileEditScreen
 import app.rcq.android.ui.RcqTheme
 import app.rcq.android.ui.SettingsScreen
 import kotlinx.coroutines.launch
@@ -54,6 +55,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         LocalStores.init(applicationContext)
+        app.rcq.android.data.VisitStore.init(applicationContext)
         app.rcq.android.media.SoundService.init(applicationContext)
         val session = Session(applicationContext)
         setContent {
@@ -80,6 +82,7 @@ private fun RcqApp(session: Session) {
     var groupInfoId by remember { mutableStateOf<Int?>(null) }
     var peerInfoUin by remember { mutableStateOf<Int?>(null) }
     var showSettings by remember { mutableStateOf(false) }
+    var showProfile by remember { mutableStateOf(false) }
 
     LaunchedEffect(state) {
         if (state is UiState.Registered) session.start()
@@ -121,6 +124,10 @@ private fun RcqApp(session: Session) {
                 onOpenGroupInfo = { groupInfoId = it },
                 onOpenPeerInfo = { peerInfoUin = it },
             )
+            s is UiState.Registered && showProfile -> ProfileEditScreen(
+                session,
+                onBack = { showProfile = false },
+            )
             s is UiState.Registered && showSettings -> SettingsScreen(
                 session, s.uin,
                 onBack = { showSettings = false },
@@ -132,6 +139,7 @@ private fun RcqApp(session: Session) {
                 onOpenChat = { chatTarget = ChatTarget.Peer(it) },
                 onOpenGroup = { chatTarget = ChatTarget.Group(it) },
                 onOpenSettings = { showSettings = true },
+                onOpenProfile = { showProfile = true },
             )
             s is UiState.Onboarding -> Onboarding(onStart = ::register)
             s is UiState.Registering -> Registering()

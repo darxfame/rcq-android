@@ -268,31 +268,40 @@ private fun SettingsRoot(
 // ── Profile editor ───────────────────────────────────────────────────
 
 @Composable
-private fun ProfileEditScreen(session: Session, onBack: () -> Unit) {
+internal fun ProfileEditScreen(session: Session, onBack: () -> Unit) {
     val c = RcqTheme.colors
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
-    var loaded by remember { mutableStateOf(false) }
+    val ownUin = session.uin ?: 0
+    val ownStatus by session.status.collectAsState()
+    val profileViews by app.rcq.android.data.VisitStore.recentViews.collectAsState()
     var nickname by remember { mutableStateOf(session.nickname) }
     var statusMessage by remember { mutableStateOf("") }
+    var firstName by remember { mutableStateOf("") }
+    var lastName by remember { mutableStateOf("") }
     var gender by remember { mutableStateOf<String?>(null) }
     var age by remember { mutableStateOf("") }
     var city by remember { mutableStateOf("") }
     var country by remember { mutableStateOf("") }
     var about by remember { mutableStateOf("") }
+    var interests by remember { mutableStateOf("") }
+    var homepage by remember { mutableStateOf("") }
     var saving by remember { mutableStateOf(false) }
 
     androidx.compose.runtime.LaunchedEffect(Unit) {
         session.loadProfile()?.let { p ->
             nickname = p.nickname ?: nickname
             statusMessage = p.status_message ?: ""
+            firstName = p.first_name ?: ""
+            lastName = p.last_name ?: ""
             gender = p.gender
             age = p.age?.toString() ?: ""
             city = p.city ?: ""
             country = p.country ?: ""
             about = p.about ?: ""
+            interests = p.interests.joinToString(", ")
+            homepage = p.homepage ?: ""
         }
-        loaded = true
     }
 
     Column(Modifier.fillMaxSize().background(c.bgPrimary)) {
@@ -303,11 +312,15 @@ private fun ProfileEditScreen(session: Session, onBack: () -> Unit) {
                     session.updateProfile(RcqApi.UpdateMeBody(
                         nickname = nickname.trim(),
                         status_message = statusMessage.trim(),
+                        first_name = firstName.trim(),
+                        last_name = lastName.trim(),
                         gender = gender,
                         age = age.toIntOrNull(),
                         city = city.trim(),
                         country = country.trim(),
                         about = about.trim(),
+                        interests = interests.split(",").map { it.trim() }.filter { it.isNotEmpty() },
+                        homepage = homepage.trim(),
                     ))
                     saving = false
                     Toast.makeText(context, "Profile saved", Toast.LENGTH_SHORT).show()
@@ -317,8 +330,30 @@ private fun ProfileEditScreen(session: Session, onBack: () -> Unit) {
         })
 
         Column(Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            // Identity header card (avatar + UIN), like the iOS profile.
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                StatusIcon(ownStatus, size = 48.dp)
+                Column {
+                    Text(nickname.ifBlank { "—" }, color = c.textPrimary, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                    Text("$ownUin", color = c.textMono, fontSize = 13.sp, fontFamily = FontFamily.Monospace)
+                }
+            }
+            // Profile views (own-profile only; tallied locally from sealed visit pings).
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.bgSecondary).padding(14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("Profile views", color = c.textPrimary, fontSize = 15.sp)
+                    Text("People who opened your profile in the last 7 days.", color = c.textSecondary, fontSize = 11.sp)
+                }
+                Text("$profileViews", color = c.accent, fontSize = 20.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+            }
+
             Field("Nickname", nickname) { nickname = it }
             Field("Status message", statusMessage) { statusMessage = it }
+            Field("First name", firstName) { firstName = it }
+            Field("Last name", lastName) { lastName = it }
             SectionLabel("Gender")
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf("male" to "Male", "female" to "Female", "other" to "Other").forEach { (key, label) ->
@@ -333,6 +368,9 @@ private fun ProfileEditScreen(session: Session, onBack: () -> Unit) {
             Field("City", city) { city = it }
             Field("Country", country) { country = it }
             Field("About", about, minLines = 3) { about = it }
+            Field("Interests", interests) { interests = it }
+            SectionFooter("Comma-separated, e.g. music, hiking, retro tech.")
+            Field("Website", homepage) { homepage = it }
         }
     }
 }

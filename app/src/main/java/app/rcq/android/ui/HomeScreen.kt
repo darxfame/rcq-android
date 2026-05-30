@@ -105,6 +105,7 @@ internal fun HomeScreen(
     onOpenChat: (Int) -> Unit,
     onOpenGroup: (Int) -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenProfile: () -> Unit = {},
 ) {
     val c = RcqTheme.colors
     val scope = rememberCoroutineScope()
@@ -159,6 +160,7 @@ internal fun HomeScreen(
                 onAddContact = { showAdd = true },
                 onSearch = { showSearch = true },
                 onOpenSettings = onOpenSettings,
+                onOpenProfile = onOpenProfile,
                 onComingSoon = { comingSoon = it },
             )
 
@@ -341,6 +343,7 @@ private fun HomeHeader(
     onAddContact: () -> Unit,
     onSearch: () -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenProfile: () -> Unit,
     onComingSoon: (String) -> Unit,
 ) {
     val c = RcqTheme.colors
@@ -399,7 +402,10 @@ private fun HomeHeader(
                     }
                 }
             }
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = onOpenProfile).padding(horizontal = 8.dp, vertical = 2.dp),
+            ) {
                 Text(nickname, color = c.textPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text("$uin", color = c.textMono, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
             }

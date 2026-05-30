@@ -231,6 +231,30 @@ class Session(context: Context) {
     suspend fun loadPeerProfile(uin: Int): RcqApi.MeProfile? =
         runCatching { api.getMe(uin) }.getOrNull()
 
+    // Per-target throttle for fire-and-forget profile-view pings (1h).
+    private val lastVisitAt = java.util.concurrent.ConcurrentHashMap<Int, Long>()
+
+    /** Fire a sealed "visit" ping so [uin] can tally a profile view (iOS
+     *  parity). Throttled to once per hour per target; fire-and-forget, no
+     *  bubble. Called when their contact-info screen opens. */
+    suspend fun sendVisit(uin: Int) {
+        val me = store.uin ?: return
+        if (uin == me) return
+        val now = System.currentTimeMillis()
+        lastVisitAt[uin]?.let { if (now - it < 3_600_000L) return }
+        lastVisitAt[uin] = now
+        runCatching {
+            val payload = SealedSender.encryptV1(
+                envelope = Envelope.visit(now),
+                recipientIdentityPub = recipientKey(uin),
+                ownUin = me,
+                signingPriv = signingPriv(),
+                signingPub = signingPub(),
+            )
+            api.sendSealed(uin, payload, envelopeType = "visit")
+        }.onFailure { lastVisitAt.remove(uin) }
+    }
+
     // ── groups ───────────────────────────────────────────────────────
 
     private fun mapGroup(g: RcqApi.GroupOut): RcqGroup = RcqGroup(
@@ -468,6 +492,7 @@ class Session(context: Context) {
                     if (t != null && t.senderUin == dec.senderUin) editInFlow(_groupMessages, groupId, env.targetId, env.text)
                 }
                 is Envelope.ReadReceipt -> Unit  // group read receipts not surfaced per-message
+                is Envelope.Visit -> Unit        // visits are 1:1 only
                 is Envelope.Unknown -> Unit
             }
         }
@@ -481,6 +506,7 @@ class Session(context: Context) {
         socket.disconnect()
         store.wipe()
         db.wipe()
+        app.rcq.android.data.VisitStore.wipe()   // tied to this identity
         peerIdentityCache.clear()
         _contacts.value = emptyList()
         _pending.value = emptyList()
@@ -930,6 +956,7 @@ class Session(context: Context) {
                     if (t != null && !t.fromMe) editInFlow(_messages, dec.senderUin, env.targetId, env.text)
                 }
                 is Envelope.ReadReceipt -> applyReadReceipt(dec.senderUin, env.targetIds)
+                is Envelope.Visit -> app.rcq.android.data.VisitStore.record(dec.senderUin, env.atEpochMillis())
                 is Envelope.Unknown -> Unit
             }
         }

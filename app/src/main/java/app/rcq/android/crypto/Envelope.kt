@@ -73,6 +73,13 @@ sealed interface Envelope {
     ) : Envelope
     /** Shared location (iOS kind "location"). */
     data class Location(val id: String, val lat: Double, val lng: Double, val caption: String?) : Envelope
+    /** Profile-view ping (iOS kind "visit"). Fire-and-forget, no bubble:
+     *  the recipient tallies it locally for the "profile views" stat.
+     *  [at] is seconds since the 2001 reference date, matching the iOS
+     *  default JSONEncoder Date encoding. */
+    data class Visit(val at: Double) : Envelope {
+        fun atEpochMillis(): Long = ((at + APPLE_EPOCH_OFFSET_SEC) * 1000).toLong()
+    }
     data class Unknown(val kind: String) : Envelope
 
     /** Serialize to the exact JSON bytes that get signed and shipped.
@@ -148,11 +155,23 @@ sealed interface Envelope {
             addProperty("lng", lng)
             if (!caption.isNullOrEmpty()) addProperty("caption", caption)
         }.toString().toByteArray(Charsets.UTF_8)
+        is Visit -> JsonObject().apply {
+            addProperty("kind", "visit")
+            addProperty("at", at)
+        }.toString().toByteArray(Charsets.UTF_8)
         is Unknown -> JsonObject().apply { addProperty("kind", kind) }
             .toString().toByteArray(Charsets.UTF_8)
     }
 
     companion object {
+        /** Seconds between the Unix epoch (1970) and the Apple/Foundation
+         *  reference date (2001) — Swift's default JSONEncoder encodes Date
+         *  as seconds since 2001, so visit timestamps cross the wire that way. */
+        const val APPLE_EPOCH_OFFSET_SEC = 978_307_200.0
+
+        /** Build a visit ping stamped at [epochMillis] (epoch ms). */
+        fun visit(epochMillis: Long): Visit = Visit(epochMillis / 1000.0 - APPLE_EPOCH_OFFSET_SEC)
+
         fun text(body: String, replyTo: Reply? = null): Text =
             Text(id = UUID.randomUUID().toString().uppercase(), text = body, replyTo = replyTo)
 
@@ -238,6 +257,7 @@ sealed interface Envelope {
                     lng = obj.get("lng")?.asDouble ?: 0.0,
                     caption = obj.get("caption")?.asString,
                 )
+                "visit" -> Visit(obj.get("at")?.asDouble ?: 0.0)
                 else -> Unknown(kind ?: "unknown")
             }
         }
