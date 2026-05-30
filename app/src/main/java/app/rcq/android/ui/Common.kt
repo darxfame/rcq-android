@@ -162,10 +162,10 @@ internal fun GenderIcon(gender: String?) {
 }
 
 @Composable
-internal fun CapsuleButton(label: String, enabled: Boolean = true, onClick: () -> Unit) {
+internal fun CapsuleButton(label: String, enabled: Boolean = true, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val c = RcqTheme.colors
     Box(
-        modifier = Modifier
+        modifier = modifier
             .clip(RoundedCornerShape(percent = 50))
             .background(if (enabled) c.accent else c.bgSecondary)
             .clickable(enabled = enabled, onClick = onClick)

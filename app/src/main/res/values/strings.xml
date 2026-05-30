@@ -1,4 +1,37 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">RCQ</string>
+
+    <!-- Onboarding (iOS OnboardingView parity) -->
+    <string name="onboard_cta_next">Next</string>
+    <string name="onboard_cta_back">Back</string>
+    <string name="onboard_cta_start">Get started</string>
+    <string name="onboard_cta_skip">Skip</string>
+
+    <string name="onboard_welcome_kicker">RCQ</string>
+    <string name="onboard_welcome_title">Welcome</string>
+    <string name="onboard_welcome_body">A serious privacy messenger with real end-to-end encryption by default and built-in censorship bypass. No phone, no email, no ads.</string>
+
+    <string name="onboard_anon_kicker">ANONYMOUS</string>
+    <string name="onboard_anon_title">No phone, no email</string>
+    <string name="onboard_anon_body">Your identity is a numeric UIN and nothing else. The account isn\'t tied to you. Burn it and start over whenever you want.</string>
+
+    <string name="onboard_mesh_kicker">OFFLINE MESH</string>
+    <string name="onboard_mesh_title">Chat with no internet</string>
+    <string name="onboard_mesh_body">Radio Chat finds people near you over Bluetooth and Wi-Fi Direct. Messages hop device to device, with no servers and no cell signal needed.</string>
+
+    <string name="onboard_chat_kicker">CHAT</string>
+    <string name="onboard_chat_title">Sealed-sender chat</string>
+    <string name="onboard_chat_body">End-to-end encrypted on every message. The server doesn\'t see who\'s writing to whom: the sender\'s identity is sealed inside the envelope, not in the header.</string>
+
+    <string name="onboard_pin_kicker">SECURITY PIN</string>
+    <string name="onboard_pin_title">Locked on your device</string>
+    <string name="onboard_pin_body">A PIN locks the app and encrypts your message history on-device, with optional fingerprint, plus decoy and wipe PINs for when you\'re forced to unlock.</string>
+
+    <string name="onboard_status_kicker">STATUS</string>
+    <string name="onboard_status_title">Pick your status</string>
+    <string name="onboard_status_body">Online, Away, DND, Invisible, Offline. The classic five, and they actually mean something. Tap your status icon to switch.</string>
+
+    <string name="onboard_server_label">Server</string>
+    <string name="onboard_language">Language</string>
 </resources>

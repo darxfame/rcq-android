@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">RCQ</string>
+
+    <string name="onboard_cta_next">Дальше</string>
+    <string name="onboard_cta_back">Назад</string>
+    <string name="onboard_cta_start">Начать</string>
+    <string name="onboard_cta_skip">Пропустить</string>
+
+    <string name="onboard_welcome_kicker">RCQ</string>
+    <string name="onboard_welcome_title">Добро пожаловать</string>
+    <string name="onboard_welcome_body">Серьёзный мессенджер с настоящим шифрованием по умолчанию и встроенным обходом блокировок. Без телефона, без почты, без рекламы.</string>
+
+    <string name="onboard_anon_kicker">АНОНИМНО</string>
+    <string name="onboard_anon_title">Без телефона и почты</string>
+    <string name="onboard_anon_body">Ваша личность: числовой UIN, и больше ничего. Аккаунт ничем не привязан к вам. В любой момент можно сжечь его и начать заново.</string>
+
+    <string name="onboard_mesh_kicker">ОФЛАЙН-СЕТЬ</string>
+    <string name="onboard_mesh_title">Общение без интернета</string>
+    <string name="onboard_mesh_body">Радиочат находит людей рядом по Bluetooth и Wi-Fi Direct. Сообщения идут от устройства к устройству, без серверов и без сигнала сети.</string>
+
+    <string name="onboard_chat_kicker">ЧАТ</string>
+    <string name="onboard_chat_title">Чат с sealed-sender</string>
+    <string name="onboard_chat_body">Сквозное шифрование на каждое сообщение. Сервер не видит, кто кому пишет: имя отправителя зашифровано внутри конверта, не в заголовке.</string>
+
+    <string name="onboard_pin_kicker">PIN-КОД</string>
+    <string name="onboard_pin_title">Защита на устройстве</string>
+    <string name="onboard_pin_body">PIN блокирует приложение и шифрует историю переписки прямо на устройстве, с отпечатком по желанию, плюс запасной и стирающий PIN на случай принуждения.</string>
+
+    <string name="onboard_status_kicker">СТАТУС</string>
+    <string name="onboard_status_title">Выберите статус</string>
+    <string name="onboard_status_body">В сети, Отошёл, Не беспокоить, Невидимый, Не в сети. Те самые пять, и они правда работают. Тапните по статусу, чтобы сменить.</string>
+
+    <string name="onboard_server_label">Сервер</string>
+    <string name="onboard_language">Язык</string>
+</resources>

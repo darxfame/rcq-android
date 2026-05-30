@@ -45,15 +45,22 @@ import app.rcq.android.ui.ChatTarget
 import app.rcq.android.ui.ContactInfoScreen
 import app.rcq.android.ui.GroupInfoScreen
 import app.rcq.android.ui.HomeScreen
+import app.rcq.android.ui.OnboardingScreen
 import app.rcq.android.ui.ProfileEditScreen
 import app.rcq.android.ui.RcqTheme
 import app.rcq.android.ui.SettingsScreen
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+    override fun attachBaseContext(newBase: android.content.Context) {
+        // Apply the user's chosen app language before any resources resolve.
+        super.attachBaseContext(app.rcq.android.data.LanguageManager.wrap(newBase))
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        app.rcq.android.data.LanguageManager.init(applicationContext)
         LocalStores.init(applicationContext)
         app.rcq.android.data.VisitStore.init(applicationContext)
         app.rcq.android.media.SoundService.init(applicationContext)
@@ -141,55 +148,13 @@ private fun RcqApp(session: Session) {
                 onOpenSettings = { showSettings = true },
                 onOpenProfile = { showProfile = true },
             )
-            s is UiState.Onboarding -> Onboarding(onStart = ::register)
+            s is UiState.Onboarding -> OnboardingScreen(onStart = ::register)
             s is UiState.Registering -> Registering()
             s is UiState.Failed -> Failed(s.message, onRetry = { register(null) })
         }
     }
 }
 
-@Composable
-private fun Onboarding(onStart: (String?) -> Unit) {
-    val c = RcqTheme.colors
-    // Server is shown explicitly (prefilled with the default public host)
-    // and editable — so it's clear which server you're joining and you can
-    // point at an organisation island. Matches the iOS onboarding.
-    var server by remember { mutableStateOf(RcqApi.DEFAULT_HOST) }
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-        modifier = Modifier.padding(32.dp),
-    ) {
-        Image(
-            painter = painterResource(R.drawable.rcq_logo),
-            contentDescription = "RCQ",
-            modifier = Modifier.size(96.dp),
-        )
-        Text("RCQ", color = c.textPrimary, fontSize = 48.sp, fontWeight = FontWeight.Bold)
-        Text("Private messaging. No phone number.", color = c.textSecondary, fontSize = 15.sp, textAlign = TextAlign.Center)
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Text("Server", color = c.textSecondary, fontSize = 12.sp, modifier = Modifier.padding(start = 4.dp, bottom = 4.dp))
-            Box(
-                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.bgSecondary).padding(horizontal = 14.dp, vertical = 12.dp),
-            ) {
-                if (server.isEmpty()) Text("server host", color = c.textSecondary, fontSize = 14.sp)
-                BasicTextField(
-                    value = server,
-                    onValueChange = { server = it },
-                    singleLine = true,
-                    textStyle = TextStyle(color = c.textPrimary, fontSize = 14.sp),
-                    cursorBrush = SolidColor(c.accent),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
-            Text(
-                "Default is the public RCQ server. Change it to join an organisation's island.",
-                color = c.textSecondary, fontSize = 11.sp, modifier = Modifier.padding(start = 4.dp, top = 4.dp),
-            )
-        }
-        CapsuleButton("Start", onClick = { onStart(server) })
-    }
-}
 
 @Composable
 private fun Registering() {
