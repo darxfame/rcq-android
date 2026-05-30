@@ -39,8 +39,14 @@ import org.bouncycastle.crypto.params.X25519PrivateKeyParameters
  */
 class Session(context: Context) {
     private val store = SecureStore(context.applicationContext)
-    private val api = RcqApi()
-    private val socket = RcqSocket()
+    // Server this session talks to: the identity's island (org/self-host)
+    // or the default public server. Both clients are rebuilt from it after
+    // a registration that picks a custom server.
+    private fun serverHost(): String = store.serverHost ?: RcqApi.DEFAULT_HOST
+    private var api = newApi()
+    private var socket = newSocket()
+    private fun newApi(): RcqApi = RcqApi("https://${serverHost()}").apply { if (store.isRegistered) setToken(store.token) }
+    private fun newSocket(): RcqSocket = RcqSocket("wss://${serverHost()}")
     private val db = MessageDb(context.applicationContext)
     private val gson = com.google.gson.Gson()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -95,19 +101,26 @@ class Session(context: Context) {
     @Volatile
     private var everConnected = false
 
-    init {
-        if (store.isRegistered) {
-            api.setToken(store.token)
-        }
-    }
-
     val isRegistered: Boolean get() = store.isRegistered
     val uin: Int? get() = store.uin
+    /** The server this identity lives on (for display in Settings). */
+    val currentServer: String get() = serverHost()
 
-    /** Mint identity, register, persist, then bring the session online. */
-    suspend fun registerNewAccount(nickname: String): Int {
+    /** Normalize a user-typed server into a bare host (drop scheme/path).
+     *  Blank / the default host → null (= default public server). */
+    private fun normalizeHost(input: String?): String? =
+        input?.trim()
+            ?.removePrefix("https://")?.removePrefix("http://")?.removePrefix("wss://")?.removePrefix("ws://")
+            ?.substringBefore('/')?.trim()
+            ?.takeIf { it.isNotBlank() && it != RcqApi.DEFAULT_HOST }
+
+    /** Mint identity, register against the chosen server (default if null),
+     *  persist, then bring the session online. */
+    suspend fun registerNewAccount(nickname: String, serverInput: String? = null): Int {
+        val host = normalizeHost(serverInput)
+        val regApi = RcqApi("https://${host ?: RcqApi.DEFAULT_HOST}")
         val identity = IdentityKeys.generate()
-        val resp = api.register(
+        val resp = regApi.register(
             RcqApi.RegisterRequest(
                 nickname = nickname,
                 identity_key = Base64.encodeToString(identity.identityPublic, Base64.NO_WRAP),
@@ -120,8 +133,11 @@ class Session(context: Context) {
             nickname = nickname,
             identityPrivate = identity.identityPrivate,
             signingPrivate = identity.signingPrivate,
+            serverHost = host,
         )
-        api.setToken(resp.token)
+        // Rebuild the long-lived clients to point at the chosen island.
+        api = newApi()
+        socket = newSocket()
         start()
         return resp.uin
     }

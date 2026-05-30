@@ -49,6 +49,12 @@ class SecureStore(context: Context) {
     val signingPrivate: ByteArray?
         get() = prefs.getString(K_SIGN_PRIV, null)?.let { Base64.decode(it, Base64.NO_WRAP) }
 
+    /** Host this identity is registered on (e.g. an org island), or null
+     *  for the default public server. Set at registration; the account +
+     *  keys are bound to this server. */
+    val serverHost: String?
+        get() = prefs.getString(K_SERVER, null)
+
     /** Persists a complete identity in one transaction. The iOS client
      *  notes that the JWT and private keys must be written together —
      *  losing either before persistence makes the account unreachable
@@ -59,6 +65,7 @@ class SecureStore(context: Context) {
         nickname: String,
         identityPrivate: ByteArray,
         signingPrivate: ByteArray,
+        serverHost: String? = null,
     ) {
         prefs.edit()
             .putInt(K_UIN, uin)
@@ -66,6 +73,7 @@ class SecureStore(context: Context) {
             .putString(K_NICK, nickname)
             .putString(K_ID_PRIV, Base64.encodeToString(identityPrivate, Base64.NO_WRAP))
             .putString(K_SIGN_PRIV, Base64.encodeToString(signingPrivate, Base64.NO_WRAP))
+            .putString(K_SERVER, serverHost)
             .apply()
     }
 
@@ -83,5 +91,6 @@ class SecureStore(context: Context) {
         const val K_NICK = "nickname"
         const val K_ID_PRIV = "identity_private"
         const val K_SIGN_PRIV = "signing_private"
+        const val K_SERVER = "server_host"
     }
 }

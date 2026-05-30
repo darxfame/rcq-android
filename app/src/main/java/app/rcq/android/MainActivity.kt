@@ -5,12 +5,16 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -23,6 +27,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.material3.Text
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -71,11 +78,11 @@ private fun RcqApp(session: Session) {
         if (state is UiState.Registered) session.start()
     }
 
-    fun register() {
+    fun register(server: String? = null) {
         state = UiState.Registering
         scope.launch {
             state = try {
-                UiState.Registered(session.registerNewAccount("user-${(1000..9999).random()}"))
+                UiState.Registered(session.registerNewAccount("user-${(1000..9999).random()}", server))
             } catch (e: Exception) {
                 UiState.Failed(e.message ?: "Registration failed")
             }
@@ -113,14 +120,16 @@ private fun RcqApp(session: Session) {
             )
             s is UiState.Onboarding -> Onboarding(onStart = ::register)
             s is UiState.Registering -> Registering()
-            s is UiState.Failed -> Failed(s.message, onRetry = ::register)
+            s is UiState.Failed -> Failed(s.message, onRetry = { register(null) })
         }
     }
 }
 
 @Composable
-private fun Onboarding(onStart: () -> Unit) {
+private fun Onboarding(onStart: (String?) -> Unit) {
     val c = RcqTheme.colors
+    var showServer by remember { mutableStateOf(false) }
+    var server by remember { mutableStateOf("") }
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(14.dp),
@@ -128,7 +137,27 @@ private fun Onboarding(onStart: () -> Unit) {
     ) {
         Text("RCQ", color = c.textPrimary, fontSize = 48.sp, fontWeight = FontWeight.Bold)
         Text("Private messaging. No phone number.", color = c.textSecondary, fontSize = 15.sp, textAlign = TextAlign.Center)
-        CapsuleButton("Start", onClick = onStart)
+        if (showServer) {
+            Box(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.bgSecondary).padding(horizontal = 14.dp, vertical = 12.dp),
+            ) {
+                if (server.isEmpty()) Text("server host (e.g. org.example.com)", color = c.textSecondary, fontSize = 14.sp)
+                BasicTextField(
+                    value = server,
+                    onValueChange = { server = it },
+                    singleLine = true,
+                    textStyle = TextStyle(color = c.textPrimary, fontSize = 14.sp),
+                    cursorBrush = SolidColor(c.accent),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
+        CapsuleButton("Start", onClick = { onStart(server.takeIf { showServer && it.isNotBlank() }) })
+        Text(
+            if (showServer) "Use the default server" else "Connect to a custom server",
+            color = c.textSecondary, fontSize = 13.sp,
+            modifier = Modifier.clickable { showServer = !showServer; if (!showServer) server = "" },
+        )
     }
 }
 

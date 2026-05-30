@@ -373,7 +373,8 @@ class RcqApi(private val baseUrl: String = DEFAULT_BASE_URL) {
     }
 
     companion object {
-        const val DEFAULT_BASE_URL = "https://api.rcq.app"
+        const val DEFAULT_HOST = "api.rcq.app"
+        const val DEFAULT_BASE_URL = "https://$DEFAULT_HOST"
         private val JSON = "application/json".toMediaType()
         private val OCTET = "application/octet-stream".toMediaType()
     }
