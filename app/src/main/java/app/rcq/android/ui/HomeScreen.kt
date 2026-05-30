@@ -261,6 +261,8 @@ internal fun HomeScreen(
                 onRandom = { comingSoon = "Random chat" },
                 onNearby = { comingSoon = "Nearby" },
                 onSettings = onOpenSettings,
+                // Hide Random on org islands / self-host; keep it on the public server.
+                showRandom = session.currentServer == app.rcq.android.net.RcqApi.DEFAULT_HOST,
             )
         }
 
@@ -668,7 +670,7 @@ private fun EmptyState(onAdd: () -> Unit) {
 }
 
 @Composable
-private fun BottomBar(onAdd: () -> Unit, onQr: () -> Unit, onRandom: () -> Unit, onNearby: () -> Unit, onSettings: () -> Unit) {
+private fun BottomBar(onAdd: () -> Unit, onQr: () -> Unit, onRandom: () -> Unit, onNearby: () -> Unit, onSettings: () -> Unit, showRandom: Boolean = true) {
     val c = RcqTheme.colors
     Row(
         Modifier
@@ -682,7 +684,9 @@ private fun BottomBar(onAdd: () -> Unit, onQr: () -> Unit, onRandom: () -> Unit,
     ) {
         BarButton(Icons.Filled.PersonAdd, stringResource(R.string.home_bar_add), onAdd)
         BarButton(Icons.Filled.QrCode2, stringResource(R.string.home_bar_qr), onQr)
-        BarButton(Icons.Filled.Shuffle, stringResource(R.string.home_bar_random), onRandom)
+        // Random/chat-roulette is a public-network feature; hide it on org
+        // islands / self-host (founder's call). Nearby stays everywhere (mesh).
+        if (showRandom) BarButton(Icons.Filled.Shuffle, stringResource(R.string.home_bar_random), onRandom)
         BarButton(Icons.Filled.NearMe, stringResource(R.string.home_bar_nearby), onNearby)
         BarButton(Icons.Filled.Settings, stringResource(R.string.home_bar_settings), onSettings)
     }
