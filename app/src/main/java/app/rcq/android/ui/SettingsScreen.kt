@@ -25,6 +25,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Autorenew
@@ -68,7 +69,7 @@ import app.rcq.android.net.RcqApi
 import kotlinx.coroutines.launch
 
 /** Sub-screens inside Settings (kept self-contained, no nav graph). */
-private enum class SettingsRoute { ROOT, PROFILE, PRIVACY, NOTIFICATIONS, BLOCKED, CUSTOM_SERVER }
+private enum class SettingsRoute { ROOT, PROFILE, PRIVACY, NOTIFICATIONS, BLOCKED, CUSTOM_SERVER, SOUNDS }
 
 @Composable
 internal fun SettingsScreen(session: Session, uin: Int, onBack: () -> Unit, onBurned: () -> Unit, onMigrated: (Int) -> Unit) {
@@ -87,6 +88,7 @@ internal fun SettingsScreen(session: Session, uin: Int, onBack: () -> Unit, onBu
             onOpenCustomServer = { route = SettingsRoute.CUSTOM_SERVER },
         ) { route = SettingsRoute.ROOT }
         SettingsRoute.NOTIFICATIONS -> NotificationsScreen { route = SettingsRoute.ROOT }
+        SettingsRoute.SOUNDS -> SoundsScreen { route = SettingsRoute.ROOT }
         SettingsRoute.BLOCKED -> BlockedUsersScreen(session) { route = SettingsRoute.ROOT }
         SettingsRoute.CUSTOM_SERVER -> CustomServerScreen(
             session,
@@ -162,6 +164,8 @@ private fun SettingsRoot(
                 SettingsRow(Icons.Filled.Lock, "Privacy & Network") { onOpen(SettingsRoute.PRIVACY) }
                 Divider()
                 SettingsRow(Icons.Filled.Notifications, "Notifications") { onOpen(SettingsRoute.NOTIFICATIONS) }
+                Divider()
+                SettingsRow(Icons.AutoMirrored.Filled.VolumeUp, "Sounds") { onOpen(SettingsRoute.SOUNDS) }
                 Divider()
                 SettingsRow(Icons.Outlined.Block, "Blocked users", value = if (blockedCount > 0) "$blockedCount" else null) { onOpen(SettingsRoute.BLOCKED) }
             }
@@ -411,6 +415,33 @@ private fun PrivacyScreen(session: Session, onOpenCustomServer: () -> Unit, onBa
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun SoundsScreen(onBack: () -> Unit) {
+    val c = RcqTheme.colors
+    val msgOn by LocalStores.soundMessages.collectAsState()
+    val presOn by LocalStores.soundPresence.collectAsState()
+    Column(Modifier.fillMaxSize().background(c.bgPrimary)) {
+        SettingsTopBar("Sounds", onBack)
+        Column(Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            SettingToggleRow("Message sounds", "Play a tone when a new message arrives in a chat you don't have open.", msgOn) { LocalStores.setSoundMessages(it) }
+            SettingToggleRow("Contact online / offline", "Play a tone when one of your contacts comes online or goes offline.", presOn) { LocalStores.setSoundPresence(it) }
+            SectionFooter("Per-chat mute (long-press a chat on the home screen) silences message sounds for that chat.")
+        }
+    }
+}
+
+@Composable
+private fun SettingToggleRow(title: String, subtitle: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+    val c = RcqTheme.colors
+    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.bgSecondary).padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text(title, color = c.textPrimary, fontSize = 15.sp)
+            Text(subtitle, color = c.textSecondary, fontSize = 11.sp)
+        }
+        Switch(checked = checked, onCheckedChange = onChange, colors = SwitchDefaults.colors(checkedTrackColor = c.accent))
     }
 }
 

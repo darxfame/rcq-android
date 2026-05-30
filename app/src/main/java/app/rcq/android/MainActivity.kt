@@ -54,6 +54,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         LocalStores.init(applicationContext)
+        app.rcq.android.media.SoundService.init(applicationContext)
         val session = Session(applicationContext)
         setContent {
             val mode by LocalStores.themeMode.collectAsState()

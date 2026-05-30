@@ -39,6 +39,15 @@ object LocalStores {
     private val _themeMode = MutableStateFlow(ThemeMode.SYSTEM)
     val themeMode: StateFlow<ThemeMode> = _themeMode.asStateFlow()
 
+    /** Notification-sound toggles (iOS SoundService parity). Message sound
+     *  plays on an inbound message to a non-active, non-muted thread;
+     *  presence sound plays when a contact comes online / goes offline. */
+    private val _soundMessages = MutableStateFlow(true)
+    val soundMessages: StateFlow<Boolean> = _soundMessages.asStateFlow()
+
+    private val _soundPresence = MutableStateFlow(true)
+    val soundPresence: StateFlow<Boolean> = _soundPresence.asStateFlow()
+
     /** Persistent per-thread unread counters, keyed "peer:<uin>"/"group:<id>".
      *  Mirrors the iOS UnreadStore: survives cold starts (contacts reload
      *  from the server, which doesn't track per-client unread), bumped on
@@ -55,6 +64,8 @@ object LocalStores {
         _removed.value = prefs.getStringSet(K_REMOVED, emptySet())!!.mapNotNull { it.toIntOrNull() }.toSet()
         _themeMode.value = runCatching { ThemeMode.valueOf(prefs.getString(K_THEME, null) ?: "SYSTEM") }
             .getOrDefault(ThemeMode.SYSTEM)
+        _soundMessages.value = prefs.getBoolean(K_SND_MSG, true)
+        _soundPresence.value = prefs.getBoolean(K_SND_PRES, true)
         _unread.value = loadUnread()
     }
 
@@ -82,6 +93,12 @@ object LocalStores {
         _themeMode.value = mode
         prefs.edit().putString(K_THEME, mode.name).apply()
     }
+
+    // ── sound toggles ────────────────────────────────────────────────
+    fun soundMessagesOn() = _soundMessages.value
+    fun soundPresenceOn() = _soundPresence.value
+    fun setSoundMessages(on: Boolean) { _soundMessages.value = on; prefs.edit().putBoolean(K_SND_MSG, on).apply() }
+    fun setSoundPresence(on: Boolean) { _soundPresence.value = on; prefs.edit().putBoolean(K_SND_PRES, on).apply() }
 
     // ── unread counters ──────────────────────────────────────────────
     fun unreadOf(thread: String): Int = _unread.value[thread] ?: 0
@@ -126,4 +143,6 @@ object LocalStores {
     private const val K_REMOVED = "removed"
     private const val K_THEME = "theme_mode"
     private const val K_UNREAD = "unread"
+    private const val K_SND_MSG = "sound_messages"
+    private const val K_SND_PRES = "sound_presence"
 }

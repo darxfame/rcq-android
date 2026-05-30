@@ -957,10 +957,14 @@ class Session(context: Context) {
     }
 
     private suspend fun refreshContacts() {
+        // Snapshot presence before the refresh so we can play a sound on
+        // online/offline transitions (iOS SoundService parity). Skipped on
+        // the first populate (empty snapshot) to avoid a launch-time burst.
+        val prevPresence = _contacts.value.associate { it.uin to it.presence }
         _contacts.value = api.contacts().map {
             Contact(
                 uin = it.uin,
-                nickname = it.nickname ?: "#${it.uin}",
+                nickname = it.nickname ?: "${it.uin}",
                 identityKey = it.identity_key ?: "",
                 signingKey = it.signing_key,
                 status = it.status,
@@ -969,6 +973,15 @@ class Session(context: Context) {
                 gender = it.gender,
                 lastSeen = parseIso(it.last_seen),
             )
+        }
+        if (prevPresence.isNotEmpty()) {
+            _contacts.value.forEach { ct ->
+                val before = prevPresence[ct.uin] ?: return@forEach
+                val wasOnline = before != UserStatus.OFFLINE
+                val isOnline = ct.presence != UserStatus.OFFLINE
+                if (!wasOnline && isOnline) app.rcq.android.media.SoundService.contactOnline()
+                else if (wasOnline && !isOnline) app.rcq.android.media.SoundService.contactOffline()
+            }
         }
         // Seed the identity cache so sends to contacts skip a lookup.
         _contacts.value.forEach { c ->
@@ -1068,6 +1081,7 @@ class Session(context: Context) {
         if (msg.fromMe) return
         if (thread == activeThread) { LocalStores.clearUnread(thread); return }
         LocalStores.bumpUnread(thread)
+        if (!LocalStores.isMuted(thread)) app.rcq.android.media.SoundService.message()
     }
 
     /** The thread the user currently has open (or null). Set by the UI so
