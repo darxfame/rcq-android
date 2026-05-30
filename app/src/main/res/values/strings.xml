@@ -103,4 +103,213 @@
     <string name="theme_auto">Auto</string>
     <string name="theme_light">Light</string>
     <string name="theme_dark">Dark</string>
+
+    <!-- Common extras -->
+    <string name="common_back">Back</string>
+    <string name="common_remove">Remove</string>
+    <string name="common_delete">Delete</string>
+    <string name="common_clear">Clear</string>
+    <string name="common_move">Move</string>
+    <string name="common_switch">Switch</string>
+    <string name="common_reset">Reset</string>
+    <string name="common_male">Male</string>
+    <string name="common_female">Female</string>
+    <string name="common_other">Other</string>
+    <string name="common_gender">Gender</string>
+    <string name="common_city">City</string>
+    <string name="common_country">Country</string>
+    <string name="common_about">About</string>
+    <string name="common_copy_uin">Copy UIN</string>
+    <string name="common_uin_copied">UIN copied</string>
+    <plurals name="members"><item quantity="one">%1$d member</item><item quantity="other">%1$d members</item></plurals>
+
+    <!-- Last seen -->
+    <string name="last_seen_fmt">last seen %1$s</string>
+    <string name="last_seen_just_now">just now</string>
+    <string name="last_seen_min">%1$dm ago</string>
+    <string name="last_seen_hour">%1$dh ago</string>
+    <string name="last_seen_day">%1$dd ago</string>
+
+    <!-- Visibility options -->
+    <string name="vis_everyone">Everyone</string>
+    <string name="vis_contacts">Contacts</string>
+    <string name="vis_nobody">Nobody</string>
+
+    <!-- Settings: account / history / about dialogs + footers -->
+    <string name="cs_move_footer">Get a fresh UIN. Your contacts, groups and keys are kept; local chat history is cleared.</string>
+    <string name="cs_burn_footer">Wipes this account everywhere. Irreversible.</string>
+    <string name="cs_clear_title">Clear chat history?</string>
+    <string name="cs_clear_body">Removes all messages from this device. Your account and contacts stay.</string>
+    <string name="cs_history_cleared">History cleared</string>
+    <string name="cs_move_title">Move to a new UIN?</string>
+    <string name="cs_move_body">You get a freshly-allocated UIN. Contacts, groups and your keys are kept; local chat history on this device is cleared.</string>
+    <string name="cs_moved_toast">Moved to #%1$d</string>
+    <string name="cs_move_failed">Migration failed. Try again later.</string>
+    <string name="cs_burn_cta">Burn</string>
+    <string name="cs_burn_title">Burn account?</string>
+    <string name="cs_burn_body">This deletes your account and all local data. It cannot be undone.</string>
+    <string name="cs_about_tagline">Private messaging. No phone number.</string>
+    <string name="cs_about_version">Version %1$s</string>
+    <string name="cs_about_features">End-to-end encrypted. Sealed sender. Open source.</string>
+
+    <!-- Settings: profile editor -->
+    <string name="pe_title">Edit profile</string>
+    <string name="pe_saved">Profile saved</string>
+    <string name="pe_views_title">Profile views</string>
+    <string name="pe_views_desc">People who opened your profile in the last 7 days.</string>
+    <string name="pe_nickname">Nickname</string>
+    <string name="pe_status_message">Status message</string>
+    <string name="pe_first_name">First name</string>
+    <string name="pe_last_name">Last name</string>
+    <string name="pe_age">Age</string>
+    <string name="pe_interests">Interests</string>
+    <string name="pe_interests_hint">Comma-separated, e.g. music, hiking, retro tech.</string>
+    <string name="pe_website">Website</string>
+
+    <!-- Settings: privacy -->
+    <string name="pv_last_seen">Last seen</string>
+    <string name="pv_last_seen_desc">Who can see when you were last online.</string>
+    <string name="pv_stay_visible">Stay visible after you leave</string>
+    <string name="pv_stay_visible_desc">Keep showing as recently online for a while after the app closes.</string>
+    <string name="pv_profile_card">Profile card</string>
+    <string name="pv_profile_card_desc">Who can open your full profile (city, age, about).</string>
+    <string name="pv_gender_desc">Who can see your gender on your profile.</string>
+    <string name="pv_invite">Who can add me to groups</string>
+    <string name="pv_invite_desc">Who is allowed to add you to a group.</string>
+    <string name="pv_receipts">Read receipts</string>
+    <string name="pv_receipts_desc">Who sees your blue ticks. Turning this off hides theirs too.</string>
+    <string name="pv_network">Network</string>
+    <string name="pv_custom_server">Custom server</string>
+    <string name="pv_default">Default</string>
+
+    <!-- Settings: sounds -->
+    <string name="snd_message_title">Message sounds</string>
+    <string name="snd_message_desc">Play a tone when a new message arrives in a chat you don\'t have open.</string>
+    <string name="snd_presence_title">Contact online / offline</string>
+    <string name="snd_presence_desc">Play a tone when one of your contacts comes online or goes offline.</string>
+    <string name="snd_footer">Per-chat mute (long-press a chat on the home screen) silences message sounds for that chat.</string>
+
+    <!-- Settings: language / notifications / blocked -->
+    <string name="lang_footer">Translations roll out gradually. Untranslated text falls back to English.</string>
+    <string name="notif_push">Push notifications</string>
+    <string name="notif_desc">Per-chat mute is available from a long-press on the home screen. System push delivery is configured in Android Settings.</string>
+    <string name="blocked_empty">No blocked users</string>
+    <string name="blocked_unblock">Unblock</string>
+
+    <!-- Settings: custom server -->
+    <string name="csrv_connected">Connected to %1$s</string>
+    <string name="csrv_unreachable">Couldn\'t reach that server. Nothing changed.</string>
+    <string name="csrv_intro">Connect to an organisation\'s island or your own self-hosted RCQ server instead of the public one.</string>
+    <string name="csrv_current">CURRENT SERVER</string>
+    <string name="csrv_host">Server host</string>
+    <string name="csrv_warning">Switching servers starts a new account. Your current UIN, contacts and groups live on the current server and won\'t move. This can\'t be undone.</string>
+    <string name="csrv_reset_btn">Reset to the public server</string>
+    <string name="csrv_switching">Switching…</string>
+    <string name="csrv_confirm_title">Switch to %1$s?</string>
+    <string name="csrv_confirm_body">This starts a fresh account on %1$s. Your current account on %2$s stays where it is but won\'t be reachable from this device anymore.</string>
+    <string name="csrv_reset_title">Reset to the public server?</string>
+    <string name="csrv_reset_body">Starts a fresh account on %1$s. Your account on %2$s stays where it is but won\'t be reachable from this device anymore.</string>
+
+    <!-- Group info -->
+    <string name="gi_title">Group info</string>
+    <string name="gi_rename">Rename</string>
+    <string name="gi_change_avatar">Change avatar</string>
+    <string name="gi_settings">GROUP SETTINGS</string>
+    <string name="gi_pinned">Pinned message</string>
+    <string name="gi_none">None</string>
+    <string name="gi_who_post">Who can post</string>
+    <string name="gi_post_owner">Owner only</string>
+    <string name="gi_closed">Closed group</string>
+    <string name="gi_closed_desc">New members can\'t self-join via search</string>
+    <string name="gi_hide">Hide member list</string>
+    <string name="gi_hide_desc">Only you see the full roster</string>
+    <string name="gi_members">MEMBERS</string>
+    <string name="gi_owner">owner</string>
+    <string name="gi_admin">admin</string>
+    <string name="gi_you"> (you)</string>
+    <string name="gi_delete">Delete group</string>
+    <string name="gi_leave">Leave group</string>
+    <string name="gi_delete_q">Delete group?</string>
+    <string name="gi_leave_q">Leave group?</string>
+    <string name="gi_delete_body">This deletes the group for everyone.</string>
+    <string name="gi_leave_body">You\'ll stop receiving messages from this group.</string>
+    <string name="gi_leave_cta">Leave</string>
+    <string name="gi_add_member">Add member</string>
+    <string name="gi_all_in">All your contacts are already in this group.</string>
+    <string name="gi_edit">Edit group</string>
+    <string name="gi_name">Name</string>
+    <string name="gi_description">Description</string>
+    <string name="gi_pin_placeholder">Pin a message for everyone</string>
+
+    <!-- Contact info -->
+    <string name="ci_title">Contact info</string>
+    <string name="ci_remove_fav">Remove from favorites</string>
+    <string name="ci_add_fav">Add to favorites</string>
+    <string name="ci_unmute">Unmute</string>
+    <string name="ci_mute">Mute</string>
+    <string name="ci_unblock">Unblock</string>
+    <string name="ci_block">Block</string>
+    <string name="ci_remove">Remove contact</string>
+    <string name="ci_remove_title">Remove %1$s?</string>
+    <string name="ci_remove_body">You\'ll both be removed from each other\'s contacts and future messages from this UIN are dropped.</string>
+
+    <!-- Chat -->
+    <string name="chat_group">Group</string>
+    <string name="chat_typing">typing…</string>
+    <string name="chat_cancel_reply">Cancel reply</string>
+    <string name="chat_owner_only">Only the owner can post in this group.</string>
+    <string name="chat_a_photo">Photo</string>
+    <string name="chat_a_message">Message</string>
+    <string name="chat_reply">Reply</string>
+    <string name="chat_copy">Copy</string>
+    <string name="chat_edit">Edit</string>
+    <string name="chat_retry">Retry</string>
+    <string name="chat_delete_all">Delete for everyone</string>
+    <string name="chat_delete_me">Delete for me</string>
+    <string name="chat_edit_title">Edit message</string>
+    <string name="chat_attach">Attach</string>
+    <string name="chat_attach_photo">Photo</string>
+    <string name="chat_attach_video">Video</string>
+    <string name="chat_attach_file">File</string>
+    <string name="chat_attach_location">Location</string>
+    <string name="chat_recording">Recording  %1$s</string>
+    <string name="chat_send">Send</string>
+    <string name="chat_record_voice">Record voice</string>
+    <string name="chat_input_hint">Message</string>
+    <string name="chat_play_voice">Play voice</string>
+    <string name="chat_play_video">Play video</string>
+    <string name="chat_prev_photo">Photo</string>
+    <string name="chat_prev_file">File</string>
+    <string name="chat_prev_voice">Voice message</string>
+    <string name="chat_prev_video">Video</string>
+    <string name="chat_prev_location">Location</string>
+
+    <!-- QR -->
+    <string name="qr_title">My QR code</string>
+    <string name="qr_hint">Have a friend scan this to add you.</string>
+
+    <!-- Home: dialogs + context actions -->
+    <string name="home_send_message">Send message</string>
+    <string name="home_open_chat">Open chat</string>
+    <string name="home_remove_fav">Remove favorite</string>
+    <string name="home_add_fav">Add to favorites</string>
+    <string name="home_unmute">Unmute</string>
+    <string name="home_mute">Mute</string>
+    <string name="home_unarchive">Unarchive</string>
+    <string name="home_archive">Archive</string>
+    <string name="home_unblock">Unblock</string>
+    <string name="home_block">Block</string>
+    <string name="home_report">Report</string>
+    <string name="home_remove">Remove</string>
+    <string name="home_delete_group">Delete group</string>
+    <string name="home_leave_group">Leave group</string>
+    <string name="home_new_group">New group</string>
+    <string name="home_group_name">Group name</string>
+    <string name="home_add_members">Add members</string>
+    <string name="home_create">Create</string>
+    <string name="home_add_contact_title">Add contact</string>
+    <string name="home_send_request">Send request</string>
+    <string name="home_report_title">Report %1$s</string>
+    <string name="home_report_reason">Reason</string>
+    <string name="home_report_submit">Submit</string>
 </resources>

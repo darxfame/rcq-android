@@ -102,4 +102,213 @@
     <string name="theme_auto">Авто</string>
     <string name="theme_light">Светлая</string>
     <string name="theme_dark">Тёмная</string>
+
+    <!-- Common extras -->
+    <string name="common_back">Назад</string>
+    <string name="common_remove">Удалить</string>
+    <string name="common_delete">Удалить</string>
+    <string name="common_clear">Очистить</string>
+    <string name="common_move">Сменить</string>
+    <string name="common_switch">Сменить</string>
+    <string name="common_reset">Сбросить</string>
+    <string name="common_male">Мужской</string>
+    <string name="common_female">Женский</string>
+    <string name="common_other">Другой</string>
+    <string name="common_gender">Пол</string>
+    <string name="common_city">Город</string>
+    <string name="common_country">Страна</string>
+    <string name="common_about">О себе</string>
+    <string name="common_copy_uin">Скопировать UIN</string>
+    <string name="common_uin_copied">UIN скопирован</string>
+    <plurals name="members"><item quantity="one">%1$d участник</item><item quantity="few">%1$d участника</item><item quantity="many">%1$d участников</item><item quantity="other">%1$d участника</item></plurals>
+
+    <!-- Last seen -->
+    <string name="last_seen_fmt">был в сети %1$s</string>
+    <string name="last_seen_just_now">только что</string>
+    <string name="last_seen_min">%1$d мин назад</string>
+    <string name="last_seen_hour">%1$d ч назад</string>
+    <string name="last_seen_day">%1$d дн назад</string>
+
+    <!-- Visibility options -->
+    <string name="vis_everyone">Все</string>
+    <string name="vis_contacts">Контакты</string>
+    <string name="vis_nobody">Никто</string>
+
+    <!-- Settings: account / history / about -->
+    <string name="cs_move_footer">Новый UIN. Контакты, группы и ключи сохраняются, локальная история чатов очищается.</string>
+    <string name="cs_burn_footer">Стирает аккаунт везде. Необратимо.</string>
+    <string name="cs_clear_title">Очистить историю чатов?</string>
+    <string name="cs_clear_body">Удаляет все сообщения с этого устройства. Аккаунт и контакты остаются.</string>
+    <string name="cs_history_cleared">История очищена</string>
+    <string name="cs_move_title">Сменить UIN?</string>
+    <string name="cs_move_body">Вы получите новый UIN. Контакты, группы и ключи сохранятся, локальная история чатов на этом устройстве очистится.</string>
+    <string name="cs_moved_toast">Новый UIN: #%1$d</string>
+    <string name="cs_move_failed">Не удалось сменить. Попробуйте позже.</string>
+    <string name="cs_burn_cta">Сжечь</string>
+    <string name="cs_burn_title">Сжечь аккаунт?</string>
+    <string name="cs_burn_body">Это удалит ваш аккаунт и все локальные данные. Отменить нельзя.</string>
+    <string name="cs_about_tagline">Приватные сообщения. Без номера телефона.</string>
+    <string name="cs_about_version">Версия %1$s</string>
+    <string name="cs_about_features">Сквозное шифрование. Sealed sender. Открытый код.</string>
+
+    <!-- Settings: profile editor -->
+    <string name="pe_title">Редактировать профиль</string>
+    <string name="pe_saved">Профиль сохранён</string>
+    <string name="pe_views_title">Просмотры профиля</string>
+    <string name="pe_views_desc">Кто открывал ваш профиль за последние 7 дней.</string>
+    <string name="pe_nickname">Никнейм</string>
+    <string name="pe_status_message">Статус</string>
+    <string name="pe_first_name">Имя</string>
+    <string name="pe_last_name">Фамилия</string>
+    <string name="pe_age">Возраст</string>
+    <string name="pe_interests">Интересы</string>
+    <string name="pe_interests_hint">Через запятую, например: музыка, походы, ретротехника.</string>
+    <string name="pe_website">Сайт</string>
+
+    <!-- Settings: privacy -->
+    <string name="pv_last_seen">Был в сети</string>
+    <string name="pv_last_seen_desc">Кто видит, когда вы были в сети.</string>
+    <string name="pv_stay_visible">Оставаться видимым после выхода</string>
+    <string name="pv_stay_visible_desc">Показывать вас как недавно онлайн некоторое время после закрытия приложения.</string>
+    <string name="pv_profile_card">Карточка профиля</string>
+    <string name="pv_profile_card_desc">Кто может открыть ваш полный профиль (город, возраст, о себе).</string>
+    <string name="pv_gender_desc">Кто видит ваш пол в профиле.</string>
+    <string name="pv_invite">Кто может добавлять меня в группы</string>
+    <string name="pv_invite_desc">Кому разрешено добавлять вас в группу.</string>
+    <string name="pv_receipts">Отчёты о прочтении</string>
+    <string name="pv_receipts_desc">Кто видит ваши галочки прочтения. Если выключить, вы не увидите чужие.</string>
+    <string name="pv_network">Сеть</string>
+    <string name="pv_custom_server">Свой сервер</string>
+    <string name="pv_default">По умолчанию</string>
+
+    <!-- Settings: sounds -->
+    <string name="snd_message_title">Звуки сообщений</string>
+    <string name="snd_message_desc">Проигрывать сигнал при новом сообщении в чате, который не открыт.</string>
+    <string name="snd_presence_title">Контакт в сети / не в сети</string>
+    <string name="snd_presence_desc">Проигрывать сигнал, когда контакт заходит в сеть или выходит.</string>
+    <string name="snd_footer">Мьют чата (долгое нажатие на чат на главном экране) отключает звуки сообщений для него.</string>
+
+    <!-- Settings: language / notifications / blocked -->
+    <string name="lang_footer">Переводы появляются постепенно. Непереведённый текст показывается на английском.</string>
+    <string name="notif_push">Push-уведомления</string>
+    <string name="notif_desc">Мьют по чату доступен через долгое нажатие на главном экране. Доставка системных push настраивается в настройках Android.</string>
+    <string name="blocked_empty">Нет заблокированных</string>
+    <string name="blocked_unblock">Разблокировать</string>
+
+    <!-- Settings: custom server -->
+    <string name="csrv_connected">Подключено к %1$s</string>
+    <string name="csrv_unreachable">Не удалось подключиться к серверу. Ничего не изменилось.</string>
+    <string name="csrv_intro">Подключитесь к острову организации или своему self-host серверу RCQ вместо публичного.</string>
+    <string name="csrv_current">ТЕКУЩИЙ СЕРВЕР</string>
+    <string name="csrv_host">Хост сервера</string>
+    <string name="csrv_warning">Смена сервера создаёт новый аккаунт. Ваш текущий UIN, контакты и группы живут на текущем сервере и не переносятся. Отменить нельзя.</string>
+    <string name="csrv_reset_btn">Вернуться на публичный сервер</string>
+    <string name="csrv_switching">Переключение…</string>
+    <string name="csrv_confirm_title">Переключиться на %1$s?</string>
+    <string name="csrv_confirm_body">Будет создан новый аккаунт на %1$s. Ваш текущий аккаунт на %2$s останется, но станет недоступен с этого устройства.</string>
+    <string name="csrv_reset_title">Вернуться на публичный сервер?</string>
+    <string name="csrv_reset_body">Будет создан новый аккаунт на %1$s. Ваш аккаунт на %2$s останется, но станет недоступен с этого устройства.</string>
+
+    <!-- Group info -->
+    <string name="gi_title">Инфо группы</string>
+    <string name="gi_rename">Переименовать</string>
+    <string name="gi_change_avatar">Сменить аватар</string>
+    <string name="gi_settings">НАСТРОЙКИ ГРУППЫ</string>
+    <string name="gi_pinned">Закреплённое сообщение</string>
+    <string name="gi_none">Нет</string>
+    <string name="gi_who_post">Кто может писать</string>
+    <string name="gi_post_owner">Только владелец</string>
+    <string name="gi_closed">Закрытая группа</string>
+    <string name="gi_closed_desc">Новые участники не могут вступить через поиск</string>
+    <string name="gi_hide">Скрыть список участников</string>
+    <string name="gi_hide_desc">Только вы видите полный список</string>
+    <string name="gi_members">УЧАСТНИКИ</string>
+    <string name="gi_owner">владелец</string>
+    <string name="gi_admin">админ</string>
+    <string name="gi_you"> (вы)</string>
+    <string name="gi_delete">Удалить группу</string>
+    <string name="gi_leave">Покинуть группу</string>
+    <string name="gi_delete_q">Удалить группу?</string>
+    <string name="gi_leave_q">Покинуть группу?</string>
+    <string name="gi_delete_body">Группа будет удалена для всех.</string>
+    <string name="gi_leave_body">Вы перестанете получать сообщения из этой группы.</string>
+    <string name="gi_leave_cta">Покинуть</string>
+    <string name="gi_add_member">Добавить участника</string>
+    <string name="gi_all_in">Все ваши контакты уже в этой группе.</string>
+    <string name="gi_edit">Редактировать группу</string>
+    <string name="gi_name">Название</string>
+    <string name="gi_description">Описание</string>
+    <string name="gi_pin_placeholder">Закрепите сообщение для всех</string>
+
+    <!-- Contact info -->
+    <string name="ci_title">Профиль контакта</string>
+    <string name="ci_remove_fav">Убрать из избранного</string>
+    <string name="ci_add_fav">В избранное</string>
+    <string name="ci_unmute">Включить звук</string>
+    <string name="ci_mute">Без звука</string>
+    <string name="ci_unblock">Разблокировать</string>
+    <string name="ci_block">Заблокировать</string>
+    <string name="ci_remove">Удалить контакт</string>
+    <string name="ci_remove_title">Удалить %1$s?</string>
+    <string name="ci_remove_body">Вы оба будете удалены из контактов друг друга, будущие сообщения от этого UIN отбрасываются.</string>
+
+    <!-- Chat -->
+    <string name="chat_group">Группа</string>
+    <string name="chat_typing">печатает…</string>
+    <string name="chat_cancel_reply">Отменить ответ</string>
+    <string name="chat_owner_only">Писать может только владелец группы.</string>
+    <string name="chat_a_photo">Фото</string>
+    <string name="chat_a_message">Сообщение</string>
+    <string name="chat_reply">Ответить</string>
+    <string name="chat_copy">Копировать</string>
+    <string name="chat_edit">Изменить</string>
+    <string name="chat_retry">Повторить</string>
+    <string name="chat_delete_all">Удалить у всех</string>
+    <string name="chat_delete_me">Удалить у меня</string>
+    <string name="chat_edit_title">Изменить сообщение</string>
+    <string name="chat_attach">Вложение</string>
+    <string name="chat_attach_photo">Фото</string>
+    <string name="chat_attach_video">Видео</string>
+    <string name="chat_attach_file">Файл</string>
+    <string name="chat_attach_location">Геопозиция</string>
+    <string name="chat_recording">Запись  %1$s</string>
+    <string name="chat_send">Отправить</string>
+    <string name="chat_record_voice">Записать голос</string>
+    <string name="chat_input_hint">Сообщение</string>
+    <string name="chat_play_voice">Воспроизвести голос</string>
+    <string name="chat_play_video">Воспроизвести видео</string>
+    <string name="chat_prev_photo">Фото</string>
+    <string name="chat_prev_file">Файл</string>
+    <string name="chat_prev_voice">Голосовое сообщение</string>
+    <string name="chat_prev_video">Видео</string>
+    <string name="chat_prev_location">Геопозиция</string>
+
+    <!-- QR -->
+    <string name="qr_title">Мой QR код</string>
+    <string name="qr_hint">Покажите его другу, чтобы он вас добавил.</string>
+
+    <!-- Home: dialogs + context actions -->
+    <string name="home_send_message">Написать</string>
+    <string name="home_open_chat">Открыть чат</string>
+    <string name="home_remove_fav">Убрать из избранного</string>
+    <string name="home_add_fav">В избранное</string>
+    <string name="home_unmute">Включить звук</string>
+    <string name="home_mute">Без звука</string>
+    <string name="home_unarchive">Из архива</string>
+    <string name="home_archive">В архив</string>
+    <string name="home_unblock">Разблокировать</string>
+    <string name="home_block">Заблокировать</string>
+    <string name="home_report">Пожаловаться</string>
+    <string name="home_remove">Удалить</string>
+    <string name="home_delete_group">Удалить группу</string>
+    <string name="home_leave_group">Покинуть группу</string>
+    <string name="home_new_group">Новая группа</string>
+    <string name="home_group_name">Название группы</string>
+    <string name="home_add_members">Добавить участников</string>
+    <string name="home_create">Создать</string>
+    <string name="home_add_contact_title">Добавить контакт</string>
+    <string name="home_send_request">Отправить запрос</string>
+    <string name="home_report_title">Пожаловаться на %1$s</string>
+    <string name="home_report_reason">Причина</string>
+    <string name="home_report_submit">Отправить</string>
 </resources>

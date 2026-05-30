@@ -82,6 +82,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import app.rcq.android.R
 import app.rcq.android.Session
 import app.rcq.android.crypto.Reply
 import app.rcq.android.media.VoiceRecorder
@@ -240,7 +243,7 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
-                Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = c.accent,
+                Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.common_back), tint = c.accent,
                 modifier = Modifier.size(26.dp).clip(CircleShape).clickable(onClick = onBack),
             )
             Spacer(Modifier.width(6.dp))
@@ -251,17 +254,17 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
             }
             Spacer(Modifier.width(8.dp))
             Column(Modifier.weight(1f)) {
-                val title = if (isGroup) (group?.name ?: "Group") else session.contactName(peer ?: 0)
+                val title = if (isGroup) (group?.name ?: stringResource(R.string.chat_group)) else session.contactName(peer ?: 0)
                 Text(title, color = c.textPrimary, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 val sub = when {
                     isGroup -> {
                         val n = group?.members?.size ?: 0
-                        if (n == 1) "1 member" else "$n members"
+                        pluralStringResource(R.plurals.members, n, n)
                     }
-                    isTyping -> "typing…"
+                    isTyping -> stringResource(R.string.chat_typing)
                     peerContact == null -> "$peer"
-                    peerContact.presence == UserStatus.OFFLINE && peerContact.lastSeen != null -> "last seen ${relativeLastSeen(peerContact.lastSeen)}"
-                    else -> peerContact.presence.label.lowercase()
+                    peerContact.presence == UserStatus.OFFLINE && peerContact.lastSeen != null -> stringResource(R.string.last_seen_fmt, relativeLastSeen(peerContact.lastSeen, context))
+                    else -> stringResource(peerContact.presence.labelRes).lowercase()
                 }
                 Text(sub, color = if (isTyping) c.accent else c.textSecondary, fontSize = 12.sp)
             }
@@ -292,15 +295,15 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
                 Spacer(Modifier.width(8.dp))
                 Column(Modifier.weight(1f)) {
                     Text(authorName(rt), color = c.accent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                    Text(previewOf(rt), color = c.textSecondary, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(previewOf(rt, context), color = c.textSecondary, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
-                Icon(Icons.Filled.Close, "Cancel reply", tint = c.textSecondary, modifier = Modifier.clickable { replyTarget = null }.padding(8.dp).size(18.dp))
+                Icon(Icons.Filled.Close, stringResource(R.string.chat_cancel_reply), tint = c.textSecondary, modifier = Modifier.clickable { replyTarget = null }.padding(8.dp).size(18.dp))
             }
         }
 
         if (!canPost) {
             Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
-                Text("Only the owner can post in this group.", color = c.textSecondary, fontSize = 13.sp)
+                Text(stringResource(R.string.chat_owner_only), color = c.textSecondary, fontSize = 13.sp)
             }
         } else {
             Composer(
@@ -313,7 +316,7 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
                 onAttach = { attachMenu = true },
                 onSend = {
                     val body = draft.trim(); draft = ""
-                    val reply = replyTarget?.let { Reply(it.id, previewOf(it), authorName(it)) }
+                    val reply = replyTarget?.let { Reply(it.id, previewOf(it, context), authorName(it)) }
                     replyTarget = null
                     if (!isGroup && peer != null) session.sendTyping(peer, false)
                     scope.launch {
@@ -336,7 +339,7 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
         AlertDialog(
             onDismissRequest = { actionMsg = null },
             containerColor = c.bgSecondary,
-            title = { Text(if (m.kind == "photo") "Photo" else "Message", color = c.textPrimary) },
+            title = { Text(stringResource(if (m.kind == "photo") R.string.chat_a_photo else R.string.chat_a_message), color = c.textPrimary) },
             text = {
                 Column {
                     Row(
@@ -353,24 +356,24 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
                             )
                         }
                     }
-                    MessageAction("Reply") { replyTarget = m; actionMsg = null }
-                    if (m.kind == "text") MessageAction("Copy") {
+                    MessageAction(stringResource(R.string.chat_reply)) { replyTarget = m; actionMsg = null }
+                    if (m.kind == "text") MessageAction(stringResource(R.string.chat_copy)) {
                         val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                         cm.setPrimaryClip(ClipData.newPlainText("message", m.body))
                         actionMsg = null
                     }
-                    if (m.fromMe && m.kind == "text") MessageAction("Edit") { editMsg = m; actionMsg = null }
-                    if (m.fromMe && m.state == DeliveryState.FAILED) MessageAction("Retry") {
+                    if (m.fromMe && m.kind == "text") MessageAction(stringResource(R.string.chat_edit)) { editMsg = m; actionMsg = null }
+                    if (m.fromMe && m.state == DeliveryState.FAILED) MessageAction(stringResource(R.string.chat_retry)) {
                         scope.launch { runCatching { session.resend(m) } }; actionMsg = null
                     }
-                    if (m.fromMe) MessageAction("Delete for everyone", danger = true) {
+                    if (m.fromMe) MessageAction(stringResource(R.string.chat_delete_all), danger = true) {
                         scope.launch { runCatching { session.sendDeleteForEveryone(m) } }; actionMsg = null
                     }
-                    MessageAction("Delete for me", danger = true) { session.deleteLocal(m); actionMsg = null }
+                    MessageAction(stringResource(R.string.chat_delete_me), danger = true) { session.deleteLocal(m); actionMsg = null }
                 }
             },
             confirmButton = {},
-            dismissButton = { TextButton(onClick = { actionMsg = null }) { Text("Cancel", color = c.textSecondary) } },
+            dismissButton = { TextButton(onClick = { actionMsg = null }) { Text(stringResource(R.string.common_cancel), color = c.textSecondary) } },
         )
     }
 
@@ -379,7 +382,7 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
         AlertDialog(
             onDismissRequest = { editMsg = null },
             containerColor = c.bgSecondary,
-            title = { Text("Edit message", color = c.textPrimary) },
+            title = { Text(stringResource(R.string.chat_edit_title), color = c.textPrimary) },
             text = {
                 Box(
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(c.bgPrimary).padding(horizontal = 12.dp, vertical = 10.dp),
@@ -399,9 +402,9 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
                     val orig = m
                     editMsg = null
                     if (newText.isNotEmpty() && newText != orig.body) scope.launch { runCatching { session.sendEdit(orig, newText) } }
-                }) { Text("Save", color = c.accent) }
+                }) { Text(stringResource(R.string.common_save), color = c.accent) }
             },
-            dismissButton = { TextButton(onClick = { editMsg = null }) { Text("Cancel", color = c.textSecondary) } },
+            dismissButton = { TextButton(onClick = { editMsg = null }) { Text(stringResource(R.string.common_cancel), color = c.textSecondary) } },
         )
     }
 
@@ -409,17 +412,17 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
         AlertDialog(
             onDismissRequest = { attachMenu = false },
             containerColor = c.bgSecondary,
-            title = { Text("Attach", color = c.textPrimary) },
+            title = { Text(stringResource(R.string.chat_attach), color = c.textPrimary) },
             text = {
                 Column {
-                    MessageAction("Photo") { attachMenu = false; picker.launch("image/*") }
-                    MessageAction("Video") { attachMenu = false; videoPicker.launch("video/*") }
-                    MessageAction("File") { attachMenu = false; filePicker.launch("*/*") }
-                    MessageAction("Location") { attachMenu = false; shareLocation() }
+                    MessageAction(stringResource(R.string.chat_attach_photo)) { attachMenu = false; picker.launch("image/*") }
+                    MessageAction(stringResource(R.string.chat_attach_video)) { attachMenu = false; videoPicker.launch("video/*") }
+                    MessageAction(stringResource(R.string.chat_attach_file)) { attachMenu = false; filePicker.launch("*/*") }
+                    MessageAction(stringResource(R.string.chat_attach_location)) { attachMenu = false; shareLocation() }
                 }
             },
             confirmButton = {},
-            dismissButton = { TextButton(onClick = { attachMenu = false }) { Text("Cancel", color = c.textSecondary) } },
+            dismissButton = { TextButton(onClick = { attachMenu = false }) { Text(stringResource(R.string.common_cancel), color = c.textSecondary) } },
         )
     }
 }
@@ -446,18 +449,18 @@ private fun Composer(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Icon(
-                Icons.Filled.Close, "Cancel", tint = c.textSecondary,
+                Icons.Filled.Close, stringResource(R.string.common_cancel), tint = c.textSecondary,
                 modifier = Modifier.size(40.dp).clip(CircleShape).clickable(onClick = onCancelVoice).padding(8.dp),
             )
             Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Box(Modifier.size(10.dp).clip(CircleShape).background(Color(0xFFE5484D)))
-                Text("Recording  ${formatDuration(recElapsed)}", color = c.textPrimary, fontSize = 15.sp)
+                Text(stringResource(R.string.chat_recording, formatDuration(recElapsed)), color = c.textPrimary, fontSize = 15.sp)
             }
             Box(
                 Modifier.size(40.dp).clip(CircleShape).background(c.accent).clickable(onClick = onStopVoice),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(Icons.AutoMirrored.Filled.Send, "Send", tint = Color.White, modifier = Modifier.size(20.dp))
+                Icon(Icons.AutoMirrored.Filled.Send, stringResource(R.string.chat_send), tint = Color.White, modifier = Modifier.size(20.dp))
             }
         }
         return
@@ -468,14 +471,14 @@ private fun Composer(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Icon(
-            Icons.Filled.AddPhotoAlternate, "Attach", tint = c.textSecondary,
+            Icons.Filled.AddPhotoAlternate, stringResource(R.string.chat_attach), tint = c.textSecondary,
             modifier = Modifier.size(40.dp).clip(CircleShape).clickable(onClick = onAttach).padding(8.dp),
         )
         Box(
             Modifier.weight(1f).heightIn(min = 40.dp).clip(RoundedCornerShape(20.dp)).background(c.bgSecondary).padding(horizontal = 14.dp, vertical = 10.dp),
             contentAlignment = Alignment.CenterStart,
         ) {
-            if (draft.isEmpty()) Text("Message", color = c.textSecondary, fontSize = 15.sp)
+            if (draft.isEmpty()) Text(stringResource(R.string.chat_input_hint), color = c.textSecondary, fontSize = 15.sp)
             BasicTextField(
                 value = draft,
                 onValueChange = onDraftChange,
@@ -492,7 +495,7 @@ private fun Composer(
         ) {
             Icon(
                 if (canSend) Icons.AutoMirrored.Filled.Send else Icons.Filled.Mic,
-                if (canSend) "Send" else "Record voice",
+                stringResource(if (canSend) R.string.chat_send else R.string.chat_record_voice),
                 tint = if (canSend) Color.White else c.textSecondary,
                 modifier = Modifier.size(20.dp),
             )
@@ -513,12 +516,12 @@ private fun MessageAction(label: String, danger: Boolean = false, onClick: () ->
     )
 }
 
-private fun previewOf(m: ChatMessage): String = when (m.kind) {
-    "photo" -> "Photo"
-    "file" -> m.fileName ?: "File"
-    "voice" -> "Voice message"
-    "video" -> "Video"
-    "location" -> "Location"
+private fun previewOf(m: ChatMessage, context: android.content.Context): String = when (m.kind) {
+    "photo" -> context.getString(R.string.chat_prev_photo)
+    "file" -> m.fileName ?: context.getString(R.string.chat_prev_file)
+    "voice" -> context.getString(R.string.chat_prev_voice)
+    "video" -> context.getString(R.string.chat_prev_video)
+    "location" -> context.getString(R.string.chat_prev_location)
     else -> m.body.take(100)
 }
 
@@ -693,7 +696,7 @@ private fun VoiceBubble(session: Session, m: ChatMessage, onLongPress: () -> Uni
     ) {
         Icon(
             if (playing) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-            "Play voice", tint = c.accent, modifier = Modifier.size(26.dp),
+            stringResource(R.string.chat_play_voice), tint = c.accent, modifier = Modifier.size(26.dp),
         )
         Text(formatDuration(m.durationSec ?: 0), color = c.textPrimary, fontSize = 14.sp)
     }
@@ -737,7 +740,7 @@ private fun VideoBubble(session: Session, m: ChatMessage, onLongPress: () -> Uni
             Modifier.size(48.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.45f)),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(Icons.Filled.PlayArrow, "Play video", tint = Color.White, modifier = Modifier.size(30.dp))
+            Icon(Icons.Filled.PlayArrow, stringResource(R.string.chat_play_video), tint = Color.White, modifier = Modifier.size(30.dp))
         }
         (m.durationSec ?: 0).takeIf { it > 0 }?.let {
             Text(
@@ -778,7 +781,7 @@ private fun LocationBubble(m: ChatMessage, onLongPress: () -> Unit) {
     ) {
         Icon(Icons.Filled.LocationOn, null, tint = c.accent, modifier = Modifier.size(24.dp))
         Column {
-            Text(if (m.body.isNotEmpty()) m.body else "Location", color = c.textPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            Text(if (m.body.isNotEmpty()) m.body else stringResource(R.string.chat_prev_location), color = c.textPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
             Text("%.5f, %.5f".format(lat, lng), color = c.textSecondary, fontSize = 11.sp)
         }
     }

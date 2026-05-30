@@ -19,11 +19,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import app.rcq.android.R
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.QRCodeWriter
@@ -53,14 +55,14 @@ fun QrDialog(uin: Int, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = c.bgSecondary,
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Done", color = c.accent) } },
-        title = { Text("My QR code", color = c.textPrimary) },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_done), color = c.accent) } },
+        title = { Text(stringResource(R.string.qr_title), color = c.textPrimary) },
         text = {
             Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 if (bmp != null) {
                     Image(
                         bitmap = bmp.asImageBitmap(),
-                        contentDescription = "QR code",
+                        contentDescription = stringResource(R.string.qr_title),
                         filterQuality = FilterQuality.None,
                         modifier = Modifier
                             .size(220.dp)
@@ -77,7 +79,7 @@ fun QrDialog(uin: Int, onDismiss: () -> Unit) {
                     fontWeight = FontWeight.Bold,
                 )
                 Text(
-                    "Have a friend scan this to add you.",
+                    stringResource(R.string.qr_hint),
                     color = c.textSecondary,
                     fontSize = 13.sp,
                     textAlign = TextAlign.Center,

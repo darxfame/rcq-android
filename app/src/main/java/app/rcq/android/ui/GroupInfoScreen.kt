@@ -51,9 +51,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import app.rcq.android.R
 import app.rcq.android.Session
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -89,12 +92,12 @@ internal fun GroupInfoScreen(session: Session, groupId: Int, onBack: () -> Unit,
 
     Column(Modifier.fillMaxSize().background(c.bgPrimary)) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(12.dp)) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = c.accent, modifier = Modifier.size(26.dp).clickable(onClick = onBack))
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.common_back), tint = c.accent, modifier = Modifier.size(26.dp).clickable(onClick = onBack))
             Spacer(Modifier.width(12.dp))
-            Text("Group info", color = c.textPrimary, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.gi_title), color = c.textPrimary, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.weight(1f))
             if (isOwner) {
-                Icon(Icons.Filled.Edit, "Rename", tint = c.accent, modifier = Modifier.size(22.dp).clickable { showRename = true })
+                Icon(Icons.Filled.Edit, stringResource(R.string.gi_rename), tint = c.accent, modifier = Modifier.size(22.dp).clickable { showRename = true })
             }
         }
 
@@ -105,12 +108,12 @@ internal fun GroupInfoScreen(session: Session, groupId: Int, onBack: () -> Unit,
                 }
                 if (isOwner) {
                     Box(Modifier.size(26.dp).clip(CircleShape).background(c.accent).clickable { avatarPicker.launch("image/*") }, contentAlignment = Alignment.Center) {
-                        Icon(Icons.Filled.CameraAlt, "Change avatar", tint = Color.White, modifier = Modifier.size(15.dp))
+                        Icon(Icons.Filled.CameraAlt, stringResource(R.string.gi_change_avatar), tint = Color.White, modifier = Modifier.size(15.dp))
                     }
                 }
             }
             Text(group.name, color = c.textPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-            Text(if (group.members.size == 1) "1 member" else "${group.members.size} members", color = c.textSecondary, fontSize = 13.sp)
+            Text(pluralStringResource(R.plurals.members, group.members.size, group.members.size), color = c.textSecondary, fontSize = 13.sp)
             group.description?.takeIf { it.isNotBlank() }?.let {
                 Text(it, color = c.textSecondary, fontSize = 13.sp)
             }
@@ -126,7 +129,7 @@ internal fun GroupInfoScreen(session: Session, groupId: Int, onBack: () -> Unit,
 
         if (isOwner) {
             Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("GROUP SETTINGS", color = c.textSecondary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.gi_settings), color = c.textSecondary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 // Pinned message — opens an editor dialog.
                 Row(
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(c.bgSecondary).clickable { showPin = true }.padding(14.dp),
@@ -134,16 +137,16 @@ internal fun GroupInfoScreen(session: Session, groupId: Int, onBack: () -> Unit,
                 ) {
                     Icon(Icons.Filled.PushPin, null, tint = c.accent, modifier = Modifier.size(18.dp))
                     Column(Modifier.weight(1f)) {
-                        Text("Pinned message", color = c.textPrimary, fontSize = 15.sp)
-                        Text(group.pinnedText?.takeIf { it.isNotBlank() } ?: "None", color = c.textSecondary, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(stringResource(R.string.gi_pinned), color = c.textPrimary, fontSize = 15.sp)
+                        Text(group.pinnedText?.takeIf { it.isNotBlank() } ?: stringResource(R.string.gi_none), color = c.textSecondary, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                     Icon(Icons.Filled.Edit, null, tint = c.textSecondary, modifier = Modifier.size(16.dp))
                 }
                 // Who can post.
                 Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(c.bgSecondary).padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Who can post", color = c.textPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                    Text(stringResource(R.string.gi_who_post), color = c.textPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
                     Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(percent = 50)).background(c.bgPrimary).padding(3.dp), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                        listOf("all" to "Everyone", "owner_only" to "Owner only").forEach { (key, label) ->
+                        listOf("all" to stringResource(R.string.vis_everyone), "owner_only" to stringResource(R.string.gi_post_owner)).forEach { (key, label) ->
                             val sel = group.postPolicy == key
                             Box(
                                 Modifier.weight(1f).clip(RoundedCornerShape(percent = 50)).background(if (sel) c.accent else Color.Transparent)
@@ -153,17 +156,17 @@ internal fun GroupInfoScreen(session: Session, groupId: Int, onBack: () -> Unit,
                         }
                     }
                 }
-                GroupToggleRow("Closed group", "New members can't self-join via search", group.isClosed) { v -> scope.launch { runCatching { session.patchGroup(groupId, isClosed = v) } } }
-                GroupToggleRow("Hide member list", "Only you see the full roster", group.membersHidden) { v -> scope.launch { runCatching { session.patchGroup(groupId, membersHidden = v) } } }
+                GroupToggleRow(stringResource(R.string.gi_closed), stringResource(R.string.gi_closed_desc), group.isClosed) { v -> scope.launch { runCatching { session.patchGroup(groupId, isClosed = v) } } }
+                GroupToggleRow(stringResource(R.string.gi_hide), stringResource(R.string.gi_hide_desc), group.membersHidden) { v -> scope.launch { runCatching { session.patchGroup(groupId, membersHidden = v) } } }
             }
         }
 
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("MEMBERS", color = c.textSecondary, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+            Text(stringResource(R.string.gi_members), color = c.textSecondary, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
             if (isOwner) {
                 Row(Modifier.clip(RoundedCornerShape(percent = 50)).clickable { showAddMember = true }.padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     Icon(Icons.Filled.PersonAdd, null, tint = c.accent, modifier = Modifier.size(16.dp))
-                    Text("Add", color = c.accent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.home_bar_add), color = c.accent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                 }
             }
         }
@@ -173,15 +176,15 @@ internal fun GroupInfoScreen(session: Session, groupId: Int, onBack: () -> Unit,
                 Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     StatusIcon(m.presence, size = 26.dp)
                     Column(Modifier.weight(1f)) {
-                        Text(m.nickname + if (m.uin == ownUin) " (you)" else "", color = c.textPrimary, fontSize = 15.sp)
+                        Text(m.nickname + if (m.uin == ownUin) stringResource(R.string.gi_you) else "", color = c.textPrimary, fontSize = 15.sp)
                         Text("${m.uin}", color = c.textMono, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
                     }
                     if (m.role == "owner") {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
                             Icon(Icons.Filled.Star, null, tint = c.accent, modifier = Modifier.size(12.dp))
-                            Text("owner", color = c.textSecondary, fontSize = 11.sp)
+                            Text(stringResource(R.string.gi_owner), color = c.textSecondary, fontSize = 11.sp)
                         }
-                    } else if (m.role == "admin") Text("admin", color = c.textSecondary, fontSize = 11.sp)
+                    } else if (m.role == "admin") Text(stringResource(R.string.gi_admin), color = c.textSecondary, fontSize = 11.sp)
                 }
             }
         }
@@ -192,7 +195,7 @@ internal fun GroupInfoScreen(session: Session, groupId: Int, onBack: () -> Unit,
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Icon(if (isOwner) Icons.Filled.Delete else Icons.AutoMirrored.Filled.ExitToApp, null, tint = Color(0xFFE5484D), modifier = Modifier.size(18.dp))
-                Text(if (isOwner) "Delete group" else "Leave group", color = Color(0xFFE5484D), fontWeight = FontWeight.SemiBold)
+                Text(stringResource(if (isOwner) R.string.gi_delete else R.string.gi_leave), color = Color(0xFFE5484D), fontWeight = FontWeight.SemiBold)
             }
         }
     }
@@ -201,8 +204,8 @@ internal fun GroupInfoScreen(session: Session, groupId: Int, onBack: () -> Unit,
         AlertDialog(
             onDismissRequest = { confirmDestructive = false },
             containerColor = c.bgSecondary,
-            title = { Text(if (isOwner) "Delete group?" else "Leave group?", color = c.textPrimary) },
-            text = { Text(if (isOwner) "This deletes the group for everyone." else "You'll stop receiving messages from this group.", color = c.textSecondary) },
+            title = { Text(stringResource(if (isOwner) R.string.gi_delete_q else R.string.gi_leave_q), color = c.textPrimary) },
+            text = { Text(stringResource(if (isOwner) R.string.gi_delete_body else R.string.gi_leave_body), color = c.textSecondary) },
             confirmButton = {
                 TextButton(onClick = {
                     confirmDestructive = false
@@ -210,9 +213,9 @@ internal fun GroupInfoScreen(session: Session, groupId: Int, onBack: () -> Unit,
                         runCatching { if (isOwner) session.deleteGroup(groupId) else session.leaveGroup(groupId) }
                         onLeft()
                     }
-                }) { Text(if (isOwner) "Delete" else "Leave", color = Color(0xFFE5484D)) }
+                }) { Text(stringResource(if (isOwner) R.string.common_delete else R.string.gi_leave_cta), color = Color(0xFFE5484D)) }
             },
-            dismissButton = { TextButton(onClick = { confirmDestructive = false }) { Text("Cancel", color = c.textSecondary) } },
+            dismissButton = { TextButton(onClick = { confirmDestructive = false }) { Text(stringResource(R.string.common_cancel), color = c.textSecondary) } },
         )
     }
 
@@ -221,10 +224,10 @@ internal fun GroupInfoScreen(session: Session, groupId: Int, onBack: () -> Unit,
         AlertDialog(
             onDismissRequest = { showAddMember = false },
             containerColor = c.bgSecondary,
-            title = { Text("Add member", color = c.textPrimary) },
+            title = { Text(stringResource(R.string.gi_add_member), color = c.textPrimary) },
             text = {
                 if (candidates.isEmpty()) {
-                    Text("All your contacts are already in this group.", color = c.textSecondary)
+                    Text(stringResource(R.string.gi_all_in), color = c.textSecondary)
                 } else {
                     LazyColumn(Modifier.heightIn(max = 320.dp)) {
                         items(candidates, key = { it.uin }) { ct ->
@@ -244,7 +247,7 @@ internal fun GroupInfoScreen(session: Session, groupId: Int, onBack: () -> Unit,
                 }
             },
             confirmButton = {},
-            dismissButton = { TextButton(onClick = { showAddMember = false }) { Text("Close", color = c.textSecondary) } },
+            dismissButton = { TextButton(onClick = { showAddMember = false }) { Text(stringResource(R.string.common_close), color = c.textSecondary) } },
         )
     }
 
@@ -254,12 +257,12 @@ internal fun GroupInfoScreen(session: Session, groupId: Int, onBack: () -> Unit,
         AlertDialog(
             onDismissRequest = { showRename = false },
             containerColor = c.bgSecondary,
-            title = { Text("Edit group", color = c.textPrimary) },
+            title = { Text(stringResource(R.string.gi_edit), color = c.textPrimary) },
             text = {
                 Column {
-                    OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Name", color = c.textSecondary) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text(stringResource(R.string.gi_name), color = c.textSecondary) }, singleLine = true, modifier = Modifier.fillMaxWidth())
                     Spacer(Modifier.size(8.dp))
-                    OutlinedTextField(value = desc, onValueChange = { desc = it }, label = { Text("Description", color = c.textSecondary) }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = desc, onValueChange = { desc = it }, label = { Text(stringResource(R.string.gi_description), color = c.textSecondary) }, modifier = Modifier.fillMaxWidth())
                 }
             },
             confirmButton = {
@@ -275,9 +278,9 @@ internal fun GroupInfoScreen(session: Session, groupId: Int, onBack: () -> Unit,
                             )
                         }
                     }
-                }) { Text("Save", color = if (name.isNotBlank()) c.accent else c.textSecondary) }
+                }) { Text(stringResource(R.string.common_save), color = if (name.isNotBlank()) c.accent else c.textSecondary) }
             },
-            dismissButton = { TextButton(onClick = { showRename = false }) { Text("Cancel", color = c.textSecondary) } },
+            dismissButton = { TextButton(onClick = { showRename = false }) { Text(stringResource(R.string.common_cancel), color = c.textSecondary) } },
         )
     }
 
@@ -286,11 +289,11 @@ internal fun GroupInfoScreen(session: Session, groupId: Int, onBack: () -> Unit,
         AlertDialog(
             onDismissRequest = { showPin = false },
             containerColor = c.bgSecondary,
-            title = { Text("Pinned message", color = c.textPrimary) },
+            title = { Text(stringResource(R.string.gi_pinned), color = c.textPrimary) },
             text = {
                 OutlinedTextField(
                     value = pinText, onValueChange = { pinText = it },
-                    placeholder = { Text("Pin a message for everyone", color = c.textSecondary) },
+                    placeholder = { Text(stringResource(R.string.gi_pin_placeholder), color = c.textSecondary) },
                     modifier = Modifier.fillMaxWidth(),
                 )
             },
@@ -299,9 +302,9 @@ internal fun GroupInfoScreen(session: Session, groupId: Int, onBack: () -> Unit,
                     val t = pinText.trim()
                     showPin = false
                     scope.launch { runCatching { session.patchGroup(groupId, pinnedText = t) } }
-                }) { Text("Save", color = c.accent) }
+                }) { Text(stringResource(R.string.common_save), color = c.accent) }
             },
-            dismissButton = { TextButton(onClick = { showPin = false }) { Text("Cancel", color = c.textSecondary) } },
+            dismissButton = { TextButton(onClick = { showPin = false }) { Text(stringResource(R.string.common_cancel), color = c.textSecondary) } },
         )
     }
 }

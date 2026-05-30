@@ -129,7 +129,7 @@ private fun SettingsRoot(
     fun copyUin() {
         val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         cm.setPrimaryClip(ClipData.newPlainText("UIN", "$uin"))
-        Toast.makeText(context, "UIN copied", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, context.getString(R.string.common_uin_copied), Toast.LENGTH_SHORT).show()
     }
 
     Column(Modifier.fillMaxSize().background(c.bgPrimary)) {
@@ -152,7 +152,7 @@ private fun SettingsRoot(
                     Text(session.nickname, color = c.textPrimary, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text("$uin", color = c.textMono, fontSize = 13.sp, fontFamily = FontFamily.Monospace)
-                        Icon(Icons.Filled.ContentCopy, "Copy UIN", tint = c.textSecondary,
+                        Icon(Icons.Filled.ContentCopy, stringResource(R.string.common_copy_uin), tint = c.textSecondary,
                             modifier = Modifier.size(15.dp).clickable { copyUin() })
                     }
                 }
@@ -201,7 +201,7 @@ private fun SettingsRoot(
                 SettingsRow(Icons.Filled.Autorenew, stringResource(R.string.settings_row_move_uin)) { if (!migrating) confirmMigrate = true }
             }
             Text(
-                "Get a fresh UIN. Your contacts, groups and keys are kept; local chat history is cleared.",
+                stringResource(R.string.cs_move_footer),
                 color = c.textSecondary, fontSize = 11.sp,
                 modifier = Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 14.dp),
                 textAlign = TextAlign.Center,
@@ -211,7 +211,7 @@ private fun SettingsRoot(
                 SettingsRow(Icons.Filled.LocalFireDepartment, stringResource(R.string.settings_row_burn), destructive = true) { confirmBurn = true }
             }
             Text(
-                "Wipes this account everywhere. Irreversible.",
+                stringResource(R.string.cs_burn_footer),
                 color = c.textSecondary, fontSize = 11.sp,
                 modifier = Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 20.dp),
                 textAlign = TextAlign.Center,
@@ -221,18 +221,18 @@ private fun SettingsRoot(
 
     if (confirmClear) {
         ConfirmDialog(
-            title = "Clear chat history?",
-            body = "Removes all messages from this device. Your account and contacts stay.",
-            confirm = "Clear", destructive = true,
-            onConfirm = { confirmClear = false; session.clearHistory(); Toast.makeText(context, "History cleared", Toast.LENGTH_SHORT).show() },
+            title = stringResource(R.string.cs_clear_title),
+            body = stringResource(R.string.cs_clear_body),
+            confirm = stringResource(R.string.common_clear), destructive = true,
+            onConfirm = { confirmClear = false; session.clearHistory(); Toast.makeText(context, context.getString(R.string.cs_history_cleared), Toast.LENGTH_SHORT).show() },
             onDismiss = { confirmClear = false },
         )
     }
     if (confirmMigrate) {
         ConfirmDialog(
-            title = "Move to a new UIN?",
-            body = "You get a freshly-allocated UIN. Contacts, groups and your keys are kept; local chat history on this device is cleared.",
-            confirm = "Move", destructive = false,
+            title = stringResource(R.string.cs_move_title),
+            body = stringResource(R.string.cs_move_body),
+            confirm = stringResource(R.string.common_move), destructive = false,
             onConfirm = {
                 confirmMigrate = false
                 migrating = true
@@ -240,10 +240,10 @@ private fun SettingsRoot(
                     val newUin = runCatching { session.migrateToNewUin() }.getOrNull()
                     migrating = false
                     if (newUin != null) {
-                        Toast.makeText(context, "Moved to #$newUin", Toast.LENGTH_LONG).show()
+                        Toast.makeText(context, context.getString(R.string.cs_moved_toast, newUin), Toast.LENGTH_LONG).show()
                         onMigrated(newUin)
                     } else {
-                        Toast.makeText(context, "Migration failed. Try again later.", Toast.LENGTH_LONG).show()
+                        Toast.makeText(context, context.getString(R.string.cs_move_failed), Toast.LENGTH_LONG).show()
                     }
                 }
             },
@@ -252,9 +252,9 @@ private fun SettingsRoot(
     }
     if (confirmBurn) {
         ConfirmDialog(
-            title = "Burn account?",
-            body = "This deletes your account and all local data. It cannot be undone.",
-            confirm = "Burn", destructive = true,
+            title = stringResource(R.string.cs_burn_title),
+            body = stringResource(R.string.cs_burn_body),
+            confirm = stringResource(R.string.cs_burn_cta), destructive = true,
             onConfirm = { confirmBurn = false; scope.launch { runCatching { session.burnAccount() }; onBurned() } },
             onDismiss = { confirmBurn = false },
         )
@@ -263,13 +263,13 @@ private fun SettingsRoot(
         AlertDialog(
             onDismissRequest = { showAbout = false },
             containerColor = c.bgSecondary,
-            confirmButton = { TextButton(onClick = { showAbout = false }) { Text("Done", color = c.accent) } },
+            confirmButton = { TextButton(onClick = { showAbout = false }) { Text(stringResource(R.string.common_done), color = c.accent) } },
             title = { Text("RCQ", color = c.textPrimary) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Private messaging. No phone number.", color = c.textSecondary, fontSize = 14.sp)
-                    Text("Version ${appVersion(context)}", color = c.textMono, fontSize = 13.sp, fontFamily = FontFamily.Monospace)
-                    Text("End-to-end encrypted. Sealed sender. Open source.", color = c.textSecondary, fontSize = 12.sp)
+                    Text(stringResource(R.string.cs_about_tagline), color = c.textSecondary, fontSize = 14.sp)
+                    Text(stringResource(R.string.cs_about_version, appVersion(context)), color = c.textMono, fontSize = 13.sp, fontFamily = FontFamily.Monospace)
+                    Text(stringResource(R.string.cs_about_features), color = c.textSecondary, fontSize = 12.sp)
                 }
             },
         )
@@ -316,7 +316,7 @@ internal fun ProfileEditScreen(session: Session, onBack: () -> Unit) {
     }
 
     Column(Modifier.fillMaxSize().background(c.bgPrimary)) {
-        SettingsTopBar("Edit profile", onBack, trailing = {
+        SettingsTopBar(stringResource(R.string.pe_title), onBack, trailing = {
             TextButton(enabled = !saving && nickname.isNotBlank(), onClick = {
                 saving = true
                 scope.launch {
@@ -334,10 +334,10 @@ internal fun ProfileEditScreen(session: Session, onBack: () -> Unit) {
                         homepage = homepage.trim(),
                     ))
                     saving = false
-                    Toast.makeText(context, "Profile saved", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, context.getString(R.string.pe_saved), Toast.LENGTH_SHORT).show()
                     onBack()
                 }
-            }) { Text("Save", color = if (nickname.isNotBlank()) c.accent else c.textSecondary) }
+            }) { Text(stringResource(R.string.common_save), color = if (nickname.isNotBlank()) c.accent else c.textSecondary) }
         })
 
         Column(Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -355,19 +355,19 @@ internal fun ProfileEditScreen(session: Session, onBack: () -> Unit) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(Modifier.weight(1f)) {
-                    Text("Profile views", color = c.textPrimary, fontSize = 15.sp)
-                    Text("People who opened your profile in the last 7 days.", color = c.textSecondary, fontSize = 11.sp)
+                    Text(stringResource(R.string.pe_views_title), color = c.textPrimary, fontSize = 15.sp)
+                    Text(stringResource(R.string.pe_views_desc), color = c.textSecondary, fontSize = 11.sp)
                 }
                 Text("$profileViews", color = c.accent, fontSize = 20.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
             }
 
-            Field("Nickname", nickname) { nickname = it }
-            Field("Status message", statusMessage) { statusMessage = it }
-            Field("First name", firstName) { firstName = it }
-            Field("Last name", lastName) { lastName = it }
-            SectionLabel("Gender")
+            Field(stringResource(R.string.pe_nickname), nickname) { nickname = it }
+            Field(stringResource(R.string.pe_status_message), statusMessage) { statusMessage = it }
+            Field(stringResource(R.string.pe_first_name), firstName) { firstName = it }
+            Field(stringResource(R.string.pe_last_name), lastName) { lastName = it }
+            SectionLabel(stringResource(R.string.common_gender))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf("male" to "Male", "female" to "Female", "other" to "Other").forEach { (key, label) ->
+                listOf("male" to stringResource(R.string.common_male), "female" to stringResource(R.string.common_female), "other" to stringResource(R.string.common_other)).forEach { (key, label) ->
                     val sel = gender == key
                     Box(
                         Modifier.clip(RoundedCornerShape(percent = 50)).background(if (sel) c.accent else c.bgSecondary)
@@ -375,13 +375,13 @@ internal fun ProfileEditScreen(session: Session, onBack: () -> Unit) {
                     ) { Text(label, color = if (sel) Color.White else c.textSecondary, fontSize = 13.sp) }
                 }
             }
-            Field("Age", age, keyboardDigits = true) { age = it.filter(Char::isDigit).take(3) }
-            Field("City", city) { city = it }
-            Field("Country", country) { country = it }
-            Field("About", about, minLines = 3) { about = it }
-            Field("Interests", interests) { interests = it }
-            SectionFooter("Comma-separated, e.g. music, hiking, retro tech.")
-            Field("Website", homepage) { homepage = it }
+            Field(stringResource(R.string.pe_age), age, keyboardDigits = true) { age = it.filter(Char::isDigit).take(3) }
+            Field(stringResource(R.string.common_city), city) { city = it }
+            Field(stringResource(R.string.common_country), country) { country = it }
+            Field(stringResource(R.string.common_about), about, minLines = 3) { about = it }
+            Field(stringResource(R.string.pe_interests), interests) { interests = it }
+            SectionFooter(stringResource(R.string.pe_interests_hint))
+            Field(stringResource(R.string.pe_website), homepage) { homepage = it }
         }
     }
 }
@@ -415,16 +415,16 @@ private fun PrivacyScreen(session: Session, onOpenCustomServer: () -> Unit, onBa
     fun save(body: RcqApi.UpdateMeBody) { scope.launch { runCatching { session.updateProfile(body) } } }
 
     Column(Modifier.fillMaxSize().background(c.bgPrimary)) {
-        SettingsTopBar("Privacy & Network", onBack)
+        SettingsTopBar(stringResource(R.string.settings_row_privacy), onBack)
         Column(Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
-            VisibilityPicker("Last seen", lastSeen, listOf("everyone", "contacts", "nobody"), "Who can see when you were last online.") { lastSeen = it; save(RcqApi.UpdateMeBody(last_seen_visibility = it)) }
+            VisibilityPicker(stringResource(R.string.pv_last_seen), lastSeen, listOf("everyone", "contacts", "nobody"), stringResource(R.string.pv_last_seen_desc)) { lastSeen = it; save(RcqApi.UpdateMeBody(last_seen_visibility = it)) }
 
             // Persistent presence + how long it lingers (iOS parity).
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text("Stay visible after you leave", color = c.textPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                        Text("Keep showing as recently online for a while after the app closes.", color = c.textSecondary, fontSize = 11.sp)
+                        Text(stringResource(R.string.pv_stay_visible), color = c.textPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                        Text(stringResource(R.string.pv_stay_visible_desc), color = c.textSecondary, fontSize = 11.sp)
                     }
                     Switch(
                         checked = presencePersistent,
@@ -447,19 +447,19 @@ private fun PrivacyScreen(session: Session, onOpenCustomServer: () -> Unit, onBa
                 }
             }
 
-            VisibilityPicker("Profile card", profileVis, listOf("everyone", "contacts", "nobody"), "Who can open your full profile (city, age, about).") { profileVis = it; save(RcqApi.UpdateMeBody(profile_visibility = it)) }
-            VisibilityPicker("Gender", genderVis, listOf("everyone", "contacts", "nobody"), "Who can see your gender on your profile.") { genderVis = it; save(RcqApi.UpdateMeBody(gender_visibility = it)) }
-            VisibilityPicker("Who can add me to groups", invitePolicy, listOf("everyone", "contacts", "nobody"), "Who is allowed to add you to a group.") { invitePolicy = it; save(RcqApi.UpdateMeBody(group_invite_policy = it)) }
-            VisibilityPicker("Read receipts", receipts, listOf("everyone", "contacts", "nobody"), "Who sees your blue ticks. Turning this off hides theirs too.") { receipts = it; save(RcqApi.UpdateMeBody(read_receipts_visibility = it)) }
+            VisibilityPicker(stringResource(R.string.pv_profile_card), profileVis, listOf("everyone", "contacts", "nobody"), stringResource(R.string.pv_profile_card_desc)) { profileVis = it; save(RcqApi.UpdateMeBody(profile_visibility = it)) }
+            VisibilityPicker(stringResource(R.string.common_gender), genderVis, listOf("everyone", "contacts", "nobody"), stringResource(R.string.pv_gender_desc)) { genderVis = it; save(RcqApi.UpdateMeBody(gender_visibility = it)) }
+            VisibilityPicker(stringResource(R.string.pv_invite), invitePolicy, listOf("everyone", "contacts", "nobody"), stringResource(R.string.pv_invite_desc)) { invitePolicy = it; save(RcqApi.UpdateMeBody(group_invite_policy = it)) }
+            VisibilityPicker(stringResource(R.string.pv_receipts), receipts, listOf("everyone", "contacts", "nobody"), stringResource(R.string.pv_receipts_desc)) { receipts = it; save(RcqApi.UpdateMeBody(read_receipts_visibility = it)) }
 
             Spacer(Modifier.height(4.dp))
-            SectionLabel("Network")
+            SectionLabel(stringResource(R.string.pv_network))
             SettingsGroup {
                 val host = session.currentServer
                 SettingsRow(
                     Icons.Filled.Dns,
-                    "Custom server",
-                    value = if (host == RcqApi.DEFAULT_HOST) "Default" else host,
+                    stringResource(R.string.pv_custom_server),
+                    value = if (host == RcqApi.DEFAULT_HOST) stringResource(R.string.pv_default) else host,
                     onClick = onOpenCustomServer,
                 )
             }
@@ -473,11 +473,11 @@ private fun SoundsScreen(onBack: () -> Unit) {
     val msgOn by LocalStores.soundMessages.collectAsState()
     val presOn by LocalStores.soundPresence.collectAsState()
     Column(Modifier.fillMaxSize().background(c.bgPrimary)) {
-        SettingsTopBar("Sounds", onBack)
+        SettingsTopBar(stringResource(R.string.settings_row_sounds), onBack)
         Column(Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            SettingToggleRow("Message sounds", "Play a tone when a new message arrives in a chat you don't have open.", msgOn) { LocalStores.setSoundMessages(it) }
-            SettingToggleRow("Contact online / offline", "Play a tone when one of your contacts comes online or goes offline.", presOn) { LocalStores.setSoundPresence(it) }
-            SectionFooter("Per-chat mute (long-press a chat on the home screen) silences message sounds for that chat.")
+            SettingToggleRow(stringResource(R.string.snd_message_title), stringResource(R.string.snd_message_desc), msgOn) { LocalStores.setSoundMessages(it) }
+            SettingToggleRow(stringResource(R.string.snd_presence_title), stringResource(R.string.snd_presence_desc), presOn) { LocalStores.setSoundPresence(it) }
+            SectionFooter(stringResource(R.string.snd_footer))
         }
     }
 }
@@ -516,7 +516,7 @@ private fun LanguageScreen(onBack: () -> Unit) {
                 Divider()
             }
         }
-        SectionFooter("Translations roll out gradually. Untranslated text falls back to English.")
+        SectionFooter(stringResource(R.string.lang_footer))
         Spacer(Modifier.height(16.dp))
     }
 }
@@ -525,12 +525,12 @@ private fun LanguageScreen(onBack: () -> Unit) {
 private fun NotificationsScreen(onBack: () -> Unit) {
     val c = RcqTheme.colors
     Column(Modifier.fillMaxSize().background(c.bgPrimary)) {
-        SettingsTopBar("Notifications", onBack)
+        SettingsTopBar(stringResource(R.string.settings_row_notifications), onBack)
         Column(Modifier.fillMaxSize().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Spacer(Modifier.height(40.dp))
             Icon(Icons.Filled.Notifications, null, tint = c.textSecondary, modifier = Modifier.size(44.dp))
-            Text("Push notifications", color = c.textPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-            Text("Per-chat mute is available from a long-press on the home screen. System push delivery is configured in Android Settings.", color = c.textSecondary, fontSize = 13.sp, textAlign = TextAlign.Center)
+            Text(stringResource(R.string.notif_push), color = c.textPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.notif_desc), color = c.textSecondary, fontSize = 13.sp, textAlign = TextAlign.Center)
         }
     }
 }
@@ -545,13 +545,13 @@ private fun BlockedUsersScreen(session: Session, onBack: () -> Unit) {
     val blocked = contacts.filter { it.blocked }
 
     Column(Modifier.fillMaxSize().background(c.bgPrimary)) {
-        SettingsTopBar("Blocked users", onBack)
+        SettingsTopBar(stringResource(R.string.settings_row_blocked), onBack)
         if (blocked.isEmpty()) {
             Column(Modifier.fillMaxSize().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Spacer(Modifier.height(60.dp))
                 Icon(Icons.Outlined.Block, null, tint = c.textSecondary, modifier = Modifier.size(44.dp))
                 Spacer(Modifier.height(12.dp))
-                Text("No blocked users", color = c.textPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.blocked_empty), color = c.textPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
             }
         } else {
             LazyColumn(Modifier.fillMaxSize()) {
@@ -563,7 +563,7 @@ private fun BlockedUsersScreen(session: Session, onBack: () -> Unit) {
                             Text("${ct.uin}", color = c.textMono, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
                         }
                         TextButton(onClick = { scope.launch { runCatching { session.toggleBlock(ct.uin) } } }) {
-                            Text("Unblock", color = c.accent)
+                            Text(stringResource(R.string.blocked_unblock), color = c.accent)
                         }
                     }
                 }
@@ -605,34 +605,34 @@ private fun CustomServerScreen(session: Session, onBack: () -> Unit, onSwitched:
             val newUin = runCatching { session.switchServer(input) }.getOrNull()
             switching = false
             if (newUin != null) {
-                Toast.makeText(context, "Connected to ${session.currentServer}", Toast.LENGTH_LONG).show()
+                Toast.makeText(context, context.getString(R.string.csrv_connected, session.currentServer), Toast.LENGTH_LONG).show()
                 onSwitched(newUin)
             } else {
-                Toast.makeText(context, "Couldn't reach that server. Nothing changed.", Toast.LENGTH_LONG).show()
+                Toast.makeText(context, context.getString(R.string.csrv_unreachable), Toast.LENGTH_LONG).show()
             }
         }
     }
 
     Column(Modifier.fillMaxSize().background(c.bgPrimary)) {
-        SettingsTopBar("Custom server", onBack, trailing = {
+        SettingsTopBar(stringResource(R.string.pv_custom_server), onBack, trailing = {
             TextButton(enabled = isDirty && !switching, onClick = { confirm = true }) {
-                Text("Save", color = if (isDirty && !switching) c.accent else c.textSecondary)
+                Text(stringResource(R.string.common_save), color = if (isDirty && !switching) c.accent else c.textSecondary)
             }
         })
 
         Column(Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
             Text(
-                "Connect to an organisation's island or your own self-hosted RCQ server instead of the public one.",
+                stringResource(R.string.csrv_intro),
                 color = c.textSecondary, fontSize = 14.sp,
             )
 
             // Current server card.
             Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.bgSecondary).padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("CURRENT SERVER", color = c.textSecondary, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.csrv_current), color = c.textSecondary, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                 Text(current, color = c.textPrimary, fontSize = 15.sp, fontFamily = FontFamily.Monospace)
             }
 
-            Field("Server host", draft) { draft = it }
+            Field(stringResource(R.string.csrv_host), draft) { draft = it }
 
             // Destructive-switch warning.
             Row(
@@ -641,7 +641,7 @@ private fun CustomServerScreen(session: Session, onBack: () -> Unit, onSwitched:
             ) {
                 Icon(Icons.Filled.Warning, null, tint = Color(0xFFE0A106), modifier = Modifier.size(20.dp))
                 Text(
-                    "Switching servers starts a new account. Your current UIN, contacts and groups live on the current server and won't move. This can't be undone.",
+                    stringResource(R.string.csrv_warning),
                     color = c.textSecondary, fontSize = 12.sp,
                 )
             }
@@ -656,13 +656,13 @@ private fun CustomServerScreen(session: Session, onBack: () -> Unit, onSwitched:
                 ) {
                     Icon(Icons.Filled.Restore, null, tint = Color(0xFFE5484D), modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
-                    Text("Reset to the public server", color = Color(0xFFE5484D), fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.csrv_reset_btn), color = Color(0xFFE5484D), fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                 }
             }
 
             if (switching) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-                    Text("Switching…", color = c.textSecondary, fontSize = 13.sp)
+                    Text(stringResource(R.string.csrv_switching), color = c.textSecondary, fontSize = 13.sp)
                 }
             }
         }
@@ -670,18 +670,18 @@ private fun CustomServerScreen(session: Session, onBack: () -> Unit, onSwitched:
 
     if (confirm) {
         ConfirmDialog(
-            title = "Switch to $target?",
-            body = "This starts a fresh account on $target. Your current account on $current stays where it is but won't be reachable from this device anymore.",
-            confirm = "Switch", destructive = true,
+            title = stringResource(R.string.csrv_confirm_title, target),
+            body = stringResource(R.string.csrv_confirm_body, target, current),
+            confirm = stringResource(R.string.common_switch), destructive = true,
             onConfirm = { confirm = false; applySwitch(draft) },
             onDismiss = { confirm = false },
         )
     }
     if (resetting) {
         ConfirmDialog(
-            title = "Reset to the public server?",
-            body = "Starts a fresh account on ${RcqApi.DEFAULT_HOST}. Your account on $current stays where it is but won't be reachable from this device anymore.",
-            confirm = "Reset", destructive = true,
+            title = stringResource(R.string.csrv_reset_title),
+            body = stringResource(R.string.csrv_reset_body, RcqApi.DEFAULT_HOST, current),
+            confirm = stringResource(R.string.common_reset), destructive = true,
             onConfirm = { resetting = false; applySwitch(null) },
             onDismiss = { resetting = false },
         )
@@ -694,7 +694,7 @@ private fun CustomServerScreen(session: Session, onBack: () -> Unit, onSwitched:
 private fun SettingsTopBar(title: String, onBack: () -> Unit, trailing: @Composable (() -> Unit)? = null) {
     val c = RcqTheme.colors
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = c.accent, modifier = Modifier.size(26.dp).clickable(onClick = onBack))
+        Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.common_back), tint = c.accent, modifier = Modifier.size(26.dp).clickable(onClick = onBack))
         Spacer(Modifier.width(12.dp))
         Text(title, color = c.textPrimary, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.weight(1f))
@@ -757,17 +757,22 @@ private fun SegmentedTheme(mode: ThemeMode, onPick: (ThemeMode) -> Unit) {
 @Composable
 private fun VisibilityPicker(label: String, value: String, options: List<String>, desc: String? = null, onPick: (String) -> Unit) {
     val c = RcqTheme.colors
-    fun pretty(s: String) = s.replaceFirstChar { it.uppercase() }
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text(label, color = c.textPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
         Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(percent = 50)).background(c.bgSecondary).padding(3.dp), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
             options.forEach { opt ->
                 val sel = value == opt
+                val optLabel = when (opt) {
+                    "everyone" -> stringResource(R.string.vis_everyone)
+                    "contacts" -> stringResource(R.string.vis_contacts)
+                    "nobody" -> stringResource(R.string.vis_nobody)
+                    else -> opt.replaceFirstChar { it.uppercase() }
+                }
                 Box(
                     Modifier.weight(1f).clip(RoundedCornerShape(percent = 50)).background(if (sel) c.accent else Color.Transparent)
                         .clickable { onPick(opt) }.padding(vertical = 8.dp),
                     contentAlignment = Alignment.Center,
-                ) { Text(pretty(opt), color = if (sel) Color.White else c.textSecondary, fontSize = 12.sp) }
+                ) { Text(optLabel, color = if (sel) Color.White else c.textSecondary, fontSize = 12.sp) }
             }
         }
         if (desc != null) Text(desc, color = c.textSecondary, fontSize = 11.sp)
@@ -796,7 +801,7 @@ private fun ConfirmDialog(title: String, body: String, confirm: String, destruct
         title = { Text(title, color = c.textPrimary) },
         text = { Text(body, color = c.textSecondary) },
         confirmButton = { TextButton(onClick = onConfirm) { Text(confirm, color = if (destructive) Color(0xFFE5484D) else c.accent) } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = c.textSecondary) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel), color = c.textSecondary) } },
     )
 }
 

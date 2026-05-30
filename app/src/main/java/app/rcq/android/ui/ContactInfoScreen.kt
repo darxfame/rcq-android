@@ -46,11 +46,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import app.rcq.android.R
 import app.rcq.android.Session
 import app.rcq.android.data.LocalStores
 import app.rcq.android.model.UserStatus
@@ -95,14 +97,14 @@ internal fun ContactInfoScreen(session: Session, uin: Int, onBack: () -> Unit, o
     fun copyUin() {
         val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         cm.setPrimaryClip(ClipData.newPlainText("UIN", "$uin"))
-        Toast.makeText(context, "UIN copied", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, context.getString(R.string.common_uin_copied), Toast.LENGTH_SHORT).show()
     }
 
     Column(Modifier.fillMaxSize().background(c.bgPrimary)) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(12.dp)) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = c.accent, modifier = Modifier.size(26.dp).clickable(onClick = onBack))
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.common_back), tint = c.accent, modifier = Modifier.size(26.dp).clickable(onClick = onBack))
             Spacer(Modifier.width(12.dp))
-            Text("Contact info", color = c.textPrimary, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.ci_title), color = c.textPrimary, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
         }
 
         Column(Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)) {
@@ -111,8 +113,8 @@ internal fun ContactInfoScreen(session: Session, uin: Int, onBack: () -> Unit, o
                 StatusIcon(presence, size = 80.dp)
                 Text(nickname, color = c.textPrimary, fontSize = 22.sp, fontWeight = FontWeight.Bold)
                 val sub = when {
-                    presence == UserStatus.OFFLINE && contact?.lastSeen != null -> "last seen ${relativeLastSeen(contact.lastSeen!!)}"
-                    else -> presence.label.lowercase()
+                    presence == UserStatus.OFFLINE && contact?.lastSeen != null -> stringResource(R.string.last_seen_fmt, relativeLastSeen(contact.lastSeen!!, context))
+                    else -> stringResource(presence.labelRes).lowercase()
                 }
                 Text(sub, color = c.textSecondary, fontSize = 13.sp)
                 statusMessage?.let { Text(it, color = c.textPrimary, fontSize = 14.sp, textAlign = TextAlign.Center) }
@@ -129,16 +131,28 @@ internal fun ContactInfoScreen(session: Session, uin: Int, onBack: () -> Unit, o
                     Text("UIN", color = c.textSecondary, fontSize = 12.sp)
                     Text("$uin", color = c.textMono, fontSize = 15.sp, fontFamily = FontFamily.Monospace)
                 }
-                Icon(Icons.Filled.ContentCopy, "Copy UIN", tint = c.textSecondary, modifier = Modifier.size(18.dp))
+                Icon(Icons.Filled.ContentCopy, stringResource(R.string.common_copy_uin), tint = c.textSecondary, modifier = Modifier.size(18.dp))
             }
 
-            // Profile fields (only those the server let us see).
+            // Profile fields (only those the server let us see). Labels are
+            // resolved here because buildList's lambda isn't composable.
+            val lblAge = stringResource(R.string.pe_age)
+            val lblGender = stringResource(R.string.common_gender)
+            val lblCity = stringResource(R.string.common_city)
+            val lblCountry = stringResource(R.string.common_country)
+            val lblAbout = stringResource(R.string.common_about)
+            val genderValue = when (profile?.gender?.lowercase()) {
+                "male", "m" -> stringResource(R.string.common_male)
+                "female", "f" -> stringResource(R.string.common_female)
+                "other" -> stringResource(R.string.common_other)
+                else -> null
+            }
             val fields = buildList {
-                profile?.age?.takeIf { it > 0 }?.let { add("Age" to it.toString()) }
-                prettyGender(profile?.gender)?.let { add("Gender" to it) }
-                profile?.city?.takeIf { it.isNotBlank() }?.let { add("City" to it) }
-                profile?.country?.takeIf { it.isNotBlank() }?.let { add("Country" to it) }
-                profile?.about?.takeIf { it.isNotBlank() }?.let { add("About" to it) }
+                profile?.age?.takeIf { it > 0 }?.let { add(lblAge to it.toString()) }
+                genderValue?.let { add(lblGender to it) }
+                profile?.city?.takeIf { it.isNotBlank() }?.let { add(lblCity to it) }
+                profile?.country?.takeIf { it.isNotBlank() }?.let { add(lblCountry to it) }
+                profile?.about?.takeIf { it.isNotBlank() }?.let { add(lblAbout to it) }
             }
             if (fields.isNotEmpty()) {
                 Spacer(Modifier.height(16.dp))
@@ -157,11 +171,11 @@ internal fun ContactInfoScreen(session: Session, uin: Int, onBack: () -> Unit, o
 
             // Actions.
             Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(c.bgSecondary)) {
-                InfoAction(if (isFav) Icons.Filled.Star else Icons.Filled.StarBorder, if (isFav) "Remove from favorites" else "Add to favorites") { LocalStores.toggleFavorite(thread) }
+                InfoAction(if (isFav) Icons.Filled.Star else Icons.Filled.StarBorder, stringResource(if (isFav) R.string.ci_remove_fav else R.string.ci_add_fav)) { LocalStores.toggleFavorite(thread) }
                 InfoDivider()
-                InfoAction(Icons.Filled.NotificationsOff, if (isMuted) "Unmute" else "Mute") { LocalStores.toggleMute(thread) }
+                InfoAction(Icons.Filled.NotificationsOff, stringResource(if (isMuted) R.string.ci_unmute else R.string.ci_mute)) { LocalStores.toggleMute(thread) }
                 InfoDivider()
-                InfoAction(Icons.Outlined.Block, if (blocked) "Unblock" else "Block", danger = !blocked) {
+                InfoAction(Icons.Outlined.Block, stringResource(if (blocked) R.string.ci_unblock else R.string.ci_block), danger = !blocked) {
                     scope.launch { runCatching { session.toggleBlock(uin) } }
                 }
             }
@@ -173,7 +187,7 @@ internal fun ContactInfoScreen(session: Session, uin: Int, onBack: () -> Unit, o
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Icon(Icons.Filled.PersonRemove, null, tint = DANGER, modifier = Modifier.size(18.dp))
-                    Text("Remove contact", color = DANGER, fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.ci_remove), color = DANGER, fontWeight = FontWeight.SemiBold)
                 }
             }
             Spacer(Modifier.height(20.dp))
@@ -184,15 +198,15 @@ internal fun ContactInfoScreen(session: Session, uin: Int, onBack: () -> Unit, o
         AlertDialog(
             onDismissRequest = { confirmRemove = false },
             containerColor = c.bgSecondary,
-            title = { Text("Remove $nickname?", color = c.textPrimary) },
-            text = { Text("You'll both be removed from each other's contacts and future messages from this UIN are dropped.", color = c.textSecondary) },
+            title = { Text(stringResource(R.string.ci_remove_title, nickname), color = c.textPrimary) },
+            text = { Text(stringResource(R.string.ci_remove_body), color = c.textSecondary) },
             confirmButton = {
                 TextButton(onClick = {
                     confirmRemove = false
                     scope.launch { runCatching { session.removeContact(uin) }; onRemoved() }
-                }) { Text("Remove", color = DANGER) }
+                }) { Text(stringResource(R.string.common_remove), color = DANGER) }
             },
-            dismissButton = { TextButton(onClick = { confirmRemove = false }) { Text("Cancel", color = c.textSecondary) } },
+            dismissButton = { TextButton(onClick = { confirmRemove = false }) { Text(stringResource(R.string.common_cancel), color = c.textSecondary) } },
         )
     }
 }
@@ -214,13 +228,4 @@ private fun InfoAction(icon: ImageVector, label: String, danger: Boolean = false
 @Composable
 private fun InfoDivider() {
     Box(Modifier.fillMaxWidth().height(1.dp).padding(start = 48.dp).background(RcqTheme.colors.divider))
-}
-
-/** Map the wire gender ("male"/"female"/"other", or legacy "m"/"f") to a
- *  display label; null when unset/hidden so the row is omitted. */
-private fun prettyGender(g: String?): String? = when (g?.lowercase()) {
-    "male", "m" -> "Male"
-    "female", "f" -> "Female"
-    "other" -> "Other"
-    else -> null
 }

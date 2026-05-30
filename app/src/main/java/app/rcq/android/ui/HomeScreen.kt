@@ -75,6 +75,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
@@ -151,6 +153,7 @@ internal fun HomeScreen(
     val archivedContacts = byRecency(contacts.filter { LocalStores.peerThread(it.uin) in archived })
     val visibleGroups = groups.filterNot { LocalStores.groupThread(it.id) in archived }
 
+    val context = LocalContext.current
     // Section titles resolved here (LazyListScope below isn't composable).
     val secFavorites = stringResource(R.string.home_sec_favorites)
     val secOnline = stringResource(R.string.home_sec_online)
@@ -240,16 +243,16 @@ internal fun HomeScreen(
                 title = ct.nickname,
                 subtitle = "${ct.uin}",
                 avatar = { StatusIcon(ct.presence, size = 36.dp) },
-                actions = contactActions(ct, session, scope, onOpenChat, onReport = { reportTarget = it }),
+                actions = contactActions(ct, session, scope, context, onOpenChat, onReport = { reportTarget = it }),
                 onDismiss = { previewContact = null },
             )
         }
         previewGroup?.let { g ->
             PreviewOverlay(
                 title = g.name,
-                subtitle = if (g.members.size == 1) "1 member" else "${g.members.size} members",
+                subtitle = pluralStringResource(R.plurals.members, g.members.size, g.members.size),
                 avatar = { GroupAvatar(g, session, 36.dp) },
-                actions = groupActions(g, uin, session, scope, onOpenGroup),
+                actions = groupActions(g, uin, session, scope, context, onOpenGroup),
                 onDismiss = { previewGroup = null },
             )
         }
@@ -294,6 +297,7 @@ private fun contactActions(
     contact: Contact,
     session: Session,
     scope: CoroutineScope,
+    context: android.content.Context,
     onOpenChat: (Int) -> Unit,
     onReport: (Contact) -> Unit,
 ): List<ContextAction> {
@@ -301,14 +305,15 @@ private fun contactActions(
     val fav = LocalStores.isFavorite(thread)
     val muted = LocalStores.isMuted(thread)
     val archived = LocalStores.isArchived(thread)
+    fun s(id: Int) = context.getString(id)
     return listOf(
-        ContextAction("Send message", Icons.AutoMirrored.Filled.Chat) { onOpenChat(contact.uin) },
-        ContextAction(if (fav) "Remove favorite" else "Add to favorites", if (fav) Icons.Filled.Star else Icons.Filled.StarBorder) { LocalStores.toggleFavorite(thread) },
-        ContextAction(if (muted) "Unmute" else "Mute", if (muted) Icons.Filled.Notifications else Icons.Filled.NotificationsOff) { LocalStores.toggleMute(thread) },
-        ContextAction(if (archived) "Unarchive" else "Archive", if (archived) Icons.Filled.Unarchive else Icons.Filled.Archive) { LocalStores.toggleArchive(thread) },
-        ContextAction(if (contact.blocked) "Unblock" else "Block", if (contact.blocked) Icons.Outlined.Block else Icons.Filled.Block, destructive = !contact.blocked) { scope.launch { session.toggleBlock(contact.uin) } },
-        ContextAction("Report", Icons.Filled.Flag, destructive = true) { onReport(contact) },
-        ContextAction("Remove", Icons.Filled.PersonRemove, destructive = true) { scope.launch { session.removeContact(contact.uin) } },
+        ContextAction(s(R.string.home_send_message), Icons.AutoMirrored.Filled.Chat) { onOpenChat(contact.uin) },
+        ContextAction(s(if (fav) R.string.home_remove_fav else R.string.home_add_fav), if (fav) Icons.Filled.Star else Icons.Filled.StarBorder) { LocalStores.toggleFavorite(thread) },
+        ContextAction(s(if (muted) R.string.home_unmute else R.string.home_mute), if (muted) Icons.Filled.Notifications else Icons.Filled.NotificationsOff) { LocalStores.toggleMute(thread) },
+        ContextAction(s(if (archived) R.string.home_unarchive else R.string.home_archive), if (archived) Icons.Filled.Unarchive else Icons.Filled.Archive) { LocalStores.toggleArchive(thread) },
+        ContextAction(s(if (contact.blocked) R.string.home_unblock else R.string.home_block), if (contact.blocked) Icons.Outlined.Block else Icons.Filled.Block, destructive = !contact.blocked) { scope.launch { session.toggleBlock(contact.uin) } },
+        ContextAction(s(R.string.home_report), Icons.Filled.Flag, destructive = true) { onReport(contact) },
+        ContextAction(s(R.string.home_remove), Icons.Filled.PersonRemove, destructive = true) { scope.launch { session.removeContact(contact.uin) } },
     )
 }
 
@@ -317,6 +322,7 @@ private fun groupActions(
     ownUin: Int,
     session: Session,
     scope: CoroutineScope,
+    context: android.content.Context,
     onOpenGroup: (Int) -> Unit,
 ): List<ContextAction> {
     val thread = LocalStores.groupThread(group.id)
@@ -324,15 +330,16 @@ private fun groupActions(
     val muted = LocalStores.isMuted(thread)
     val archived = LocalStores.isArchived(thread)
     val isOwner = group.ownerUin == ownUin
+    fun s(id: Int) = context.getString(id)
     return listOf(
-        ContextAction("Open chat", Icons.AutoMirrored.Filled.Chat) { onOpenGroup(group.id) },
-        ContextAction(if (fav) "Remove favorite" else "Add to favorites", if (fav) Icons.Filled.Star else Icons.Filled.StarBorder) { LocalStores.toggleFavorite(thread) },
-        ContextAction(if (muted) "Unmute" else "Mute", if (muted) Icons.Filled.Notifications else Icons.Filled.NotificationsOff) { LocalStores.toggleMute(thread) },
-        ContextAction(if (archived) "Unarchive" else "Archive", if (archived) Icons.Filled.Unarchive else Icons.Filled.Archive) { LocalStores.toggleArchive(thread) },
+        ContextAction(s(R.string.home_open_chat), Icons.AutoMirrored.Filled.Chat) { onOpenGroup(group.id) },
+        ContextAction(s(if (fav) R.string.home_remove_fav else R.string.home_add_fav), if (fav) Icons.Filled.Star else Icons.Filled.StarBorder) { LocalStores.toggleFavorite(thread) },
+        ContextAction(s(if (muted) R.string.home_unmute else R.string.home_mute), if (muted) Icons.Filled.Notifications else Icons.Filled.NotificationsOff) { LocalStores.toggleMute(thread) },
+        ContextAction(s(if (archived) R.string.home_unarchive else R.string.home_archive), if (archived) Icons.Filled.Unarchive else Icons.Filled.Archive) { LocalStores.toggleArchive(thread) },
         if (isOwner)
-            ContextAction("Delete group", Icons.Filled.Delete, destructive = true) { scope.launch { session.deleteGroup(group.id) } }
+            ContextAction(s(R.string.home_delete_group), Icons.Filled.Delete, destructive = true) { scope.launch { session.deleteGroup(group.id) } }
         else
-            ContextAction("Leave group", Icons.AutoMirrored.Filled.ExitToApp, destructive = true) { scope.launch { session.leaveGroup(group.id) } },
+            ContextAction(s(R.string.home_leave_group), Icons.AutoMirrored.Filled.ExitToApp, destructive = true) { scope.launch { session.leaveGroup(group.id) } },
     )
 }
 
@@ -509,7 +516,7 @@ private fun GroupRow(group: RcqGroup, ownUin: Int, session: Session, unread: Int
                 if (muted) Icon(Icons.Filled.NotificationsOff, null, tint = c.textSecondary, modifier = Modifier.size(11.dp))
             }
             Text(
-                if (group.members.size == 1) "1 member" else "${group.members.size} members",
+                pluralStringResource(R.plurals.members, group.members.size, group.members.size),
                 color = c.textMono, fontSize = 12.sp, fontFamily = FontFamily.Monospace,
             )
         }
@@ -555,9 +562,10 @@ private fun ContactRowItem(contact: Contact, unread: Int, onClick: () -> Unit, o
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("${contact.uin}", color = c.textMono, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+                val ctx = LocalContext.current
                 val sub = when {
                     !contact.statusMessage.isNullOrEmpty() -> contact.statusMessage
-                    contact.presence == UserStatus.OFFLINE && contact.lastSeen != null -> "last seen ${relativeLastSeen(contact.lastSeen)}"
+                    contact.presence == UserStatus.OFFLINE && contact.lastSeen != null -> stringResource(R.string.last_seen_fmt, relativeLastSeen(contact.lastSeen, ctx))
                     else -> null
                 }
                 if (sub != null) {
@@ -742,7 +750,7 @@ private fun AddContactDialog(onAdd: (Int) -> Unit, onDismiss: () -> Unit) {
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = c.bgSecondary,
-        title = { Text("Add contact", color = c.textPrimary) },
+        title = { Text(stringResource(R.string.home_add_contact_title), color = c.textPrimary) },
         text = {
             OutlinedTextField(
                 value = input,
@@ -754,10 +762,10 @@ private fun AddContactDialog(onAdd: (Int) -> Unit, onDismiss: () -> Unit) {
         confirmButton = {
             val target = input.toIntOrNull()
             TextButton(enabled = target != null, onClick = { target?.let(onAdd) }) {
-                Text("Send request", color = if (target != null) c.accent else c.textSecondary)
+                Text(stringResource(R.string.home_send_request), color = if (target != null) c.accent else c.textSecondary)
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = c.textSecondary) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel), color = c.textSecondary) } },
     )
 }
 
@@ -769,18 +777,18 @@ private fun CreateGroupDialog(contacts: List<Contact>, onCreate: (String, List<I
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = c.bgSecondary,
-        title = { Text("New group", color = c.textPrimary) },
+        title = { Text(stringResource(R.string.home_new_group), color = c.textPrimary) },
         text = {
             Column {
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    label = { Text("Group name", color = c.textSecondary) },
+                    label = { Text(stringResource(R.string.home_group_name), color = c.textSecondary) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
                 Spacer(Modifier.height(8.dp))
-                Text("Add members", color = c.textSecondary, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.home_add_members), color = c.textSecondary, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                 LazyColumn(Modifier.heightIn(max = 260.dp)) {
                     items(contacts, key = { it.uin }) { ct ->
                         Row(
@@ -800,10 +808,10 @@ private fun CreateGroupDialog(contacts: List<Contact>, onCreate: (String, List<I
             val members = selected.filterValues { it }.keys.toList()
             val ok = name.isNotBlank()
             TextButton(enabled = ok, onClick = { onCreate(name.trim(), members) }) {
-                Text("Create", color = if (ok) c.accent else c.textSecondary)
+                Text(stringResource(R.string.home_create), color = if (ok) c.accent else c.textSecondary)
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = c.textSecondary) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel), color = c.textSecondary) } },
     )
 }
 
@@ -814,20 +822,20 @@ private fun ReportDialog(name: String, onSubmit: (String) -> Unit, onDismiss: ()
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = c.bgSecondary,
-        title = { Text("Report $name", color = c.textPrimary) },
+        title = { Text(stringResource(R.string.home_report_title, name), color = c.textPrimary) },
         text = {
             OutlinedTextField(
                 value = reason,
                 onValueChange = { reason = it },
-                label = { Text("Reason", color = c.textSecondary) },
+                label = { Text(stringResource(R.string.home_report_reason), color = c.textSecondary) },
                 minLines = 2,
             )
         },
         confirmButton = {
             TextButton(enabled = reason.isNotBlank(), onClick = { onSubmit(reason.trim()) }) {
-                Text("Submit", color = if (reason.isNotBlank()) Color(0xFFE5484D) else c.textSecondary)
+                Text(stringResource(R.string.home_report_submit), color = if (reason.isNotBlank()) Color(0xFFE5484D) else c.textSecondary)
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = c.textSecondary) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel), color = c.textSecondary) } },
     )
 }

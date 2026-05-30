@@ -47,16 +47,16 @@ internal fun formatTime(ts: Long): String =
     SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(ts))
 
 /** Coarse "last seen" buckets — minutes / hours / days, else a date.
- *  Mirrors iOS ContactRow.relativeLastSeen. */
-internal fun relativeLastSeen(ts: Long): String {
+ *  Mirrors iOS ContactRow.relativeLastSeen. Localized via [context]. */
+internal fun relativeLastSeen(ts: Long, context: android.content.Context): String {
     val secs = ((System.currentTimeMillis() - ts) / 1000).toInt()
-    if (secs < 60) return "just now"
+    if (secs < 60) return context.getString(app.rcq.android.R.string.last_seen_just_now)
     val mins = secs / 60
-    if (mins < 60) return "${mins}m ago"
+    if (mins < 60) return context.getString(app.rcq.android.R.string.last_seen_min, mins)
     val hours = mins / 60
-    if (hours < 24) return "${hours}h ago"
+    if (hours < 24) return context.getString(app.rcq.android.R.string.last_seen_hour, hours)
     val days = hours / 24
-    if (days < 7) return "${days}d ago"
+    if (days < 7) return context.getString(app.rcq.android.R.string.last_seen_day, days)
     return SimpleDateFormat("d MMM", Locale.getDefault()).format(Date(ts))
 }
 
