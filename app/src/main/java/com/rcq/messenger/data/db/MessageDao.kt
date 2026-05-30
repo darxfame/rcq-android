@@ -43,4 +43,10 @@ interface MessageDao {
 
     @Query("UPDATE messages SET reactions = :reactionsJson WHERE id = :id")
     suspend fun updateReactions(id: String, reactionsJson: String)
+
+    @Query("SELECT * FROM messages WHERE content LIKE '%' || :query || '%' ORDER BY timestamp DESC LIMIT 50")
+    suspend fun searchMessages(query: String): List<MessageEntity>
+
+    @Query("SELECT * FROM messages WHERE chatId = :chatId AND content LIKE '%' || :query || '%' ORDER BY timestamp DESC LIMIT 50")
+    suspend fun searchInChat(chatId: String, query: String): List<MessageEntity>
 }

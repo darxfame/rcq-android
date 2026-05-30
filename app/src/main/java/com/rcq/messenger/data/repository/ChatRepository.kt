@@ -234,6 +234,14 @@ class ChatRepository @Inject constructor(
     suspend fun setPinned(chatId: String, pinned: Boolean) = chatDao.setPinned(chatId, pinned)
     suspend fun setMuted(chatId: String, muted: Boolean) = chatDao.setMuted(chatId, muted)
     suspend fun setArchived(chatId: String, archived: Boolean) = chatDao.setArchived(chatId, archived)
+
+    suspend fun searchMessages(query: String): List<Message> =
+        if (query.length < 2) emptyList()
+        else messageDao.searchMessages(query).map { it.toDomain() }
+
+    suspend fun searchInChat(chatId: String, query: String): List<Message> =
+        if (query.length < 2) emptyList()
+        else messageDao.searchInChat(chatId, query).map { it.toDomain() }
     @Volatile private var currentUserUin: Long = 0L
 
     fun setCurrentUserUin(uin: Long) { currentUserUin = uin }
