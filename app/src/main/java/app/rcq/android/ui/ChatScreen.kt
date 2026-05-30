@@ -10,8 +10,12 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.provider.OpenableColumns
+import android.annotation.SuppressLint
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
+import kotlin.coroutines.resume
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeoutOrNull
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -157,6 +161,25 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
                 else session.sendVideo(peer!!, v.bytes, v.thumbB64, v.durationSec, null)
             }
         }
+    }
+
+    // ── share location ───────────────────────────────────────────────
+    fun doShareLocation() {
+        scope.launch {
+            val loc = withContext(Dispatchers.IO) { currentLocation(context) } ?: return@launch
+            runCatching {
+                if (isGroup) session.sendGroupLocation(groupId!!, loc.first, loc.second, null)
+                else session.sendLocation(peer!!, loc.first, loc.second, null)
+            }
+        }
+    }
+    val locPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) doShareLocation()
+    }
+    fun shareLocation() {
+        val ok = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
+            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        if (ok) doShareLocation() else locPermission.launch(Manifest.permission.ACCESS_FINE_LOCATION)
     }
 
     // ── voice recording ──────────────────────────────────────────────
@@ -388,6 +411,7 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
                     MessageAction("Photo") { attachMenu = false; picker.launch("image/*") }
                     MessageAction("Video") { attachMenu = false; videoPicker.launch("video/*") }
                     MessageAction("File") { attachMenu = false; filePicker.launch("*/*") }
+                    MessageAction("Location") { attachMenu = false; shareLocation() }
                 }
             },
             confirmButton = {},
@@ -490,6 +514,7 @@ private fun previewOf(m: ChatMessage): String = when (m.kind) {
     "file" -> "📎 ${m.fileName ?: "File"}"
     "voice" -> "🎤 Voice"
     "video" -> "🎬 Video"
+    "location" -> "📍 Location"
     else -> m.body.take(100)
 }
 
@@ -522,6 +547,8 @@ private fun MessageBubble(session: Session, m: ChatMessage, senderName: String?,
             }
         } else if (m.kind == "voice") {
             VoiceBubble(session, m, onLongPress)
+        } else if (m.kind == "location") {
+            LocationBubble(m, onLongPress)
         } else {
             Column(
                 Modifier
@@ -718,6 +745,72 @@ private fun VideoBubble(session: Session, m: ChatMessage, onLongPress: () -> Uni
                     .background(Color.Black.copy(alpha = 0.5f))
                     .padding(horizontal = 5.dp, vertical = 1.dp),
             )
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun LocationBubble(m: ChatMessage, onLongPress: () -> Unit) {
+    val c = RcqTheme.colors
+    val context = LocalContext.current
+    val lat = m.lat ?: 0.0
+    val lng = m.lng ?: 0.0
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        modifier = Modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(if (m.fromMe) c.bubbleSelf else c.bubbleOther)
+            .combinedClickable(
+                onClick = {
+                    val geo = Intent(Intent.ACTION_VIEW, Uri.parse("geo:$lat,$lng?q=$lat,$lng(RCQ)"))
+                    val web = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/maps?q=$lat,$lng"))
+                    runCatching { context.startActivity(geo) }.recoverCatching { context.startActivity(web) }
+                },
+                onLongClick = onLongPress,
+            )
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+    ) {
+        Text("📍", fontSize = 22.sp)
+        Column {
+            Text(if (m.body.isNotEmpty()) m.body else "Location", color = c.textPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            Text("%.5f, %.5f".format(lat, lng), color = c.textSecondary, fontSize = 11.sp)
+        }
+    }
+}
+
+/** Best-effort current location: last-known across providers, else one
+ *  fresh fix (8s timeout). The caller checks the permission. */
+@SuppressLint("MissingPermission")
+private suspend fun currentLocation(context: Context): Pair<Double, Double>? {
+    val lm = context.getSystemService(Context.LOCATION_SERVICE) as? android.location.LocationManager ?: return null
+    for (p in listOf(
+        android.location.LocationManager.GPS_PROVIDER,
+        android.location.LocationManager.NETWORK_PROVIDER,
+        android.location.LocationManager.PASSIVE_PROVIDER,
+    )) {
+        runCatching { lm.getLastKnownLocation(p) }.getOrNull()?.let { return it.latitude to it.longitude }
+    }
+    val provider = when {
+        runCatching { lm.isProviderEnabled(android.location.LocationManager.GPS_PROVIDER) }.getOrDefault(false) -> android.location.LocationManager.GPS_PROVIDER
+        runCatching { lm.isProviderEnabled(android.location.LocationManager.NETWORK_PROVIDER) }.getOrDefault(false) -> android.location.LocationManager.NETWORK_PROVIDER
+        else -> return null
+    }
+    return withTimeoutOrNull(8000) {
+        suspendCancellableCoroutine { cont ->
+            val listener = object : android.location.LocationListener {
+                override fun onLocationChanged(loc: android.location.Location) {
+                    lm.removeUpdates(this)
+                    if (cont.isActive) cont.resume(loc.latitude to loc.longitude)
+                }
+                override fun onProviderDisabled(p: String) {}
+                override fun onProviderEnabled(p: String) {}
+                @Deprecated("legacy callback")
+                override fun onStatusChanged(p: String?, status: Int, extras: android.os.Bundle?) {}
+            }
+            runCatching { lm.requestLocationUpdates(provider, 0L, 0f, listener, android.os.Looper.getMainLooper()) }
+            cont.invokeOnCancellation { runCatching { lm.removeUpdates(listener) } }
         }
     }
 }

@@ -42,7 +42,9 @@ class MessageDb(context: Context) : SQLiteOpenHelper(context.applicationContext,
               file_mime  TEXT,
               file_size  INTEGER,
               duration_sec INTEGER,
-              thumb_b64  TEXT
+              thumb_b64  TEXT,
+              lat        REAL,
+              lng        REAL
             )
             """.trimIndent()
         )
@@ -85,6 +87,10 @@ class MessageDb(context: Context) : SQLiteOpenHelper(context.applicationContext,
         if (oldVersion < 10) {
             db.execSQL("ALTER TABLE messages ADD COLUMN thumb_b64 TEXT")
         }
+        if (oldVersion < 11) {
+            db.execSQL("ALTER TABLE messages ADD COLUMN lat REAL")
+            db.execSQL("ALTER TABLE messages ADD COLUMN lng REAL")
+        }
     }
 
     /** Insert; returns true if it was new (false if the UUID already existed). */
@@ -110,6 +116,8 @@ class MessageDb(context: Context) : SQLiteOpenHelper(context.applicationContext,
             put("file_size", msg.fileSize)
             put("duration_sec", msg.durationSec)
             put("thumb_b64", msg.thumbB64)
+            put("lat", msg.lat)
+            put("lng", msg.lng)
         }
         val rowId = writableDatabase.insertWithOnConflict(
             "messages", null, values, SQLiteDatabase.CONFLICT_IGNORE,
@@ -145,7 +153,7 @@ class MessageDb(context: Context) : SQLiteOpenHelper(context.applicationContext,
     fun all(): List<ChatMessage> {
         val out = ArrayList<ChatMessage>()
         readableDatabase.rawQuery(
-            "SELECT id, peer_uin, from_me, body, sent_at, state, kind, media_id, media_key, reply_snippet, reply_author, group_id, sender_uin, reactions, edited, file_name, file_mime, file_size, duration_sec, thumb_b64 FROM messages ORDER BY sent_at ASC", null,
+            "SELECT id, peer_uin, from_me, body, sent_at, state, kind, media_id, media_key, reply_snippet, reply_author, group_id, sender_uin, reactions, edited, file_name, file_mime, file_size, duration_sec, thumb_b64, lat, lng FROM messages ORDER BY sent_at ASC", null,
         ).use { c ->
             while (c.moveToNext()) {
                 out.add(
@@ -170,6 +178,8 @@ class MessageDb(context: Context) : SQLiteOpenHelper(context.applicationContext,
                         fileSize = if (c.isNull(17)) null else c.getLong(17),
                         durationSec = if (c.isNull(18)) null else c.getInt(18),
                         thumbB64 = c.getString(19),
+                        lat = if (c.isNull(20)) null else c.getDouble(20),
+                        lng = if (c.isNull(21)) null else c.getDouble(21),
                     )
                 )
             }
@@ -179,7 +189,7 @@ class MessageDb(context: Context) : SQLiteOpenHelper(context.applicationContext,
 
     private companion object {
         const val NAME = "rcq-messages.db"
-        const val VERSION = 10
+        const val VERSION = 11
         // Delimiter for the joined reactions column; not a valid emoji char.
         const val REACTION_DELIM = "\u0001"
     }

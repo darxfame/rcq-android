@@ -71,6 +71,8 @@ sealed interface Envelope {
         val durationSec: Double,
         val caption: String?,
     ) : Envelope
+    /** Shared location (iOS kind "location"). */
+    data class Location(val id: String, val lat: Double, val lng: Double, val caption: String?) : Envelope
     data class Unknown(val kind: String) : Envelope
 
     /** Serialize to the exact JSON bytes that get signed and shipped.
@@ -139,6 +141,13 @@ sealed interface Envelope {
             addProperty("durationSec", durationSec)
             if (!caption.isNullOrEmpty()) addProperty("caption", caption)
         }.toString().toByteArray(Charsets.UTF_8)
+        is Location -> JsonObject().apply {
+            addProperty("kind", "location")
+            addProperty("id", id)
+            addProperty("lat", lat)
+            addProperty("lng", lng)
+            if (!caption.isNullOrEmpty()) addProperty("caption", caption)
+        }.toString().toByteArray(Charsets.UTF_8)
         is Unknown -> JsonObject().apply { addProperty("kind", kind) }
             .toString().toByteArray(Charsets.UTF_8)
     }
@@ -166,6 +175,9 @@ sealed interface Envelope {
 
         fun video(mediaId: String, mediaKey: String, thumbnailB64: String, durationSec: Double, caption: String?): Video =
             Video(UUID.randomUUID().toString().uppercase(), mediaId, mediaKey, thumbnailB64, durationSec, caption)
+
+        fun location(lat: Double, lng: Double, caption: String?): Location =
+            Location(UUID.randomUUID().toString().uppercase(), lat, lng, caption)
 
         fun fromJsonBytes(bytes: ByteArray): Envelope {
             val obj = JsonParser.parseString(String(bytes, Charsets.UTF_8)).asJsonObject
@@ -218,6 +230,12 @@ sealed interface Envelope {
                     mediaKey = obj.get("mediaKey")?.asString.orEmpty(),
                     thumbnailB64 = obj.get("thumbnailB64")?.asString.orEmpty(),
                     durationSec = obj.get("durationSec")?.asDouble ?: 0.0,
+                    caption = obj.get("caption")?.asString,
+                )
+                "location" -> Location(
+                    id = id,
+                    lat = obj.get("lat")?.asDouble ?: 0.0,
+                    lng = obj.get("lng")?.asDouble ?: 0.0,
                     caption = obj.get("caption")?.asString,
                 )
                 else -> Unknown(kind ?: "unknown")

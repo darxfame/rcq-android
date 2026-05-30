@@ -348,6 +348,8 @@ class Session(context: Context) {
         fileSize: Long? = null,
         durationSec: Int? = null,
         thumbB64: String? = null,
+        lat: Double? = null,
+        lng: Double? = null,
     ) {
         val me = store.uin ?: return
         storeGroup(
@@ -358,7 +360,7 @@ class Session(context: Context) {
                 replyToSnippet = replyTo?.snippet, replyToAuthor = replyTo?.authorName,
                 groupId = groupId, senderUin = me,
                 fileName = fileName, fileMime = fileMime, fileSize = fileSize,
-                durationSec = durationSec, thumbB64 = thumbB64,
+                durationSec = durationSec, thumbB64 = thumbB64, lat = lat, lng = lng,
             )
         )
         fanOutGroup(groupId, env, id)
@@ -418,6 +420,9 @@ class Session(context: Context) {
                 )
                 is Envelope.Video -> storeGroup(
                     ChatMessage(env.id, 0, false, env.caption ?: "", now, kind = "video", mediaId = env.mediaId, mediaKey = env.mediaKey, durationSec = env.durationSec.toInt(), thumbB64 = env.thumbnailB64, groupId = groupId, senderUin = dec.senderUin)
+                )
+                is Envelope.Location -> storeGroup(
+                    ChatMessage(env.id, 0, false, env.caption ?: "", now, kind = "location", lat = env.lat, lng = env.lng, groupId = groupId, senderUin = dec.senderUin)
                 )
                 is Envelope.Reaction -> env.asset?.let { addGroupReaction(groupId, env.targetId, it) }
                 is Envelope.Delete -> {
@@ -562,6 +567,18 @@ class Session(context: Context) {
         sendGroupEnvelope(groupId, env, env.id, caption ?: "", kind = "video", mediaId = upload.media_id, mediaKey = keyB64, durationSec = durationSec, thumbB64 = thumbB64)
     }
 
+    /** Share a geographic point (no blob, just coordinates in the envelope). */
+    suspend fun sendLocation(toUin: Int, lat: Double, lng: Double, caption: String?) {
+        val env = Envelope.location(lat, lng, caption)
+        store(ChatMessage(env.id, toUin, true, caption ?: "", System.currentTimeMillis(), DeliveryState.SENDING, kind = "location", lat = lat, lng = lng))
+        sendEnvelope(env, env.id, toUin)
+    }
+
+    suspend fun sendGroupLocation(groupId: Int, lat: Double, lng: Double, caption: String?) {
+        val env = Envelope.location(lat, lng, caption)
+        sendGroupEnvelope(groupId, env, env.id, caption ?: "", kind = "location", lat = lat, lng = lng)
+    }
+
     /** Rebuild the wire envelope for a stored outgoing message (resend). */
     private fun resendEnvelope(msg: ChatMessage): Envelope = when {
         msg.kind == "photo" && msg.mediaId != null && msg.mediaKey != null ->
@@ -572,6 +589,8 @@ class Session(context: Context) {
             Envelope.Voice(msg.id, msg.mediaId, msg.mediaKey, (msg.durationSec ?: 0).toDouble())
         msg.kind == "video" && msg.mediaId != null && msg.mediaKey != null ->
             Envelope.Video(msg.id, msg.mediaId, msg.mediaKey, msg.thumbB64 ?: "", (msg.durationSec ?: 0).toDouble(), msg.body.ifEmpty { null })
+        msg.kind == "location" && msg.lat != null && msg.lng != null ->
+            Envelope.Location(msg.id, msg.lat, msg.lng, msg.body.ifEmpty { null })
         else -> Envelope.Text(msg.id, msg.body)
     }
 
@@ -784,6 +803,8 @@ class Session(context: Context) {
                     store(ChatMessage(env.id, dec.senderUin, false, "", now, kind = "voice", mediaId = env.mediaId, mediaKey = env.mediaKey, durationSec = env.durationSec.toInt()))
                 is Envelope.Video ->
                     store(ChatMessage(env.id, dec.senderUin, false, env.caption ?: "", now, kind = "video", mediaId = env.mediaId, mediaKey = env.mediaKey, durationSec = env.durationSec.toInt(), thumbB64 = env.thumbnailB64))
+                is Envelope.Location ->
+                    store(ChatMessage(env.id, dec.senderUin, false, env.caption ?: "", now, kind = "location", lat = env.lat, lng = env.lng))
                 is Envelope.Reaction -> env.asset?.let { addPeerReaction(dec.senderUin, env.targetId, it) }
                 is Envelope.Delete -> {
                     // Author-only: a peer can only retract their own message.

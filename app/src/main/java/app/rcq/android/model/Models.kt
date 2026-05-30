@@ -52,4 +52,6 @@ data class ChatMessage(
     val fileSize: Long? = null,   // kind == "file": size in bytes
     val durationSec: Int? = null, // kind == "voice" / "video": clip length in seconds
     val thumbB64: String? = null, // kind == "video": base64 JPEG poster frame
+    val lat: Double? = null,      // kind == "location"
+    val lng: Double? = null,      // kind == "location"
 )
