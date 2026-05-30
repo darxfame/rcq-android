@@ -75,6 +75,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -82,6 +83,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import app.rcq.android.R
 import app.rcq.android.Session
 import app.rcq.android.data.LocalStores
 import app.rcq.android.model.Contact
@@ -149,6 +151,12 @@ internal fun HomeScreen(
     val archivedContacts = byRecency(contacts.filter { LocalStores.peerThread(it.uin) in archived })
     val visibleGroups = groups.filterNot { LocalStores.groupThread(it.id) in archived }
 
+    // Section titles resolved here (LazyListScope below isn't composable).
+    val secFavorites = stringResource(R.string.home_sec_favorites)
+    val secOnline = stringResource(R.string.home_sec_online)
+    val secOffline = stringResource(R.string.home_sec_offline)
+    val secArchive = stringResource(R.string.home_sec_archive)
+
     Box(Modifier.fillMaxSize().background(c.bgPrimary)) {
         Column(Modifier.fillMaxSize()) {
             HomeHeader(
@@ -166,7 +174,7 @@ internal fun HomeScreen(
 
             LazyColumn(Modifier.weight(1f).fillMaxWidth()) {
                 if (pending.isNotEmpty()) {
-                    item(key = "req-h") { SectionHeader("Requests", pending.size, collapsed = false, onToggle = {}) }
+                    item(key = "req-h") { SectionHeader(stringResource(R.string.home_sec_requests), pending.size, collapsed = false, onToggle = {}) }
                     items(pending, key = { "p${it.requestId}" }) { req ->
                         PendingRow(
                             name = req.fromNickname,
@@ -180,11 +188,11 @@ internal fun HomeScreen(
                     item(key = "empty") { EmptyState(onAdd = { showAdd = true }) }
                 }
 
-                contactSection("Favorites", favContacts, collapsedFavorites, "fav", unread, { collapsedFavorites = !collapsedFavorites }, onOpenChat, onLongPress = { previewContact = it })
+                contactSection(secFavorites, favContacts, collapsedFavorites, "fav", unread, { collapsedFavorites = !collapsedFavorites }, onOpenChat, onLongPress = { previewContact = it })
 
                 // Groups — header always shows a "+" to create, like iOS.
                 item(key = "grp-h") {
-                    SectionHeader("Groups", visibleGroups.size, collapsedGroups, { collapsedGroups = !collapsedGroups }) {
+                    SectionHeader(stringResource(R.string.home_sec_groups), visibleGroups.size, collapsedGroups, { collapsedGroups = !collapsedGroups }) {
                         Icon(Icons.Filled.Add, "New group", tint = c.accent, modifier = Modifier.size(20.dp).clip(CircleShape).clickable { showCreateGroup = true })
                     }
                 }
@@ -193,7 +201,7 @@ internal fun HomeScreen(
                         item(key = "grp-empty") {
                             Row(Modifier.fillMaxWidth().clickable { showCreateGroup = true }.padding(horizontal = 10.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Icon(Icons.Filled.Add, null, tint = c.accent, modifier = Modifier.size(18.dp))
-                                Text("Create a group", color = c.textPrimary, fontSize = 13.sp)
+                                Text(stringResource(R.string.home_create_group), color = c.textPrimary, fontSize = 13.sp)
                             }
                         }
                     } else {
@@ -203,9 +211,9 @@ internal fun HomeScreen(
                     }
                 }
 
-                contactSection("Online", onlineContacts, collapsedOnline, "on", unread, { collapsedOnline = !collapsedOnline }, onOpenChat, onLongPress = { previewContact = it })
-                contactSection("Offline", offlineContacts, collapsedOffline, "off", unread, { collapsedOffline = !collapsedOffline }, onOpenChat, onLongPress = { previewContact = it })
-                contactSection("Archive", archivedContacts, collapsedArchive, "arch", unread, { collapsedArchive = !collapsedArchive }, onOpenChat, onLongPress = { previewContact = it })
+                contactSection(secOnline, onlineContacts, collapsedOnline, "on", unread, { collapsedOnline = !collapsedOnline }, onOpenChat, onLongPress = { previewContact = it })
+                contactSection(secOffline, offlineContacts, collapsedOffline, "off", unread, { collapsedOffline = !collapsedOffline }, onOpenChat, onLongPress = { previewContact = it })
+                contactSection(secArchive, archivedContacts, collapsedArchive, "arch", unread, { collapsedArchive = !collapsedArchive }, onOpenChat, onLongPress = { previewContact = it })
 
                 item(key = "tail") { Spacer(Modifier.height(8.dp)) }
             }
@@ -276,8 +284,8 @@ internal fun HomeScreen(
             onDismissRequest = { comingSoon = null },
             containerColor = c.bgSecondary,
             title = { Text(feature, color = c.textPrimary) },
-            text = { Text("$feature is coming to the Android app soon.", color = c.textSecondary) },
-            confirmButton = { TextButton(onClick = { comingSoon = null }) { Text("OK", color = c.accent) } },
+            text = { Text(stringResource(R.string.home_coming_soon_body, feature), color = c.textSecondary) },
+            confirmButton = { TextButton(onClick = { comingSoon = null }) { Text(stringResource(R.string.common_ok), color = c.accent) } },
         )
     }
 }
@@ -372,12 +380,12 @@ private fun HomeHeader(
                     onClick = { accountMenu = false },
                 )
                 DropdownMenuItem(
-                    text = { Text("Add account", color = c.textPrimary) },
+                    text = { Text(stringResource(R.string.home_menu_add_account), color = c.textPrimary) },
                     leadingIcon = { Icon(Icons.Filled.Add, null, tint = c.accent) },
                     onClick = { accountMenu = false; onComingSoon("Multiple accounts") },
                 )
                 DropdownMenuItem(
-                    text = { Text("Manage accounts", color = c.textPrimary) },
+                    text = { Text(stringResource(R.string.home_menu_manage_accounts), color = c.textPrimary) },
                     leadingIcon = { Icon(Icons.Outlined.AccountCircle, null, tint = c.accent) },
                     onClick = { accountMenu = false; onComingSoon("Multiple accounts") },
                 )
@@ -395,7 +403,7 @@ private fun HomeHeader(
                 DropdownMenu(expanded = statusMenu, onDismissRequest = { statusMenu = false }) {
                     listOf(UserStatus.ONLINE, UserStatus.AWAY, UserStatus.DND, UserStatus.INVISIBLE, UserStatus.OFFLINE).forEach { st ->
                         DropdownMenuItem(
-                            text = { Text(st.label, color = c.textPrimary) },
+                            text = { Text(stringResource(st.labelRes), color = c.textPrimary) },
                             leadingIcon = { StatusIcon(st, size = 18.dp) },
                             onClick = { onPickStatus(st); statusMenu = false },
                         )
@@ -419,27 +427,27 @@ private fun HomeHeader(
             )
             DropdownMenu(expanded = overflowMenu, onDismissRequest = { overflowMenu = false }) {
                 DropdownMenuItem(
-                    text = { Text("Add contact", color = c.textPrimary) },
+                    text = { Text(stringResource(R.string.home_menu_add_contact), color = c.textPrimary) },
                     leadingIcon = { Icon(Icons.Filled.PersonAdd, null, tint = c.accent) },
                     onClick = { overflowMenu = false; onAddContact() },
                 )
                 DropdownMenuItem(
-                    text = { Text("Search", color = c.textPrimary) },
+                    text = { Text(stringResource(R.string.home_menu_search), color = c.textPrimary) },
                     leadingIcon = { Icon(Icons.Filled.Search, null, tint = c.accent) },
                     onClick = { overflowMenu = false; onSearch() },
                 )
                 DropdownMenuItem(
-                    text = { Text("Post story", color = c.textPrimary) },
+                    text = { Text(stringResource(R.string.home_menu_post_story), color = c.textPrimary) },
                     leadingIcon = { Icon(Icons.Filled.AddAPhoto, null, tint = c.accent) },
                     onClick = { overflowMenu = false; onComingSoon("Stories") },
                 )
                 DropdownMenuItem(
-                    text = { Text("News", color = c.textPrimary) },
+                    text = { Text(stringResource(R.string.home_menu_news), color = c.textPrimary) },
                     leadingIcon = { Icon(Icons.Filled.Newspaper, null, tint = c.accent) },
                     onClick = { overflowMenu = false; onComingSoon("News") },
                 )
                 DropdownMenuItem(
-                    text = { Text("Saved messages", color = c.textPrimary) },
+                    text = { Text(stringResource(R.string.home_menu_saved), color = c.textPrimary) },
                     leadingIcon = { Icon(Icons.Filled.Bookmark, null, tint = c.accent) },
                     onClick = { overflowMenu = false; onComingSoon("Saved messages") },
                 )
@@ -578,9 +586,9 @@ private fun PendingRow(name: String, onAccept: () -> Unit, onDecline: () -> Unit
             Icon(Icons.Filled.PersonAdd, null, tint = c.accent, modifier = Modifier.size(24.dp))
         }
         Text(name, color = c.textPrimary, fontSize = 15.sp, modifier = Modifier.weight(1f))
-        Text("Accept", color = c.accent, fontWeight = FontWeight.SemiBold, modifier = Modifier.clickable(onClick = onAccept).padding(8.dp))
+        Text(stringResource(R.string.home_accept), color = c.accent, fontWeight = FontWeight.SemiBold, modifier = Modifier.clickable(onClick = onAccept).padding(8.dp))
         Spacer(Modifier.width(4.dp))
-        Text("Decline", color = c.textSecondary, modifier = Modifier.clickable(onClick = onDecline).padding(8.dp))
+        Text(stringResource(R.string.home_decline), color = c.textSecondary, modifier = Modifier.clickable(onClick = onDecline).padding(8.dp))
     }
 }
 
@@ -593,9 +601,9 @@ private fun EmptyState(onAdd: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         StatusIcon(UserStatus.ONLINE, size = 44.dp)
-        Text("No contacts yet", color = c.textPrimary, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-        Text("Add a friend by their UIN, or share your QR code to get started.", color = c.textSecondary, fontSize = 13.sp, textAlign = TextAlign.Center)
-        CapsuleButton("Add a contact", onClick = onAdd)
+        Text(stringResource(R.string.home_empty_title), color = c.textPrimary, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+        Text(stringResource(R.string.home_empty_body), color = c.textSecondary, fontSize = 13.sp, textAlign = TextAlign.Center)
+        CapsuleButton(stringResource(R.string.home_empty_cta), onClick = onAdd)
     }
 }
 
@@ -612,11 +620,11 @@ private fun BottomBar(onAdd: () -> Unit, onQr: () -> Unit, onRandom: () -> Unit,
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        BarButton(Icons.Filled.PersonAdd, "Add", onAdd)
-        BarButton(Icons.Filled.QrCode2, "QR", onQr)
-        BarButton(Icons.Filled.Shuffle, "Random", onRandom)
-        BarButton(Icons.Filled.NearMe, "Nearby", onNearby)
-        BarButton(Icons.Filled.Settings, "Settings", onSettings)
+        BarButton(Icons.Filled.PersonAdd, stringResource(R.string.home_bar_add), onAdd)
+        BarButton(Icons.Filled.QrCode2, stringResource(R.string.home_bar_qr), onQr)
+        BarButton(Icons.Filled.Shuffle, stringResource(R.string.home_bar_random), onRandom)
+        BarButton(Icons.Filled.NearMe, stringResource(R.string.home_bar_nearby), onNearby)
+        BarButton(Icons.Filled.Settings, stringResource(R.string.home_bar_settings), onSettings)
     }
 }
 

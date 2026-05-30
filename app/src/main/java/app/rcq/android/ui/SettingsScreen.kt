@@ -26,8 +26,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Autorenew
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Dns
@@ -63,13 +65,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import app.rcq.android.R
 import app.rcq.android.Session
+import app.rcq.android.data.LanguageManager
 import app.rcq.android.data.LocalStores
 import app.rcq.android.net.RcqApi
 import kotlinx.coroutines.launch
 
 /** Sub-screens inside Settings (kept self-contained, no nav graph). */
-private enum class SettingsRoute { ROOT, PROFILE, PRIVACY, NOTIFICATIONS, BLOCKED, CUSTOM_SERVER, SOUNDS }
+private enum class SettingsRoute { ROOT, PROFILE, PRIVACY, NOTIFICATIONS, BLOCKED, CUSTOM_SERVER, SOUNDS, LANGUAGE }
 
 @Composable
 internal fun SettingsScreen(session: Session, uin: Int, onBack: () -> Unit, onBurned: () -> Unit, onMigrated: (Int) -> Unit) {
@@ -89,6 +94,7 @@ internal fun SettingsScreen(session: Session, uin: Int, onBack: () -> Unit, onBu
         ) { route = SettingsRoute.ROOT }
         SettingsRoute.NOTIFICATIONS -> NotificationsScreen { route = SettingsRoute.ROOT }
         SettingsRoute.SOUNDS -> SoundsScreen { route = SettingsRoute.ROOT }
+        SettingsRoute.LANGUAGE -> LanguageScreen { route = SettingsRoute.ROOT }
         SettingsRoute.BLOCKED -> BlockedUsersScreen(session) { route = SettingsRoute.ROOT }
         SettingsRoute.CUSTOM_SERVER -> CustomServerScreen(
             session,
@@ -127,7 +133,7 @@ private fun SettingsRoot(
     }
 
     Column(Modifier.fillMaxSize().background(c.bgPrimary)) {
-        SettingsTopBar("Settings", onBack)
+        SettingsTopBar(stringResource(R.string.settings_title), onBack)
 
         Column(Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp)) {
             // Profile header card — opens the editor.
@@ -154,40 +160,45 @@ private fun SettingsRoot(
             }
 
             Spacer(Modifier.height(22.dp))
-            SectionLabel("Appearance")
+            SectionLabel(stringResource(R.string.settings_sec_appearance))
             SegmentedTheme(themeMode) { LocalStores.setThemeMode(it) }
-            SectionFooter("Choose light, dark, or follow the system theme.")
-
-            Spacer(Modifier.height(22.dp))
-            SectionLabel("Privacy")
+            SectionFooter(stringResource(R.string.settings_foot_appearance))
+            Spacer(Modifier.height(12.dp))
+            val lang by LanguageManager.current.collectAsState()
             SettingsGroup {
-                SettingsRow(Icons.Filled.Lock, "Privacy & Network") { onOpen(SettingsRoute.PRIVACY) }
-                Divider()
-                SettingsRow(Icons.Filled.Notifications, "Notifications") { onOpen(SettingsRoute.NOTIFICATIONS) }
-                Divider()
-                SettingsRow(Icons.AutoMirrored.Filled.VolumeUp, "Sounds") { onOpen(SettingsRoute.SOUNDS) }
-                Divider()
-                SettingsRow(Icons.Outlined.Block, "Blocked users", value = if (blockedCount > 0) "$blockedCount" else null) { onOpen(SettingsRoute.BLOCKED) }
-            }
-            SectionFooter("Control who can see you, who can reach you, and which server you're on.")
-
-            Spacer(Modifier.height(22.dp))
-            SectionLabel("History")
-            SettingsGroup {
-                SettingsRow(Icons.Filled.DeleteSweep, "Clear chat history", destructive = true) { confirmClear = true }
-            }
-            SectionFooter("Removes messages from this device only. Your account and contacts stay.")
-
-            Spacer(Modifier.height(22.dp))
-            SectionLabel("About")
-            SettingsGroup {
-                SettingsRow(Icons.Filled.Info, "About RCQ", value = appVersion(context)) { showAbout = true }
+                SettingsRow(Icons.Filled.Language, stringResource(R.string.onboard_language), value = LanguageManager.displayName(lang)) { onOpen(SettingsRoute.LANGUAGE) }
             }
 
             Spacer(Modifier.height(22.dp))
-            SectionLabel("Account")
+            SectionLabel(stringResource(R.string.settings_sec_privacy))
             SettingsGroup {
-                SettingsRow(Icons.Filled.Autorenew, "Move to a new UIN") { if (!migrating) confirmMigrate = true }
+                SettingsRow(Icons.Filled.Lock, stringResource(R.string.settings_row_privacy)) { onOpen(SettingsRoute.PRIVACY) }
+                Divider()
+                SettingsRow(Icons.Filled.Notifications, stringResource(R.string.settings_row_notifications)) { onOpen(SettingsRoute.NOTIFICATIONS) }
+                Divider()
+                SettingsRow(Icons.AutoMirrored.Filled.VolumeUp, stringResource(R.string.settings_row_sounds)) { onOpen(SettingsRoute.SOUNDS) }
+                Divider()
+                SettingsRow(Icons.Outlined.Block, stringResource(R.string.settings_row_blocked), value = if (blockedCount > 0) "$blockedCount" else null) { onOpen(SettingsRoute.BLOCKED) }
+            }
+            SectionFooter(stringResource(R.string.settings_foot_privacy))
+
+            Spacer(Modifier.height(22.dp))
+            SectionLabel(stringResource(R.string.settings_sec_history))
+            SettingsGroup {
+                SettingsRow(Icons.Filled.DeleteSweep, stringResource(R.string.settings_row_clear_history), destructive = true) { confirmClear = true }
+            }
+            SectionFooter(stringResource(R.string.settings_foot_history))
+
+            Spacer(Modifier.height(22.dp))
+            SectionLabel(stringResource(R.string.settings_sec_about))
+            SettingsGroup {
+                SettingsRow(Icons.Filled.Info, stringResource(R.string.settings_row_about), value = appVersion(context)) { showAbout = true }
+            }
+
+            Spacer(Modifier.height(22.dp))
+            SectionLabel(stringResource(R.string.settings_sec_account))
+            SettingsGroup {
+                SettingsRow(Icons.Filled.Autorenew, stringResource(R.string.settings_row_move_uin)) { if (!migrating) confirmMigrate = true }
             }
             Text(
                 "Get a fresh UIN. Your contacts, groups and keys are kept; local chat history is cleared.",
@@ -197,7 +208,7 @@ private fun SettingsRoot(
             )
 
             SettingsGroup {
-                SettingsRow(Icons.Filled.LocalFireDepartment, "Burn account", destructive = true) { confirmBurn = true }
+                SettingsRow(Icons.Filled.LocalFireDepartment, stringResource(R.string.settings_row_burn), destructive = true) { confirmBurn = true }
             }
             Text(
                 "Wipes this account everywhere. Irreversible.",
@@ -484,6 +495,33 @@ private fun SettingToggleRow(title: String, subtitle: String, checked: Boolean, 
 }
 
 @Composable
+private fun LanguageScreen(onBack: () -> Unit) {
+    val c = RcqTheme.colors
+    val activity = LocalContext.current as? android.app.Activity
+    val current by LanguageManager.current.collectAsState()
+    Column(Modifier.fillMaxSize().background(c.bgPrimary)) {
+        SettingsTopBar(stringResource(R.string.onboard_language), onBack)
+        LazyColumn(Modifier.fillMaxWidth().weight(1f)) {
+            items(LanguageManager.supported, key = { it.code }) { lang ->
+                Row(
+                    Modifier.fillMaxWidth().clickable { activity?.let { LanguageManager.set(it, lang.code) } }.padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(lang.nativeName, color = c.textPrimary, fontSize = 16.sp)
+                        if (lang.englishName != lang.nativeName) Text(lang.englishName, color = c.textSecondary, fontSize = 12.sp)
+                    }
+                    if (lang.code == current) Icon(Icons.Filled.Check, null, tint = c.accent, modifier = Modifier.size(20.dp))
+                }
+                Divider()
+            }
+        }
+        SectionFooter("Translations roll out gradually. Untranslated text falls back to English.")
+        Spacer(Modifier.height(16.dp))
+    }
+}
+
+@Composable
 private fun NotificationsScreen(onBack: () -> Unit) {
     val c = RcqTheme.colors
     Column(Modifier.fillMaxSize().background(c.bgPrimary)) {
@@ -705,7 +743,7 @@ private fun SettingsRow(icon: ImageVector, label: String, value: String? = null,
 private fun SegmentedTheme(mode: ThemeMode, onPick: (ThemeMode) -> Unit) {
     val c = RcqTheme.colors
     Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(percent = 50)).background(c.bgSecondary).padding(3.dp), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-        listOf(ThemeMode.SYSTEM to "Auto", ThemeMode.LIGHT to "Light", ThemeMode.DARK to "Dark").forEach { (m, label) ->
+        listOf(ThemeMode.SYSTEM to stringResource(R.string.theme_auto), ThemeMode.LIGHT to stringResource(R.string.theme_light), ThemeMode.DARK to stringResource(R.string.theme_dark)).forEach { (m, label) ->
             val sel = mode == m
             Box(
                 Modifier.weight(1f).clip(RoundedCornerShape(percent = 50)).background(if (sel) c.accent else Color.Transparent)

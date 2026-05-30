@@ -33,4 +33,73 @@
 
     <string name="onboard_server_label">Сервер</string>
     <string name="onboard_language">Язык</string>
+
+    <!-- Status -->
+    <string name="status_online">В сети</string>
+    <string name="status_away">Отошёл</string>
+    <string name="status_dnd">Не беспокоить</string>
+    <string name="status_invisible">Невидимый</string>
+    <string name="status_offline">Не в сети</string>
+
+    <!-- Home: bottom bar -->
+    <string name="home_bar_add">Добавить</string>
+    <string name="home_bar_qr">QR</string>
+    <string name="home_bar_random">Рандом</string>
+    <string name="home_bar_nearby">Рядом</string>
+    <string name="home_bar_settings">Настройки</string>
+
+    <!-- Home: sections -->
+    <string name="home_sec_requests">Запросы</string>
+    <string name="home_sec_groups">Группы</string>
+    <string name="home_sec_favorites">Избранное</string>
+    <string name="home_sec_online">В сети</string>
+    <string name="home_sec_offline">Не в сети</string>
+    <string name="home_sec_archive">Архив</string>
+
+    <!-- Home: overflow + account menu -->
+    <string name="home_menu_add_contact">Добавить контакт</string>
+    <string name="home_menu_search">Поиск</string>
+    <string name="home_menu_post_story">Опубликовать историю</string>
+    <string name="home_menu_news">Новости</string>
+    <string name="home_menu_saved">Сохранённые сообщения</string>
+    <string name="home_menu_add_account">Добавить аккаунт</string>
+    <string name="home_menu_manage_accounts">Управление аккаунтами</string>
+
+    <!-- Home: misc -->
+    <string name="home_create_group">Создать группу</string>
+    <string name="home_accept">Принять</string>
+    <string name="home_decline">Отклонить</string>
+    <string name="home_empty_title">Пока нет контактов</string>
+    <string name="home_empty_body">Добавьте друга по UIN или поделитесь своим QR кодом, чтобы начать.</string>
+    <string name="home_empty_cta">Добавить контакт</string>
+    <string name="home_coming_soon_body">%1$s скоро появится в приложении на Android.</string>
+
+    <!-- Common -->
+    <string name="common_cancel">Отмена</string>
+    <string name="common_close">Закрыть</string>
+    <string name="common_done">Готово</string>
+    <string name="common_save">Сохранить</string>
+    <string name="common_ok">ОК</string>
+
+    <!-- Settings root -->
+    <string name="settings_title">Настройки</string>
+    <string name="settings_sec_appearance">Оформление</string>
+    <string name="settings_sec_privacy">Приватность</string>
+    <string name="settings_sec_history">История</string>
+    <string name="settings_sec_about">О приложении</string>
+    <string name="settings_sec_account">Аккаунт</string>
+    <string name="settings_row_privacy">Приватность и сеть</string>
+    <string name="settings_row_notifications">Уведомления</string>
+    <string name="settings_row_sounds">Звуки</string>
+    <string name="settings_row_blocked">Заблокированные</string>
+    <string name="settings_row_clear_history">Очистить историю чатов</string>
+    <string name="settings_row_about">О RCQ</string>
+    <string name="settings_row_move_uin">Сменить UIN</string>
+    <string name="settings_row_burn">Сжечь аккаунт</string>
+    <string name="settings_foot_appearance">Светлая, тёмная или как в системе.</string>
+    <string name="settings_foot_privacy">Кто вас видит, кто может с вами связаться и на каком вы сервере.</string>
+    <string name="settings_foot_history">Удаляет сообщения только с этого устройства. Аккаунт и контакты остаются.</string>
+    <string name="theme_auto">Авто</string>
+    <string name="theme_light">Светлая</string>
+    <string name="theme_dark">Тёмная</string>
 </resources>
