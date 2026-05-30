@@ -8,7 +8,7 @@ import org.signal.libsignal.protocol.SignalProtocolAddress
 import org.signal.libsignal.protocol.SessionBuilder
 import org.signal.libsignal.protocol.ecc.Curve
 import org.signal.libsignal.protocol.state.PreKeyBundle
-import org.signal.libsignal.protocol.util.KeyHelper
+import java.util.Base64
 
 class CryptoServiceE2ETest {
 
@@ -21,11 +21,9 @@ class CryptoServiceE2ETest {
     @Before
     fun setUp() {
         identityKeyPair = IdentityKeyPair.generate()
-        signalKeyStore = SignalKeyStore(identityKeyPair)
+        signalKeyStore = SignalKeyStore(InMemorySignalProtocolStore(identityKeyPair))
         sessionManager = SessionManager(signalKeyStore)
-        cryptoService = CryptoService(sessionManager, signalKeyStore)
-
-        // Setup a session for E2E testing
+        cryptoService = CryptoService(sessionManager, signalKeyStore, EciesCrypto())
         setupTestSession()
     }
 
@@ -33,19 +31,13 @@ class CryptoServiceE2ETest {
         val address = SignalProtocolAddress(testUin.toString(), 1)
         val sessionBuilder = SessionBuilder(signalKeyStore, address)
 
-        // Create a mock pre-key bundle for the test user
         val preKeyPair = Curve.generateKeyPair()
         val signedPreKeyPair = Curve.generateKeyPair()
         val signature = Curve.calculateSignature(identityKeyPair.privateKey, signedPreKeyPair.publicKey.serialize())
 
         val preKeyBundle = PreKeyBundle(
-            0, // registrationId
-            1, // deviceId
-            1, // preKeyId
-            preKeyPair.publicKey,
-            1, // signedPreKeyId
-            signedPreKeyPair.publicKey,
-            signature,
+            0, 1, 1, preKeyPair.publicKey,
+            1, signedPreKeyPair.publicKey, signature,
             identityKeyPair.publicKey
         )
 
@@ -56,12 +48,10 @@ class CryptoServiceE2ETest {
     fun testFullE2EEncryption() {
         val plaintext = "Secret message for E2E test"
 
-        // Encrypt message
         val encrypted = cryptoService.encryptMessage(testUin, plaintext)
         assertNotNull(encrypted.ciphertext)
         assertTrue(encrypted.signalType > 0)
 
-        // Decrypt message
         val decrypted = cryptoService.decryptMessage(testUin, encrypted.ciphertext, encrypted.signalType)
         assertEquals(plaintext, decrypted)
     }
@@ -75,14 +65,10 @@ class CryptoServiceE2ETest {
         )
 
         val encryptedMessages = mutableListOf<CryptoService.EncryptedMessage>()
-
-        // Encrypt all messages
         messages.forEach { message ->
-            val encrypted = cryptoService.encryptMessage(testUin, message)
-            encryptedMessages.add(encrypted)
+            encryptedMessages.add(cryptoService.encryptMessage(testUin, message))
         }
 
-        // Decrypt all messages
         encryptedMessages.forEachIndexed { index, encrypted ->
             val decrypted = cryptoService.decryptMessage(testUin, encrypted.ciphertext, encrypted.signalType)
             assertEquals(messages[index], decrypted)
@@ -98,9 +84,7 @@ class CryptoServiceE2ETest {
     @Test
     fun testDeleteSession() {
         assertTrue(cryptoService.hasSession(testUin))
-
         cryptoService.deleteSession(testUin)
-
         assertFalse(cryptoService.hasSession(testUin))
     }
 
@@ -109,8 +93,7 @@ class CryptoServiceE2ETest {
         val identityKey = cryptoService.getIdentityKey()
         assertNotNull(identityKey)
         assertTrue(identityKey.isNotEmpty())
-        // Should be valid Base64
-        assertNotNull(android.util.Base64.decode(identityKey, android.util.Base64.NO_WRAP))
+        assertNotNull(Base64.getDecoder().decode(identityKey))
     }
 
     @Test
@@ -118,12 +101,9 @@ class CryptoServiceE2ETest {
         val plaintext = "Test message format"
         val encrypted = cryptoService.encryptMessage(testUin, plaintext)
 
-        // Verify encrypted message structure
         assertNotNull(encrypted.ciphertext)
         assertTrue(encrypted.ciphertext.isNotEmpty())
-        assertTrue(encrypted.signalType in 1..2) // PreKey or Whisper type
-
-        // Ciphertext should be valid Base64
-        assertNotNull(android.util.Base64.decode(encrypted.ciphertext, android.util.Base64.NO_WRAP))
+        assertTrue(encrypted.signalType in 1..2)
+        assertNotNull(Base64.getDecoder().decode(encrypted.ciphertext))
     }
 }

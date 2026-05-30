@@ -1,7 +1,7 @@
 package com.rcq.messenger.crypto
 
-import android.util.Base64
-import android.util.Log
+import java.util.Base64
+import timber.log.Timber
 import net.i2p.crypto.eddsa.EdDSAEngine
 import net.i2p.crypto.eddsa.EdDSAPrivateKey
 import net.i2p.crypto.eddsa.EdDSAPublicKey
@@ -35,12 +35,13 @@ import javax.inject.Singleton
 class EciesCrypto @Inject constructor() {
 
     companion object {
-        private const val TAG = "EciesCrypto"
         private const val WIRE_V1 = 1
         private val HKDF_INFO_V1 = "RCQ-1to1-v1".toByteArray(Charsets.UTF_8)
         private const val NONCE_LEN = 12
         private const val TAG_BITS = 128
         private val ED25519_SPEC = EdDSANamedCurveTable.getByName("Ed25519")
+        private val ENC = Base64.getEncoder()
+        private val DEC = Base64.getDecoder()
     }
 
     var ownUin: Long = 0L
@@ -54,7 +55,7 @@ class EciesCrypto @Inject constructor() {
         (ed25519PrivKey?.let { EdDSAPublicKey(EdDSAPublicKeySpec(it.abyte, ED25519_SPEC)) }?.abyte)
             ?: ByteArray(32)
 
-    fun signingPubKeyB64(): String = Base64.encodeToString(signingPubKeyBytes(), Base64.NO_WRAP)
+    fun signingPubKeyB64(): String = ENC.encodeToString(signingPubKeyBytes())
 
     // Envelope JSON builders (iOS codec keys)
     fun buildTextEnvelope(id: String, text: String): JSONObject = JSONObject().apply {
@@ -73,7 +74,7 @@ class EciesCrypto @Inject constructor() {
         val idKP = identityKeyPair ?: error("ECIES identityKeyPair not loaded")
         val sigPriv = ed25519PrivKey ?: error("ECIES ed25519PrivKey not loaded")
 
-        val recipientRaw = Base64.decode(recipientIdentityKeyB64, Base64.NO_WRAP)
+        val recipientRaw = DEC.decode(recipientIdentityKeyB64)
         val recipientPub = rawToEcPub(recipientRaw)
 
         val ephemeral = Curve.generateKeyPair()
@@ -83,7 +84,7 @@ class EciesCrypto @Inject constructor() {
         val aeadKey = HKDF.deriveSecrets(shared, ekBytes + recipientRaw, HKDF_INFO_V1, 32)
 
         val envBytes = envelopeJson.toString().toByteArray(Charsets.UTF_8)
-        val envB64 = Base64.encodeToString(envBytes, Base64.NO_WRAP)
+        val envB64 = ENC.encodeToString(envBytes)
 
         // Sign with proper Ed25519
         val sig = ed25519Sign(sigPriv, ekBytes + envBytes)
@@ -92,7 +93,7 @@ class EciesCrypto @Inject constructor() {
         val inner = JSONObject().apply {
             put("from", ownUin)
             put("spub", spubB64)
-            put("sig", Base64.encodeToString(sig, Base64.NO_WRAP))
+            put("sig", ENC.encodeToString(sig))
             put("env", envB64)
         }.toString().toByteArray(Charsets.UTF_8)
 
@@ -101,10 +102,10 @@ class EciesCrypto @Inject constructor() {
 
         val wire = JSONObject().apply {
             put("v", WIRE_V1)
-            put("ek", Base64.encodeToString(ekBytes, Base64.NO_WRAP))
-            put("ct", Base64.encodeToString(combined, Base64.NO_WRAP))
+            put("ek", ENC.encodeToString(ekBytes))
+            put("ct", ENC.encodeToString(combined))
         }
-        return Base64.encodeToString(wire.toString().toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
+        return ENC.encodeToString(wire.toString().toByteArray(Charsets.UTF_8))
     }
 
     // -----------------------------------------------------------------------
@@ -118,12 +119,12 @@ class EciesCrypto @Inject constructor() {
 
     fun decryptV1(wireB64: String): Decrypted? = runCatching {
         val idKP = identityKeyPair ?: return null
-        val wireBytes = Base64.decode(wireB64, Base64.NO_WRAP)
+        val wireBytes = DEC.decode(wireB64)
         val wire = JSONObject(String(wireBytes, Charsets.UTF_8))
         if (wire.optInt("v", -1) != WIRE_V1) return null
 
-        val ekBytes = Base64.decode(wire.getString("ek"), Base64.NO_WRAP)
-        val combined = Base64.decode(wire.getString("ct"), Base64.NO_WRAP)
+        val ekBytes = DEC.decode(wire.getString("ek"))
+        val combined = DEC.decode(wire.getString("ct"))
 
         val ourPubRaw = ecPubToRaw(idKP.publicKey)
         val shared = Curve.calculateAgreement(rawToEcPub(ekBytes), idKP.privateKey)
@@ -135,19 +136,19 @@ class EciesCrypto @Inject constructor() {
 
         val inner = JSONObject(String(plain, Charsets.UTF_8))
         val from = inner.getLong("from")
-        val envBytes = Base64.decode(inner.getString("env"), Base64.NO_WRAP)
+        val envBytes = DEC.decode(inner.getString("env"))
         val spubB64 = inner.getString("spub")
-        val spubRaw = Base64.decode(spubB64, Base64.NO_WRAP)
-        val sigBytes = Base64.decode(inner.getString("sig"), Base64.NO_WRAP)
+        val spubRaw = DEC.decode(spubB64)
+        val sigBytes = DEC.decode(inner.getString("sig"))
 
         // Verify with Ed25519 (iOS sends Ed25519 spub)
         if (!ed25519Verify(spubRaw, ekBytes + envBytes, sigBytes)) {
-            Log.w(TAG, "decryptV1: Ed25519 sig verify failed from $from")
+            Timber.w("decryptV1: Ed25519 sig verify failed from $from")
             return null
         }
 
         Decrypted(from, JSONObject(String(envBytes, Charsets.UTF_8)), spubB64)
-    }.onFailure { Log.w(TAG, "decryptV1 failed: ${it.message}") }.getOrNull()
+    }.onFailure { Timber.w("decryptV1 failed: ${it.message}") }.getOrNull()
 
     // -----------------------------------------------------------------------
     // Ed25519 sign/verify (net.i2p.crypto:eddsa — proper Ed25519 not XEdDSA)
@@ -197,6 +198,5 @@ class EciesCrypto @Inject constructor() {
         return Curve.decodePoint(byteArrayOf(0x05) + raw, 0)
     }
 
-    fun ecPubToRawB64(pub: ECPublicKey): String =
-        Base64.encodeToString(ecPubToRaw(pub), Base64.NO_WRAP)
+    fun ecPubToRawB64(pub: ECPublicKey): String = ENC.encodeToString(ecPubToRaw(pub))
 }

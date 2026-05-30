@@ -4,11 +4,9 @@ import org.junit.Test
 import org.junit.Before
 import org.junit.Assert.*
 import org.signal.libsignal.protocol.IdentityKeyPair
-import org.signal.libsignal.protocol.SignalProtocolException
 import org.signal.libsignal.protocol.ecc.Curve
 import org.signal.libsignal.protocol.state.PreKeyRecord
 import org.signal.libsignal.protocol.state.SignedPreKeyRecord
-import org.signal.libsignal.protocol.util.KeyHelper
 
 class SignalKeyStoreTest {
 
@@ -18,7 +16,7 @@ class SignalKeyStoreTest {
     @Before
     fun setUp() {
         identityKeyPair = IdentityKeyPair.generate()
-        signalKeyStore = SignalKeyStore(identityKeyPair)
+        signalKeyStore = SignalKeyStore(InMemorySignalProtocolStore(identityKeyPair))
     }
 
     @Test
@@ -34,7 +32,7 @@ class SignalKeyStoreTest {
         assertEquals(preKeyId, loadedPreKey.id)
     }
 
-    @Test(expected = SignalProtocolException::class)
+    @Test(expected = IllegalStateException::class)
     fun testLoadNonExistentPreKey() {
         signalKeyStore.loadPreKey(999)
     }
@@ -53,7 +51,7 @@ class SignalKeyStoreTest {
         assertEquals(signedPreKeyId, loadedSignedPreKey.id)
     }
 
-    @Test(expected = SignalProtocolException::class)
+    @Test(expected = IllegalStateException::class)
     fun testLoadNonExistentSignedPreKey() {
         signalKeyStore.loadSignedPreKey(999)
     }

@@ -20,7 +20,7 @@ import javax.inject.Singleton
  */
 @Singleton
 class SignalKeyStore @Inject constructor(
-    private val persistentStore: PersistentSignalProtocolStore
+    private val persistentStore: SignalProtocolStore
 ) : SignalProtocolStore {
 
     // Делегируем все методы к персистентному хранилищу
@@ -113,7 +113,7 @@ class SignalKeyStore @Inject constructor(
     fun hasActiveSession(address: SignalProtocolAddress): Boolean = containsSession(address)
 
     fun initializeIdentityKeyPair(keyPair: IdentityKeyPair) {
-        persistentStore.storeIdentityKeyPair(keyPair)
+        (persistentStore as? PersistentSignalProtocolStore)?.storeIdentityKeyPair(keyPair)
     }
 
     // Pre-key management
