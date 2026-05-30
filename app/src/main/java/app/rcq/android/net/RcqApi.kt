@@ -250,6 +250,15 @@ class RcqApi(private val baseUrl: String = DEFAULT_BASE_URL) {
         sendNoResult("DELETE", "/auth/account", null, authed = true)
     }
 
+    data class MigrateResponse(val new_uin: Int = 0, val token: String = "")
+
+    /** POST /account/migrate — move to a freshly-allocated UIN. Server
+     *  keeps profile/contacts/groups + reuses the identity keys under the
+     *  new UIN; returns the new UIN + a token for it. */
+    suspend fun migrateAccount(): MigrateResponse = withContext(Dispatchers.IO) {
+        post("/account/migrate", "{}", authed = true, MigrateResponse::class.java)
+    }
+
     // ── own profile + privacy (GET /users/{uin}/info, PUT /me) ───────
 
     /** Own profile + privacy mirror. Visibility/policy fields are only

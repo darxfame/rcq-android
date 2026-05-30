@@ -82,6 +82,12 @@ class SecureStore(context: Context) {
         prefs.edit().putString(K_NICK, nickname).apply()
     }
 
+    /** Repoint this identity to a new UIN + token after a migration. Keeps
+     *  the keys, nickname and server (the keys are reused server-side). */
+    fun updateAccount(uin: Int, token: String) {
+        prefs.edit().putInt(K_UIN, uin).putString(K_TOKEN, token).apply()
+    }
+
     fun wipe() = prefs.edit().clear().apply()
 
     private companion object {

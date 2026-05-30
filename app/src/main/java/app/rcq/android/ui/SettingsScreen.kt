@@ -27,6 +27,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Autorenew
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LocalFireDepartment
@@ -65,13 +66,14 @@ import kotlinx.coroutines.launch
 private enum class SettingsRoute { ROOT, PROFILE, PRIVACY, NOTIFICATIONS, BLOCKED }
 
 @Composable
-internal fun SettingsScreen(session: Session, uin: Int, onBack: () -> Unit, onBurned: () -> Unit) {
+internal fun SettingsScreen(session: Session, uin: Int, onBack: () -> Unit, onBurned: () -> Unit, onMigrated: (Int) -> Unit) {
     var route by remember { mutableStateOf(SettingsRoute.ROOT) }
     when (route) {
         SettingsRoute.ROOT -> SettingsRoot(
             session, uin,
             onBack = onBack,
             onBurned = onBurned,
+            onMigrated = onMigrated,
             onOpen = { route = it },
         )
         SettingsRoute.PROFILE -> ProfileEditScreen(session) { route = SettingsRoute.ROOT }
@@ -87,6 +89,7 @@ private fun SettingsRoot(
     uin: Int,
     onBack: () -> Unit,
     onBurned: () -> Unit,
+    onMigrated: (Int) -> Unit,
     onOpen: (SettingsRoute) -> Unit,
 ) {
     val c = RcqTheme.colors
@@ -97,6 +100,8 @@ private fun SettingsRoot(
     val contacts by session.contacts.collectAsState()
     var confirmBurn by remember { mutableStateOf(false) }
     var confirmClear by remember { mutableStateOf(false) }
+    var confirmMigrate by remember { mutableStateOf(false) }
+    var migrating by remember { mutableStateOf(false) }
     var showAbout by remember { mutableStateOf(false) }
     val blockedCount = contacts.count { it.blocked }
 
@@ -160,6 +165,17 @@ private fun SettingsRoot(
             }
 
             Spacer(Modifier.height(22.dp))
+            SectionLabel("Account")
+            SettingsGroup {
+                SettingsRow(Icons.Filled.Autorenew, "Move to a new UIN") { if (!migrating) confirmMigrate = true }
+            }
+            Text(
+                "Get a fresh UIN. Your contacts, groups and keys are kept; local chat history is cleared.",
+                color = c.textSecondary, fontSize = 11.sp,
+                modifier = Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 14.dp),
+                textAlign = TextAlign.Center,
+            )
+
             SettingsGroup {
                 SettingsRow(Icons.Filled.LocalFireDepartment, "Burn account", destructive = true) { confirmBurn = true }
             }
@@ -179,6 +195,28 @@ private fun SettingsRoot(
             confirm = "Clear", destructive = true,
             onConfirm = { confirmClear = false; session.clearHistory(); Toast.makeText(context, "History cleared", Toast.LENGTH_SHORT).show() },
             onDismiss = { confirmClear = false },
+        )
+    }
+    if (confirmMigrate) {
+        ConfirmDialog(
+            title = "Move to a new UIN?",
+            body = "You get a freshly-allocated UIN. Contacts, groups and your keys are kept; local chat history on this device is cleared.",
+            confirm = "Move", destructive = false,
+            onConfirm = {
+                confirmMigrate = false
+                migrating = true
+                scope.launch {
+                    val newUin = runCatching { session.migrateToNewUin() }.getOrNull()
+                    migrating = false
+                    if (newUin != null) {
+                        Toast.makeText(context, "Moved to #$newUin", Toast.LENGTH_LONG).show()
+                        onMigrated(newUin)
+                    } else {
+                        Toast.makeText(context, "Migration failed. Try again later.", Toast.LENGTH_LONG).show()
+                    }
+                }
+            },
+            onDismiss = { confirmMigrate = false },
         )
     }
     if (confirmBurn) {

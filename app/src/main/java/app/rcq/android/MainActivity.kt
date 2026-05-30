@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -29,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -112,6 +115,7 @@ private fun RcqApp(session: Session) {
                 session, s.uin,
                 onBack = { showSettings = false },
                 onBurned = { showSettings = false; chatTarget = null; state = UiState.Onboarding },
+                onMigrated = { newUin -> chatTarget = null; state = UiState.Registered(newUin) },
             )
             s is UiState.Registered -> HomeScreen(
                 session, s.uin,
@@ -138,6 +142,11 @@ private fun Onboarding(onStart: (String?) -> Unit) {
         verticalArrangement = Arrangement.spacedBy(14.dp),
         modifier = Modifier.padding(32.dp),
     ) {
+        Image(
+            painter = painterResource(R.drawable.rcq_logo),
+            contentDescription = "RCQ",
+            modifier = Modifier.size(96.dp),
+        )
         Text("RCQ", color = c.textPrimary, fontSize = 48.sp, fontWeight = FontWeight.Bold)
         Text("Private messaging. No phone number.", color = c.textSecondary, fontSize = 15.sp, textAlign = TextAlign.Center)
         Column(modifier = Modifier.fillMaxWidth()) {

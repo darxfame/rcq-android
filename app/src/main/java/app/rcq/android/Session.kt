@@ -474,6 +474,33 @@ class Session(context: Context) {
         started = false
     }
 
+    /** Move to a freshly-allocated UIN (iOS-parity). The server keeps the
+     *  profile/contacts/groups and reuses the identity keys under the new
+     *  UIN; we just swap uin+token locally (keys/nickname/server stay),
+     *  clear local message state, and reboot the session under the new
+     *  UIN. Contacts/groups re-sync from the server. Returns the new UIN.
+     *  Throws on server refusal (e.g. cooldown) so the caller can surface. */
+    suspend fun migrateToNewUin(): Int {
+        val resp = api.migrateAccount()
+        socket.disconnect()
+        store.updateAccount(resp.new_uin, resp.token)
+        api.setToken(resp.token)
+        db.wipe()
+        peerIdentityCache.clear()
+        ackedReads.clear()
+        _contacts.value = emptyList()
+        _pending.value = emptyList()
+        _messages.value = emptyMap()
+        _groups.value = emptyList()
+        _groupMessages.value = emptyMap()
+        _typingFrom.value = null
+        started = false
+        everConnected = false
+        socket = newSocket()
+        start()
+        return resp.new_uin
+    }
+
     // ── messaging ────────────────────────────────────────────────────
 
     suspend fun sendText(toUin: Int, text: String, replyTo: Reply? = null) {
