@@ -315,8 +315,19 @@ class Session(context: Context) {
     }
 
     /** Owner/admin: rename / re-describe / re-pin a group. */
-    suspend fun patchGroup(id: Int, name: String? = null, description: String? = null, pinnedText: String? = null) {
-        upsertGroup(mapGroup(api.patchGroup(id, RcqApi.GroupPatchBody(name = name, description = description, pinned_text = pinnedText))))
+    suspend fun patchGroup(
+        id: Int,
+        name: String? = null,
+        description: String? = null,
+        pinnedText: String? = null,
+        postPolicy: String? = null,
+        isClosed: Boolean? = null,
+        membersHidden: Boolean? = null,
+    ) {
+        upsertGroup(mapGroup(api.patchGroup(id, RcqApi.GroupPatchBody(
+            name = name, description = description, pinned_text = pinnedText,
+            post_policy = postPolicy, is_closed = isClosed, members_hidden = membersHidden,
+        ))))
     }
 
     // ── own profile + privacy ────────────────────────────────────────

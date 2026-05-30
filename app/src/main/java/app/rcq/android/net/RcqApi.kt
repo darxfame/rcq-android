@@ -215,6 +215,8 @@ class RcqApi(private val baseUrl: String = DEFAULT_BASE_URL) {
         val description: String? = null,
         val post_policy: String? = null,
         val pinned_text: String? = null,
+        val is_closed: Boolean? = null,
+        val members_hidden: Boolean? = null,
         val avatar_media_id: String? = null,
         val avatar_media_key: String? = null,
     )

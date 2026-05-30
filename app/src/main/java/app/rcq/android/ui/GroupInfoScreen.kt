@@ -33,6 +33,8 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -49,6 +51,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.rcq.android.Session
@@ -69,6 +72,7 @@ internal fun GroupInfoScreen(session: Session, groupId: Int, onBack: () -> Unit,
     var confirmDestructive by remember { mutableStateOf(false) }
     var showAddMember by remember { mutableStateOf(false) }
     var showRename by remember { mutableStateOf(false) }
+    var showPin by remember { mutableStateOf(false) }
 
     val avatarPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) scope.launch {
@@ -112,10 +116,45 @@ internal fun GroupInfoScreen(session: Session, groupId: Int, onBack: () -> Unit,
             }
         }
 
-        group.pinnedText?.takeIf { it.isNotBlank() }?.let { pin ->
+        // Non-owners see the pin read-only; owners get the editable row below.
+        if (!isOwner) group.pinnedText?.takeIf { it.isNotBlank() }?.let { pin ->
             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp).clip(RoundedCornerShape(10.dp)).background(c.bgSecondary).padding(12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Icon(Icons.Filled.PushPin, null, tint = c.accent, modifier = Modifier.size(16.dp))
                 Text(pin, color = c.textPrimary, fontSize = 13.sp)
+            }
+        }
+
+        if (isOwner) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("GROUP SETTINGS", color = c.textSecondary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                // Pinned message — opens an editor dialog.
+                Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(c.bgSecondary).clickable { showPin = true }.padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Icon(Icons.Filled.PushPin, null, tint = c.accent, modifier = Modifier.size(18.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("Pinned message", color = c.textPrimary, fontSize = 15.sp)
+                        Text(group.pinnedText?.takeIf { it.isNotBlank() } ?: "None", color = c.textSecondary, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    Icon(Icons.Filled.Edit, null, tint = c.textSecondary, modifier = Modifier.size(16.dp))
+                }
+                // Who can post.
+                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(c.bgSecondary).padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Who can post", color = c.textPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(percent = 50)).background(c.bgPrimary).padding(3.dp), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                        listOf("all" to "Everyone", "owner_only" to "Owner only").forEach { (key, label) ->
+                            val sel = group.postPolicy == key
+                            Box(
+                                Modifier.weight(1f).clip(RoundedCornerShape(percent = 50)).background(if (sel) c.accent else Color.Transparent)
+                                    .clickable { if (!sel) scope.launch { runCatching { session.patchGroup(groupId, postPolicy = key) } } }.padding(vertical = 8.dp),
+                                contentAlignment = Alignment.Center,
+                            ) { Text(label, color = if (sel) Color.White else c.textSecondary, fontSize = 13.sp) }
+                        }
+                    }
+                }
+                GroupToggleRow("Closed group", "New members can't self-join via search", group.isClosed) { v -> scope.launch { runCatching { session.patchGroup(groupId, isClosed = v) } } }
+                GroupToggleRow("Hide member list", "Only you see the full roster", group.membersHidden) { v -> scope.launch { runCatching { session.patchGroup(groupId, membersHidden = v) } } }
             }
         }
 
@@ -240,6 +279,45 @@ internal fun GroupInfoScreen(session: Session, groupId: Int, onBack: () -> Unit,
             },
             dismissButton = { TextButton(onClick = { showRename = false }) { Text("Cancel", color = c.textSecondary) } },
         )
+    }
+
+    if (showPin) {
+        var pinText by remember { mutableStateOf(group.pinnedText ?: "") }
+        AlertDialog(
+            onDismissRequest = { showPin = false },
+            containerColor = c.bgSecondary,
+            title = { Text("Pinned message", color = c.textPrimary) },
+            text = {
+                OutlinedTextField(
+                    value = pinText, onValueChange = { pinText = it },
+                    placeholder = { Text("Pin a message for everyone", color = c.textSecondary) },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val t = pinText.trim()
+                    showPin = false
+                    scope.launch { runCatching { session.patchGroup(groupId, pinnedText = t) } }
+                }) { Text("Save", color = c.accent) }
+            },
+            dismissButton = { TextButton(onClick = { showPin = false }) { Text("Cancel", color = c.textSecondary) } },
+        )
+    }
+}
+
+@Composable
+private fun GroupToggleRow(title: String, subtitle: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+    val c = RcqTheme.colors
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(c.bgSecondary).padding(horizontal = 14.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, color = c.textPrimary, fontSize = 15.sp)
+            Text(subtitle, color = c.textSecondary, fontSize = 11.sp)
+        }
+        Switch(checked = checked, onCheckedChange = onChange, colors = SwitchDefaults.colors(checkedTrackColor = c.accent))
     }
 }
 

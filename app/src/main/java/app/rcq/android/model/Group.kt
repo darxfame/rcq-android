@@ -37,5 +37,5 @@ data class RcqGroup(
     fun canPost(ownUin: Int): Boolean = postPolicy != "owner_only" || ownUin == ownerUin
 
     fun memberName(uin: Int): String =
-        members.firstOrNull { it.uin == uin }?.nickname ?: "#$uin"
+        members.firstOrNull { it.uin == uin }?.nickname ?: "$uin"
 }
