@@ -35,6 +35,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.rcq.android.data.LocalStores
+import app.rcq.android.net.RcqApi
 import app.rcq.android.ui.CapsuleButton
 import app.rcq.android.ui.ChatScreen
 import app.rcq.android.ui.ChatTarget
@@ -128,8 +129,10 @@ private fun RcqApp(session: Session) {
 @Composable
 private fun Onboarding(onStart: (String?) -> Unit) {
     val c = RcqTheme.colors
-    var showServer by remember { mutableStateOf(false) }
-    var server by remember { mutableStateOf("") }
+    // Server is shown explicitly (prefilled with the default public host)
+    // and editable — so it's clear which server you're joining and you can
+    // point at an organisation island. Matches the iOS onboarding.
+    var server by remember { mutableStateOf(RcqApi.DEFAULT_HOST) }
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(14.dp),
@@ -137,11 +140,12 @@ private fun Onboarding(onStart: (String?) -> Unit) {
     ) {
         Text("RCQ", color = c.textPrimary, fontSize = 48.sp, fontWeight = FontWeight.Bold)
         Text("Private messaging. No phone number.", color = c.textSecondary, fontSize = 15.sp, textAlign = TextAlign.Center)
-        if (showServer) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Text("Server", color = c.textSecondary, fontSize = 12.sp, modifier = Modifier.padding(start = 4.dp, bottom = 4.dp))
             Box(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(c.bgSecondary).padding(horizontal = 14.dp, vertical = 12.dp),
             ) {
-                if (server.isEmpty()) Text("server host (e.g. org.example.com)", color = c.textSecondary, fontSize = 14.sp)
+                if (server.isEmpty()) Text("server host", color = c.textSecondary, fontSize = 14.sp)
                 BasicTextField(
                     value = server,
                     onValueChange = { server = it },
@@ -151,13 +155,12 @@ private fun Onboarding(onStart: (String?) -> Unit) {
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
+            Text(
+                "Default is the public RCQ server. Change it to join an organisation's island.",
+                color = c.textSecondary, fontSize = 11.sp, modifier = Modifier.padding(start = 4.dp, top = 4.dp),
+            )
         }
-        CapsuleButton("Start", onClick = { onStart(server.takeIf { showServer && it.isNotBlank() }) })
-        Text(
-            if (showServer) "Use the default server" else "Connect to a custom server",
-            color = c.textSecondary, fontSize = 13.sp,
-            modifier = Modifier.clickable { showServer = !showServer; if (!showServer) server = "" },
-        )
+        CapsuleButton("Start", onClick = { onStart(server) })
     }
 }
 
