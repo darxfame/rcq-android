@@ -40,6 +40,8 @@ import androidx.compose.material.icons.outlined.Block
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -152,6 +154,7 @@ private fun SettingsRoot(
             Spacer(Modifier.height(22.dp))
             SectionLabel("Appearance")
             SegmentedTheme(themeMode) { LocalStores.setThemeMode(it) }
+            SectionFooter("Choose light, dark, or follow the system theme.")
 
             Spacer(Modifier.height(22.dp))
             SectionLabel("Privacy")
@@ -162,12 +165,14 @@ private fun SettingsRoot(
                 Divider()
                 SettingsRow(Icons.Outlined.Block, "Blocked users", value = if (blockedCount > 0) "$blockedCount" else null) { onOpen(SettingsRoute.BLOCKED) }
             }
+            SectionFooter("Control who can see you, who can reach you, and which server you're on.")
 
             Spacer(Modifier.height(22.dp))
             SectionLabel("History")
             SettingsGroup {
                 SettingsRow(Icons.Filled.DeleteSweep, "Clear chat history", destructive = true) { confirmClear = true }
             }
+            SectionFooter("Removes messages from this device only. Your account and contacts stay.")
 
             Spacer(Modifier.height(22.dp))
             SectionLabel("About")
@@ -339,6 +344,8 @@ private fun PrivacyScreen(session: Session, onOpenCustomServer: () -> Unit, onBa
     var profileVis by remember { mutableStateOf("everyone") }
     var invitePolicy by remember { mutableStateOf("everyone") }
     var receipts by remember { mutableStateOf("everyone") }
+    var presencePersistent by remember { mutableStateOf(false) }
+    var presenceTtl by remember { mutableStateOf(1440) }
 
     androidx.compose.runtime.LaunchedEffect(Unit) {
         session.loadProfile()?.let { p ->
@@ -347,6 +354,8 @@ private fun PrivacyScreen(session: Session, onOpenCustomServer: () -> Unit, onBa
             profileVis = p.profile_visibility ?: "everyone"
             invitePolicy = p.group_invite_policy ?: "everyone"
             receipts = p.read_receipts_visibility ?: "everyone"
+            presencePersistent = p.presence_persistent ?: false
+            presenceTtl = p.presence_ttl_minutes ?: 1440
         }
     }
 
@@ -355,11 +364,40 @@ private fun PrivacyScreen(session: Session, onOpenCustomServer: () -> Unit, onBa
     Column(Modifier.fillMaxSize().background(c.bgPrimary)) {
         SettingsTopBar("Privacy & Network", onBack)
         Column(Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
-            VisibilityPicker("Last seen", lastSeen, listOf("everyone", "contacts", "nobody")) { lastSeen = it; save(RcqApi.UpdateMeBody(last_seen_visibility = it)) }
-            VisibilityPicker("Profile card", profileVis, listOf("everyone", "contacts", "nobody")) { profileVis = it; save(RcqApi.UpdateMeBody(profile_visibility = it)) }
-            VisibilityPicker("Gender", genderVis, listOf("everyone", "contacts", "nobody")) { genderVis = it; save(RcqApi.UpdateMeBody(gender_visibility = it)) }
-            VisibilityPicker("Who can add me to groups", invitePolicy, listOf("everyone", "contacts", "nobody")) { invitePolicy = it; save(RcqApi.UpdateMeBody(group_invite_policy = it)) }
-            VisibilityPicker("Read receipts", receipts, listOf("everyone", "contacts", "nobody")) { receipts = it; save(RcqApi.UpdateMeBody(read_receipts_visibility = it)) }
+            VisibilityPicker("Last seen", lastSeen, listOf("everyone", "contacts", "nobody"), "Who can see when you were last online.") { lastSeen = it; save(RcqApi.UpdateMeBody(last_seen_visibility = it)) }
+
+            // Persistent presence + how long it lingers (iOS parity).
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Stay visible after you leave", color = c.textPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                        Text("Keep showing as recently online for a while after the app closes.", color = c.textSecondary, fontSize = 11.sp)
+                    }
+                    Switch(
+                        checked = presencePersistent,
+                        onCheckedChange = { presencePersistent = it; save(RcqApi.UpdateMeBody(presence_persistent = it)) },
+                        colors = SwitchDefaults.colors(checkedTrackColor = c.accent),
+                    )
+                }
+                if (presencePersistent) {
+                    val ttls = listOf(30 to "30m", 60 to "1h", 180 to "3h", 480 to "8h", 1440 to "24h")
+                    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(percent = 50)).background(c.bgSecondary).padding(3.dp), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                        ttls.forEach { (mins, label) ->
+                            val sel = presenceTtl == mins
+                            Box(
+                                Modifier.weight(1f).clip(RoundedCornerShape(percent = 50)).background(if (sel) c.accent else Color.Transparent)
+                                    .clickable { presenceTtl = mins; save(RcqApi.UpdateMeBody(presence_ttl_minutes = mins)) }.padding(vertical = 8.dp),
+                                contentAlignment = Alignment.Center,
+                            ) { Text(label, color = if (sel) Color.White else c.textSecondary, fontSize = 12.sp) }
+                        }
+                    }
+                }
+            }
+
+            VisibilityPicker("Profile card", profileVis, listOf("everyone", "contacts", "nobody"), "Who can open your full profile (city, age, about).") { profileVis = it; save(RcqApi.UpdateMeBody(profile_visibility = it)) }
+            VisibilityPicker("Gender", genderVis, listOf("everyone", "contacts", "nobody"), "Who can see your gender on your profile.") { genderVis = it; save(RcqApi.UpdateMeBody(gender_visibility = it)) }
+            VisibilityPicker("Who can add me to groups", invitePolicy, listOf("everyone", "contacts", "nobody"), "Who is allowed to add you to a group.") { invitePolicy = it; save(RcqApi.UpdateMeBody(group_invite_policy = it)) }
+            VisibilityPicker("Read receipts", receipts, listOf("everyone", "contacts", "nobody"), "Who sees your blue ticks. Turning this off hides theirs too.") { receipts = it; save(RcqApi.UpdateMeBody(read_receipts_visibility = it)) }
 
             Spacer(Modifier.height(4.dp))
             SectionLabel("Network")
@@ -562,6 +600,12 @@ private fun SectionLabel(text: String) {
     Text(text.uppercase(), color = RcqTheme.colors.textSecondary, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(vertical = 8.dp))
 }
 
+/** Small grey explanation under a settings group, iOS section-footer style. */
+@Composable
+private fun SectionFooter(text: String) {
+    Text(text, color = RcqTheme.colors.textSecondary, fontSize = 11.sp, modifier = Modifier.fillMaxWidth().padding(start = 4.dp, top = 6.dp))
+}
+
 @Composable
 private fun SettingsGroup(content: @Composable () -> Unit) {
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(RcqTheme.colors.bgSecondary)) { content() }
@@ -604,7 +648,7 @@ private fun SegmentedTheme(mode: ThemeMode, onPick: (ThemeMode) -> Unit) {
 }
 
 @Composable
-private fun VisibilityPicker(label: String, value: String, options: List<String>, onPick: (String) -> Unit) {
+private fun VisibilityPicker(label: String, value: String, options: List<String>, desc: String? = null, onPick: (String) -> Unit) {
     val c = RcqTheme.colors
     fun pretty(s: String) = s.replaceFirstChar { it.uppercase() }
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -619,6 +663,7 @@ private fun VisibilityPicker(label: String, value: String, options: List<String>
                 ) { Text(pretty(opt), color = if (sel) Color.White else c.textSecondary, fontSize = 12.sp) }
             }
         }
+        if (desc != null) Text(desc, color = c.textSecondary, fontSize = 11.sp)
     }
 }
 

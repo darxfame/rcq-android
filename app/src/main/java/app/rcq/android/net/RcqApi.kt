@@ -283,6 +283,8 @@ class RcqApi(private val baseUrl: String = DEFAULT_BASE_URL) {
         val profile_visibility: String? = null,
         val group_invite_policy: String? = null,
         val read_receipts_visibility: String? = null,
+        val presence_persistent: Boolean? = null,
+        val presence_ttl_minutes: Int? = null,
     )
 
     suspend fun getMe(uin: Int): MeProfile = withContext(Dispatchers.IO) {
@@ -304,6 +306,8 @@ class RcqApi(private val baseUrl: String = DEFAULT_BASE_URL) {
         val profile_visibility: String? = null,
         val group_invite_policy: String? = null,
         val read_receipts_visibility: String? = null,
+        val presence_persistent: Boolean? = null,
+        val presence_ttl_minutes: Int? = null,
     )
 
     suspend fun updateMe(body: UpdateMeBody): MeProfile = withContext(Dispatchers.IO) {
