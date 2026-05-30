@@ -139,12 +139,7 @@ dependencies {
     // Signal Protocol E2EE
     implementation("org.signal:libsignal-android:0.31.0")
 
-    // Ed25519 (RFC 8032) for account-recovery challenge-response — tiny (~93KB),
-    // genuine Ed25519 verifiable by the server's `cryptography` lib. JCA Ed25519
-    // needs API 33; minSdk is 26, so we use this pure-Java implementation.
-    implementation("net.i2p.crypto:eddsa:0.3.0")
-
-    // BouncyCastle — ChaCha20-Poly1305 for iOS-compatible ECIES v=1 wire format.
+    // BouncyCastle — ChaCha20-Poly1305 + Ed25519Signer for iOS-compatible ECIES v=1.
     // Android's built-in BC is cut-down (no ChaCha); we need the full provider.
     implementation("org.bouncycastle:bcprov-jdk18on:1.78.1")
 
