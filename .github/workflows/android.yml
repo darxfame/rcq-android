@@ -9,6 +9,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -28,10 +30,23 @@ jobs:
       - name: Unit tests
         run: ./gradlew testProductionDebugUnitTest
 
-      - name: Upload APK
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         if: success()
         with:
           name: rcq-debug-apk
           path: app/build/outputs/apk/production/debug/*.apk
           retention-days: 7
+
+      - name: Release latest-debug
+        uses: softprops/action-gh-release@v2
+        if: success() && github.event_name == 'push'
+        with:
+          tag_name: latest-debug
+          name: Latest Debug Build
+          prerelease: true
+          make_latest: false
+          files: app/build/outputs/apk/production/debug/*.apk
+          body: |
+            Автоматическая отладочная сборка из ветки `${{ github.ref_name }}`
+            Коммит: `${{ github.sha }}`
