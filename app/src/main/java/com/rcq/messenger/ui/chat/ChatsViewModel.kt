@@ -119,13 +119,12 @@ class ChatViewModel @Inject constructor(
         messagesJob?.cancel()
         _isLoading.value = true
 
-        // Load chat metadata (title, avatar)
         viewModelScope.launch {
             chatRepository.getChat(chatId)?.let { chat ->
                 _chatTitle.value = chat.targetNickname.ifEmpty { "Chat" }
                 _chatAvatar.value = chat.targetAvatar
             }
-            // Sync messages from server
+            chatRepository.clearUnreadCount(chatId)
             chatRepository.syncMessages(chatId)
         }
 

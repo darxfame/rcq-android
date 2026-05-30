@@ -229,6 +229,8 @@ class ChatRepository @Inject constructor(
     fun typingState(chatId: String): Flow<Boolean> = _typingEvents
         .filter { (cid, _) -> cid == chatId }
         .map { (_, userId) -> userId != 0L }
+
+    suspend fun clearUnreadCount(chatId: String) = chatDao.clearUnreadCount(chatId)
     @Volatile private var currentUserUin: Long = 0L
 
     fun setCurrentUserUin(uin: Long) { currentUserUin = uin }
@@ -345,6 +347,11 @@ class ChatRepository @Inject constructor(
                     is WsEvent.TypingStopped -> {
                         _typingEvents.tryEmit(event.chatId to 0L)
                     }
+                    is WsEvent.PresenceOnline -> contactDao.updateStatus(event.uin, "ONLINE")
+                    is WsEvent.PresenceAway -> contactDao.updateStatus(event.uin, "AWAY")
+                    is WsEvent.PresenceDnd -> contactDao.updateStatus(event.uin, "DND")
+                    is WsEvent.PresenceInvisible -> contactDao.updateStatus(event.uin, "INVISIBLE")
+                    is WsEvent.PresenceOffline -> contactDao.updateStatus(event.uin, "OFFLINE")
                     else -> Unit
                 }
             }

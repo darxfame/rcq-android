@@ -30,6 +30,9 @@ interface ChatDao {
     @Query("UPDATE chats SET unreadCount = unreadCount + 1, updatedAt = :timestamp WHERE id = :chatId")
     suspend fun incrementUnreadCount(chatId: String, timestamp: Long)
 
+    @Query("UPDATE chats SET unreadCount = 0 WHERE id = :chatId")
+    suspend fun clearUnreadCount(chatId: String)
+
     @Query("UPDATE chats SET updatedAt = :timestamp WHERE id = :chatId")
     suspend fun updateTimestamp(chatId: String, timestamp: Long)
 

@@ -44,4 +44,7 @@ interface ContactDao {
 
     @Query("UPDATE contacts SET signingKey = :signingKey WHERE userId = :userId")
     suspend fun updateSigningKey(userId: Long, signingKey: String)
+
+    @Query("UPDATE contacts SET status = :status WHERE userId = :userId")
+    suspend fun updateStatus(userId: Long, status: String)
 }
