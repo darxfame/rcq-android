@@ -828,7 +828,13 @@ class Session(context: Context) {
             } catch (e: Exception) {
                 last = e
                 android.util.Log.w("RCQnet", "attempt ${i + 1}/$attempts failed: ${e.javaClass.simpleName}: ${e.message}")
-                if (i < attempts - 1) delay(300L * (i + 1) * (i + 1)) // 300ms, then 1.2s
+                if (i < attempts - 1) {
+                    // Most cellular send failures are a dead pooled connection
+                    // the server already closed. Evict the pool so the retry
+                    // opens a fresh socket instead of reusing the corpse.
+                    api.evictConnections()
+                    delay(300L * (i + 1) * (i + 1)) // 300ms, then 1.2s
+                }
             }
         }
         throw last ?: IllegalStateException("request failed")
