@@ -94,8 +94,12 @@ class ChatViewModel @Inject constructor(
     private val _sendError = MutableStateFlow<String?>(null)
     val sendError: StateFlow<String?> = _sendError.asStateFlow()
 
+    private val _isTyping = MutableStateFlow(false)
+    val isTyping: StateFlow<Boolean> = _isTyping.asStateFlow()
+
     private var chatId: String = ""
     private var messagesJob: Job? = null
+    private var typingJob: Job? = null
 
     init {
         viewModelScope.launch {
@@ -125,12 +129,16 @@ class ChatViewModel @Inject constructor(
             chatRepository.syncMessages(chatId)
         }
 
-        // Observe DB flow — doesn't block, sets loading false on first emission
         messagesJob = chatRepository.getMessages(chatId)
             .onEach { msgs ->
                 _messages.value = msgs.sortedBy { it.timestamp }
                 _isLoading.value = false
             }
+            .launchIn(viewModelScope)
+
+        typingJob?.cancel()
+        typingJob = chatRepository.typingState(chatId)
+            .onEach { _isTyping.value = it }
             .launchIn(viewModelScope)
     }
 

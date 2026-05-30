@@ -15,9 +15,13 @@ import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.*
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.launchIn
@@ -219,6 +223,12 @@ class ChatRepository @Inject constructor(
     private val outboxDao: PendingOutboxDao
 ) {
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private val _typingEvents = MutableSharedFlow<Pair<String, Long>>(extraBufferCapacity = 16)
+
+    /** Emits true when someone is typing in [chatId], false when stopped. */
+    fun typingState(chatId: String): Flow<Boolean> = _typingEvents
+        .filter { (cid, _) -> cid == chatId }
+        .map { (_, userId) -> userId != 0L }
     @Volatile private var currentUserUin: Long = 0L
 
     fun setCurrentUserUin(uin: Long) { currentUserUin = uin }
@@ -323,7 +333,19 @@ class ChatRepository @Inject constructor(
                             Log.e("ChatRepository", "Failed to handle incoming message: ${e.message}")
                         }
                     }
-                    else -> { /* ignore other events for now */ }
+                    is WsEvent.MessageDelivered -> {
+                        messageDao.updateMessageStatus(event.messageId, "DELIVERED")
+                    }
+                    is WsEvent.MessageRead -> {
+                        messageDao.updateMessageStatus(event.messageId, "READ")
+                    }
+                    is WsEvent.TypingStarted -> {
+                        _typingEvents.tryEmit(event.chatId to event.userId)
+                    }
+                    is WsEvent.TypingStopped -> {
+                        _typingEvents.tryEmit(event.chatId to 0L)
+                    }
+                    else -> Unit
                 }
             }
             .launchIn(scope)

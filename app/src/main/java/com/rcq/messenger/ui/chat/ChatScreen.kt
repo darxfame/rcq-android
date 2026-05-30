@@ -54,6 +54,7 @@ fun ChatScreen(
     val isLoading by viewModel.isLoading.collectAsState()
     val currentUserId by viewModel.currentUserId.collectAsState()
     val chatTitle by viewModel.chatTitle.collectAsState()
+    val isTyping by viewModel.isTyping.collectAsState()
     val recordingState by viewModel.recordingState.collectAsState()
     val playbackState by viewModel.playbackState.collectAsState()
     val activeVoiceId by viewModel.activeVoiceId.collectAsState()
@@ -157,6 +158,8 @@ fun ChatScreen(
                     )
                 }
             }
+
+            TypingIndicator(isVisible = isTyping)
 
             replyTo?.let { reply ->
                 ReplyPreview(
