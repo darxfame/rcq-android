@@ -28,6 +28,8 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.PersonAdd
+import androidx.compose.material.icons.filled.PushPin
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
@@ -111,8 +113,9 @@ internal fun GroupInfoScreen(session: Session, groupId: Int, onBack: () -> Unit,
         }
 
         group.pinnedText?.takeIf { it.isNotBlank() }?.let { pin ->
-            Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp).clip(RoundedCornerShape(10.dp)).background(c.bgSecondary).padding(12.dp)) {
-                Text("📌 $pin", color = c.textPrimary, fontSize = 13.sp)
+            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp).clip(RoundedCornerShape(10.dp)).background(c.bgSecondary).padding(12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(Icons.Filled.PushPin, null, tint = c.accent, modifier = Modifier.size(16.dp))
+                Text(pin, color = c.textPrimary, fontSize = 13.sp)
             }
         }
 
@@ -132,10 +135,14 @@ internal fun GroupInfoScreen(session: Session, groupId: Int, onBack: () -> Unit,
                     StatusIcon(m.presence, size = 26.dp)
                     Column(Modifier.weight(1f)) {
                         Text(m.nickname + if (m.uin == ownUin) " (you)" else "", color = c.textPrimary, fontSize = 15.sp)
-                        Text("#${m.uin}", color = c.textMono, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+                        Text("${m.uin}", color = c.textMono, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
                     }
-                    if (m.role == "owner") Text("👑 owner", color = c.textSecondary, fontSize = 11.sp)
-                    else if (m.role == "admin") Text("admin", color = c.textSecondary, fontSize = 11.sp)
+                    if (m.role == "owner") {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Icon(Icons.Filled.Star, null, tint = c.accent, modifier = Modifier.size(12.dp))
+                            Text("owner", color = c.textSecondary, fontSize = 11.sp)
+                        }
+                    } else if (m.role == "admin") Text("admin", color = c.textSecondary, fontSize = 11.sp)
                 }
             }
         }

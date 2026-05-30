@@ -141,7 +141,7 @@ private fun SettingsRoot(
                 Column(Modifier.weight(1f)) {
                     Text(session.nickname, color = c.textPrimary, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("#$uin", color = c.textMono, fontSize = 13.sp, fontFamily = FontFamily.Monospace)
+                        Text("$uin", color = c.textMono, fontSize = 13.sp, fontFamily = FontFamily.Monospace)
                         Icon(Icons.Filled.ContentCopy, "Copy UIN", tint = c.textSecondary,
                             modifier = Modifier.size(15.dp).clickable { copyUin() })
                     }
@@ -415,7 +415,7 @@ private fun BlockedUsersScreen(session: Session, onBack: () -> Unit) {
                         StatusIcon(ct.presence, size = 26.dp)
                         Column(Modifier.weight(1f)) {
                             Text(ct.nickname, color = c.textPrimary, fontSize = 15.sp)
-                            Text("#${ct.uin}", color = c.textMono, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+                            Text("${ct.uin}", color = c.textMono, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
                         }
                         TextButton(onClick = { scope.launch { runCatching { session.toggleBlock(ct.uin) } } }) {
                             Text("Unblock", color = c.accent)

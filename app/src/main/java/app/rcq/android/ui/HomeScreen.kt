@@ -28,11 +28,17 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AddAPhoto
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.Block
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.NearMe
+import androidx.compose.material.icons.filled.Newspaper
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.PersonAdd
@@ -40,9 +46,11 @@ import androidx.compose.material.icons.filled.PersonRemove
 import androidx.compose.material.icons.filled.QrCode2
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.filled.Unarchive
+import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.Block
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
@@ -103,7 +111,6 @@ internal fun HomeScreen(
     val contacts by session.contacts.collectAsState()
     val groups by session.groups.collectAsState()
     val pending by session.pending.collectAsState()
-    val connected by session.connected.collectAsState()
     val messages by session.messages.collectAsState()
     val ownStatus by session.status.collectAsState()
     val favorites by LocalStores.favorites.collectAsState()
@@ -114,6 +121,9 @@ internal fun HomeScreen(
     var showQr by remember { mutableStateOf(false) }
     var showSearch by remember { mutableStateOf(false) }
     var showCreateGroup by remember { mutableStateOf(false) }
+    // Label of a not-yet-built destination tapped from the header menu /
+    // bottom bar; drives a "coming soon" dialog until the real screen lands.
+    var comingSoon by remember { mutableStateOf<String?>(null) }
     var previewContact by remember { mutableStateOf<Contact?>(null) }
     var previewGroup by remember { mutableStateOf<RcqGroup?>(null) }
     var reportTarget by remember { mutableStateOf<Contact?>(null) }
@@ -143,9 +153,13 @@ internal fun HomeScreen(
             HomeHeader(
                 nickname = session.nickname,
                 uin = uin,
-                connected = connected,
+                serverHost = session.currentServer,
                 ownStatus = ownStatus,
                 onPickStatus = { scope.launch { session.setStatus(it) } },
+                onAddContact = { showAdd = true },
+                onSearch = { showSearch = true },
+                onOpenSettings = onOpenSettings,
+                onComingSoon = { comingSoon = it },
             )
 
             LazyColumn(Modifier.weight(1f).fillMaxWidth()) {
@@ -197,7 +211,8 @@ internal fun HomeScreen(
             BottomBar(
                 onAdd = { showAdd = true },
                 onQr = { showQr = true },
-                onSearch = { showSearch = true },
+                onRandom = { comingSoon = "Random chat" },
+                onNearby = { comingSoon = "Nearby" },
                 onSettings = onOpenSettings,
             )
         }
@@ -213,7 +228,7 @@ internal fun HomeScreen(
         previewContact?.let { ct ->
             PreviewOverlay(
                 title = ct.nickname,
-                subtitle = "#${ct.uin}",
+                subtitle = "${ct.uin}",
                 avatar = { StatusIcon(ct.presence, size = 36.dp) },
                 actions = contactActions(ct, session, scope, onOpenChat, onReport = { reportTarget = it }),
                 onDismiss = { previewContact = null },
@@ -252,6 +267,15 @@ internal fun HomeScreen(
             name = ct.nickname,
             onSubmit = { reason -> scope.launch { runCatching { session.report(ct.uin, reason) } }; reportTarget = null },
             onDismiss = { reportTarget = null },
+        )
+    }
+    comingSoon?.let { feature ->
+        AlertDialog(
+            onDismissRequest = { comingSoon = null },
+            containerColor = c.bgSecondary,
+            title = { Text(feature, color = c.textPrimary) },
+            text = { Text("$feature is coming to the Android app soon.", color = c.textSecondary) },
+            confirmButton = { TextButton(onClick = { comingSoon = null }) { Text("OK", color = c.accent) } },
         )
     }
 }
@@ -302,38 +326,117 @@ private fun groupActions(
     )
 }
 
+/** Home top bar, iOS ContactListView parity: left = account switcher,
+ *  centre = status picker + nick + UIN (no '#', no presence dot), right =
+ *  overflow menu of the things you can do (add contact, search, story,
+ *  news, saved). Items whose screens aren't built yet route to a
+ *  "coming soon" dialog. */
 @Composable
 private fun HomeHeader(
     nickname: String,
     uin: Int,
-    connected: Boolean,
+    serverHost: String,
     ownStatus: UserStatus,
     onPickStatus: (UserStatus) -> Unit,
+    onAddContact: () -> Unit,
+    onSearch: () -> Unit,
+    onOpenSettings: () -> Unit,
+    onComingSoon: (String) -> Unit,
 ) {
     val c = RcqTheme.colors
-    var menu by remember { mutableStateOf(false) }
-    Row(
-        Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        Box {
-            StatusIcon(ownStatus, size = 30.dp, modifier = Modifier.clip(CircleShape).clickable { menu = true })
-            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                listOf(UserStatus.ONLINE, UserStatus.AWAY, UserStatus.DND, UserStatus.INVISIBLE, UserStatus.OFFLINE).forEach { st ->
-                    DropdownMenuItem(
-                        text = { Text(st.label, color = c.textPrimary) },
-                        leadingIcon = { StatusIcon(st, size = 18.dp) },
-                        onClick = { onPickStatus(st); menu = false },
-                    )
-                }
+    var statusMenu by remember { mutableStateOf(false) }
+    var accountMenu by remember { mutableStateOf(false) }
+    var overflowMenu by remember { mutableStateOf(false) }
+
+    Box(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 10.dp)) {
+        // Left — account switcher (single account for now; add/manage are
+        // stubs until multi-identity lands, mirroring the iOS pill).
+        Box(Modifier.align(Alignment.CenterStart)) {
+            Icon(
+                Icons.Outlined.AccountCircle, "Accounts", tint = c.accent,
+                modifier = Modifier.size(28.dp).clip(CircleShape).clickable { accountMenu = true },
+            )
+            DropdownMenu(expanded = accountMenu, onDismissRequest = { accountMenu = false }) {
+                DropdownMenuItem(
+                    text = {
+                        Column {
+                            Text(nickname, color = c.textPrimary, fontWeight = FontWeight.SemiBold)
+                            Text(serverHost, color = c.textSecondary, fontSize = 12.sp)
+                            Text("$uin", color = c.textMono, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+                        }
+                    },
+                    leadingIcon = { Icon(Icons.Filled.Check, null, tint = c.accent) },
+                    onClick = { accountMenu = false },
+                )
+                DropdownMenuItem(
+                    text = { Text("Add account", color = c.textPrimary) },
+                    leadingIcon = { Icon(Icons.Filled.Add, null, tint = c.accent) },
+                    onClick = { accountMenu = false; onComingSoon("Multiple accounts") },
+                )
+                DropdownMenuItem(
+                    text = { Text("Manage accounts", color = c.textPrimary) },
+                    leadingIcon = { Icon(Icons.Outlined.AccountCircle, null, tint = c.accent) },
+                    onClick = { accountMenu = false; onComingSoon("Multiple accounts") },
+                )
             }
         }
-        Column(Modifier.weight(1f)) {
-            Text(nickname, color = c.textPrimary, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Box(Modifier.size(7.dp).clip(CircleShape).background(if (connected) c.statusOnline else c.textSecondary))
-                Text("#$uin", color = c.textMono, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+
+        // Centre — status picker + identity.
+        Row(
+            Modifier.align(Alignment.Center).padding(horizontal = 44.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Box {
+                StatusIcon(ownStatus, size = 30.dp, modifier = Modifier.clip(CircleShape).clickable { statusMenu = true })
+                DropdownMenu(expanded = statusMenu, onDismissRequest = { statusMenu = false }) {
+                    listOf(UserStatus.ONLINE, UserStatus.AWAY, UserStatus.DND, UserStatus.INVISIBLE, UserStatus.OFFLINE).forEach { st ->
+                        DropdownMenuItem(
+                            text = { Text(st.label, color = c.textPrimary) },
+                            leadingIcon = { StatusIcon(st, size = 18.dp) },
+                            onClick = { onPickStatus(st); statusMenu = false },
+                        )
+                    }
+                }
+            }
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(nickname, color = c.textPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text("$uin", color = c.textMono, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+            }
+        }
+
+        // Right — overflow menu.
+        Box(Modifier.align(Alignment.CenterEnd)) {
+            Icon(
+                Icons.Filled.MoreVert, "Menu", tint = c.textPrimary,
+                modifier = Modifier.size(26.dp).clip(CircleShape).clickable { overflowMenu = true },
+            )
+            DropdownMenu(expanded = overflowMenu, onDismissRequest = { overflowMenu = false }) {
+                DropdownMenuItem(
+                    text = { Text("Add contact", color = c.textPrimary) },
+                    leadingIcon = { Icon(Icons.Filled.PersonAdd, null, tint = c.accent) },
+                    onClick = { overflowMenu = false; onAddContact() },
+                )
+                DropdownMenuItem(
+                    text = { Text("Search", color = c.textPrimary) },
+                    leadingIcon = { Icon(Icons.Filled.Search, null, tint = c.accent) },
+                    onClick = { overflowMenu = false; onSearch() },
+                )
+                DropdownMenuItem(
+                    text = { Text("Post story", color = c.textPrimary) },
+                    leadingIcon = { Icon(Icons.Filled.AddAPhoto, null, tint = c.accent) },
+                    onClick = { overflowMenu = false; onComingSoon("Stories") },
+                )
+                DropdownMenuItem(
+                    text = { Text("News", color = c.textPrimary) },
+                    leadingIcon = { Icon(Icons.Filled.Newspaper, null, tint = c.accent) },
+                    onClick = { overflowMenu = false; onComingSoon("News") },
+                )
+                DropdownMenuItem(
+                    text = { Text("Saved messages", color = c.textPrimary) },
+                    leadingIcon = { Icon(Icons.Filled.Bookmark, null, tint = c.accent) },
+                    onClick = { overflowMenu = false; onComingSoon("Saved messages") },
+                )
             }
         }
     }
@@ -388,7 +491,7 @@ private fun GroupRow(group: RcqGroup, ownUin: Int, session: Session, unread: Int
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(group.name, color = c.textPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                if (group.ownerUin == ownUin) Text("👑", fontSize = 11.sp)
+                if (group.ownerUin == ownUin) Icon(Icons.Filled.Star, "Owner", tint = c.accent, modifier = Modifier.size(12.dp))
                 if (muted) Icon(Icons.Filled.NotificationsOff, null, tint = c.textSecondary, modifier = Modifier.size(11.dp))
             }
             Text(
@@ -437,7 +540,7 @@ private fun ContactRowItem(contact: Contact, unread: Int, onClick: () -> Unit, o
                 if (muted) Icon(Icons.Filled.NotificationsOff, null, tint = c.textSecondary, modifier = Modifier.size(11.dp))
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("#${contact.uin}", color = c.textMono, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+                Text("${contact.uin}", color = c.textMono, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
                 val sub = when {
                     !contact.statusMessage.isNullOrEmpty() -> contact.statusMessage
                     contact.presence == UserStatus.OFFLINE && contact.lastSeen != null -> "last seen ${relativeLastSeen(contact.lastSeen)}"
@@ -491,7 +594,7 @@ private fun EmptyState(onAdd: () -> Unit) {
 }
 
 @Composable
-private fun BottomBar(onAdd: () -> Unit, onQr: () -> Unit, onSearch: () -> Unit, onSettings: () -> Unit) {
+private fun BottomBar(onAdd: () -> Unit, onQr: () -> Unit, onRandom: () -> Unit, onNearby: () -> Unit, onSettings: () -> Unit) {
     val c = RcqTheme.colors
     Row(
         Modifier
@@ -505,7 +608,8 @@ private fun BottomBar(onAdd: () -> Unit, onQr: () -> Unit, onSearch: () -> Unit,
     ) {
         BarButton(Icons.Filled.PersonAdd, "Add", onAdd)
         BarButton(Icons.Filled.QrCode2, "QR", onQr)
-        BarButton(Icons.Filled.Search, "Search", onSearch)
+        BarButton(Icons.Filled.Shuffle, "Random", onRandom)
+        BarButton(Icons.Filled.NearMe, "Nearby", onNearby)
         BarButton(Icons.Filled.Settings, "Settings", onSettings)
     }
 }
@@ -609,7 +713,7 @@ private fun SearchOverlay(contacts: List<Contact>, onClose: () -> Unit, onSelect
                     StatusIcon(ct.presence, size = 26.dp)
                     Column {
                         Text(ct.nickname, color = c.textPrimary, fontSize = 15.sp)
-                        Text("#${ct.uin}", color = c.textMono, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+                        Text("${ct.uin}", color = c.textMono, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
                     }
                 }
             }

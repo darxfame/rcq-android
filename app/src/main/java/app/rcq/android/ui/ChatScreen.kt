@@ -47,9 +47,12 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -130,7 +133,7 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
 
     fun authorName(m: ChatMessage): String = when {
         m.fromMe -> "You"
-        isGroup -> group?.memberName(m.senderUin ?: 0) ?: "#${m.senderUin}"
+        isGroup -> group?.memberName(m.senderUin ?: 0) ?: "${m.senderUin}"
         else -> session.contactName(peer ?: 0)
     }
 
@@ -256,7 +259,7 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
                         if (n == 1) "1 member" else "$n members"
                     }
                     isTyping -> "typing…"
-                    peerContact == null -> "#$peer"
+                    peerContact == null -> "$peer"
                     peerContact.presence == UserStatus.OFFLINE && peerContact.lastSeen != null -> "last seen ${relativeLastSeen(peerContact.lastSeen)}"
                     else -> peerContact.presence.label.lowercase()
                 }
@@ -266,8 +269,9 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
 
         // Pinned banner (groups).
         group?.pinnedText?.takeIf { it.isNotBlank() }?.let { pin ->
-            Row(Modifier.fillMaxWidth().background(c.bgSecondary).padding(horizontal = 12.dp, vertical = 6.dp)) {
-                Text("📌 $pin", color = c.textSecondary, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Row(Modifier.fillMaxWidth().background(c.bgSecondary).padding(horizontal = 12.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Icon(Icons.Filled.PushPin, null, tint = c.textSecondary, modifier = Modifier.size(14.dp))
+                Text(pin, color = c.textSecondary, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
         }
 
@@ -290,7 +294,7 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
                     Text(authorName(rt), color = c.accent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                     Text(previewOf(rt), color = c.textSecondary, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
-                Text("✕", color = c.textSecondary, modifier = Modifier.clickable { replyTarget = null }.padding(8.dp))
+                Icon(Icons.Filled.Close, "Cancel reply", tint = c.textSecondary, modifier = Modifier.clickable { replyTarget = null }.padding(8.dp).size(18.dp))
             }
         }
 
@@ -510,11 +514,11 @@ private fun MessageAction(label: String, danger: Boolean = false, onClick: () ->
 }
 
 private fun previewOf(m: ChatMessage): String = when (m.kind) {
-    "photo" -> "📷 Photo"
-    "file" -> "📎 ${m.fileName ?: "File"}"
-    "voice" -> "🎤 Voice"
-    "video" -> "🎬 Video"
-    "location" -> "📍 Location"
+    "photo" -> "Photo"
+    "file" -> m.fileName ?: "File"
+    "voice" -> "Voice message"
+    "video" -> "Video"
+    "location" -> "Location"
     else -> m.body.take(100)
 }
 
@@ -638,7 +642,7 @@ private fun FileBubble(session: Session, m: ChatMessage, onLongPress: () -> Unit
             )
             .padding(horizontal = 12.dp, vertical = 10.dp),
     ) {
-        Text("📄", fontSize = 22.sp)
+        Icon(Icons.Filled.Description, null, tint = c.accent, modifier = Modifier.size(24.dp))
         Column {
             Text(m.fileName ?: "file", color = c.textPrimary, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(formatFileSize(m.fileSize ?: 0L), color = c.textSecondary, fontSize = 11.sp)
@@ -691,7 +695,7 @@ private fun VoiceBubble(session: Session, m: ChatMessage, onLongPress: () -> Uni
             if (playing) Icons.Filled.Pause else Icons.Filled.PlayArrow,
             "Play voice", tint = c.accent, modifier = Modifier.size(26.dp),
         )
-        Text("🎤 ${formatDuration(m.durationSec ?: 0)}", color = c.textPrimary, fontSize = 14.sp)
+        Text(formatDuration(m.durationSec ?: 0), color = c.textPrimary, fontSize = 14.sp)
     }
 }
 
@@ -772,7 +776,7 @@ private fun LocationBubble(m: ChatMessage, onLongPress: () -> Unit) {
             )
             .padding(horizontal = 14.dp, vertical = 10.dp),
     ) {
-        Text("📍", fontSize = 22.sp)
+        Icon(Icons.Filled.LocationOn, null, tint = c.accent, modifier = Modifier.size(24.dp))
         Column {
             Text(if (m.body.isNotEmpty()) m.body else "Location", color = c.textPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
             Text("%.5f, %.5f".format(lat, lng), color = c.textSecondary, fontSize = 11.sp)

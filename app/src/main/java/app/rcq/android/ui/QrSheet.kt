@@ -70,7 +70,7 @@ fun QrDialog(uin: Int, onDismiss: () -> Unit) {
                     )
                 }
                 Text(
-                    "#$uin",
+                    "$uin",
                     color = c.textPrimary,
                     fontSize = 22.sp,
                     fontFamily = FontFamily.Monospace,
