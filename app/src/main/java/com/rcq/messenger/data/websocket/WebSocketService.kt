@@ -9,6 +9,7 @@ import android.util.Log
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import com.rcq.messenger.di.PreferencesKeys
+import com.rcq.messenger.service.ProxyManager
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
@@ -168,7 +169,8 @@ class ReconnectStrategy(
 @Singleton
 class WebSocketService @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val dataStore: DataStore<Preferences>
+    private val dataStore: DataStore<Preferences>,
+    private val proxyManager: ProxyManager
 ) {
     companion object {
         private const val TAG = "WebSocketService"
@@ -292,6 +294,7 @@ class WebSocketService @Inject constructor(
                 Log.d(TAG, "WebSocket connected")
                 _connectionState.value = ConnectionState.CONNECTED
                 reconnectStrategy.reset()
+                proxyManager.reportSuccess()
                 startWatchdog()
             }
 
@@ -317,6 +320,7 @@ class WebSocketService @Inject constructor(
                 Log.e(TAG, "WebSocket failure: ${t.message}")
                 _connectionState.value = ConnectionState.ERROR
                 watchdogJob?.cancel()
+                proxyManager.reportFailure()
                 scheduleReconnect()
             }
         })

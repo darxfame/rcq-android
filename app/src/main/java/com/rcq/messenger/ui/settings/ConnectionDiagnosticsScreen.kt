@@ -57,7 +57,7 @@ class DiagnosticsViewModel @Inject constructor(
                 withContext(Dispatchers.IO) {
                     val conn = java.net.URL("${BuildConfig.API_BASE_URL}health")
                         .openConnection() as java.net.HttpURLConnection
-                    conn.requestMethod = "HEAD"
+                    conn.requestMethod = "GET"
                     conn.connectTimeout = 5_000
                     conn.readTimeout = 5_000
                     val code = conn.responseCode

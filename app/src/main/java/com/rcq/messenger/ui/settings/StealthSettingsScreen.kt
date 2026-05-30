@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.rcq.messenger.service.BypassMode
 import com.rcq.messenger.service.ProxyManager
 import com.rcq.messenger.service.RelayConfigRepository
 import com.rcq.messenger.service.SingBoxTransport
@@ -36,14 +37,31 @@ class StealthViewModel @Inject constructor(
     val relayRepo: RelayConfigRepository
 ) : ViewModel() {
 
-    val singboxEnabled = MutableStateFlow(singBox.isEnabled)
+    val bypassMode = MutableStateFlow(proxyManager.bypassMode)
     val singboxActive = MutableStateFlow(singBox.isActive)
     val lastError = MutableStateFlow(singBox.lastStartError)
     val manualProxy = MutableStateFlow(proxyManager.manualProxyUrl)
-    val autoDisabled = MutableStateFlow(proxyManager.singboxAutoDisabled)
     val refreshing = MutableStateFlow(false)
-    private val _statusLabel = MutableStateFlow(proxyManager.stealthStatusLabel())
-    val statusLabel: StateFlow<String> = _statusLabel
+
+    val statusLabel: StateFlow<String> = proxyManager.statusLabel
+
+    // Совместимость со старым кодом
+    val singboxEnabled = MutableStateFlow(singBox.isEnabled)
+    val autoDisabled = MutableStateFlow(proxyManager.singboxAutoDisabled)
+
+    fun setBypassMode(mode: BypassMode) {
+        proxyManager.bypassMode = mode
+        bypassMode.value = mode
+        autoDisabled.value = proxyManager.singboxAutoDisabled
+        if (mode == BypassMode.AUTO) {
+            viewModelScope.launch {
+                singBox.setEnabled(true)
+                singboxEnabled.value = singBox.isEnabled
+                singboxActive.value = singBox.isActive
+                lastError.value = singBox.lastStartError
+            }
+        }
+    }
 
     fun refreshRelays() {
         viewModelScope.launch {
@@ -59,23 +77,13 @@ class StealthViewModel @Inject constructor(
             singboxEnabled.value = on
             singboxActive.value = singBox.isActive
             lastError.value = singBox.lastStartError
-            updateStatus()
         }
-    }
-
-    fun setAutoDisabled(on: Boolean) {
-        proxyManager.singboxAutoDisabled = on
-        autoDisabled.value = on
-        updateStatus()
     }
 
     fun saveManualProxy(url: String) {
         proxyManager.manualProxyUrl = url
         manualProxy.value = url
-        updateStatus()
     }
-
-    private fun updateStatus() { _statusLabel.value = proxyManager.stealthStatusLabel() }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -84,11 +92,10 @@ fun StealthSettingsScreen(
     onBack: () -> Unit,
     viewModel: StealthViewModel = hiltViewModel()
 ) {
-    val singboxEnabled by viewModel.singboxEnabled.collectAsState()
+    val bypassMode by viewModel.bypassMode.collectAsState()
     val singboxActive by viewModel.singboxActive.collectAsState()
     val lastError by viewModel.lastError.collectAsState()
     val manualProxy by viewModel.manualProxy.collectAsState()
-    val autoDisabled by viewModel.autoDisabled.collectAsState()
     val statusLabel by viewModel.statusLabel.collectAsState()
     val refreshing by viewModel.refreshing.collectAsState()
 
@@ -124,10 +131,10 @@ fun StealthSettingsScreen(
                     .background(Surface, RoundedCornerShape(50))
                     .padding(horizontal = 12.dp, vertical = 6.dp)
             ) {
-                val statusColor = when {
-                    manualProxy.isNotBlank() -> Primary
-                    singboxActive -> Warning
-                    else -> Online
+                val statusColor = when (bypassMode) {
+                    BypassMode.OFF -> TextSecondary
+                    BypassMode.MANUAL -> Primary
+                    BypassMode.AUTO -> if (singboxActive) Warning else Online
                 }
                 Box(Modifier.size(8.dp).background(statusColor, RoundedCornerShape(50)))
                 Spacer(Modifier.width(8.dp))
@@ -138,108 +145,119 @@ fun StealthSettingsScreen(
                 )
             }
 
-            // Sing-box toggle
+            // Bypass mode selector
             SettingsCard {
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text("Sing-box (авто)", style = MaterialTheme.typography.titleSmall, color = TextPrimary)
-                        Text("VLESS+Reality / Hysteria2 — встроенный прокси",
-                            style = MaterialTheme.typography.bodySmall, color = TextSecondary)
-                    }
-                    Switch(
-                        checked = singboxEnabled,
-                        onCheckedChange = { viewModel.setSingboxEnabled(it) },
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = Primary,
-                            checkedTrackColor = Primary.copy(alpha = 0.4f)
-                        )
-                    )
-                }
-                if (lastError != null) {
-                    Spacer(Modifier.height(6.dp))
-                    Text(lastError!!, style = MaterialTheme.typography.bodySmall, color = Error)
-                }
-                if (singboxActive) {
-                    Spacer(Modifier.height(4.dp))
-                    Text("Активен: 127.0.0.1:${SingBoxTransport.LOCAL_PORT}",
-                        style = MaterialTheme.typography.bodySmall, color = Online)
-                }
-            }
-
-            // Auto-disable toggle
-            SettingsCard {
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text("Отключить авто-включение", style = MaterialTheme.typography.titleSmall, color = TextPrimary)
-                        Text("Для пользователей с собственным VPN",
-                            style = MaterialTheme.typography.bodySmall, color = TextSecondary)
-                    }
-                    Switch(
-                        checked = autoDisabled,
-                        onCheckedChange = { viewModel.setAutoDisabled(it) },
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = Primary,
-                            checkedTrackColor = Primary.copy(alpha = 0.4f)
-                        )
-                    )
-                }
-            }
-
-            // Manual proxy
-            SettingsCard {
-                Text("Ручной прокси", style = MaterialTheme.typography.titleSmall, color = TextSecondary)
+                Text(
+                    "Режим обхода блокировок",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = TextSecondary
+                )
+                Spacer(Modifier.height(10.dp))
+                BypassModeSelector(
+                    selected = bypassMode,
+                    onSelect = { viewModel.setBypassMode(it) }
+                )
                 Spacer(Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = draftProxy,
-                    onValueChange = { draftProxy = it },
-                    placeholder = { Text("socks5://127.0.0.1:1080", color = TextSecondary) },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Primary,
-                        unfocusedBorderColor = TextSecondary.copy(alpha = 0.3f),
-                        focusedTextColor = TextPrimary,
-                        unfocusedTextColor = TextPrimary
-                    ),
-                    trailingIcon = {
-                        if (draftProxy != manualProxy) {
-                            IconButton(onClick = { viewModel.saveManualProxy(draftProxy) }) {
-                                Icon(Icons.Default.Check, null, tint = Primary)
+                Text(
+                    when (bypassMode) {
+                        BypassMode.OFF -> "Прямое подключение без прокси."
+                        BypassMode.AUTO -> "После 3 неудач подряд автоматически запускает sing-box."
+                        BypassMode.MANUAL -> "Всегда использует указанный прокси-адрес."
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextSecondary
+                )
+            }
+
+            // Manual proxy input (only in MANUAL mode)
+            if (bypassMode == BypassMode.MANUAL) {
+                SettingsCard {
+                    Text("Адрес прокси", style = MaterialTheme.typography.titleSmall, color = TextSecondary)
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = draftProxy,
+                        onValueChange = { draftProxy = it },
+                        placeholder = { Text("socks5://127.0.0.1:1080", color = TextSecondary) },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Primary,
+                            unfocusedBorderColor = TextSecondary.copy(alpha = 0.3f),
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary
+                        ),
+                        trailingIcon = {
+                            if (draftProxy != manualProxy) {
+                                IconButton(onClick = { viewModel.saveManualProxy(draftProxy) }) {
+                                    Icon(Icons.Default.Check, null, tint = Primary)
+                                }
+                            }
+                        }
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "socks5:// или http://",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextSecondary
+                    )
+                }
+            }
+
+            // Sing-box status card (AUTO mode)
+            if (bypassMode == BypassMode.AUTO) {
+                SettingsCard {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Sing-box", style = MaterialTheme.typography.titleSmall, color = TextPrimary)
+                            Text(
+                                if (singboxActive) "Активен: 127.0.0.1:${SingBoxTransport.LOCAL_PORT}"
+                                else "Ожидает ошибок соединения",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (singboxActive) Online else TextSecondary
+                            )
+                        }
+                        if (singboxActive) {
+                            Surface(
+                                color = Online.copy(alpha = 0.15f),
+                                shape = RoundedCornerShape(50)
+                            ) {
+                                Text(
+                                    "ON",
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = Online
+                                )
                             }
                         }
                     }
-                )
-                Spacer(Modifier.height(4.dp))
-                Text("socks5:// или http://. Пусто — прямое подключение.",
-                    style = MaterialTheme.typography.bodySmall, color = TextSecondary)
-            }
-
-            // Relay refresh
-            SettingsCard {
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text("Ретрансляторы", style = MaterialTheme.typography.titleSmall, color = TextPrimary)
-                        Text("$relayCount реле доступно",
-                            style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                    if (lastError != null) {
+                        Spacer(Modifier.height(6.dp))
+                        Text(lastError!!, style = MaterialTheme.typography.bodySmall, color = Error)
                     }
-                    if (refreshing) {
-                        CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = Primary)
-                    } else {
-                        TextButton(onClick = { viewModel.refreshRelays() }) {
-                            Text("Обновить", color = Primary)
+
+                    Spacer(Modifier.height(8.dp))
+                    HorizontalDivider(color = Surface)
+                    Spacer(Modifier.height(8.dp))
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Ретрансляторы", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                            Text("$relayCount доступно", style = MaterialTheme.typography.bodySmall, color = TextPrimary)
+                        }
+                        if (refreshing) {
+                            CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = Primary)
+                        } else {
+                            TextButton(onClick = { viewModel.refreshRelays() }) {
+                                Text("Обновить", color = Primary)
+                            }
                         }
                     }
                 }
@@ -248,14 +266,40 @@ fun StealthSettingsScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SettingsCard(content: @Composable ColumnScope.() -> Unit) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(com.rcq.messenger.ui.theme.Surface, RoundedCornerShape(12.dp))
-            .padding(16.dp)
+fun BypassModeSelector(selected: BypassMode, onSelect: (BypassMode) -> Unit) {
+    val options = listOf(
+        BypassMode.OFF to "Выкл",
+        BypassMode.AUTO to "Авто",
+        BypassMode.MANUAL to "Ручной"
+    )
+    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+        options.forEachIndexed { index, (mode, label) ->
+            SegmentedButton(
+                shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size),
+                onClick = { onSelect(mode) },
+                selected = selected == mode,
+                colors = SegmentedButtonDefaults.colors(
+                    activeContainerColor = Primary.copy(alpha = 0.15f),
+                    activeContentColor = Primary,
+                    inactiveContainerColor = Surface,
+                    inactiveContentColor = TextSecondary
+                )
+            ) {
+                Text(label, style = MaterialTheme.typography.labelMedium)
+            }
+        }
+    }
+}
+
+@Composable
+fun SettingsCard(content: @Composable ColumnScope.() -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = Surface),
+        shape = RoundedCornerShape(12.dp)
     ) {
-        Column(content = content)
+        Column(modifier = Modifier.padding(16.dp), content = content)
     }
 }
