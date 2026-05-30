@@ -347,6 +347,7 @@ class Session(context: Context) {
         fileMime: String? = null,
         fileSize: Long? = null,
         durationSec: Int? = null,
+        thumbB64: String? = null,
     ) {
         val me = store.uin ?: return
         storeGroup(
@@ -357,7 +358,7 @@ class Session(context: Context) {
                 replyToSnippet = replyTo?.snippet, replyToAuthor = replyTo?.authorName,
                 groupId = groupId, senderUin = me,
                 fileName = fileName, fileMime = fileMime, fileSize = fileSize,
-                durationSec = durationSec,
+                durationSec = durationSec, thumbB64 = thumbB64,
             )
         )
         fanOutGroup(groupId, env, id)
@@ -414,6 +415,9 @@ class Session(context: Context) {
                 )
                 is Envelope.Voice -> storeGroup(
                     ChatMessage(env.id, 0, false, "", now, kind = "voice", mediaId = env.mediaId, mediaKey = env.mediaKey, durationSec = env.durationSec.toInt(), groupId = groupId, senderUin = dec.senderUin)
+                )
+                is Envelope.Video -> storeGroup(
+                    ChatMessage(env.id, 0, false, env.caption ?: "", now, kind = "video", mediaId = env.mediaId, mediaKey = env.mediaKey, durationSec = env.durationSec.toInt(), thumbB64 = env.thumbnailB64, groupId = groupId, senderUin = dec.senderUin)
                 )
                 is Envelope.Reaction -> env.asset?.let { addGroupReaction(groupId, env.targetId, it) }
                 is Envelope.Delete -> {
@@ -534,6 +538,30 @@ class Session(context: Context) {
         sendGroupEnvelope(groupId, env, env.id, "", kind = "voice", mediaId = upload.media_id, mediaKey = keyB64, durationSec = durationSec)
     }
 
+    /** Encrypt+upload a picked video, then send a video envelope carrying a
+     *  base64 poster thumbnail so the bubble renders before download. */
+    suspend fun sendVideo(toUin: Int, bytes: ByteArray, thumbB64: String, durationSec: Int, caption: String?) {
+        val key = MediaCrypto.newKey()
+        val blob = MediaCrypto.seal(bytes, key)
+        val keyB64 = Base64.encodeToString(key, Base64.NO_WRAP)
+        val upload = api.uploadBlob(blob)
+        imageCache[upload.media_id] = bytes
+        val env = Envelope.video(upload.media_id, keyB64, thumbB64, durationSec.toDouble(), caption)
+        store(ChatMessage(env.id, toUin, true, caption ?: "", System.currentTimeMillis(), DeliveryState.SENDING, kind = "video", mediaId = upload.media_id, mediaKey = keyB64, durationSec = durationSec, thumbB64 = thumbB64))
+        sendEnvelope(env, env.id, toUin)
+    }
+
+    /** Group video: encrypt once, fan out per member. */
+    suspend fun sendGroupVideo(groupId: Int, bytes: ByteArray, thumbB64: String, durationSec: Int, caption: String?) {
+        val key = MediaCrypto.newKey()
+        val blob = MediaCrypto.seal(bytes, key)
+        val keyB64 = Base64.encodeToString(key, Base64.NO_WRAP)
+        val upload = api.uploadBlob(blob)
+        imageCache[upload.media_id] = bytes
+        val env = Envelope.video(upload.media_id, keyB64, thumbB64, durationSec.toDouble(), caption)
+        sendGroupEnvelope(groupId, env, env.id, caption ?: "", kind = "video", mediaId = upload.media_id, mediaKey = keyB64, durationSec = durationSec, thumbB64 = thumbB64)
+    }
+
     /** Rebuild the wire envelope for a stored outgoing message (resend). */
     private fun resendEnvelope(msg: ChatMessage): Envelope = when {
         msg.kind == "photo" && msg.mediaId != null && msg.mediaKey != null ->
@@ -542,6 +570,8 @@ class Session(context: Context) {
             Envelope.File(msg.id, msg.mediaId, msg.mediaKey, msg.fileName ?: "file", msg.fileMime ?: "application/octet-stream", msg.fileSize ?: 0L, msg.body.ifEmpty { null })
         msg.kind == "voice" && msg.mediaId != null && msg.mediaKey != null ->
             Envelope.Voice(msg.id, msg.mediaId, msg.mediaKey, (msg.durationSec ?: 0).toDouble())
+        msg.kind == "video" && msg.mediaId != null && msg.mediaKey != null ->
+            Envelope.Video(msg.id, msg.mediaId, msg.mediaKey, msg.thumbB64 ?: "", (msg.durationSec ?: 0).toDouble(), msg.body.ifEmpty { null })
         else -> Envelope.Text(msg.id, msg.body)
     }
 
@@ -752,6 +782,8 @@ class Session(context: Context) {
                     store(ChatMessage(env.id, dec.senderUin, false, env.caption ?: "", now, kind = "file", mediaId = env.mediaId, mediaKey = env.mediaKey, fileName = env.fileName, fileMime = env.mime, fileSize = env.sizeBytes))
                 is Envelope.Voice ->
                     store(ChatMessage(env.id, dec.senderUin, false, "", now, kind = "voice", mediaId = env.mediaId, mediaKey = env.mediaKey, durationSec = env.durationSec.toInt()))
+                is Envelope.Video ->
+                    store(ChatMessage(env.id, dec.senderUin, false, env.caption ?: "", now, kind = "video", mediaId = env.mediaId, mediaKey = env.mediaKey, durationSec = env.durationSec.toInt(), thumbB64 = env.thumbnailB64))
                 is Envelope.Reaction -> env.asset?.let { addPeerReaction(dec.senderUin, env.targetId, it) }
                 is Envelope.Delete -> {
                     // Author-only: a peer can only retract their own message.

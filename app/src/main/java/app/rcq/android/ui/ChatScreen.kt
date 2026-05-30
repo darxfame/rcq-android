@@ -149,6 +149,16 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
         }
     }
 
+    val videoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) scope.launch {
+            val v = withContext(Dispatchers.IO) { readPickedVideo(context, uri) }
+            if (v != null) runCatching {
+                if (isGroup) session.sendGroupVideo(groupId!!, v.bytes, v.thumbB64, v.durationSec, null)
+                else session.sendVideo(peer!!, v.bytes, v.thumbB64, v.durationSec, null)
+            }
+        }
+    }
+
     // ── voice recording ──────────────────────────────────────────────
     val recorder = remember { VoiceRecorder(context.cacheDir) }
     var recording by remember { mutableStateOf(false) }
@@ -376,6 +386,7 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
             text = {
                 Column {
                     MessageAction("Photo") { attachMenu = false; picker.launch("image/*") }
+                    MessageAction("Video") { attachMenu = false; videoPicker.launch("video/*") }
                     MessageAction("File") { attachMenu = false; filePicker.launch("*/*") }
                 }
             },
@@ -478,6 +489,7 @@ private fun previewOf(m: ChatMessage): String = when (m.kind) {
     "photo" -> "📷 Photo"
     "file" -> "📎 ${m.fileName ?: "File"}"
     "voice" -> "🎤 Voice"
+    "video" -> "🎬 Video"
     else -> m.body.take(100)
 }
 
@@ -500,6 +512,14 @@ private fun MessageBubble(session: Session, m: ChatMessage, senderName: String?,
             }
         } else if (m.kind == "file") {
             FileBubble(session, m, onLongPress)
+        } else if (m.kind == "video") {
+            VideoBubble(session, m, onLongPress)
+            if (m.body.isNotEmpty()) {
+                Text(
+                    m.body, color = c.textPrimary, fontSize = 14.sp,
+                    modifier = Modifier.padding(top = 2.dp).clip(RoundedCornerShape(10.dp)).background(if (m.fromMe) c.bubbleSelf else c.bubbleOther).padding(horizontal = 10.dp, vertical = 6.dp),
+                )
+            }
         } else if (m.kind == "voice") {
             VoiceBubble(session, m, onLongPress)
         } else {
@@ -648,6 +668,60 @@ private fun VoiceBubble(session: Session, m: ChatMessage, onLongPress: () -> Uni
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun VideoBubble(session: Session, m: ChatMessage, onLongPress: () -> Unit) {
+    val c = RcqTheme.colors
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val thumb = remember(m.id) {
+        m.thumbB64?.takeIf { it.isNotEmpty() }?.let {
+            runCatching {
+                val b = android.util.Base64.decode(it, android.util.Base64.NO_WRAP)
+                BitmapFactory.decodeByteArray(b, 0, b.size)?.asImageBitmap()
+            }.getOrNull()
+        }
+    }
+    Box(
+        Modifier
+            .size(220.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(c.bgSecondary)
+            .combinedClickable(
+                onClick = {
+                    val mid = m.mediaId; val key = m.mediaKey
+                    if (mid != null && key != null) scope.launch {
+                        val bytes = session.fetchImage(mid, key)
+                        if (bytes != null) openFile(context, bytes, "video-${m.id}.mp4", "video/mp4")
+                    }
+                },
+                onLongClick = onLongPress,
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (thumb != null) {
+            Image(bitmap = thumb, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+        }
+        Box(
+            Modifier.size(48.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.45f)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(Icons.Filled.PlayArrow, "Play video", tint = Color.White, modifier = Modifier.size(30.dp))
+        }
+        (m.durationSec ?: 0).takeIf { it > 0 }?.let {
+            Text(
+                formatDuration(it), color = Color.White, fontSize = 11.sp,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(6.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(Color.Black.copy(alpha = 0.5f))
+                    .padding(horizontal = 5.dp, vertical = 1.dp),
+            )
+        }
+    }
+}
+
 /** Read a picked file's bytes + display name + MIME from a content URI. */
 private fun readPickedFile(context: Context, uri: Uri): PickedFile? = runCatching {
     val cr = context.contentResolver
@@ -662,6 +736,35 @@ private fun readPickedFile(context: Context, uri: Uri): PickedFile? = runCatchin
 }.getOrNull()
 
 private data class PickedFile(val bytes: ByteArray, val name: String, val mime: String)
+
+private data class PickedVideo(val bytes: ByteArray, val thumbB64: String, val durationSec: Int)
+
+/** Read a picked video: raw bytes + a base64 JPEG poster frame (so the
+ *  bubble renders before the blob downloads) + duration in seconds. */
+private fun readPickedVideo(context: Context, uri: Uri): PickedVideo? = runCatching {
+    val cr = context.contentResolver
+    val bytes = cr.openInputStream(uri)?.use { it.readBytes() } ?: return@runCatching null
+    val mmr = android.media.MediaMetadataRetriever()
+    val (thumbB64, durSec) = try {
+        mmr.setDataSource(context, uri)
+        val durMs = mmr.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLongOrNull() ?: 0L
+        val b64 = mmr.getFrameAtTime(0)?.let { bm ->
+            val maxSide = 320
+            val longest = maxOf(bm.width, bm.height)
+            val scaled = if (longest > maxSide) {
+                val f = maxSide.toFloat() / longest
+                Bitmap.createScaledBitmap(bm, (bm.width * f).toInt().coerceAtLeast(1), (bm.height * f).toInt().coerceAtLeast(1), true)
+            } else bm
+            val out = ByteArrayOutputStream()
+            scaled.compress(Bitmap.CompressFormat.JPEG, 70, out)
+            android.util.Base64.encodeToString(out.toByteArray(), android.util.Base64.NO_WRAP)
+        } ?: ""
+        b64 to (durMs / 1000L).toInt()
+    } finally {
+        runCatching { mmr.release() }
+    }
+    PickedVideo(bytes, thumbB64, durSec)
+}.getOrNull()
 
 /** Write decrypted bytes to the cache and hand them to a viewer via a
  *  FileProvider URI (chooser fallback so the user can always save it). */

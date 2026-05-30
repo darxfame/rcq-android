@@ -60,6 +60,17 @@ sealed interface Envelope {
         val mediaKey: String,
         val durationSec: Double,
     ) : Envelope
+    /** Video (iOS kind "video"). Bytes in an encrypted blob; [thumbnailB64]
+     *  is a base64 JPEG poster frame shown before download, [durationSec]
+     *  drives the bubble. */
+    data class Video(
+        val id: String,
+        val mediaId: String,
+        val mediaKey: String,
+        val thumbnailB64: String,
+        val durationSec: Double,
+        val caption: String?,
+    ) : Envelope
     data class Unknown(val kind: String) : Envelope
 
     /** Serialize to the exact JSON bytes that get signed and shipped.
@@ -119,6 +130,15 @@ sealed interface Envelope {
             addProperty("mediaKey", mediaKey)
             addProperty("durationSec", durationSec)
         }.toString().toByteArray(Charsets.UTF_8)
+        is Video -> JsonObject().apply {
+            addProperty("kind", "video")
+            addProperty("id", id)
+            addProperty("mediaID", mediaId)
+            addProperty("mediaKey", mediaKey)
+            addProperty("thumbnailB64", thumbnailB64)
+            addProperty("durationSec", durationSec)
+            if (!caption.isNullOrEmpty()) addProperty("caption", caption)
+        }.toString().toByteArray(Charsets.UTF_8)
         is Unknown -> JsonObject().apply { addProperty("kind", kind) }
             .toString().toByteArray(Charsets.UTF_8)
     }
@@ -143,6 +163,9 @@ sealed interface Envelope {
 
         fun voice(mediaId: String, mediaKey: String, durationSec: Double): Voice =
             Voice(UUID.randomUUID().toString().uppercase(), mediaId, mediaKey, durationSec)
+
+        fun video(mediaId: String, mediaKey: String, thumbnailB64: String, durationSec: Double, caption: String?): Video =
+            Video(UUID.randomUUID().toString().uppercase(), mediaId, mediaKey, thumbnailB64, durationSec, caption)
 
         fun fromJsonBytes(bytes: ByteArray): Envelope {
             val obj = JsonParser.parseString(String(bytes, Charsets.UTF_8)).asJsonObject
@@ -188,6 +211,14 @@ sealed interface Envelope {
                     mediaId = obj.get("mediaID")?.asString.orEmpty(),
                     mediaKey = obj.get("mediaKey")?.asString.orEmpty(),
                     durationSec = obj.get("durationSec")?.asDouble ?: 0.0,
+                )
+                "video" -> Video(
+                    id = id,
+                    mediaId = obj.get("mediaID")?.asString.orEmpty(),
+                    mediaKey = obj.get("mediaKey")?.asString.orEmpty(),
+                    thumbnailB64 = obj.get("thumbnailB64")?.asString.orEmpty(),
+                    durationSec = obj.get("durationSec")?.asDouble ?: 0.0,
+                    caption = obj.get("caption")?.asString,
                 )
                 else -> Unknown(kind ?: "unknown")
             }
