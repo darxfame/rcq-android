@@ -77,7 +77,7 @@ import kotlinx.coroutines.launch
 private enum class SettingsRoute { ROOT, PROFILE, PRIVACY, NOTIFICATIONS, BLOCKED, CUSTOM_SERVER, SOUNDS, LANGUAGE }
 
 @Composable
-internal fun SettingsScreen(session: Session, uin: Int, onBack: () -> Unit, onBurned: () -> Unit, onMigrated: (Int) -> Unit) {
+internal fun SettingsScreen(session: Session, uin: Int, onBack: () -> Unit, onBurned: (Int?) -> Unit, onMigrated: (Int) -> Unit) {
     var route by remember { mutableStateOf(SettingsRoute.ROOT) }
     when (route) {
         SettingsRoute.ROOT -> SettingsRoot(
@@ -109,7 +109,7 @@ private fun SettingsRoot(
     session: Session,
     uin: Int,
     onBack: () -> Unit,
-    onBurned: () -> Unit,
+    onBurned: (Int?) -> Unit,
     onMigrated: (Int) -> Unit,
     onOpen: (SettingsRoute) -> Unit,
 ) {
@@ -255,7 +255,7 @@ private fun SettingsRoot(
             title = stringResource(R.string.cs_burn_title),
             body = stringResource(R.string.cs_burn_body),
             confirm = stringResource(R.string.cs_burn_cta), destructive = true,
-            onConfirm = { confirmBurn = false; scope.launch { runCatching { session.burnAccount() }; onBurned() } },
+            onConfirm = { confirmBurn = false; scope.launch { onBurned(session.burnAccount()) } },
             onDismiss = { confirmBurn = false },
         )
     }

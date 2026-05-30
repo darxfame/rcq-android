@@ -7,6 +7,7 @@ import app.rcq.android.crypto.IdentityKeys
 import app.rcq.android.crypto.MediaCrypto
 import app.rcq.android.crypto.Reply
 import app.rcq.android.crypto.SealedSender
+import app.rcq.android.data.AccountManager
 import app.rcq.android.data.LocalStores
 import app.rcq.android.data.MessageDb
 import app.rcq.android.data.SecureStore
@@ -38,7 +39,12 @@ import org.bouncycastle.crypto.params.X25519PrivateKeyParameters
  * AppState/MessageService/ContactService roles, scoped to 1:1 text.
  */
 class Session(context: Context) {
-    private val store = SecureStore(context.applicationContext)
+    private val appCtx = context.applicationContext
+    // Per-account encrypted identity + message store. Reassigned by
+    // [rebindTo] when the active account changes (switch / add / burn);
+    // empty-string id is a harmless placeholder on a fresh install where
+    // no account exists yet — never read until registration rebinds it.
+    private var store = SecureStore(appCtx, AccountManager.activeId.value ?: "")
     // Server this session talks to: the identity's island (org/self-host)
     // or the default public server. Both clients are rebuilt from it after
     // a registration that picks a custom server.
@@ -47,7 +53,7 @@ class Session(context: Context) {
     private var socket = newSocket()
     private fun newApi(): RcqApi = RcqApi("https://${serverHost()}").apply { if (store.isRegistered) setToken(store.token) }
     private fun newSocket(): RcqSocket = RcqSocket("wss://${serverHost()}")
-    private val db = MessageDb(context.applicationContext)
+    private var db = MessageDb(appCtx, AccountManager.activeId.value ?: "")
     private val gson = com.google.gson.Gson()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -114,9 +120,18 @@ class Session(context: Context) {
             ?.substringBefore('/')?.trim()
             ?.takeIf { it.isNotBlank() && it != RcqApi.DEFAULT_HOST }
 
-    /** Mint identity, register against the chosen server (default if null),
-     *  persist, then bring the session online. */
+    /** Register a brand-new anonymous identity on the chosen server (the
+     *  default public one if null) and swap the session onto it. Serves
+     *  BOTH first-launch onboarding (creates Account[0]) and adding a
+     *  further account from the switcher (creates Account[N] without
+     *  touching the others).
+     *
+     *  Register-FIRST ordering: we mint on the target server before
+     *  creating the local account slot or tearing down the current session,
+     *  so an unreachable host / typo throws here with the current account
+     *  left completely intact. Throws at the roster cap. */
     suspend fun registerNewAccount(nickname: String, serverInput: String? = null): Int {
+        if (AccountManager.isAtLimit) throw IllegalStateException("Account limit reached")
         val host = normalizeHost(serverInput)
         val regApi = RcqApi("https://${host ?: RcqApi.DEFAULT_HOST}")
         val identity = IdentityKeys.generate()
@@ -127,7 +142,11 @@ class Session(context: Context) {
                 signing_key = Base64.encodeToString(identity.signingPublic, Base64.NO_WRAP),
             )
         )
-        store.saveIdentity(
+        // Server identity is live. Commit locally: create the account slot,
+        // persist the identity under its prefix, then swap onto it.
+        val acct = AccountManager.add(serverHost = host, displayLabel = null)
+            ?: throw IllegalStateException("Account limit reached")
+        SecureStore(appCtx, acct.id).saveIdentity(
             uin = resp.uin,
             token = resp.token,
             nickname = nickname,
@@ -135,11 +154,46 @@ class Session(context: Context) {
             signingPrivate = identity.signingPrivate,
             serverHost = host,
         )
-        // Rebuild the long-lived clients to point at the chosen island.
-        api = newApi()
-        socket = newSocket()
+        socket.disconnect()
+        rebindTo(acct.id)
         start()
         return resp.uin
+    }
+
+    /** Switch the running session to an already-registered account
+     *  (iOS-parity hot swap). Returns its UIN. A self-switch is a no-op. */
+    suspend fun switchToAccount(accountId: String): Int {
+        if (accountId == AccountManager.activeId.value) return store.uin ?: error("no active identity")
+        socket.disconnect()
+        AccountManager.setActive(accountId)
+        rebindTo(accountId)
+        start()
+        return store.uin ?: error("account has no identity")
+    }
+
+    /** Tear the in-memory session state down and re-point every per-account
+     *  store at [accountId]; [start] then loads its history + connects. */
+    private fun rebindTo(accountId: String) {
+        store = SecureStore(appCtx, accountId)
+        db = MessageDb(appCtx, accountId)
+        LocalStores.bindAccount(accountId)
+        app.rcq.android.data.VisitStore.bindAccount(accountId)
+        api = newApi()
+        socket = newSocket()
+        peerIdentityCache.clear()
+        ackedReads.clear()
+        lastVisitAt.clear()
+        _contacts.value = emptyList()
+        _pending.value = emptyList()
+        _messages.value = emptyMap()
+        _groups.value = emptyList()
+        _groupMessages.value = emptyMap()
+        _typingFrom.value = null
+        _status.value = UserStatus.ONLINE
+        readReceiptsVisibility = "everyone"
+        activeThread = null
+        started = false
+        everConnected = false
     }
 
     /** Load local history, open the WebSocket, drain the offline queue,
@@ -498,16 +552,27 @@ class Session(context: Context) {
         }
     }
 
-    /** Irreversible account burn: wipe server-side, then everything local
-     *  (identity keychain + message DB + in-memory flows). After this the
-     *  app is back to a fresh-install state. */
-    suspend fun burnAccount() {
+    /** Irreversible burn of the ACTIVE account: delete it server-side, wipe
+     *  all of its local storage, drop it from the roster. If another account
+     *  remains the session hot-swaps onto it and its UIN is returned;
+     *  otherwise returns null (back to a fresh-install / onboarding state). */
+    suspend fun burnAccount(): Int? {
+        val burnedId = AccountManager.activeId.value
         runCatching { api.deleteAccount() }
         socket.disconnect()
-        store.wipe()
-        db.wipe()
-        app.rcq.android.data.VisitStore.wipe()   // tied to this identity
+        if (burnedId != null) {
+            SecureStore.wipeAccount(appCtx, burnedId)
+            MessageDb.wipeAccount(appCtx, burnedId)
+            app.rcq.android.data.VisitStore.wipeAccount(burnedId)
+            LocalStores.clearAccount(burnedId)
+            AccountManager.remove(burnedId)   // active falls back to first remaining (or null)
+        } else {
+            store.wipe()
+            db.wipe()
+            app.rcq.android.data.VisitStore.wipe()
+        }
         peerIdentityCache.clear()
+        ackedReads.clear()
         _contacts.value = emptyList()
         _pending.value = emptyList()
         _messages.value = emptyMap()
@@ -515,6 +580,29 @@ class Session(context: Context) {
         _groupMessages.value = emptyMap()
         _typingFrom.value = null
         started = false
+        everConnected = false
+        val next = AccountManager.activeId.value
+        return if (next != null) {
+            rebindTo(next)
+            start()
+            store.uin
+        } else {
+            LocalStores.bindAccount(null)
+            app.rcq.android.data.VisitStore.bindAccount(null)
+            null
+        }
+    }
+
+    /** Local-only delete of a NON-active account (iOS ManageAccountsSheet):
+     *  wipe its device storage + drop it from the roster, leaving its
+     *  server-side identity alive. Refuses the active account. */
+    fun deleteAccountLocal(accountId: String) {
+        if (accountId == AccountManager.activeId.value) return
+        SecureStore.wipeAccount(appCtx, accountId)
+        MessageDb.wipeAccount(appCtx, accountId)
+        app.rcq.android.data.VisitStore.wipeAccount(accountId)
+        LocalStores.clearAccount(accountId)
+        AccountManager.remove(accountId)
     }
 
     /** Move to a freshly-allocated UIN (iOS-parity). The server keeps the
@@ -590,6 +678,8 @@ class Session(context: Context) {
             signingPrivate = identity.signingPrivate,
             serverHost = host,
         )
+        // Keep the roster entry's host in sync (same account slot, new island).
+        AccountManager.activeId.value?.let { AccountManager.setServerHost(it, host) }
         api = newApi()
         started = false
         everConnected = false

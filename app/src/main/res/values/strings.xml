@@ -66,6 +66,15 @@
     <string name="home_menu_add_account">Add account</string>
     <string name="home_menu_manage_accounts">Manage accounts</string>
 
+    <!-- Multi-account: add + manage -->
+    <string name="add_account_body">Creates a new anonymous identity alongside your current one. Leave the server blank to use the public server.</string>
+    <string name="add_account_create">Create</string>
+    <string name="manage_accounts_intro">Accounts on this device. Switch between them from the account button on the home screen. Deleting an account here removes it from this device only — its identity stays on the server.</string>
+    <string name="manage_accounts_active">Active</string>
+    <string name="manage_accounts_delete">Delete</string>
+    <string name="manage_accounts_delete_title">Delete %1$s?</string>
+    <string name="manage_accounts_delete_body">Removes this account and its messages from this device. The account stays on the server and can be added again later.</string>
+
     <!-- Home: misc -->
     <string name="home_create_group">Create a group</string>
     <string name="home_accept">Accept</string>

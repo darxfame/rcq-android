@@ -6,6 +6,7 @@ import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 import app.rcq.android.model.ChatMessage
 import app.rcq.android.model.DeliveryState
+import java.io.File
 
 /**
  * Local message store. The backend drains messages on delivery (rcq-spec
@@ -16,8 +17,14 @@ import app.rcq.android.model.DeliveryState
  * The primary key is the envelope UUID, and inserts are INSERT OR IGNORE,
  * which gives free de-duplication for a message that arrives over both the
  * WebSocket and the queue drain.
+ *
+ * Multi-account: the SQLite file is named per [Account.id]
+ * (`rcq-messages-<id>.db`) so each identity's threads stay separate. A
+ * pre-multi-account install's `rcq-messages.db` is renamed under Account[0]
+ * by [migrateLegacyToAccount].
  */
-class MessageDb(context: Context) : SQLiteOpenHelper(context.applicationContext, NAME, null, VERSION) {
+class MessageDb(context: Context, accountId: String) :
+    SQLiteOpenHelper(context.applicationContext, dbName(accountId), null, VERSION) {
 
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(
@@ -187,9 +194,33 @@ class MessageDb(context: Context) : SQLiteOpenHelper(context.applicationContext,
         return out
     }
 
-    private companion object {
-        const val NAME = "rcq-messages.db"
+    companion object {
         const val VERSION = 11
+        private const val LEGACY_NAME = "rcq-messages.db"
+        // SQLite sidecar suffixes that travel with the main db file.
+        private val SIDECARS = listOf("", "-wal", "-shm", "-journal")
+
+        private fun dbName(accountId: String) = "rcq-messages-$accountId.db"
+
+        /** Rename the legacy single-account db (+ its WAL/SHM sidecars) under
+         *  [accountId]. Safe to call before the db is opened; no-op if the
+         *  legacy file is absent. */
+        fun migrateLegacyToAccount(context: Context, accountId: String) {
+            val ctx = context.applicationContext
+            val legacy = ctx.getDatabasePath(LEGACY_NAME)
+            if (!legacy.exists()) return
+            val target = ctx.getDatabasePath(dbName(accountId))
+            SIDECARS.forEach { suffix ->
+                val src = File(legacy.path + suffix)
+                if (src.exists()) src.renameTo(File(target.path + suffix))
+            }
+        }
+
+        /** Delete an account's db file (local account delete / burn). */
+        fun wipeAccount(context: Context, accountId: String) {
+            context.applicationContext.deleteDatabase(dbName(accountId))
+        }
+
         // Delimiter for the joined reactions column; not a valid emoji char.
         const val REACTION_DELIM = "\u0001"
     }

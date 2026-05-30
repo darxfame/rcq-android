@@ -102,6 +102,15 @@ internal data class ContextAction(
     val onClick: () -> Unit,
 )
 
+/** A row in the account switcher: live nick/UIN peeked per local account. */
+internal data class AccountRow(
+    val id: String,
+    val nickname: String,
+    val uin: Int?,
+    val host: String,
+    val active: Boolean,
+)
+
 @Composable
 internal fun HomeScreen(
     session: Session,
@@ -110,6 +119,9 @@ internal fun HomeScreen(
     onOpenGroup: (Int) -> Unit,
     onOpenSettings: () -> Unit,
     onOpenProfile: () -> Unit = {},
+    onSwitchAccount: (String) -> Unit = {},
+    onAddAccount: (String?) -> Unit = {},
+    onManageAccounts: () -> Unit = {},
 ) {
     val c = RcqTheme.colors
     val scope = rememberCoroutineScope()
@@ -126,6 +138,7 @@ internal fun HomeScreen(
     var showQr by remember { mutableStateOf(false) }
     var showSearch by remember { mutableStateOf(false) }
     var showCreateGroup by remember { mutableStateOf(false) }
+    var showAddAccount by remember { mutableStateOf(false) }
     // Label of a not-yet-built destination tapped from the header menu /
     // bottom bar; drives a "coming soon" dialog until the real screen lands.
     var comingSoon by remember { mutableStateOf<String?>(null) }
@@ -154,6 +167,22 @@ internal fun HomeScreen(
     val visibleGroups = groups.filterNot { LocalStores.groupThread(it.id) in archived }
 
     val context = LocalContext.current
+
+    // Local account roster for the switcher (live nick/UIN peeked per account).
+    val accountList by app.rcq.android.data.AccountManager.accounts.collectAsState()
+    val activeId by app.rcq.android.data.AccountManager.activeId.collectAsState()
+    val accountRows = remember(accountList, activeId, session.nickname) {
+        accountList.sortedBy { it.createdAt }.map { a ->
+            AccountRow(
+                id = a.id,
+                nickname = app.rcq.android.data.SecureStore.peekNickname(context, a.id) ?: "—",
+                uin = app.rcq.android.data.SecureStore.peekUin(context, a.id),
+                host = a.serverHost ?: app.rcq.android.net.RcqApi.DEFAULT_HOST,
+                active = a.id == activeId,
+            )
+        }
+    }
+
     // Section titles resolved here (LazyListScope below isn't composable).
     val secFavorites = stringResource(R.string.home_sec_favorites)
     val secOnline = stringResource(R.string.home_sec_online)
@@ -167,12 +196,17 @@ internal fun HomeScreen(
                 uin = uin,
                 serverHost = session.currentServer,
                 ownStatus = ownStatus,
+                accounts = accountRows,
+                canAddAccount = accountList.size < app.rcq.android.data.AccountManager.MAX_ACCOUNTS,
                 onPickStatus = { scope.launch { session.setStatus(it) } },
                 onAddContact = { showAdd = true },
                 onSearch = { showSearch = true },
                 onOpenSettings = onOpenSettings,
                 onOpenProfile = onOpenProfile,
                 onComingSoon = { comingSoon = it },
+                onSwitchAccount = onSwitchAccount,
+                onAddAccount = { showAddAccount = true },
+                onManageAccounts = onManageAccounts,
             )
 
             LazyColumn(Modifier.weight(1f).fillMaxWidth()) {
@@ -265,6 +299,12 @@ internal fun HomeScreen(
         )
     }
     if (showQr) QrDialog(uin = uin, onDismiss = { showQr = false })
+    if (showAddAccount) {
+        AddAccountDialog(
+            onAdd = { host -> showAddAccount = false; onAddAccount(host) },
+            onDismiss = { showAddAccount = false },
+        )
+    }
     if (showCreateGroup) {
         CreateGroupDialog(
             contacts = contacts,
@@ -354,12 +394,17 @@ private fun HomeHeader(
     uin: Int,
     serverHost: String,
     ownStatus: UserStatus,
+    accounts: List<AccountRow>,
+    canAddAccount: Boolean,
     onPickStatus: (UserStatus) -> Unit,
     onAddContact: () -> Unit,
     onSearch: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenProfile: () -> Unit,
     onComingSoon: (String) -> Unit,
+    onSwitchAccount: (String) -> Unit,
+    onAddAccount: () -> Unit,
+    onManageAccounts: () -> Unit,
 ) {
     val c = RcqTheme.colors
     var statusMenu by remember { mutableStateOf(false) }
@@ -367,34 +412,41 @@ private fun HomeHeader(
     var overflowMenu by remember { mutableStateOf(false) }
 
     Box(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 10.dp)) {
-        // Left — account switcher (single account for now; add/manage are
-        // stubs until multi-identity lands, mirroring the iOS pill).
+        // Left — account switcher: tap a row to hot-swap identities, or
+        // add / manage local accounts (iOS AccountManager parity).
         Box(Modifier.align(Alignment.CenterStart)) {
             Icon(
                 Icons.Outlined.AccountCircle, "Accounts", tint = c.accent,
                 modifier = Modifier.size(28.dp).clip(CircleShape).clickable { accountMenu = true },
             )
             DropdownMenu(expanded = accountMenu, onDismissRequest = { accountMenu = false }) {
-                DropdownMenuItem(
-                    text = {
-                        Column {
-                            Text(nickname, color = c.textPrimary, fontWeight = FontWeight.SemiBold)
-                            Text(serverHost, color = c.textSecondary, fontSize = 12.sp)
-                            Text("$uin", color = c.textMono, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
-                        }
-                    },
-                    leadingIcon = { Icon(Icons.Filled.Check, null, tint = c.accent) },
-                    onClick = { accountMenu = false },
-                )
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.home_menu_add_account), color = c.textPrimary) },
-                    leadingIcon = { Icon(Icons.Filled.Add, null, tint = c.accent) },
-                    onClick = { accountMenu = false; onComingSoon("Multiple accounts") },
-                )
+                accounts.forEach { a ->
+                    DropdownMenuItem(
+                        text = {
+                            Column {
+                                Text(a.nickname, color = c.textPrimary, fontWeight = FontWeight.SemiBold)
+                                Text(a.host, color = c.textSecondary, fontSize = 12.sp)
+                                a.uin?.let { Text("$it", color = c.textMono, fontSize = 12.sp, fontFamily = FontFamily.Monospace) }
+                            }
+                        },
+                        leadingIcon = {
+                            if (a.active) Icon(Icons.Filled.Check, null, tint = c.accent)
+                            else Icon(Icons.Outlined.AccountCircle, null, tint = c.textSecondary)
+                        },
+                        onClick = { accountMenu = false; if (!a.active) onSwitchAccount(a.id) },
+                    )
+                }
+                if (canAddAccount) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.home_menu_add_account), color = c.textPrimary) },
+                        leadingIcon = { Icon(Icons.Filled.Add, null, tint = c.accent) },
+                        onClick = { accountMenu = false; onAddAccount() },
+                    )
+                }
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.home_menu_manage_accounts), color = c.textPrimary) },
                     leadingIcon = { Icon(Icons.Outlined.AccountCircle, null, tint = c.accent) },
-                    onClick = { accountMenu = false; onComingSoon("Multiple accounts") },
+                    onClick = { accountMenu = false; onManageAccounts() },
                 )
             }
         }
@@ -763,6 +815,38 @@ private fun AddContactDialog(onAdd: (Int) -> Unit, onDismiss: () -> Unit) {
             val target = input.toIntOrNull()
             TextButton(enabled = target != null, onClick = { target?.let(onAdd) }) {
                 Text(stringResource(R.string.home_send_request), color = if (target != null) c.accent else c.textSecondary)
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel), color = c.textSecondary) } },
+    )
+}
+
+/** Create another anonymous identity. Server host is optional — blank uses
+ *  the default public server; a custom host registers onto an org island /
+ *  self-host. The new account is added alongside the current one. */
+@Composable
+private fun AddAccountDialog(onAdd: (String?) -> Unit, onDismiss: () -> Unit) {
+    val c = RcqTheme.colors
+    var host by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = c.bgSecondary,
+        title = { Text(stringResource(R.string.home_menu_add_account), color = c.textPrimary) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(stringResource(R.string.add_account_body), color = c.textSecondary, fontSize = 13.sp)
+                OutlinedTextField(
+                    value = host,
+                    onValueChange = { host = it.trim() },
+                    label = { Text(stringResource(R.string.csrv_host), color = c.textSecondary) },
+                    placeholder = { Text(app.rcq.android.net.RcqApi.DEFAULT_HOST, color = c.textSecondary) },
+                    singleLine = true,
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { onAdd(host.ifBlank { null }) }) {
+                Text(stringResource(R.string.add_account_create), color = c.accent)
             }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel), color = c.textSecondary) } },

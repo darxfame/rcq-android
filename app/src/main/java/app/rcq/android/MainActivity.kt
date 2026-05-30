@@ -45,10 +45,13 @@ import app.rcq.android.ui.ChatTarget
 import app.rcq.android.ui.ContactInfoScreen
 import app.rcq.android.ui.GroupInfoScreen
 import app.rcq.android.ui.HomeScreen
+import app.rcq.android.ui.ManageAccountsScreen
 import app.rcq.android.ui.OnboardingScreen
 import app.rcq.android.ui.ProfileEditScreen
 import app.rcq.android.ui.RcqTheme
 import app.rcq.android.ui.SettingsScreen
+import androidx.compose.ui.platform.LocalContext
+import android.widget.Toast
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -64,6 +67,13 @@ class MainActivity : ComponentActivity() {
         LocalStores.init(applicationContext)
         app.rcq.android.data.VisitStore.init(applicationContext)
         app.rcq.android.media.SoundService.init(applicationContext)
+        // Load the account roster (migrating a pre-multi-account install to
+        // Account[0]) before binding the active account's per-account stores
+        // and building the session against it.
+        app.rcq.android.data.AccountManager.init(applicationContext)
+        val activeAccountId = app.rcq.android.data.AccountManager.activeId.value
+        LocalStores.bindAccount(activeAccountId)
+        app.rcq.android.data.VisitStore.bindAccount(activeAccountId)
         val session = Session(applicationContext)
         setContent {
             val mode by LocalStores.themeMode.collectAsState()
@@ -82,6 +92,7 @@ private sealed interface UiState {
 @Composable
 private fun RcqApp(session: Session) {
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     var state by remember {
         mutableStateOf<UiState>(session.uin?.let { UiState.Registered(it) } ?: UiState.Onboarding)
     }
@@ -90,9 +101,16 @@ private fun RcqApp(session: Session) {
     var peerInfoUin by remember { mutableStateOf<Int?>(null) }
     var showSettings by remember { mutableStateOf(false) }
     var showProfile by remember { mutableStateOf(false) }
+    var showManageAccounts by remember { mutableStateOf(false) }
 
     LaunchedEffect(state) {
         if (state is UiState.Registered) session.start()
+    }
+
+    // Clear every secondary screen so a switch/add lands on a clean Home.
+    fun resetNav() {
+        chatTarget = null; groupInfoId = null; peerInfoUin = null
+        showSettings = false; showProfile = false; showManageAccounts = false
     }
 
     fun register(server: String? = null) {
@@ -104,6 +122,29 @@ private fun RcqApp(session: Session) {
                 UiState.Failed(e.message ?: "Registration failed")
             }
         }
+    }
+
+    // Add a further account from the switcher. Register-first means a
+    // failure leaves the current account intact, so we surface a toast and
+    // stay put rather than dropping to the full-screen Failed state.
+    fun addAccount(server: String? = null) {
+        val current = (state as? UiState.Registered)?.uin
+        resetNav()
+        state = UiState.Registering
+        scope.launch {
+            state = try {
+                UiState.Registered(session.registerNewAccount("user-${(1000..9999).random()}", server))
+            } catch (e: Exception) {
+                Toast.makeText(context, e.message ?: "Couldn't add account", Toast.LENGTH_LONG).show()
+                current?.let { UiState.Registered(it) } ?: UiState.Onboarding
+            }
+        }
+    }
+
+    fun switchAccount(id: String) {
+        resetNav()
+        state = UiState.Registering
+        scope.launch { state = UiState.Registered(session.switchToAccount(id)) }
     }
 
     Box(
@@ -131,6 +172,10 @@ private fun RcqApp(session: Session) {
                 onOpenGroupInfo = { groupInfoId = it },
                 onOpenPeerInfo = { peerInfoUin = it },
             )
+            s is UiState.Registered && showManageAccounts -> ManageAccountsScreen(
+                session,
+                onBack = { showManageAccounts = false },
+            )
             s is UiState.Registered && showProfile -> ProfileEditScreen(
                 session,
                 onBack = { showProfile = false },
@@ -138,7 +183,7 @@ private fun RcqApp(session: Session) {
             s is UiState.Registered && showSettings -> SettingsScreen(
                 session, s.uin,
                 onBack = { showSettings = false },
-                onBurned = { showSettings = false; chatTarget = null; state = UiState.Onboarding },
+                onBurned = { next -> resetNav(); state = next?.let { UiState.Registered(it) } ?: UiState.Onboarding },
                 onMigrated = { newUin -> chatTarget = null; state = UiState.Registered(newUin) },
             )
             s is UiState.Registered -> HomeScreen(
@@ -147,6 +192,9 @@ private fun RcqApp(session: Session) {
                 onOpenGroup = { chatTarget = ChatTarget.Group(it) },
                 onOpenSettings = { showSettings = true },
                 onOpenProfile = { showProfile = true },
+                onSwitchAccount = ::switchAccount,
+                onAddAccount = ::addAccount,
+                onManageAccounts = { showManageAccounts = true },
             )
             s is UiState.Onboarding -> OnboardingScreen(onStart = ::register)
             s is UiState.Registering -> Registering()

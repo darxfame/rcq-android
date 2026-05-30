@@ -10,17 +10,31 @@ import kotlinx.coroutines.flow.asStateFlow
 /**
  * Client-side, non-secret preference state — the Android analogue of the
  * iOS `FavoritesStore` / `ArchiveStore` / `SoundService` mute set /
- * `RemovedContactsStore`, plus the appearance setting. Everything is a
- * set of thread keys ("peer:<uin>" or "group:<id>") so the same store
- * serves 1:1 and group rows. State is exposed as StateFlows the Compose
- * UI collects, and mirrored into a plain (unencrypted) SharedPreferences
- * — none of this is sensitive.
+ * `RemovedContactsStore`, plus the appearance setting.
  *
- * Call [init] once from `MainActivity.onCreate` before composing.
+ * Two scopes:
+ *  - **Global** (theme, sound toggles): one value for the whole app,
+ *    unprefixed keys, loaded in [init].
+ *  - **Per-account** (favorites, muted, archived, removed, unread): keyed
+ *    by the active [Account.id] so each identity has its own roster state.
+ *    [bindAccount] swaps which account's slots the flows reflect; writes go
+ *    to the bound account's prefixed keys.
+ *
+ * Thread keys are "peer:<uin>" / "group:<id>". Everything mirrors into a
+ * plain (unencrypted) SharedPreferences — none of this is sensitive.
+ *
+ * Lifecycle: [init] once from MainActivity.onCreate, then [bindAccount]
+ * with the active account id (and again on every account switch, done by
+ * [Session]).
  */
 object LocalStores {
     private lateinit var prefs: SharedPreferences
 
+    /** Active account prefix for per-account keys; null before any account
+     *  is bound (fresh install, pre-onboarding). */
+    private var acct: String? = null
+
+    // ── per-account flows ────────────────────────────────────────────────
     private val _favorites = MutableStateFlow<Set<String>>(emptySet())
     val favorites: StateFlow<Set<String>> = _favorites.asStateFlow()
 
@@ -31,43 +45,58 @@ object LocalStores {
     val archived: StateFlow<Set<String>> = _archived.asStateFlow()
 
     /** UINs of contacts the user removed — incoming sealed messages from
-     *  them are dropped client-side (sealed sender means the server can't
-     *  filter by sender). Mirrors iOS RemovedContactsStore. */
+     *  them are dropped client-side. Mirrors iOS RemovedContactsStore. */
     private val _removed = MutableStateFlow<Set<Int>>(emptySet())
     val removed: StateFlow<Set<Int>> = _removed.asStateFlow()
 
+    /** Persistent per-thread unread counters, keyed "peer:<uin>"/"group:<id>".
+     *  Mirrors the iOS UnreadStore: survives cold starts, bumped on inbound
+     *  message, cleared when the chat opens. */
+    private val _unread = MutableStateFlow<Map<String, Int>>(emptyMap())
+    val unread: StateFlow<Map<String, Int>> = _unread.asStateFlow()
+
+    // ── global flows ─────────────────────────────────────────────────────
     private val _themeMode = MutableStateFlow(ThemeMode.SYSTEM)
     val themeMode: StateFlow<ThemeMode> = _themeMode.asStateFlow()
 
-    /** Notification-sound toggles (iOS SoundService parity). Message sound
-     *  plays on an inbound message to a non-active, non-muted thread;
-     *  presence sound plays when a contact comes online / goes offline. */
+    /** Notification-sound toggles (iOS SoundService parity). */
     private val _soundMessages = MutableStateFlow(true)
     val soundMessages: StateFlow<Boolean> = _soundMessages.asStateFlow()
 
     private val _soundPresence = MutableStateFlow(true)
     val soundPresence: StateFlow<Boolean> = _soundPresence.asStateFlow()
 
-    /** Persistent per-thread unread counters, keyed "peer:<uin>"/"group:<id>".
-     *  Mirrors the iOS UnreadStore: survives cold starts (contacts reload
-     *  from the server, which doesn't track per-client unread), bumped on
-     *  inbound message, cleared when the chat opens. */
-    private val _unread = MutableStateFlow<Map<String, Int>>(emptyMap())
-    val unread: StateFlow<Map<String, Int>> = _unread.asStateFlow()
-
     fun init(context: Context) {
         if (::prefs.isInitialized) return
         prefs = context.applicationContext.getSharedPreferences("rcq_local", Context.MODE_PRIVATE)
-        _favorites.value = prefs.getStringSet(K_FAV, emptySet())!!.toSet()
-        _muted.value = prefs.getStringSet(K_MUTE, emptySet())!!.toSet()
-        _archived.value = prefs.getStringSet(K_ARCH, emptySet())!!.toSet()
-        _removed.value = prefs.getStringSet(K_REMOVED, emptySet())!!.mapNotNull { it.toIntOrNull() }.toSet()
+        // Global (app-wide) settings only; per-account flows load in bindAccount.
         _themeMode.value = runCatching { ThemeMode.valueOf(prefs.getString(K_THEME, null) ?: "SYSTEM") }
             .getOrDefault(ThemeMode.SYSTEM)
         _soundMessages.value = prefs.getBoolean(K_SND_MSG, true)
         _soundPresence.value = prefs.getBoolean(K_SND_PRES, true)
-        _unread.value = loadUnread()
     }
+
+    /** Point the per-account flows at [accountId]'s slots and reload them.
+     *  null (no active account) resets the flows to empty. */
+    fun bindAccount(accountId: String?) {
+        acct = accountId
+        if (accountId == null) {
+            _favorites.value = emptySet()
+            _muted.value = emptySet()
+            _archived.value = emptySet()
+            _removed.value = emptySet()
+            _unread.value = emptyMap()
+            return
+        }
+        _favorites.value = prefs.getStringSet(pk(K_FAV), emptySet())!!.toSet()
+        _muted.value = prefs.getStringSet(pk(K_MUTE), emptySet())!!.toSet()
+        _archived.value = prefs.getStringSet(pk(K_ARCH), emptySet())!!.toSet()
+        _removed.value = prefs.getStringSet(pk(K_REMOVED), emptySet())!!.mapNotNull { it.toIntOrNull() }.toSet()
+        _unread.value = loadUnread(pk(K_UNREAD))
+    }
+
+    /** Per-account key for the currently-bound account. */
+    private fun pk(key: String) = "$acct.$key"
 
     // ── thread-key helpers ───────────────────────────────────────────
     fun peerThread(uin: Int) = "peer:$uin"
@@ -84,9 +113,9 @@ object LocalStores {
 
     fun isRemoved(uin: Int) = uin in _removed.value
     fun addRemoved(uin: Int) {
-        if (uin in _removed.value) return
+        if (acct == null || uin in _removed.value) return
         _removed.value = _removed.value + uin
-        prefs.edit().putStringSet(K_REMOVED, _removed.value.map(Int::toString).toSet()).apply()
+        prefs.edit().putStringSet(pk(K_REMOVED), _removed.value.map(Int::toString).toSet()).apply()
     }
 
     fun setThemeMode(mode: ThemeMode) {
@@ -104,6 +133,7 @@ object LocalStores {
     fun unreadOf(thread: String): Int = _unread.value[thread] ?: 0
 
     fun bumpUnread(thread: String) {
+        if (acct == null) return
         val cur = _unread.value.toMutableMap()
         cur[thread] = (cur[thread] ?: 0) + 1
         _unread.value = cur
@@ -118,11 +148,12 @@ object LocalStores {
 
     /** Encode the map as a CSV "thread=count" StringSet for SharedPreferences. */
     private fun persistUnread() {
-        prefs.edit().putStringSet(K_UNREAD, _unread.value.map { "${it.key}=${it.value}" }.toSet()).apply()
+        if (acct == null) return
+        prefs.edit().putStringSet(pk(K_UNREAD), _unread.value.map { "${it.key}=${it.value}" }.toSet()).apply()
     }
 
-    private fun loadUnread(): Map<String, Int> =
-        prefs.getStringSet(K_UNREAD, emptySet())!!.mapNotNull { entry ->
+    private fun loadUnread(key: String): Map<String, Int> =
+        prefs.getStringSet(key, emptySet())!!.mapNotNull { entry ->
             val i = entry.lastIndexOf('=')
             if (i <= 0) return@mapNotNull null
             val k = entry.substring(0, i)
@@ -131,10 +162,36 @@ object LocalStores {
         }.toMap()
 
     private fun toggle(flow: MutableStateFlow<Set<String>>, key: String, thread: String) {
+        if (acct == null) return
         flow.value = if (thread in flow.value) flow.value - thread else flow.value + thread
         // StringSet must be copied — SharedPreferences keeps the same
         // instance otherwise and silently no-ops on the next read.
-        prefs.edit().putStringSet(key, flow.value.toSet()).apply()
+        prefs.edit().putStringSet(pk(key), flow.value.toSet()).apply()
+    }
+
+    // ── multi-account migration / teardown ───────────────────────────
+
+    /** Lift the legacy unprefixed per-account slots under [accountId], then
+     *  drop the legacy keys. Idempotent. Called once by AccountManager when
+     *  wrapping a pre-multi-account install as Account[0]. */
+    fun migrateLegacyToAccount(accountId: String) {
+        if (!::prefs.isInitialized) return
+        val e = prefs.edit()
+        listOf(K_FAV, K_MUTE, K_ARCH, K_REMOVED, K_UNREAD).forEach { k ->
+            if (prefs.contains(k)) {
+                prefs.getStringSet(k, emptySet())?.let { e.putStringSet("$accountId.$k", it.toSet()) }
+                e.remove(k)
+            }
+        }
+        e.apply()
+    }
+
+    /** Remove every per-account slot for [accountId] (local account delete). */
+    fun clearAccount(accountId: String) {
+        if (!::prefs.isInitialized) return
+        val e = prefs.edit()
+        listOf(K_FAV, K_MUTE, K_ARCH, K_REMOVED, K_UNREAD).forEach { e.remove("$accountId.$it") }
+        e.apply()
     }
 
     private const val K_FAV = "favorites"

@@ -65,6 +65,15 @@
     <string name="home_menu_add_account">Добавить аккаунт</string>
     <string name="home_menu_manage_accounts">Управление аккаунтами</string>
 
+    <!-- Multi-account: add + manage -->
+    <string name="add_account_body">Создаёт новую анонимную личность рядом с текущей. Оставьте поле сервера пустым, чтобы использовать публичный сервер.</string>
+    <string name="add_account_create">Создать</string>
+    <string name="manage_accounts_intro">Аккаунты на этом устройстве. Переключайтесь между ними кнопкой аккаунта на главном экране. Удаление аккаунта здесь убирает его только с этого устройства, личность остаётся на сервере.</string>
+    <string name="manage_accounts_active">Активный</string>
+    <string name="manage_accounts_delete">Удалить</string>
+    <string name="manage_accounts_delete_title">Удалить %1$s?</string>
+    <string name="manage_accounts_delete_body">Убирает этот аккаунт и его сообщения с этого устройства. Аккаунт остаётся на сервере, его можно добавить снова позже.</string>
+
     <!-- Home: misc -->
     <string name="home_create_group">Создать группу</string>
     <string name="home_accept">Принять</string>

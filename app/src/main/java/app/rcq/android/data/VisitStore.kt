@@ -12,15 +12,21 @@ import kotlinx.coroutines.flow.asStateFlow
  * sealed `visit` envelope; [Session] decrypts it and calls [record]. The
  * server never sees the count or that it exists.
  *
- * Same-viewer pings within [DEDUP_MS] collapse into one (LinkedIn-style
- * unique view); visits older than [PRUNE_MS] are dropped on every save.
- * [recentViews] is the rolling count within [WINDOW_MS] (7 days), which the
- * profile editor displays.
+ * Multi-account: the tally is per-identity, so storage is keyed by the
+ * active [Account.id]. [bindAccount] swaps which account's visits the flow
+ * reflects (and is re-called on every account switch by [Session]).
  *
- * Call [init] once from MainActivity.onCreate.
+ * Same-viewer pings within [DEDUP_MS] collapse into one (unique view);
+ * visits older than [PRUNE_MS] are dropped on every save. [recentViews] is
+ * the rolling count within [WINDOW_MS] (7 days).
+ *
+ * Call [init] once from MainActivity.onCreate, then [bindAccount].
  */
 object VisitStore {
     private lateinit var prefs: SharedPreferences
+
+    /** Active account prefix; null before any account is bound. */
+    private var acct: String? = null
 
     /** (viewerUin, atEpochMillis) pairs. */
     private val _visits = MutableStateFlow<List<Pair<Int, Long>>>(emptyList())
@@ -35,14 +41,19 @@ object VisitStore {
     fun init(context: Context) {
         if (::prefs.isInitialized) return
         prefs = context.applicationContext.getSharedPreferences("rcq_visits", Context.MODE_PRIVATE)
-        _visits.value = load()
+    }
+
+    /** Point the tally at [accountId]'s slot and reload it. null resets. */
+    fun bindAccount(accountId: String?) {
+        acct = accountId
+        _visits.value = if (accountId == null) emptyList() else load(key())
         recompute()
     }
 
     /** Record a profile view from [viewer] at [atMillis] (epoch). Future
      *  timestamps are clamped to now; repeats within [DEDUP_MS] are ignored. */
     fun record(viewer: Int, atMillis: Long) {
-        if (!::prefs.isInitialized) return
+        if (!::prefs.isInitialized || acct == null) return
         val now = System.currentTimeMillis()
         val clamped = minOf(atMillis, now)
         val last = _visits.value.lastOrNull { it.first == viewer }?.second
@@ -52,12 +63,28 @@ object VisitStore {
         recompute()
     }
 
-    /** Burn-account sweep. */
+    /** Wipe the bound account's tally (burn). */
     fun wipe() {
         _visits.value = emptyList()
         _recentViews.value = 0
-        if (::prefs.isInitialized) prefs.edit().clear().apply()
+        if (::prefs.isInitialized && acct != null) prefs.edit().remove(key()).apply()
     }
+
+    /** Wipe a specific (possibly non-active) account's tally (local delete). */
+    fun wipeAccount(accountId: String) {
+        if (::prefs.isInitialized) prefs.edit().remove("$accountId.$K_VISITS").apply()
+        if (accountId == acct) { _visits.value = emptyList(); _recentViews.value = 0 }
+    }
+
+    /** Lift the legacy unprefixed tally under [accountId]. Idempotent. */
+    fun migrateLegacyToAccount(accountId: String) {
+        if (!::prefs.isInitialized || !prefs.contains(K_VISITS)) return
+        prefs.getStringSet(K_VISITS, emptySet())?.let {
+            prefs.edit().putStringSet("$accountId.$K_VISITS", it.toSet()).remove(K_VISITS).apply()
+        }
+    }
+
+    private fun key() = "$acct.$K_VISITS"
 
     private fun recompute() {
         val cutoff = System.currentTimeMillis() - WINDOW_MS
@@ -65,11 +92,11 @@ object VisitStore {
     }
 
     private fun persist() {
-        prefs.edit().putStringSet(K_VISITS, _visits.value.map { "${it.first}:${it.second}" }.toSet()).apply()
+        prefs.edit().putStringSet(key(), _visits.value.map { "${it.first}:${it.second}" }.toSet()).apply()
     }
 
-    private fun load(): List<Pair<Int, Long>> =
-        prefs.getStringSet(K_VISITS, emptySet())!!.mapNotNull { e ->
+    private fun load(storageKey: String): List<Pair<Int, Long>> =
+        prefs.getStringSet(storageKey, emptySet())!!.mapNotNull { e ->
             val i = e.lastIndexOf(':')
             if (i <= 0) return@mapNotNull null
             val u = e.substring(0, i).toIntOrNull() ?: return@mapNotNull null
