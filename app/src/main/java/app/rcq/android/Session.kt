@@ -225,6 +225,12 @@ class Session(context: Context) {
         runCatching { api.report(uin, reason) }
     }
 
+    /** Fetch another user's profile card (GET /users/{uin}/info). The
+     *  server returns only the fields that user's privacy settings allow
+     *  us to see; null on failure. Used by the 1:1 contact-info screen. */
+    suspend fun loadPeerProfile(uin: Int): RcqApi.MeProfile? =
+        runCatching { api.getMe(uin) }.getOrNull()
+
     // ── groups ───────────────────────────────────────────────────────
 
     private fun mapGroup(g: RcqApi.GroupOut): RcqGroup = RcqGroup(

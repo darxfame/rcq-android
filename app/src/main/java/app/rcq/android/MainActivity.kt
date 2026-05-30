@@ -42,6 +42,7 @@ import app.rcq.android.net.RcqApi
 import app.rcq.android.ui.CapsuleButton
 import app.rcq.android.ui.ChatScreen
 import app.rcq.android.ui.ChatTarget
+import app.rcq.android.ui.ContactInfoScreen
 import app.rcq.android.ui.GroupInfoScreen
 import app.rcq.android.ui.HomeScreen
 import app.rcq.android.ui.RcqTheme
@@ -76,6 +77,7 @@ private fun RcqApp(session: Session) {
     }
     var chatTarget by remember { mutableStateOf<ChatTarget?>(null) }
     var groupInfoId by remember { mutableStateOf<Int?>(null) }
+    var peerInfoUin by remember { mutableStateOf<Int?>(null) }
     var showSettings by remember { mutableStateOf(false) }
 
     LaunchedEffect(state) {
@@ -100,16 +102,23 @@ private fun RcqApp(session: Session) {
         val s = state
         val target = chatTarget
         val infoId = groupInfoId
+        val peerInfo = peerInfoUin
         when {
             s is UiState.Registered && infoId != null -> GroupInfoScreen(
                 session, infoId,
                 onBack = { groupInfoId = null },
                 onLeft = { groupInfoId = null; chatTarget = null },
             )
+            s is UiState.Registered && peerInfo != null -> ContactInfoScreen(
+                session, peerInfo,
+                onBack = { peerInfoUin = null },
+                onRemoved = { peerInfoUin = null; chatTarget = null },
+            )
             s is UiState.Registered && target != null -> ChatScreen(
                 session, target,
                 onBack = { chatTarget = null },
                 onOpenGroupInfo = { groupInfoId = it },
+                onOpenPeerInfo = { peerInfoUin = it },
             )
             s is UiState.Registered && showSettings -> SettingsScreen(
                 session, s.uin,

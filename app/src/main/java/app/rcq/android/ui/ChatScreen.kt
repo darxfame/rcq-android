@@ -99,7 +99,7 @@ sealed interface ChatTarget {
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit, onOpenGroupInfo: (Int) -> Unit = {}) {
+internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit, onOpenGroupInfo: (Int) -> Unit = {}, onOpenPeerInfo: (Int) -> Unit = {}) {
     val c = RcqTheme.colors
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -232,7 +232,7 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
         // Header.
         Row(
             Modifier.fillMaxWidth().background(c.bgSecondary.copy(alpha = 0.6f))
-                .clickable(enabled = isGroup) { groupId?.let(onOpenGroupInfo) }
+                .clickable { if (isGroup) groupId?.let(onOpenGroupInfo) else peer?.let(onOpenPeerInfo) }
                 .padding(horizontal = 8.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
