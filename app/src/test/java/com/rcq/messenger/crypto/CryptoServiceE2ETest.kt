@@ -4,55 +4,89 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.Assert.*
 import org.signal.libsignal.protocol.IdentityKeyPair
-import org.signal.libsignal.protocol.SignalProtocolAddress
 import org.signal.libsignal.protocol.SessionBuilder
+import org.signal.libsignal.protocol.SignalProtocolAddress
 import org.signal.libsignal.protocol.ecc.Curve
+import org.signal.libsignal.protocol.message.CiphertextMessage
 import org.signal.libsignal.protocol.state.PreKeyBundle
+import org.signal.libsignal.protocol.state.PreKeyRecord
+import org.signal.libsignal.protocol.state.SignedPreKeyRecord
 import java.util.Base64
 
+/**
+ * E2E tests for CryptoService. Signal Protocol is asymmetric:
+ * - senderService (Alice) encrypts to Bob (recipientUin)
+ * - recipientService (Bob) decrypts from Alice (senderUin)
+ * Two separate crypto stacks with independent key stores.
+ */
 class CryptoServiceE2ETest {
 
-    private lateinit var cryptoService: CryptoService
-    private lateinit var sessionManager: SessionManager
-    private lateinit var signalKeyStore: SignalKeyStore
-    private lateinit var identityKeyPair: IdentityKeyPair
-    private val testUin = 456L
+    // Alice — the sender
+    private lateinit var senderKeyPair: IdentityKeyPair
+    private lateinit var senderStore: InMemorySignalProtocolStore
+    private lateinit var cryptoService: CryptoService  // Alice's service
+
+    // Bob — the recipient
+    private lateinit var recipientKeyPair: IdentityKeyPair
+    private lateinit var recipientStore: InMemorySignalProtocolStore
+    private lateinit var recipientService: CryptoService  // Bob's service
+
+    private val recipientUin = 456L  // Bob's UIN
+    private val senderUin = 789L     // Alice's UIN (used as session key by Bob)
 
     @Before
     fun setUp() {
-        identityKeyPair = IdentityKeyPair.generate()
-        signalKeyStore = SignalKeyStore(InMemorySignalProtocolStore(identityKeyPair))
-        sessionManager = SessionManager(signalKeyStore)
-        cryptoService = CryptoService(sessionManager, signalKeyStore, EciesCrypto())
-        setupTestSession()
+        // Alice setup
+        senderKeyPair = IdentityKeyPair.generate()
+        senderStore = InMemorySignalProtocolStore(senderKeyPair)
+        val senderKeyStore = SignalKeyStore(senderStore)
+        val senderSessionManager = SessionManager(senderKeyStore)
+        cryptoService = CryptoService(senderSessionManager, senderKeyStore, EciesCrypto())
+
+        // Bob setup
+        recipientKeyPair = IdentityKeyPair.generate()
+        recipientStore = InMemorySignalProtocolStore(recipientKeyPair)
+        val recipientKeyStore = SignalKeyStore(recipientStore)
+        val recipientSessionManager = SessionManager(recipientKeyStore)
+        recipientService = CryptoService(recipientSessionManager, recipientKeyStore, EciesCrypto())
+
+        setupSession()
     }
 
-    private fun setupTestSession() {
-        val address = SignalProtocolAddress(testUin.toString(), 1)
-        val sessionBuilder = SessionBuilder(signalKeyStore, address)
-
+    /**
+     * Bob stores his pre-keys; Alice builds a session using Bob's PreKeyBundle.
+     */
+    private fun setupSession() {
         val preKeyPair = Curve.generateKeyPair()
-        val signedPreKeyPair = Curve.generateKeyPair()
-        val signature = Curve.calculateSignature(identityKeyPair.privateKey, signedPreKeyPair.publicKey.serialize())
+        recipientStore.storePreKey(1, PreKeyRecord(1, preKeyPair))
 
-        val preKeyBundle = PreKeyBundle(
+        val signedPreKeyPair = Curve.generateKeyPair()
+        val signature = Curve.calculateSignature(
+            recipientKeyPair.privateKey,
+            signedPreKeyPair.publicKey.serialize()
+        )
+        recipientStore.storeSignedPreKey(1, SignedPreKeyRecord(1, System.currentTimeMillis(), signedPreKeyPair, signature))
+
+        val bundle = PreKeyBundle(
             0, 1, 1, preKeyPair.publicKey,
             1, signedPreKeyPair.publicKey, signature,
-            identityKeyPair.publicKey
+            recipientKeyPair.publicKey
         )
-
-        sessionBuilder.process(preKeyBundle)
+        SessionBuilder(senderStore, SignalProtocolAddress(recipientUin.toString(), 1)).process(bundle)
     }
 
     @Test
     fun testFullE2EEncryption() {
         val plaintext = "Secret message for E2E test"
 
-        val encrypted = cryptoService.encryptMessage(testUin, plaintext)
+        // Alice encrypts to Bob
+        val encrypted = cryptoService.encryptMessage(recipientUin, plaintext)
         assertNotNull(encrypted.ciphertext)
-        assertTrue(encrypted.signalType > 0)
+        // First message to new contact is always PREKEY_TYPE (3)
+        assertEquals(CiphertextMessage.PREKEY_TYPE, encrypted.signalType)
 
-        val decrypted = cryptoService.decryptMessage(testUin, encrypted.ciphertext, encrypted.signalType)
+        // Bob decrypts from Alice
+        val decrypted = recipientService.decryptMessage(senderUin, encrypted.ciphertext, encrypted.signalType)
         assertEquals(plaintext, decrypted)
     }
 
@@ -64,28 +98,27 @@ class CryptoServiceE2ETest {
             "Third encrypted message"
         )
 
-        val encryptedMessages = mutableListOf<CryptoService.EncryptedMessage>()
-        messages.forEach { message ->
-            encryptedMessages.add(cryptoService.encryptMessage(testUin, message))
-        }
+        // Alice encrypts all messages to Bob
+        val encryptedMessages = messages.map { cryptoService.encryptMessage(recipientUin, it) }
 
+        // Bob decrypts all messages from Alice
         encryptedMessages.forEachIndexed { index, encrypted ->
-            val decrypted = cryptoService.decryptMessage(testUin, encrypted.ciphertext, encrypted.signalType)
+            val decrypted = recipientService.decryptMessage(senderUin, encrypted.ciphertext, encrypted.signalType)
             assertEquals(messages[index], decrypted)
         }
     }
 
     @Test
     fun testHasSession() {
-        assertTrue(cryptoService.hasSession(testUin))
-        assertFalse(cryptoService.hasSession(999L))
+        assertTrue(cryptoService.hasSession(recipientUin))
+        assertFalse(cryptoService.hasSession(99999L))
     }
 
     @Test
     fun testDeleteSession() {
-        assertTrue(cryptoService.hasSession(testUin))
-        cryptoService.deleteSession(testUin)
-        assertFalse(cryptoService.hasSession(testUin))
+        assertTrue(cryptoService.hasSession(recipientUin))
+        cryptoService.deleteSession(recipientUin)
+        assertFalse(cryptoService.hasSession(recipientUin))
     }
 
     @Test
@@ -93,17 +126,23 @@ class CryptoServiceE2ETest {
         val identityKey = cryptoService.getIdentityKey()
         assertNotNull(identityKey)
         assertTrue(identityKey.isNotEmpty())
-        assertNotNull(Base64.getDecoder().decode(identityKey))
+        // Must be valid Base64
+        val decoded = Base64.getDecoder().decode(identityKey)
+        assertTrue(decoded.isNotEmpty())
     }
 
     @Test
     fun testEncryptedMessageFormat() {
         val plaintext = "Test message format"
-        val encrypted = cryptoService.encryptMessage(testUin, plaintext)
+        val encrypted = cryptoService.encryptMessage(recipientUin, plaintext)
 
         assertNotNull(encrypted.ciphertext)
         assertTrue(encrypted.ciphertext.isNotEmpty())
-        assertTrue(encrypted.signalType in 1..2)
-        assertNotNull(Base64.getDecoder().decode(encrypted.ciphertext))
+        // PREKEY_TYPE = 3, WHISPER_TYPE = 2 — both are valid Signal message types
+        assertTrue("signalType must be 2 or 3, was ${encrypted.signalType}",
+            encrypted.signalType == CiphertextMessage.WHISPER_TYPE || encrypted.signalType == CiphertextMessage.PREKEY_TYPE)
+        // Ciphertext must be valid Base64
+        val decoded = Base64.getDecoder().decode(encrypted.ciphertext)
+        assertTrue(decoded.isNotEmpty())
     }
 }

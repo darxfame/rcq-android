@@ -1,6 +1,6 @@
 package com.rcq.messenger.crypto
 
-import android.util.Base64
+import java.util.Base64
 import com.rcq.messenger.data.api.PreKeyBundleResponse
 import org.signal.libsignal.protocol.IdentityKey
 import org.signal.libsignal.protocol.SessionBuilder
@@ -13,7 +13,6 @@ import org.signal.libsignal.protocol.message.SignalMessage
 import org.signal.libsignal.protocol.state.PreKeyBundle
 import org.signal.libsignal.protocol.state.PreKeyRecord
 import org.signal.libsignal.protocol.state.SignedPreKeyRecord
-import org.signal.libsignal.protocol.util.KeyHelper
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -22,8 +21,9 @@ class SessionManager @Inject constructor(
     private val signalKeyStore: SignalKeyStore
 ) {
     companion object {
-        // RCQ server is single-device per UIN; matches iOS ProtocolAddress(name:uin, deviceId:1)
         const val DEVICE_ID = 1
+        private val DEC = Base64.getDecoder()
+        private val ENC = Base64.getEncoder()
     }
 
     fun encryptMessage(recipientUin: Long, plaintext: String): CiphertextMessage {
@@ -37,12 +37,8 @@ class SessionManager @Inject constructor(
         val cipher = SessionCipher(signalKeyStore, address)
 
         val decrypted = when (ciphertext.type) {
-            CiphertextMessage.PREKEY_TYPE -> {
-                cipher.decrypt(ciphertext as PreKeySignalMessage)
-            }
-            CiphertextMessage.WHISPER_TYPE -> {
-                cipher.decrypt(ciphertext as SignalMessage)
-            }
+            CiphertextMessage.PREKEY_TYPE -> cipher.decrypt(ciphertext as PreKeySignalMessage)
+            CiphertextMessage.WHISPER_TYPE -> cipher.decrypt(ciphertext as SignalMessage)
             else -> throw IllegalArgumentException("Unknown ciphertext type: ${ciphertext.type}")
         }
 
@@ -54,19 +50,17 @@ class SessionManager @Inject constructor(
         return signalKeyStore.containsSession(address)
     }
 
-    // Build a Signal session from the recipient's pre-key bundle fetched from server.
-    // Must be called before the first encrypt() to a new recipient.
     fun buildSession(recipientUin: Long, bundle: PreKeyBundleResponse) {
         val address = SignalProtocolAddress(recipientUin.toString(), 1)
         val preKeyBundle = PreKeyBundle(
             bundle.registrationId,
             DEVICE_ID,
             bundle.preKey?.id ?: 0,
-            bundle.preKey?.let { Curve.decodePoint(Base64.decode(it.key, Base64.NO_WRAP), 0) },
+            bundle.preKey?.let { Curve.decodePoint(DEC.decode(it.key), 0) },
             bundle.signedPreKey.id,
-            Curve.decodePoint(Base64.decode(bundle.signedPreKey.key, Base64.NO_WRAP), 0),
-            Base64.decode(bundle.signedPreKey.signature, Base64.NO_WRAP),
-            IdentityKey(Base64.decode(bundle.identityKey, Base64.NO_WRAP), 0)
+            Curve.decodePoint(DEC.decode(bundle.signedPreKey.key), 0),
+            DEC.decode(bundle.signedPreKey.signature),
+            IdentityKey(DEC.decode(bundle.identityKey), 0)
         )
         SessionBuilder(signalKeyStore, address).process(preKeyBundle)
     }
@@ -76,33 +70,18 @@ class SessionManager @Inject constructor(
         signalKeyStore.deleteSession(address)
     }
 
-    /**
-     * Generate pre-keys for registration
-     */
     fun generatePreKeys(): List<String> {
-        val preKeys = (1..100).map { id ->
-            PreKeyRecord(id, Curve.generateKeyPair())
-        }
-        return preKeys.map { preKey ->
-            Base64.encodeToString(preKey.serialize(), Base64.NO_WRAP)
-        }
+        val preKeys = (1..100).map { id -> PreKeyRecord(id, Curve.generateKeyPair()) }
+        return preKeys.map { ENC.encodeToString(it.serialize()) }
     }
 
-    /**
-     * Generate signed pre-key for registration
-     */
     fun generateSignedPreKey(): String {
         val signedKeyPair = Curve.generateKeyPair()
         val signature = Curve.calculateSignature(
             signalKeyStore.identityKeyPair.privateKey,
             signedKeyPair.publicKey.serialize()
         )
-        val signedPreKey = SignedPreKeyRecord(
-            1,
-            System.currentTimeMillis(),
-            signedKeyPair,
-            signature
-        )
-        return Base64.encodeToString(signedPreKey.serialize(), Base64.NO_WRAP)
+        val signedPreKey = SignedPreKeyRecord(1, System.currentTimeMillis(), signedKeyPair, signature)
+        return ENC.encodeToString(signedPreKey.serialize())
     }
 }

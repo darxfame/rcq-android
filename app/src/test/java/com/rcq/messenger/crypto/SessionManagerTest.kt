@@ -4,66 +4,102 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.Assert.*
 import org.signal.libsignal.protocol.IdentityKeyPair
-import org.signal.libsignal.protocol.SignalProtocolAddress
 import org.signal.libsignal.protocol.SessionBuilder
+import org.signal.libsignal.protocol.SignalProtocolAddress
 import org.signal.libsignal.protocol.ecc.Curve
 import org.signal.libsignal.protocol.state.PreKeyBundle
+import org.signal.libsignal.protocol.state.PreKeyRecord
+import org.signal.libsignal.protocol.state.SignedPreKeyRecord
 import java.util.Base64
 
+/**
+ * Signal Protocol is asymmetric: Alice encrypts to Bob, Bob decrypts.
+ * Tests use two separate stores — senderStore (Alice) and recipientStore (Bob).
+ */
 class SessionManagerTest {
 
+    // Alice = local node (the sender in E2E tests)
+    private lateinit var senderKeyPair: IdentityKeyPair
+    private lateinit var senderStore: InMemorySignalProtocolStore
+    private lateinit var senderKeyStore: SignalKeyStore
     private lateinit var sessionManager: SessionManager
-    private lateinit var signalKeyStore: SignalKeyStore
-    private lateinit var identityKeyPair: IdentityKeyPair
-    private val testUin = 123L
+
+    // Bob = remote user (the recipient in E2E tests)
+    private lateinit var recipientKeyPair: IdentityKeyPair
+    private lateinit var recipientStore: InMemorySignalProtocolStore
+    private lateinit var recipientKeyStore: SignalKeyStore
+    private lateinit var recipientSessionManager: SessionManager
+
+    private val recipientUin = 123L  // Bob's UIN
+    private val senderUin = 999L     // Alice's UIN (used as session key by Bob)
 
     @Before
     fun setUp() {
-        identityKeyPair = IdentityKeyPair.generate()
-        signalKeyStore = SignalKeyStore(InMemorySignalProtocolStore(identityKeyPair))
-        sessionManager = SessionManager(signalKeyStore)
-        setupTestSession()
+        // Alice
+        senderKeyPair = IdentityKeyPair.generate()
+        senderStore = InMemorySignalProtocolStore(senderKeyPair)
+        senderKeyStore = SignalKeyStore(senderStore)
+        sessionManager = SessionManager(senderKeyStore)
+
+        // Bob
+        recipientKeyPair = IdentityKeyPair.generate()
+        recipientStore = InMemorySignalProtocolStore(recipientKeyPair)
+        recipientKeyStore = SignalKeyStore(recipientStore)
+        recipientSessionManager = SessionManager(recipientKeyStore)
+
+        setupSession()
     }
 
-    private fun setupTestSession() {
-        val address = SignalProtocolAddress(testUin.toString(), 1)
-        val sessionBuilder = SessionBuilder(signalKeyStore, address)
-
+    /**
+     * Bob generates his pre-keys and stores them.
+     * Alice builds a session using Bob's PreKeyBundle.
+     * After this, Alice can encrypt to Bob; Bob can decrypt from Alice.
+     */
+    private fun setupSession() {
         val preKeyPair = Curve.generateKeyPair()
-        val signedPreKeyPair = Curve.generateKeyPair()
-        val signature = Curve.calculateSignature(identityKeyPair.privateKey, signedPreKeyPair.publicKey.serialize())
+        val preKeyRecord = PreKeyRecord(1, preKeyPair)
+        recipientStore.storePreKey(1, preKeyRecord)
 
-        val preKeyBundle = PreKeyBundle(
+        val signedPreKeyPair = Curve.generateKeyPair()
+        val signature = Curve.calculateSignature(
+            recipientKeyPair.privateKey,
+            signedPreKeyPair.publicKey.serialize()
+        )
+        val signedPreKeyRecord = SignedPreKeyRecord(1, System.currentTimeMillis(), signedPreKeyPair, signature)
+        recipientStore.storeSignedPreKey(1, signedPreKeyRecord)
+
+        val bundle = PreKeyBundle(
             0, 1, 1, preKeyPair.publicKey,
             1, signedPreKeyPair.publicKey, signature,
-            identityKeyPair.publicKey
+            recipientKeyPair.publicKey
         )
-
-        sessionBuilder.process(preKeyBundle)
+        SessionBuilder(senderKeyStore, SignalProtocolAddress(recipientUin.toString(), 1)).process(bundle)
     }
 
     @Test
     fun testEncryptDecryptMessage() {
         val plaintext = "Hello Signal Protocol"
 
-        val ciphertext = sessionManager.encryptMessage(testUin, plaintext)
+        // Alice encrypts to Bob
+        val ciphertext = sessionManager.encryptMessage(recipientUin, plaintext)
         assertNotNull(ciphertext)
 
-        val decrypted = sessionManager.decryptMessage(testUin, ciphertext)
+        // Bob decrypts from Alice (senderUin is the session key in Bob's store)
+        val decrypted = recipientSessionManager.decryptMessage(senderUin, ciphertext)
         assertEquals(plaintext, decrypted)
     }
 
     @Test
     fun testHasSession() {
-        assertTrue(sessionManager.hasSession(testUin))
-        assertFalse(sessionManager.hasSession(999L))
+        assertTrue(sessionManager.hasSession(recipientUin))
+        assertFalse(sessionManager.hasSession(9999L))
     }
 
     @Test
     fun testDeleteSession() {
-        assertTrue(sessionManager.hasSession(testUin))
-        sessionManager.deleteSession(testUin)
-        assertFalse(sessionManager.hasSession(testUin))
+        assertTrue(sessionManager.hasSession(recipientUin))
+        sessionManager.deleteSession(recipientUin)
+        assertFalse(sessionManager.hasSession(recipientUin))
     }
 
     @Test
@@ -72,8 +108,8 @@ class SessionManagerTest {
         val ciphertexts = mutableListOf<String>()
 
         messages.forEach { message ->
-            val ciphertext = sessionManager.encryptMessage(testUin, message)
-            ciphertexts.add(Base64.getEncoder().encodeToString(ciphertext.serialize()))
+            val ct = sessionManager.encryptMessage(recipientUin, message)
+            ciphertexts.add(Base64.getEncoder().encodeToString(ct.serialize()))
         }
 
         assertEquals(3, ciphertexts.size)
