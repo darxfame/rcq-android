@@ -231,6 +231,9 @@ class ChatRepository @Inject constructor(
         .map { (_, userId) -> userId != 0L }
 
     suspend fun clearUnreadCount(chatId: String) = chatDao.clearUnreadCount(chatId)
+    suspend fun setPinned(chatId: String, pinned: Boolean) = chatDao.setPinned(chatId, pinned)
+    suspend fun setMuted(chatId: String, muted: Boolean) = chatDao.setMuted(chatId, muted)
+    suspend fun setArchived(chatId: String, archived: Boolean) = chatDao.setArchived(chatId, archived)
     @Volatile private var currentUserUin: Long = 0L
 
     fun setCurrentUserUin(uin: Long) { currentUserUin = uin }
@@ -346,6 +349,19 @@ class ChatRepository @Inject constructor(
                     }
                     is WsEvent.TypingStopped -> {
                         _typingEvents.tryEmit(event.chatId to 0L)
+                    }
+                    is WsEvent.MessageEdited -> {
+                        messageDao.updateContent(event.messageId, event.content, System.currentTimeMillis())
+                    }
+                    is WsEvent.MessageDeleted -> {
+                        messageDao.deleteMessage(event.messageId)
+                    }
+                    is WsEvent.MessageDeletedForEveryone -> {
+                        messageDao.markDeletedForEveryone(event.messageId)
+                    }
+                    is WsEvent.MessageReaction -> {
+                        val reactionsJson = event.raw["reactions"]?.toString() ?: return@onEach
+                        messageDao.updateReactions(event.messageId, reactionsJson)
                     }
                     is WsEvent.PresenceOnline -> contactDao.updateStatus(event.uin, "ONLINE")
                     is WsEvent.PresenceAway -> contactDao.updateStatus(event.uin, "AWAY")

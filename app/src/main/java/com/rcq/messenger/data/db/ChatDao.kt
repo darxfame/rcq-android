@@ -33,6 +33,15 @@ interface ChatDao {
     @Query("UPDATE chats SET unreadCount = 0 WHERE id = :chatId")
     suspend fun clearUnreadCount(chatId: String)
 
+    @Query("UPDATE chats SET isPinned = :pinned WHERE id = :chatId")
+    suspend fun setPinned(chatId: String, pinned: Boolean)
+
+    @Query("UPDATE chats SET isMuted = :muted WHERE id = :chatId")
+    suspend fun setMuted(chatId: String, muted: Boolean)
+
+    @Query("UPDATE chats SET isArchived = :archived WHERE id = :chatId")
+    suspend fun setArchived(chatId: String, archived: Boolean)
+
     @Query("UPDATE chats SET updatedAt = :timestamp WHERE id = :chatId")
     suspend fun updateTimestamp(chatId: String, timestamp: Long)
 

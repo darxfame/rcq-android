@@ -361,8 +361,34 @@ class ChatViewModel @Inject constructor(
     }
 
     fun forwardMessage(message: Message) {
-        // TODO Phase 2: show chat selector, then resend to chosen chat
         _sendError.value = "Forward: coming soon"
+    }
+
+    fun editMessage(message: Message, newContent: String) {
+        if (newContent.isBlank()) return
+        viewModelScope.launch {
+            chatRepository.editMessage(chatId, message.copy(content = newContent))
+                .onFailure { _sendError.value = "Edit failed: ${it.message}" }
+        }
+    }
+
+    fun deleteMessage(messageId: String) {
+        viewModelScope.launch {
+            chatRepository.deleteMessage(chatId, messageId)
+                .onFailure { _sendError.value = "Delete failed: ${it.message}" }
+        }
+    }
+
+    fun addReaction(messageId: String, emoji: String) {
+        viewModelScope.launch {
+            val reaction = com.rcq.messenger.domain.model.Reaction(
+                userId = _currentUserId.value,
+                emoji = emoji,
+                timestamp = System.currentTimeMillis()
+            )
+            chatRepository.addReaction(chatId, messageId, reaction)
+                .onFailure { _sendError.value = "Reaction failed: ${it.message}" }
+        }
     }
 
     fun loadMoreMessages() {

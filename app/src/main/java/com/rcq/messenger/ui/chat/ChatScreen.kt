@@ -151,6 +151,9 @@ fun ChatScreen(
                         isOwnMessage = message.senderId == currentUserId,
                         onReply = { viewModel.setReplyTo(message) },
                         onForward = { viewModel.forwardMessage(message) },
+                        onEdit = { viewModel.editMessage(message, message.content) },
+                        onDelete = { viewModel.deleteMessage(message.id) },
+                        onReact = { viewModel.addReaction(message.id, "👍") },
                         onVoicePlay = { _ -> viewModel.playVoice(message) },
                         onVoicePause = { viewModel.pauseVoice() },
                         isVoicePlaying = activeVoiceId == message.mediaId,
@@ -221,6 +224,9 @@ fun MessageBubble(
     isOwnMessage: Boolean,
     onReply: () -> Unit,
     onForward: () -> Unit = {},
+    onEdit: () -> Unit = {},
+    onDelete: () -> Unit = {},
+    onReact: () -> Unit = {},
     onVoicePlay: (String) -> Unit = {},
     onVoicePause: () -> Unit = {},
     isVoicePlaying: Boolean = false,
@@ -352,24 +358,26 @@ fun MessageBubble(
 
         DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
             DropdownMenuItem(
-                text = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.AutoMirrored.Filled.Reply, null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Reply")
-                    }
-                },
+                text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.AutoMirrored.Filled.Reply, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("Reply") } },
                 onClick = { showMenu = false; onReply() }
             )
+            if (isOwnMessage) {
+                DropdownMenuItem(
+                    text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.Edit, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("Edit") } },
+                    onClick = { showMenu = false; onEdit() }
+                )
+                DropdownMenuItem(
+                    text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.Delete, null, Modifier.size(18.dp), tint = ColorError); Spacer(Modifier.width(8.dp)); Text("Delete", color = ColorError) } },
+                    onClick = { showMenu = false; onDelete() }
+                )
+            }
             DropdownMenuItem(
-                text = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Forward, null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Forward")
-                    }
-                },
+                text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.Forward, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("Forward") } },
                 onClick = { showMenu = false; onForward() }
+            )
+            DropdownMenuItem(
+                text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.AddReaction, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("React") } },
+                onClick = { showMenu = false; onReact() }
             )
         }
     }
