@@ -53,6 +53,7 @@ import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PushPin
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -132,6 +133,7 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
     var editMsg by remember { mutableStateOf<ChatMessage?>(null) }
     var replyTarget by remember { mutableStateOf<ChatMessage?>(null) }
     var attachMenu by remember { mutableStateOf(false) }
+    var showSearch by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
 
     fun authorName(m: ChatMessage): String = when {
@@ -268,6 +270,12 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
                 }
                 Text(sub, color = if (isTyping) c.accent else c.textSecondary, fontSize = 12.sp)
             }
+            // Search within this thread (own click consumes the tap so the
+            // header's open-info click doesn't also fire).
+            Icon(
+                Icons.Filled.Search, stringResource(R.string.chat_search_hint), tint = c.accent,
+                modifier = Modifier.size(24.dp).clip(CircleShape).clickable { showSearch = true },
+            )
         }
 
         // Pinned banner (groups).
@@ -423,6 +431,22 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
             },
             confirmButton = {},
             dismissButton = { TextButton(onClick = { attachMenu = false }) { Text(stringResource(R.string.common_cancel), color = c.textSecondary) } },
+        )
+    }
+
+    // In-chat message search — stacks over the thread (it's a later child of
+    // the host Box). Tapping a hit scrolls the list to that message.
+    if (showSearch) {
+        InChatSearchOverlay(
+            messages = messages,
+            onClose = { showSearch = false },
+            onSelect = { msg ->
+                showSearch = false
+                scope.launch {
+                    val idx = messages.indexOfFirst { it.id == msg.id }
+                    if (idx >= 0) listState.animateScrollToItem(idx)
+                }
+            },
         )
     }
 }
