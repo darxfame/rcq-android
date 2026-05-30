@@ -329,87 +329,91 @@ fun ContactItem(
     onBlock: () -> Unit = {},
     onRemove: () -> Unit = {}
 ) {
+    val rcq = LocalRCQColors.current
+    val statusColor = when (contact.status) {
+        com.rcq.messenger.domain.model.UserStatus.ONLINE -> StatusOnline
+        com.rcq.messenger.domain.model.UserStatus.AWAY -> StatusAway
+        com.rcq.messenger.domain.model.UserStatus.BUSY, com.rcq.messenger.domain.model.UserStatus.DND -> StatusBusy
+        com.rcq.messenger.domain.model.UserStatus.INVISIBLE -> StatusInvisible
+        com.rcq.messenger.domain.model.UserStatus.OFFLINE -> StatusOffline
+    }
+    val statusLabel = when (contact.status) {
+        com.rcq.messenger.domain.model.UserStatus.ONLINE -> "Online"
+        com.rcq.messenger.domain.model.UserStatus.AWAY -> "Away"
+        com.rcq.messenger.domain.model.UserStatus.BUSY -> "Busy"
+        com.rcq.messenger.domain.model.UserStatus.DND -> "Do not disturb"
+        com.rcq.messenger.domain.model.UserStatus.INVISIBLE -> "Invisible"
+        com.rcq.messenger.domain.model.UserStatus.OFFLINE -> "Offline"
+    }
     var menuExpanded by remember { mutableStateOf(false) }
 
     Box {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .combinedClickable(
-                    onClick = onClick,
-                    onLongClick = { menuExpanded = true }
-                )
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .combinedClickable(onClick = onClick, onLongClick = { menuExpanded = true })
+                .padding(horizontal = RCQMetrics.rowHPad, vertical = RCQMetrics.rowVPad),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box {
                 Box(
                     modifier = Modifier
-                        .size(48.dp)
+                        .size(RCQMetrics.avatarLg)
                         .clip(CircleShape)
-                        .background(SurfaceVariant),
+                        .background(rcq.bgSecondary),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = (contact.customNickname ?: contact.nickname).firstOrNull()?.uppercase() ?: "?",
                         style = MaterialTheme.typography.titleMedium,
-                        color = Primary
+                        fontWeight = FontWeight.Bold,
+                        color = rcq.accent
                     )
                 }
                 Box(
                     modifier = Modifier
-                        .size(12.dp)
+                        .size(RCQMetrics.statusDot)
                         .clip(CircleShape)
-                        .background(
-                            when (contact.status) {
-                                com.rcq.messenger.domain.model.UserStatus.ONLINE -> Online
-                                com.rcq.messenger.domain.model.UserStatus.AWAY -> Warning
-                                com.rcq.messenger.domain.model.UserStatus.BUSY, com.rcq.messenger.domain.model.UserStatus.DND -> Error
-                                com.rcq.messenger.domain.model.UserStatus.INVISIBLE, com.rcq.messenger.domain.model.UserStatus.OFFLINE -> Offline
-                            }
-                        )
+                        .background(statusColor)
                         .align(Alignment.BottomEnd)
                 )
             }
 
-            Spacer(modifier = Modifier.width(12.dp))
+            Spacer(modifier = Modifier.width(RCQMetrics.rowHPad))
 
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = contact.customNickname ?: contact.nickname,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Medium,
-                    color = TextPrimary
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = rcq.textPrimary
                 )
-                Text(
-                    text = when (contact.status) {
-                        com.rcq.messenger.domain.model.UserStatus.ONLINE -> "Online"
-                        com.rcq.messenger.domain.model.UserStatus.AWAY -> "Away"
-                        com.rcq.messenger.domain.model.UserStatus.BUSY, com.rcq.messenger.domain.model.UserStatus.DND -> "Do not disturb"
-                        com.rcq.messenger.domain.model.UserStatus.INVISIBLE, com.rcq.messenger.domain.model.UserStatus.OFFLINE -> "Offline"
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = TextSecondary
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = contact.userId.toString(),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontSize = RCQFontSize.monoSmall,
+                        color = rcq.textMono,
+                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                    )
+                    Text(
+                        text = " · $statusLabel",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontSize = RCQFontSize.monoSmall,
+                        color = statusColor
+                    )
+                }
             }
 
             if (contact.isFavorite) {
-                Icon(
-                    Icons.Default.Star,
-                    contentDescription = "Favorite",
-                    tint = Warning,
-                    modifier = Modifier.size(20.dp)
-                )
+                Icon(Icons.Default.Star, contentDescription = "Favorite", tint = StatusAway, modifier = Modifier.size(18.dp))
             }
         }
 
-        DropdownMenu(
-            expanded = menuExpanded,
-            onDismissRequest = { menuExpanded = false }
-        ) {
+        DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
             DropdownMenuItem(
                 text = { Text(if (contact.isFavorite) "Unfavorite" else "Favorite") },
-                leadingIcon = { Icon(if (contact.isFavorite) Icons.Default.Star else Icons.Default.StarBorder, null, tint = Warning) },
+                leadingIcon = { Icon(if (contact.isFavorite) Icons.Default.Star else Icons.Default.StarBorder, null, tint = StatusAway) },
                 onClick = { menuExpanded = false; onToggleFavorite() }
             )
             DropdownMenuItem(
@@ -419,12 +423,12 @@ fun ContactItem(
             )
             DropdownMenuItem(
                 text = { Text("Block") },
-                leadingIcon = { Icon(Icons.Default.Block, null, tint = Error) },
+                leadingIcon = { Icon(Icons.Default.Block, null, tint = ColorError) },
                 onClick = { menuExpanded = false; onBlock() }
             )
             DropdownMenuItem(
                 text = { Text("Remove") },
-                leadingIcon = { Icon(Icons.Default.Delete, null, tint = Error) },
+                leadingIcon = { Icon(Icons.Default.Delete, null, tint = ColorError) },
                 onClick = { menuExpanded = false; onRemove() }
             )
         }
