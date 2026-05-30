@@ -124,12 +124,12 @@ fun ChatScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Surface,
-                    titleContentColor = TextPrimary
+                    containerColor = LocalRCQColors.current.bgPrimary,
+                    titleContentColor = LocalRCQColors.current.textPrimary
                 )
             )
         },
-        containerColor = Background
+        containerColor = LocalRCQColors.current.bgPrimary
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -223,171 +223,131 @@ fun MessageBubble(
     isVoicePlaying: Boolean = false,
     playbackState: com.rcq.messenger.media.PlaybackState = com.rcq.messenger.media.PlaybackState.IDLE
 ) {
+    val rcq = LocalRCQColors.current
+    val bubbleColor = if (isOwnMessage) rcq.bubbleSelf else rcq.bubbleOther
+    val bubbleShape = RoundedCornerShape(
+        topStart = RCQMetrics.bubbleRadius,
+        topEnd = RCQMetrics.bubbleRadius,
+        bottomStart = if (isOwnMessage) RCQMetrics.bubbleRadius else 2.dp,
+        bottomEnd = if (isOwnMessage) 2.dp else RCQMetrics.bubbleRadius
+    )
     var showMenu by remember { mutableStateOf(false) }
 
     Box {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp)
-            .combinedClickable(
-                onClick = {},
-                onLongClick = { showMenu = true }
-            ),
-        horizontalAlignment = if (isOwnMessage) Alignment.End else Alignment.Start
-    ) {
-        if (message.replyToId != null) {
-            Row(
-                modifier = Modifier
-                    .background(SurfaceVariant, RoundedCornerShape(8.dp))
-                    .padding(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    modifier = Modifier
-                        .width(2.dp)
-                        .height(32.dp)
-                        .background(Primary)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = message.replyToContent ?: "",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = TextSecondary,
-                    maxLines = 1
-                )
-            }
-            Spacer(modifier = Modifier.height(4.dp))
-        }
-
-        Row(
-            verticalAlignment = Alignment.Bottom,
-            horizontalArrangement = if (isOwnMessage) Arrangement.End else Arrangement.Start
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = RCQMetrics.screenHPad, vertical = 3.dp)
+                .combinedClickable(onClick = {}, onLongClick = { showMenu = true }),
+            horizontalAlignment = if (isOwnMessage) Alignment.End else Alignment.Start
         ) {
-            if (!isOwnMessage) {
-                Box(
+            if (message.replyToId != null) {
+                Row(
                     modifier = Modifier
-                        .size(32.dp)
-                        .clip(CircleShape)
-                        .background(SurfaceVariant),
-                    contentAlignment = Alignment.Center
+                        .background(rcq.bgSecondary, RoundedCornerShape(4.dp))
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("U", color = Primary, style = MaterialTheme.typography.labelMedium)
+                    Box(modifier = Modifier.width(2.dp).height(28.dp).background(rcq.accent))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = message.replyToContent ?: "",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = rcq.textSecondary,
+                        maxLines = 1
+                    )
                 }
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.height(3.dp))
             }
 
-            Column(
-                horizontalAlignment = if (isOwnMessage) Alignment.End else Alignment.Start
+            Row(
+                verticalAlignment = Alignment.Bottom,
+                horizontalArrangement = if (isOwnMessage) Arrangement.End else Arrangement.Start
             ) {
-                val isMedia = message.kind in listOf(
-                    MessageKind.PHOTO, MessageKind.VIDEO, MessageKind.VOICE,
-                    MessageKind.FILE, MessageKind.PREMIUM_PHOTO, MessageKind.PREMIUM_VIDEO
-                )
-                if (isMedia) {
-                    com.rcq.messenger.ui.chat.components.MediaMessageBubble(
-                        message = message,
-                        isOwnMessage = isOwnMessage,
-                        onMediaClick = { /* TODO: open fullscreen */ },
-                        onVoicePlay = onVoicePlay,
-                        onVoicePause = onVoicePause,
-                        playbackState = if (isVoicePlaying) playbackState else com.rcq.messenger.media.PlaybackState.IDLE,
-                        modifier = Modifier
-                    )
-                } else if (message.kind == MessageKind.LOCATION && message.latitude != null && message.longitude != null) {
-                    Column(
-                        modifier = Modifier
-                            .background(
-                                if (isOwnMessage) MessageSent else MessageReceived,
-                                RoundedCornerShape(
-                                    topStart = 16.dp, topEnd = 16.dp,
-                                    bottomStart = if (isOwnMessage) 16.dp else 4.dp,
-                                    bottomEnd = if (isOwnMessage) 4.dp else 16.dp
-                                )
-                            )
-                            .padding(12.dp)
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                Icons.Default.LocationOn,
-                                contentDescription = null,
-                                tint = if (isOwnMessage) TextOnPrimary else Primary,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                "Location",
-                                fontWeight = FontWeight.Medium,
-                                color = if (isOwnMessage) TextOnPrimary else TextPrimary
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            "${String.format("%.4f", message.latitude)}, ${String.format("%.4f", message.longitude)}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = if (isOwnMessage) TextOnPrimary.copy(alpha = 0.8f) else TextSecondary
-                        )
-                    }
-                } else {
+                if (!isOwnMessage) {
                     Box(
                         modifier = Modifier
-                            .background(
-                                if (isOwnMessage) MessageSent else MessageReceived,
-                                RoundedCornerShape(
-                                    topStart = 16.dp, topEnd = 16.dp,
-                                    bottomStart = if (isOwnMessage) 16.dp else 4.dp,
-                                    bottomEnd = if (isOwnMessage) 4.dp else 16.dp
-                                )
+                            .size(RCQMetrics.avatarSm)
+                            .clip(CircleShape)
+                            .background(rcq.bgSecondary),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("?", color = rcq.accent, style = MaterialTheme.typography.labelSmall)
+                    }
+                    Spacer(modifier = Modifier.width(6.dp))
+                }
+
+                Column(
+                    horizontalAlignment = if (isOwnMessage) Alignment.End else Alignment.Start
+                ) {
+                    val isMedia = message.kind in listOf(
+                        MessageKind.PHOTO, MessageKind.VIDEO, MessageKind.VOICE,
+                        MessageKind.FILE, MessageKind.PREMIUM_PHOTO, MessageKind.PREMIUM_VIDEO
+                    )
+                    if (isMedia) {
+                        com.rcq.messenger.ui.chat.components.MediaMessageBubble(
+                            message = message,
+                            isOwnMessage = isOwnMessage,
+                            onMediaClick = {},
+                            onVoicePlay = onVoicePlay,
+                            onVoicePause = onVoicePause,
+                            playbackState = if (isVoicePlaying) playbackState else com.rcq.messenger.media.PlaybackState.IDLE,
+                            modifier = Modifier
+                        )
+                    } else if (message.kind == MessageKind.LOCATION && message.latitude != null && message.longitude != null) {
+                        Column(
+                            modifier = Modifier
+                                .background(bubbleColor, bubbleShape)
+                                .padding(RCQMetrics.bubbleHPad, RCQMetrics.bubbleVPad)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.LocationOn, null, tint = rcq.accent, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Location", fontWeight = FontWeight.Medium, color = rcq.textPrimary)
+                            }
+                            Text(
+                                "${String.format("%.4f", message.latitude)}, ${String.format("%.4f", message.longitude)}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = rcq.textSecondary
                             )
-                            .padding(12.dp)
+                        }
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .background(bubbleColor, bubbleShape)
+                                .padding(RCQMetrics.bubbleHPad, RCQMetrics.bubbleVPad)
+                        ) {
+                            Text(
+                                text = message.content,
+                                color = rcq.textPrimary,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontSize = RCQFontSize.bubble
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(2.dp))
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = if (isOwnMessage) Arrangement.End else Arrangement.Start
                     ) {
                         Text(
-                            text = message.content,
-                            color = if (isOwnMessage) TextOnPrimary else TextPrimary,
-                            style = MaterialTheme.typography.bodyMedium
+                            text = formatTimestamp(message.timestamp),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontSize = RCQFontSize.timestamp,
+                            color = rcq.textSecondary
                         )
+                        if (isOwnMessage) {
+                            Spacer(modifier = Modifier.width(3.dp))
+                            MessageStatusIcon(status = message.status)
+                        }
                     }
-                }
-
-                Spacer(modifier = Modifier.height(4.dp))
-
-                // Message status and timestamp
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = if (isOwnMessage) Arrangement.End else Arrangement.Start
-                ) {
-                    Text(
-                        text = formatTimestamp(message.timestamp),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = TextSecondary
-                    )
-
-                    if (isOwnMessage) {
-                        Spacer(modifier = Modifier.width(4.dp))
-                        MessageStatusIcon(status = message.status)
-                    }
-                }
-            }
-
-            if (isOwnMessage) {
-                Spacer(modifier = Modifier.width(8.dp))
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clip(CircleShape)
-                        .background(Primary),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("M", color = TextOnPrimary, style = MaterialTheme.typography.labelMedium)
                 }
             }
         }
-    }
 
-        DropdownMenu(
-            expanded = showMenu,
-            onDismissRequest = { showMenu = false }
-        ) {
+        DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
             DropdownMenuItem(
                 text = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -412,95 +372,47 @@ fun MessageBubble(
     }
 }
 
-private fun formatTimestamp(timestamp: Long): String {
-    val sdf = SimpleDateFormat("HH:mm", Locale.getDefault())
-    return sdf.format(Date(timestamp))
-}
+private fun formatTimestamp(timestamp: Long): String =
+    SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(timestamp))
 
 @Composable
 fun MessageStatusIcon(status: MessageStatus) {
-    when (status) {
-        MessageStatus.SENDING -> {
-            Icon(
-                imageVector = Icons.Default.Schedule,
-                contentDescription = "Sending",
-                tint = TextSecondary,
-                modifier = Modifier.size(12.dp)
-            )
-        }
-        MessageStatus.SENT -> {
-            Icon(
-                imageVector = Icons.Default.Check,
-                contentDescription = "Sent",
-                tint = TextSecondary,
-                modifier = Modifier.size(12.dp)
-            )
-        }
-        MessageStatus.DELIVERED -> {
-            Icon(
-                imageVector = Icons.Default.DoneAll,
-                contentDescription = "Delivered",
-                tint = TextSecondary,
-                modifier = Modifier.size(12.dp)
-            )
-        }
-        MessageStatus.READ -> {
-            Icon(
-                imageVector = Icons.Default.DoneAll,
-                contentDescription = "Read",
-                tint = Primary,
-                modifier = Modifier.size(12.dp)
-            )
-        }
-        MessageStatus.FAILED -> {
-            Icon(
-                imageVector = Icons.Default.Error,
-                contentDescription = "Failed",
-                tint = MaterialTheme.colorScheme.error,
-                modifier = Modifier.size(12.dp)
-            )
-        }
+    val rcq = LocalRCQColors.current
+    val (icon, tint) = when (status) {
+        MessageStatus.SENDING -> Icons.Default.Schedule to rcq.textSecondary
+        MessageStatus.SENT -> Icons.Default.Check to rcq.textSecondary
+        MessageStatus.DELIVERED -> Icons.Default.DoneAll to rcq.textSecondary
+        MessageStatus.READ -> Icons.Default.DoneAll to rcq.accent
+        MessageStatus.FAILED -> Icons.Default.Error to ColorError
     }
+    Icon(imageVector = icon, contentDescription = status.name, tint = tint, modifier = Modifier.size(12.dp))
 }
 
 @Composable
-fun TypingIndicator(
-    isVisible: Boolean,
-    userName: String = "User"
-) {
+fun TypingIndicator(isVisible: Boolean, userName: String = "User") {
+    val rcq = LocalRCQColors.current
     if (isVisible) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
+                .padding(horizontal = RCQMetrics.screenHPad, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
-                modifier = Modifier
-                    .size(32.dp)
-                    .clip(CircleShape)
-                    .background(SurfaceVariant),
+                modifier = Modifier.size(RCQMetrics.avatarSm).clip(CircleShape).background(rcq.bgSecondary),
                 contentAlignment = Alignment.Center
             ) {
-                Text("U", color = Primary, style = MaterialTheme.typography.labelMedium)
+                Text("?", color = rcq.accent, style = MaterialTheme.typography.labelSmall)
             }
-
-            Spacer(modifier = Modifier.width(8.dp))
-
+            Spacer(modifier = Modifier.width(6.dp))
             Box(
                 modifier = Modifier
-                    .background(MessageReceived, RoundedCornerShape(16.dp))
-                    .padding(12.dp)
+                    .background(rcq.bubbleOther, RoundedCornerShape(RCQMetrics.bubbleRadius))
+                    .padding(RCQMetrics.bubbleHPad, RCQMetrics.bubbleVPad)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "$userName печатает",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = TextSecondary
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-
-                    // Animated dots
+                    Text(text = "$userName печатает", style = MaterialTheme.typography.bodySmall, color = rcq.textSecondary)
+                    Spacer(modifier = Modifier.width(6.dp))
                     Row {
                         repeat(3) { index ->
                             val alpha by animateFloatAsState(
@@ -508,14 +420,7 @@ fun TypingIndicator(
                                 animationSpec = tween(500),
                                 label = "typing_dot_$index"
                             )
-                            Box(
-                                modifier = Modifier
-                                    .size(4.dp)
-                                    .background(
-                                        TextSecondary.copy(alpha = alpha),
-                                        CircleShape
-                                    )
-                            )
+                            Box(modifier = Modifier.size(4.dp).background(rcq.textSecondary.copy(alpha = alpha), CircleShape))
                             if (index < 2) Spacer(modifier = Modifier.width(2.dp))
                         }
                     }
@@ -534,16 +439,17 @@ fun MessageInput(
     onVoice: () -> Unit,
     isRecording: Boolean = false
 ) {
+    val rcq = LocalRCQColors.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(if (isRecording) Error.copy(alpha = 0.08f) else Surface)
-            .padding(8.dp),
+            .background(if (isRecording) ColorError.copy(alpha = 0.08f) else rcq.bgSecondary)
+            .padding(horizontal = 8.dp, vertical = 6.dp),
         verticalAlignment = Alignment.Bottom
     ) {
         if (!isRecording) {
             IconButton(onClick = onAttach) {
-                Icon(Icons.Default.Add, "Attach", tint = TextSecondary)
+                Icon(Icons.Default.Add, "Attach", tint = rcq.textSecondary)
             }
         }
 
@@ -552,47 +458,42 @@ fun MessageInput(
             onValueChange = if (isRecording) { _ -> } else onTextChange,
             modifier = Modifier.weight(1f),
             enabled = !isRecording,
-            placeholder = { Text("Message...", color = TextTertiary) },
+            placeholder = { Text("Message...", color = rcq.textSecondary) },
             colors = TextFieldDefaults.colors(
-                focusedContainerColor = SurfaceVariant,
-                unfocusedContainerColor = SurfaceVariant,
-                disabledContainerColor = SurfaceVariant,
+                focusedContainerColor = rcq.inputBg,
+                unfocusedContainerColor = rcq.inputBg,
+                disabledContainerColor = rcq.inputBg,
                 focusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
                 unfocusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
                 disabledIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
-                focusedTextColor = TextPrimary,
-                unfocusedTextColor = TextPrimary,
-                disabledTextColor = Error
+                focusedTextColor = rcq.textPrimary,
+                unfocusedTextColor = rcq.textPrimary,
+                disabledTextColor = rcq.textSecondary
             ),
             shape = RoundedCornerShape(24.dp),
             maxLines = 4
         )
 
-        Spacer(modifier = Modifier.width(8.dp))
+        Spacer(modifier = Modifier.width(6.dp))
 
         if (text.isNotBlank() && !isRecording) {
             IconButton(
                 onClick = onSend,
-                modifier = Modifier
-                    .size(48.dp)
-                    .background(Primary, CircleShape)
+                modifier = Modifier.size(44.dp).background(rcq.accent, CircleShape)
             ) {
-                Icon(Icons.AutoMirrored.Filled.Send, "Send", tint = OnPrimary)
+                Icon(Icons.AutoMirrored.Filled.Send, "Send", tint = androidx.compose.ui.graphics.Color.White)
             }
         } else {
             IconButton(
                 onClick = onVoice,
-                modifier = Modifier
-                    .size(48.dp)
-                    .background(
-                        if (isRecording) Error else androidx.compose.ui.graphics.Color.Transparent,
-                        CircleShape
-                    )
+                modifier = Modifier.size(44.dp).background(
+                    if (isRecording) ColorError else androidx.compose.ui.graphics.Color.Transparent, CircleShape
+                )
             ) {
                 Icon(
                     if (isRecording) Icons.Default.Stop else Icons.Default.Mic,
                     if (isRecording) "Stop recording" else "Voice",
-                    tint = if (isRecording) OnPrimary else TextSecondary
+                    tint = if (isRecording) androidx.compose.ui.graphics.Color.White else rcq.textSecondary
                 )
             }
         }

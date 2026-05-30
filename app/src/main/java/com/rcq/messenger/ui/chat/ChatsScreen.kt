@@ -62,6 +62,7 @@ fun ChatsScreen(
         if (searchActive) focusRequester.requestFocus()
     }
 
+    val rcq = LocalRCQColors.current
     Scaffold(
         topBar = {
             if (searchActive) {
@@ -92,7 +93,7 @@ fun ChatsScreen(
                             Icon(Icons.Default.ArrowBack, contentDescription = "Close search")
                         }
                     },
-                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Background)
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = rcq.bgPrimary)
                 )
             } else {
                 TopAppBar(
@@ -134,14 +135,14 @@ fun ChatsScreen(
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = Background,
-                        titleContentColor = TextPrimary,
-                        actionIconContentColor = Primary
+                        containerColor = rcq.bgPrimary,
+                        titleContentColor = rcq.textPrimary,
+                        actionIconContentColor = rcq.accent
                     )
                 )
             }
         },
-        containerColor = Background
+        containerColor = rcq.bgPrimary
     ) { paddingValues ->
         Box(
             modifier = Modifier
@@ -176,40 +177,41 @@ fun ChatItem(
     chat: Chat,
     onClick: () -> Unit
 ) {
+    val rcq = LocalRCQColors.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = RCQMetrics.rowHPad, vertical = RCQMetrics.rowVPad),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box {
             Box(
                 modifier = Modifier
-                    .size(56.dp)
+                    .size(RCQMetrics.avatarLg)
                     .clip(CircleShape)
-                    .background(SurfaceVariant),
+                    .background(rcq.bgSecondary),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = chat.targetNickname.firstOrNull()?.uppercase() ?: "?",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = Primary
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = rcq.accent
                 )
             }
-            // Presence dot — shown only when status info is available (wired via WebSocket)
             if (!chat.isMuted) {
                 Box(
                     modifier = Modifier
-                        .size(12.dp)
+                        .size(RCQMetrics.statusDot)
                         .clip(CircleShape)
-                        .background(if (chat.isPinned) Primary else Online)
+                        .background(if (chat.isPinned) rcq.accent else StatusOnline)
                         .align(Alignment.BottomEnd)
                 )
             }
         }
 
-        Spacer(modifier = Modifier.width(12.dp))
+        Spacer(modifier = Modifier.width(RCQMetrics.rowHPad))
 
         Column(modifier = Modifier.weight(1f)) {
             Row(
@@ -219,20 +221,24 @@ fun ChatItem(
             ) {
                 Text(
                     text = chat.targetNickname,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = TextPrimary
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = rcq.textPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
                 )
                 chat.lastMessage?.let {
                     Text(
                         text = formatTime(it.timestamp),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = TextTertiary
+                        style = MaterialTheme.typography.labelSmall,
+                        fontSize = RCQFontSize.timestamp,
+                        color = rcq.textSecondary
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(2.dp))
 
             Row(verticalAlignment = Alignment.CenterVertically) {
                 chat.lastMessage?.let { message ->
@@ -243,14 +249,15 @@ fun ChatItem(
                             else -> Icons.Default.ChatBubbleOutline
                         },
                         contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                        tint = TextTertiary
+                        modifier = Modifier.size(14.dp),
+                        tint = rcq.textSecondary
                     )
-                    Spacer(modifier = Modifier.width(4.dp))
+                    Spacer(modifier = Modifier.width(3.dp))
                     Text(
                         text = message.content,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = TextSecondary,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontSize = RCQFontSize.caption,
+                        color = rcq.textSecondary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -259,18 +266,20 @@ fun ChatItem(
         }
 
         if (chat.unreadCount > 0) {
-            Spacer(modifier = Modifier.width(8.dp))
+            Spacer(modifier = Modifier.width(6.dp))
             Box(
                 modifier = Modifier
-                    .size(24.dp)
-                    .clip(CircleShape)
-                    .background(Primary),
+                    .defaultMinSize(minWidth = 20.dp, minHeight = 20.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(rcq.accent),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = if (chat.unreadCount > 99) "99+" else chat.unreadCount.toString(),
                     style = MaterialTheme.typography.labelSmall,
-                    color = OnPrimary
+                    fontSize = RCQFontSize.monoSmall,
+                    color = androidx.compose.ui.graphics.Color.White,
+                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
                 )
             }
         }

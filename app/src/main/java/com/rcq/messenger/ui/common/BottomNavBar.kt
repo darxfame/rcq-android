@@ -19,9 +19,10 @@ fun BottomNavBar(
     currentRoute: String?,
     onNavigate: (com.rcq.messenger.ui.Screen) -> Unit
 ) {
+    val rcq = LocalRCQColors.current
     NavigationBar(
-        containerColor = Surface,
-        contentColor = TextPrimary
+        containerColor = rcq.navBar,
+        contentColor = rcq.textPrimary
     ) {
         items.forEach { screen ->
             val selected = currentRoute == screen.route
@@ -35,17 +36,14 @@ fun BottomNavBar(
                     )
                 },
                 label = {
-                    Text(
-                        text = screen.title,
-                        style = MaterialTheme.typography.labelSmall
-                    )
+                    Text(text = screen.title, style = MaterialTheme.typography.labelSmall)
                 },
                 colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = Primary,
-                    selectedTextColor = Primary,
-                    unselectedIconColor = TextSecondary,
-                    unselectedTextColor = TextSecondary,
-                    indicatorColor = Primary.copy(alpha = 0.1f)
+                    selectedIconColor = rcq.accent,
+                    selectedTextColor = rcq.accent,
+                    unselectedIconColor = rcq.textSecondary,
+                    unselectedTextColor = rcq.textSecondary,
+                    indicatorColor = rcq.accent.copy(alpha = 0.12f)
                 )
             )
         }
