@@ -602,7 +602,7 @@ private fun CustomServerScreen(session: Session, onBack: () -> Unit, onSwitched:
     fun applySwitch(input: String?) {
         switching = true
         scope.launch {
-            val newUin = runCatching { session.switchServer(input) }.getOrNull()
+            val newUin = runCatching { session.registerNewAccount("user-${(1000..9999).random()}", input) }.getOrNull()
             switching = false
             if (newUin != null) {
                 Toast.makeText(context, context.getString(R.string.csrv_connected, session.currentServer), Toast.LENGTH_LONG).show()

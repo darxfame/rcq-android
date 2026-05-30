@@ -144,13 +144,13 @@
     <string name="vis_nobody">Никто</string>
 
     <!-- Settings: account / history / about -->
-    <string name="cs_move_footer">Новый UIN. Контакты, группы и ключи сохраняются, локальная история чатов очищается.</string>
+    <string name="cs_move_footer">Новый UIN. Контакты, группы, ключи и история чатов сохраняются.</string>
     <string name="cs_burn_footer">Стирает аккаунт везде. Необратимо.</string>
     <string name="cs_clear_title">Очистить историю чатов?</string>
     <string name="cs_clear_body">Удаляет все сообщения с этого устройства. Аккаунт и контакты остаются.</string>
     <string name="cs_history_cleared">История очищена</string>
     <string name="cs_move_title">Сменить UIN?</string>
-    <string name="cs_move_body">Вы получите новый UIN. Контакты, группы и ключи сохранятся, локальная история чатов на этом устройстве очистится.</string>
+    <string name="cs_move_body">Вы получите новый UIN. Контакты, группы, ключи и локальная история чатов на этом устройстве сохранятся.</string>
     <string name="cs_moved_toast">Новый UIN: #%1$d</string>
     <string name="cs_move_failed">Не удалось сменить. Попробуйте позже.</string>
     <string name="cs_burn_cta">Сжечь</string>
@@ -205,18 +205,18 @@
     <string name="blocked_unblock">Разблокировать</string>
 
     <!-- Settings: custom server -->
-    <string name="csrv_connected">Подключено к %1$s</string>
+    <string name="csrv_connected">Добавлен аккаунт на %1$s</string>
     <string name="csrv_unreachable">Не удалось подключиться к серверу. Ничего не изменилось.</string>
-    <string name="csrv_intro">Подключитесь к острову организации или своему self-host серверу RCQ вместо публичного.</string>
+    <string name="csrv_intro">Добавьте аккаунт на острове организации или своём self-host сервере RCQ. Текущий аккаунт останется на этом устройстве.</string>
     <string name="csrv_current">ТЕКУЩИЙ СЕРВЕР</string>
     <string name="csrv_host">Хост сервера</string>
-    <string name="csrv_warning">Смена сервера создаёт новый аккаунт. Ваш текущий UIN, контакты и группы живут на текущем сервере и не переносятся. Отменить нельзя.</string>
-    <string name="csrv_reset_btn">Вернуться на публичный сервер</string>
-    <string name="csrv_switching">Переключение…</string>
-    <string name="csrv_confirm_title">Переключиться на %1$s?</string>
-    <string name="csrv_confirm_body">Будет создан новый аккаунт на %1$s. Ваш текущий аккаунт на %2$s останется, но станет недоступен с этого устройства.</string>
-    <string name="csrv_reset_title">Вернуться на публичный сервер?</string>
-    <string name="csrv_reset_body">Будет создан новый аккаунт на %1$s. Ваш аккаунт на %2$s останется, но станет недоступен с этого устройства.</string>
+    <string name="csrv_warning">Это добавляет новый аккаунт на том сервере. Ваш текущий аккаунт остаётся на этом устройстве со всеми чатами и контактами, переключаться между ними можно в меню аккаунтов.</string>
+    <string name="csrv_reset_btn">Добавить аккаунт на публичном сервере</string>
+    <string name="csrv_switching">Добавление…</string>
+    <string name="csrv_confirm_title">Добавить аккаунт на %1$s?</string>
+    <string name="csrv_confirm_body">Будет добавлен новый аккаунт на %1$s. Ваш текущий аккаунт на %2$s останется на устройстве, в любой момент можно вернуться к нему.</string>
+    <string name="csrv_reset_title">Добавить аккаунт на публичном сервере?</string>
+    <string name="csrv_reset_body">Будет добавлен новый аккаунт на %1$s. Ваш текущий аккаунт на %2$s останется на устройстве.</string>
 
     <!-- Group info -->
     <string name="gi_title">Инфо группы</string>

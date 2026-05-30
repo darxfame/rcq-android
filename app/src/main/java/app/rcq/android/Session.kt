@@ -607,23 +607,23 @@ class Session(context: Context) {
 
     /** Move to a freshly-allocated UIN (iOS-parity). The server keeps the
      *  profile/contacts/groups and reuses the identity keys under the new
-     *  UIN; we just swap uin+token locally (keys/nickname/server stay),
-     *  clear local message state, and reboot the session under the new
-     *  UIN. Contacts/groups re-sync from the server. Returns the new UIN.
-     *  Throws on server refusal (e.g. cooldown) so the caller can surface. */
+     *  UIN; we swap uin+token locally (keys/nickname/server stay) and reboot
+     *  the session under the new UIN. **Local chat history is PRESERVED** —
+     *  it's keyed by the peer's UIN (which doesn't change; only ours does),
+     *  so it stays valid. Contacts/groups re-sync from the server. Returns
+     *  the new UIN. Throws on server refusal (e.g. cooldown). */
     suspend fun migrateToNewUin(): Int {
         val resp = api.migrateAccount()
         socket.disconnect()
         store.updateAccount(resp.new_uin, resp.token)
         api.setToken(resp.token)
-        db.wipe()
+        // No db.wipe(): history is peer-keyed and survives the UIN change.
+        // start() below reloads it from the (intact) db.
         peerIdentityCache.clear()
         ackedReads.clear()
         _contacts.value = emptyList()
         _pending.value = emptyList()
-        _messages.value = emptyMap()
         _groups.value = emptyList()
-        _groupMessages.value = emptyMap()
         _typingFrom.value = null
         started = false
         everConnected = false
@@ -632,61 +632,13 @@ class Session(context: Context) {
         return resp.new_uin
     }
 
-    /** Switch this device to a different backend server (iOS
-     *  CustomServerSheet parity). Destructive: the UIN/token/contacts
-     *  only exist on the current server, and the target server has its
-     *  own user table, so switching means a fresh identity. The display
-     *  nickname is carried over. Pass null/blank/the default host to
-     *  reset to the public server. Returns the freshly-allocated UIN.
-     *
-     *  Register-first ordering: we mint on the target server BEFORE
-     *  tearing anything down, so an unreachable server / typo throws
-     *  here with the current account left completely intact. Only once
-     *  the new account exists do we delete the old one and commit. */
-    suspend fun switchServer(serverInput: String?): Int {
-        val nickname = store.nickname ?: "user-${(1000..9999).random()}"
-        val host = normalizeHost(serverInput)
-        val regApi = RcqApi("https://${host ?: RcqApi.DEFAULT_HOST}")
-        val identity = IdentityKeys.generate()
-        val resp = regApi.register(
-            RcqApi.RegisterRequest(
-                nickname = nickname,
-                identity_key = Base64.encodeToString(identity.identityPublic, Base64.NO_WRAP),
-                signing_key = Base64.encodeToString(identity.signingPublic, Base64.NO_WRAP),
-            )
-        )
-        // New account is live on the target server. Now tear down the old
-        // session, best-effort delete the old account on the old server
-        // (api still points there), then commit the new identity locally
-        // and reboot the session against the chosen server.
-        socket.disconnect()
-        runCatching { api.deleteAccount() }
-        db.wipe()
-        peerIdentityCache.clear()
-        ackedReads.clear()
-        _contacts.value = emptyList()
-        _pending.value = emptyList()
-        _messages.value = emptyMap()
-        _groups.value = emptyList()
-        _groupMessages.value = emptyMap()
-        _typingFrom.value = null
-        store.saveIdentity(
-            uin = resp.uin,
-            token = resp.token,
-            nickname = nickname,
-            identityPrivate = identity.identityPrivate,
-            signingPrivate = identity.signingPrivate,
-            serverHost = host,
-        )
-        // Keep the roster entry's host in sync (same account slot, new island).
-        AccountManager.activeId.value?.let { AccountManager.setServerHost(it, host) }
-        api = newApi()
-        started = false
-        everConnected = false
-        socket = newSocket()
-        start()
-        return resp.uin
-    }
+    // NOTE: the old destructive `switchServer` (which wiped the active
+    // account's history to mint a fresh identity on another server) was
+    // REMOVED. With multi-identity, connecting to another server is a
+    // non-destructive ADD: `registerNewAccount(nick, host)` creates a new
+    // account on that server and leaves the current one (and all its
+    // history/favorites/archive) intact and switchable. The Custom-server
+    // settings screen routes through that path now.
 
     // ── messaging ────────────────────────────────────────────────────
 
