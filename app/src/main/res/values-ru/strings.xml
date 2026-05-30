@@ -186,6 +186,8 @@
     <string name="pv_invite_desc">Кому разрешено добавлять вас в группу.</string>
     <string name="pv_receipts">Отчёты о прочтении</string>
     <string name="pv_receipts_desc">Кто видит ваши галочки прочтения. Если выключить, вы не увидите чужие.</string>
+    <string name="pv_screen_security">Запрет скриншотов</string>
+    <string name="pv_screen_security_desc">Блокирует скриншоты и запись экрана, прячет приложение в списке недавних. Решительный человек всё равно может сфотографировать экран другим устройством.</string>
     <string name="pv_network">Сеть</string>
     <string name="pv_custom_server">Свой сервер</string>
     <string name="pv_default">По умолчанию</string>

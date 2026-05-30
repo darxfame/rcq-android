@@ -66,6 +66,12 @@ object LocalStores {
     private val _soundPresence = MutableStateFlow(true)
     val soundPresence: StateFlow<Boolean> = _soundPresence.asStateFlow()
 
+    /** When on, the app window gets FLAG_SECURE: screenshots/screen-recording
+     *  are blocked and content is hidden in the app switcher. Device-global,
+     *  applied by MainActivity. */
+    private val _screenSecurity = MutableStateFlow(false)
+    val screenSecurity: StateFlow<Boolean> = _screenSecurity.asStateFlow()
+
     fun init(context: Context) {
         if (::prefs.isInitialized) return
         prefs = context.applicationContext.getSharedPreferences("rcq_local", Context.MODE_PRIVATE)
@@ -74,6 +80,7 @@ object LocalStores {
             .getOrDefault(ThemeMode.SYSTEM)
         _soundMessages.value = prefs.getBoolean(K_SND_MSG, true)
         _soundPresence.value = prefs.getBoolean(K_SND_PRES, true)
+        _screenSecurity.value = prefs.getBoolean(K_SCREEN_SEC, false)
     }
 
     /** Point the per-account flows at [accountId]'s slots and reload them.
@@ -128,6 +135,9 @@ object LocalStores {
     fun soundPresenceOn() = _soundPresence.value
     fun setSoundMessages(on: Boolean) { _soundMessages.value = on; prefs.edit().putBoolean(K_SND_MSG, on).apply() }
     fun setSoundPresence(on: Boolean) { _soundPresence.value = on; prefs.edit().putBoolean(K_SND_PRES, on).apply() }
+
+    fun screenSecurityOn() = _screenSecurity.value
+    fun setScreenSecurity(on: Boolean) { _screenSecurity.value = on; prefs.edit().putBoolean(K_SCREEN_SEC, on).apply() }
 
     // ── unread counters ──────────────────────────────────────────────
     fun unreadOf(thread: String): Int = _unread.value[thread] ?: 0
@@ -202,4 +212,5 @@ object LocalStores {
     private const val K_UNREAD = "unread"
     private const val K_SND_MSG = "sound_messages"
     private const val K_SND_PRES = "sound_presence"
+    private const val K_SCREEN_SEC = "screen_security"
 }

@@ -75,8 +75,17 @@ class MainActivity : ComponentActivity() {
         LocalStores.bindAccount(activeAccountId)
         app.rcq.android.data.VisitStore.bindAccount(activeAccountId)
         val session = Session(applicationContext)
+        // Apply screenshot-blocking before the first frame if it's already on.
+        if (LocalStores.screenSecurityOn()) {
+            window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
+        }
         setContent {
             val mode by LocalStores.themeMode.collectAsState()
+            val secure by LocalStores.screenSecurity.collectAsState()
+            LaunchedEffect(secure) {
+                if (secure) window.addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
+                else window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
+            }
             RcqTheme(mode) { RcqApp(session) }
         }
     }

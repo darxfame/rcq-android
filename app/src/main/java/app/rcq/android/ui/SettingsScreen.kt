@@ -399,6 +399,7 @@ private fun PrivacyScreen(session: Session, onOpenCustomServer: () -> Unit, onBa
     var receipts by remember { mutableStateOf("everyone") }
     var presencePersistent by remember { mutableStateOf(false) }
     var presenceTtl by remember { mutableStateOf(1440) }
+    val screenSec by app.rcq.android.data.LocalStores.screenSecurity.collectAsState()
 
     androidx.compose.runtime.LaunchedEffect(Unit) {
         session.loadProfile()?.let { p ->
@@ -451,6 +452,19 @@ private fun PrivacyScreen(session: Session, onOpenCustomServer: () -> Unit, onBa
             VisibilityPicker(stringResource(R.string.common_gender), genderVis, listOf("everyone", "contacts", "nobody"), stringResource(R.string.pv_gender_desc)) { genderVis = it; save(RcqApi.UpdateMeBody(gender_visibility = it)) }
             VisibilityPicker(stringResource(R.string.pv_invite), invitePolicy, listOf("everyone", "contacts", "nobody"), stringResource(R.string.pv_invite_desc)) { invitePolicy = it; save(RcqApi.UpdateMeBody(group_invite_policy = it)) }
             VisibilityPicker(stringResource(R.string.pv_receipts), receipts, listOf("everyone", "contacts", "nobody"), stringResource(R.string.pv_receipts_desc)) { receipts = it; save(RcqApi.UpdateMeBody(read_receipts_visibility = it)) }
+
+            // Block screenshots (device-local; FLAG_SECURE applied by MainActivity).
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(stringResource(R.string.pv_screen_security), color = c.textPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                    Text(stringResource(R.string.pv_screen_security_desc), color = c.textSecondary, fontSize = 11.sp)
+                }
+                Switch(
+                    checked = screenSec,
+                    onCheckedChange = { app.rcq.android.data.LocalStores.setScreenSecurity(it) },
+                    colors = SwitchDefaults.colors(checkedTrackColor = c.accent),
+                )
+            }
 
             Spacer(Modifier.height(4.dp))
             SectionLabel(stringResource(R.string.pv_network))
