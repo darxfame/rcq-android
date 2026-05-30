@@ -99,6 +99,9 @@ fun SettingsScreen(
     nickname: String,
     recoveryPhrase: List<String>,
     onLogout: () -> Unit,
+    onNavigateToStealth: () -> Unit = {},
+    onNavigateToPin: () -> Unit = {},
+    onNavigateToDiagnostics: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
     var showLogoutDialog by remember { mutableStateOf(false) }
@@ -374,6 +377,29 @@ fun SettingsScreen(
                         title = "Help",
                         subtitle = "FAQ, contact support",
                         onClick = { }
+                    )
+                }
+            }
+
+            item {
+                SettingsSection(title = "Stealth Mode") {
+                    SettingsItem(
+                        icon = Icons.Default.VpnKey,
+                        title = "Proxy & SingBox",
+                        subtitle = "Configure stealth transport",
+                        onClick = onNavigateToStealth
+                    )
+                    SettingsItem(
+                        icon = Icons.Default.Lock,
+                        title = "Panic PIN",
+                        subtitle = "Decoy and wipe PIN codes",
+                        onClick = onNavigateToPin
+                    )
+                    SettingsItem(
+                        icon = Icons.Default.NetworkCheck,
+                        title = "Connection Diagnostics",
+                        subtitle = "Check proxy and relay status",
+                        onClick = onNavigateToDiagnostics
                     )
                 }
             }

@@ -30,6 +30,9 @@ import com.rcq.messenger.ui.stories.*
 import com.rcq.messenger.ui.calls.*
 import com.rcq.messenger.ui.audio.AudioRoomsScreen
 import com.rcq.messenger.ui.settings.SettingsScreen
+import com.rcq.messenger.ui.settings.StealthSettingsScreen
+import com.rcq.messenger.ui.settings.PINSettingsScreen
+import com.rcq.messenger.ui.settings.ConnectionDiagnosticsScreen
 import com.rcq.messenger.ui.profile.ProfileScreen
 import com.rcq.messenger.ui.calls.CallScreen
 
@@ -165,8 +168,20 @@ fun MainScaffold(
                     currentUin = currentUin,
                     nickname = nickname,
                     recoveryPhrase = recoveryPhrase,
-                    onLogout = { authViewModel.logout() }
+                    onLogout = { authViewModel.logout() },
+                    onNavigateToStealth = { navController.navigate("settings/stealth") },
+                    onNavigateToPin = { navController.navigate("settings/pin") },
+                    onNavigateToDiagnostics = { navController.navigate("settings/diagnostics") }
                 )
+            }
+            composable("settings/stealth") {
+                StealthSettingsScreen(onBack = { navController.popBackStack() })
+            }
+            composable("settings/pin") {
+                PINSettingsScreen(onBack = { navController.popBackStack() })
+            }
+            composable("settings/diagnostics") {
+                ConnectionDiagnosticsScreen(onBack = { navController.popBackStack() })
             }
 
             // Detail screens
