@@ -2,13 +2,13 @@ package com.rcq.messenger.service
 
 import android.content.Context
 import android.content.SharedPreferences
-import android.util.Log
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
 import org.json.JSONArray
 import org.json.JSONObject
+import timber.log.Timber
 import java.net.InetSocketAddress
 import java.net.Socket
 import javax.inject.Inject
@@ -37,29 +37,29 @@ data class RelayEntry(
     val priority: Int = 0
 )
 
-// Mirrors iOS SingBoxTransport.swift: same relay-config.json, same JSON format
-// for sing-box, same SOCKS5 local port 1089.
+// Mirrors iOS SingBoxTransport.swift: same relay-config.json, same sing-box JSON format,
+// same SOCKS5 local port 1089.
 //
-// ACTIVATE: download libbox.aar from https://github.com/SagerNet/sing-box/releases
+// ACTIVATE sing-box: download libbox.aar from https://github.com/SagerNet/sing-box/releases
 // → place at app/libs/libbox.aar
 // → add to app/build.gradle.kts: implementation(files("libs/libbox.aar"))
-// → uncomment the LibboxBoxService lines below
+// → uncomment the boxService lines below
 
 @Singleton
 class SingBoxTransport @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val relayConfigRepository: RelayConfigRepository
 ) {
     companion object {
         private const val TAG = "SingBoxTransport"
         const val LOCAL_PORT = 1089
         private const val PREF_ENABLED = "rcq.singbox.enabled"
         private const val PREF_LAST_RELAY = "rcq.singbox.lastGoodRelayTag"
+        private const val PREF_LAST_ERROR = "rcq.singbox.lastError"
     }
 
     private val prefs: SharedPreferences =
         context.getSharedPreferences("singbox", Context.MODE_PRIVATE)
-    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-    private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
     // private var boxService: io.nekohasekai.libbox.BoxService? = null
 
@@ -68,26 +68,35 @@ class SingBoxTransport @Inject constructor(
 
     val isEnabled: Boolean get() = prefs.getBoolean(PREF_ENABLED, false)
 
+    val lastStartError: String? get() = prefs.getString(PREF_LAST_ERROR, null)
+        ?.takeIf { it.isNotEmpty() }
+
     fun proxyAddress(): InetSocketAddress? =
         if (isActive) InetSocketAddress("127.0.0.1", LOCAL_PORT) else null
 
     suspend fun start() {
         if (isActive) return
         val config = buildSingBoxConfig() ?: run {
-            Log.e(TAG, "Failed to build sing-box config"); return
+            Timber.e("$TAG: Failed to build sing-box config"); return
         }
-        // withContext(Dispatchers.IO) {
-        //     boxService = io.nekohasekai.libbox.BoxService()
-        //     boxService!!.start(config)
-        // }
-        // isActive = true
-        // scope.launch { probeRelaysInBackground() }
-        Log.i(TAG, "Config ready (add libbox.aar to activate):\n${config.take(200)}")
+        runCatching {
+            // val box = io.nekohasekai.libbox.BoxService()
+            // box.start(config)
+            // boxService = box
+            // isActive = true
+            // prefs.edit().remove(PREF_LAST_ERROR).apply()
+            // scope.launch { probeRelaysInBackground() }
+            Timber.i("$TAG: Config ready (add libbox.aar to activate):\n${config.take(200)}")
+        }.onFailure { e ->
+            prefs.edit().putString(PREF_LAST_ERROR, e.message?.take(400) ?: "unknown").apply()
+            Timber.e("$TAG: start failed: ${e.message}")
+        }
     }
 
     fun stop() {
         // boxService?.stop(); boxService = null
         isActive = false
+        Timber.d("$TAG: stopped")
     }
 
     suspend fun setEnabled(on: Boolean) {
@@ -96,7 +105,8 @@ class SingBoxTransport @Inject constructor(
     }
 
     private fun buildSingBoxConfig(): String? {
-        val relays = loadRelays() ?: return null
+        val relays = relayConfigRepository.currentRelays()
+        if (relays.isEmpty()) { Timber.w("$TAG: no relays available"); return null }
         val ordered = orderedRelays(relays)
         val outbounds = JSONArray().apply {
             put(JSONObject().apply {
@@ -144,11 +154,6 @@ class SingBoxTransport @Inject constructor(
         }
     }
 
-    private fun loadRelays(): List<RelayEntry>? = runCatching {
-        val raw = context.assets.open("relay-config.json").bufferedReader().readText()
-        json.decodeFromString<RelayConfig>(raw).relays.sortedBy { it.priority }
-    }.onFailure { Log.e(TAG, "relay-config load failed", it) }.getOrNull()
-
     private fun orderedRelays(base: List<RelayEntry>): List<RelayEntry> {
         val last = prefs.getString(PREF_LAST_RELAY, null) ?: return base
         val idx = base.indexOfFirst { it.tag == last }.takeIf { it > 0 } ?: return base
@@ -156,9 +161,10 @@ class SingBoxTransport @Inject constructor(
     }
 
     private suspend fun probeRelaysInBackground() {
-        val winner = loadRelays()?.firstOrNull { probeTcp(it.server, it.port) } ?: return
+        val relays = relayConfigRepository.currentRelays()
+        val winner = relays.firstOrNull { probeTcp(it.server, it.port) } ?: return
         prefs.edit().putString(PREF_LAST_RELAY, winner.tag).apply()
-        Log.i(TAG, "Fastest relay: ${winner.tag}")
+        Timber.i("$TAG: Fastest relay: ${winner.tag}")
     }
 
     private suspend fun probeTcp(host: String, port: Int): Boolean =
