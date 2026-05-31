@@ -312,6 +312,25 @@
     <string name="story_no_viewers">Пока нет просмотров</string>
     <string name="story_delete">Удалить</string>
     <string name="story_delete_q">Удалить историю?</string>
+    <!-- Random chat -->
+    <string name="random_title">Случайный чат</string>
+    <string name="random_intro_title">Поговорить с незнакомцем</string>
+    <string name="random_intro_body">Вас соединят со случайным человеком для анонимного чата на 5 минут. Будьте вежливы. Только 18+.</string>
+    <string name="random_start">Найти собеседника</string>
+    <string name="random_searching">Ищем собеседника…</string>
+    <string name="random_stranger">Анонимный собеседник</string>
+    <string name="random_skip">Дальше</string>
+    <string name="random_ended">Чат завершён</string>
+    <string name="random_again">Найти другого</string>
+    <string name="random_end_expired">Время вышло.</string>
+    <string name="random_end_skipped">Собеседник переключился на другого.</string>
+    <string name="random_end_disconnected">Собеседник отключился.</string>
+    <string name="random_end_left">Чат завершён.</string>
+    <string name="random_cant_start">Не удалось начать случайный чат</string>
+    <string name="random_err_age_required">Сначала укажите возраст в профиле (только 18+).</string>
+    <string name="random_err_under_18">Случайный чат доступен только пользователям 18+.</string>
+    <string name="random_err_limit">Достигнут дневной лимит случайных чатов.</string>
+    <string name="random_err_other">Что-то пошло не так. Попробуйте снова.</string>
     <!-- In-chat message search -->
     <string name="chat_search_hint">Поиск в этом чате</string>
     <string name="chat_search_idle">Поиск по сообщениям в этом чате.</string>

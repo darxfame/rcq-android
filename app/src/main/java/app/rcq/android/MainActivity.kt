@@ -115,6 +115,7 @@ private fun RcqApp(session: Session) {
     var showProfile by remember { mutableStateOf(false) }
     var showManageAccounts by remember { mutableStateOf(false) }
     var showNews by remember { mutableStateOf(false) }
+    var showRandom by remember { mutableStateOf(false) }
 
     LaunchedEffect(state, locked) {
         // Only start (which opens the message DB) once unlocked.
@@ -124,7 +125,7 @@ private fun RcqApp(session: Session) {
     // Clear every secondary screen so a switch/add lands on a clean Home.
     fun resetNav() {
         chatTarget = null; groupInfoId = null; peerInfoUin = null
-        showSettings = false; showProfile = false; showManageAccounts = false; showNews = false
+        showSettings = false; showProfile = false; showManageAccounts = false; showNews = false; showRandom = false
     }
 
     fun register(server: String? = null) {
@@ -195,6 +196,10 @@ private fun RcqApp(session: Session) {
                 session,
                 onBack = { showNews = false },
             )
+            s is UiState.Registered && showRandom -> app.rcq.android.ui.RandomScreen(
+                session,
+                onBack = { showRandom = false },
+            )
             s is UiState.Registered && showProfile -> ProfileEditScreen(
                 session,
                 onBack = { showProfile = false },
@@ -213,6 +218,7 @@ private fun RcqApp(session: Session) {
                 onOpenProfile = { showProfile = true },
                 onOpenNews = { showNews = true },
                 onOpenSaved = { session.uin?.let { chatTarget = ChatTarget.Peer(it) } },
+                onOpenRandom = { showRandom = true },
                 onSwitchAccount = ::switchAccount,
                 onAddAccount = ::addAccount,
                 onManageAccounts = { showManageAccounts = true },

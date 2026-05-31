@@ -313,6 +313,25 @@
     <string name="story_no_viewers">No views yet</string>
     <string name="story_delete">Delete</string>
     <string name="story_delete_q">Delete this story?</string>
+    <!-- Random chat -->
+    <string name="random_title">Random chat</string>
+    <string name="random_intro_title">Talk to a stranger</string>
+    <string name="random_intro_body">You\'ll be paired with a random person for an anonymous 5-minute chat. Be kind. 18+ only.</string>
+    <string name="random_start">Find someone</string>
+    <string name="random_searching">Looking for someone…</string>
+    <string name="random_stranger">Anonymous stranger</string>
+    <string name="random_skip">Skip</string>
+    <string name="random_ended">Chat ended</string>
+    <string name="random_again">Find another</string>
+    <string name="random_end_expired">Time\'s up.</string>
+    <string name="random_end_skipped">They skipped to someone else.</string>
+    <string name="random_end_disconnected">They disconnected.</string>
+    <string name="random_end_left">The chat ended.</string>
+    <string name="random_cant_start">Can\'t start random chat</string>
+    <string name="random_err_age_required">Set your age in your profile first (18+ only).</string>
+    <string name="random_err_under_18">Random chat is for users 18 and older.</string>
+    <string name="random_err_limit">You\'ve reached today\'s random-chat limit.</string>
+    <string name="random_err_other">Something went wrong. Try again.</string>
     <!-- In-chat message search -->
     <string name="chat_search_hint">Search this chat</string>
     <string name="chat_search_idle">Search messages in this chat.</string>

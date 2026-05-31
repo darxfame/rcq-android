@@ -194,6 +194,38 @@ class RcqApi(private val baseUrl: String = DEFAULT_BASE_URL) {
         sendNoResult("DELETE", "/stories/$storyId", null, authed = true)
     }
 
+    // ── random chat (anonymous time-boxed 1:1 with a stranger) ───────
+    // Matchmaking only — once matched, chat rides the normal /messages/sealed
+    // path (we have the peer's identity_key from the match). /queue may 403
+    // with detail {"code":"age_required"|"under_18"} (the body string carries
+    // the code, surfaced to the user). A match arrives either as this sync
+    // response (status="matched") or, if parked, via the WS `random_match`.
+    data class RandomPeerInfo(
+        val uin: Int,
+        val nickname: String?,
+        val identity_key: String?,
+        val signing_key: String?,
+    )
+    data class RandomQueueOut(
+        val status: String,             // "queued" | "matched"
+        val pair_id: String? = null,
+        val peer: RandomPeerInfo? = null,
+        val expires_at: String? = null,
+    )
+    data class RandomLeaveOut(val left: Boolean = false)
+
+    suspend fun randomQueue(): RandomQueueOut = withContext(Dispatchers.IO) {
+        post("/random/queue", "{}", authed = true, RandomQueueOut::class.java)
+    }
+
+    suspend fun randomSkip(): RandomQueueOut = withContext(Dispatchers.IO) {
+        post("/random/skip", "{}", authed = true, RandomQueueOut::class.java)
+    }
+
+    suspend fun randomLeave(): RandomLeaveOut = withContext(Dispatchers.IO) {
+        post("/random/leave", "{}", authed = true, RandomLeaveOut::class.java)
+    }
+
     // ── 1:1 send (rcq-spec 6.2.1) ────────────────────────────────────
 
     data class SendRequest(val to_uin: Int, val envelope_type: String, val payload: String)

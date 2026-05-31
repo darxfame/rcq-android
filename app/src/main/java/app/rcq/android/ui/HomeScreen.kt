@@ -128,6 +128,7 @@ internal fun HomeScreen(
     onOpenProfile: () -> Unit = {},
     onOpenNews: () -> Unit = {},
     onOpenSaved: () -> Unit = {},
+    onOpenRandom: () -> Unit = {},
     onSwitchAccount: (String) -> Unit = {},
     onAddAccount: (String?) -> Unit = {},
     onManageAccounts: () -> Unit = {},
@@ -292,7 +293,7 @@ internal fun HomeScreen(
             BottomBar(
                 onAdd = { showAdd = true },
                 onQr = { showQr = true },
-                onRandom = { comingSoon = "Random chat" },
+                onRandom = onOpenRandom,
                 onNearby = { comingSoon = "Nearby" },
                 onSettings = onOpenSettings,
                 // Hide Random on org islands / self-host; keep it on the public server.

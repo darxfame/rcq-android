@@ -39,6 +39,20 @@ import app.rcq.android.security.PanicPinService
 import org.bouncycastle.crypto.params.Ed25519PrivateKeyParameters
 import org.bouncycastle.crypto.params.X25519PrivateKeyParameters
 
+/** Random-chat (stranger roulette) UI state. */
+sealed interface RandomState {
+    /** Not in random chat. */
+    data object Idle : RandomState
+    /** Queued, waiting for a match (or a match in flight). */
+    data object Searching : RandomState
+    /** Paired with a stranger until [expiresAtMs] (epoch ms). */
+    data class Matched(val peerUin: Int, val peerNickname: String, val expiresAtMs: Long) : RandomState
+    /** The pair ended ([reason] = peer_left/peer_skipped/peer_disconnected/expired). */
+    data class Ended(val reason: String) : RandomState
+    /** Couldn't queue ([code] = age_required/under_18/limit/other). */
+    data class Error(val code: String) : RandomState
+}
+
 /**
  * The app's single coordinator: identity, REST, WebSocket, encrypted
  * storage, local message DB, and crypto. Exposes observable state
@@ -98,6 +112,17 @@ class Session(context: Context) {
      *  WS story_posted/story_deleted nudges, and after post/view/delete. */
     private val _stories = MutableStateFlow<List<RcqApi.StoryGroupOut>>(emptyList())
     val stories: StateFlow<List<RcqApi.StoryGroupOut>> = _stories.asStateFlow()
+
+    /** Random-chat (stranger roulette) state machine + the ephemeral message
+     *  list for the current pair. Chat rides the normal sealed path, but a
+     *  random peer is NOT a contact, so inbound from [activeRandomPeer] is
+     *  routed here (never persisted to the message DB or shown on Home). */
+    private val _random = MutableStateFlow<RandomState>(RandomState.Idle)
+    val random: StateFlow<RandomState> = _random.asStateFlow()
+    private val _randomMessages = MutableStateFlow<List<ChatMessage>>(emptyList())
+    val randomMessages: StateFlow<List<ChatMessage>> = _randomMessages.asStateFlow()
+    @Volatile private var activeRandomPeer: Int? = null
+    @Volatile private var activeRandomPairId: String? = null
 
     /** Own presence status, reflected in the header status picker. */
     private val _status = MutableStateFlow(UserStatus.ONLINE)
@@ -227,6 +252,10 @@ class Session(context: Context) {
         _groups.value = emptyList()
         _groupMessages.value = emptyMap()
         _stories.value = emptyList()
+        activeRandomPeer = null
+        activeRandomPairId = null
+        _randomMessages.value = emptyList()
+        _random.value = RandomState.Idle
         _typingFrom.value = null
         _status.value = UserStatus.ONLINE
         readReceiptsVisibility = "everyone"
@@ -456,6 +485,104 @@ class Session(context: Context) {
     suspend fun deleteStory(storyId: String) {
         runCatching { api.deleteStory(storyId) }
         refreshStories()
+    }
+
+    // ── random chat (stranger roulette) ──────────────────────────────
+
+    /** Opt in to matching. Either matches instantly (sync response) or parks
+     *  us in the queue (the WS `random_match` will arrive). Surfaces the
+     *  backend age gate as a typed [RandomState.Error]. */
+    suspend fun startRandom() {
+        _random.value = RandomState.Searching
+        runCatching { api.randomQueue() }
+            .onSuccess { applyQueueResult(it) }
+            .onFailure { _random.value = randomErrorFrom(it) }
+    }
+
+    /** End the current pair and immediately look for a new stranger. */
+    suspend fun skipRandom() {
+        _randomMessages.value = emptyList()
+        _random.value = RandomState.Searching
+        runCatching { api.randomSkip() }
+            .onSuccess { applyQueueResult(it) }
+            .onFailure { _random.value = randomErrorFrom(it) }
+    }
+
+    /** Cancel queueing or end the active pair, returning to Idle. */
+    suspend fun leaveRandom() {
+        runCatching { api.randomLeave() }
+        clearRandom()
+    }
+
+    /** Local-only reset (Ended/Error → Idle) with no server call. */
+    fun dismissRandom() = clearRandom()
+
+    /** Send a text to the current random peer over the normal sealed path,
+     *  but keep the message in the ephemeral [randomMessages] list. */
+    suspend fun sendRandomText(text: String) {
+        val peer = activeRandomPeer ?: return
+        val env = Envelope.text(text)
+        appendRandom(ChatMessage(env.id, peer, fromMe = true, body = text, sentAt = System.currentTimeMillis(), state = DeliveryState.SENDING))
+        try {
+            val payload = encryptFor(peer, env)
+            val resp = withRetry { api.sendSealed(peer, payload) }
+            updateRandomState(env.id, if (resp.delivered) DeliveryState.DELIVERED else DeliveryState.SENT)
+        } catch (e: Exception) {
+            updateRandomState(env.id, DeliveryState.FAILED)
+        }
+    }
+
+    private fun applyQueueResult(r: RcqApi.RandomQueueOut) {
+        val peer = r.peer
+        if (r.status == "matched" && peer != null) enterMatch(r.pair_id, peer, r.expires_at)
+        else _random.value = RandomState.Searching
+    }
+
+    /** Wire up an active pair: seed the peer's identity key (so the first
+     *  encrypt skips a userInfo fetch), reset the ephemeral thread, go Matched.
+     *  Idempotent on pair_id — the matcher gets both a sync response and a WS
+     *  `random_match`, and we must not re-enter. */
+    private fun enterMatch(pairId: String?, peer: RcqApi.RandomPeerInfo, expiresIso: String?) {
+        if (pairId != null && pairId == activeRandomPairId) return
+        peer.identity_key?.let { runCatching { peerIdentityCache[peer.uin] = Base64.decode(it, Base64.NO_WRAP) } }
+        activeRandomPeer = peer.uin
+        activeRandomPairId = pairId
+        _randomMessages.value = emptyList()
+        val expMs = parseIsoMs(expiresIso) ?: (System.currentTimeMillis() + 5 * 60 * 1000L)
+        _random.value = RandomState.Matched(peer.uin, peer.nickname ?: "${peer.uin}", expMs)
+    }
+
+    private fun clearRandom() {
+        activeRandomPeer = null
+        activeRandomPairId = null
+        _randomMessages.value = emptyList()
+        _random.value = RandomState.Idle
+    }
+
+    private fun randomErrorFrom(e: Throwable): RandomState.Error {
+        val m = e.message ?: ""
+        val code = when {
+            m.contains("age_required") -> "age_required"
+            m.contains("under_18") -> "under_18"
+            m.contains("daily") || m.contains("429") -> "limit"
+            else -> "other"
+        }
+        return RandomState.Error(code)
+    }
+
+    private fun appendRandom(msg: ChatMessage) {
+        if (_randomMessages.value.any { it.id == msg.id }) return
+        _randomMessages.value = (_randomMessages.value + msg).sortedBy { it.sentAt }
+    }
+
+    private fun updateRandomState(id: String, state: DeliveryState) {
+        _randomMessages.value = _randomMessages.value.map { if (it.id == id) it.copy(state = state) else it }
+    }
+
+    private fun parseIsoMs(iso: String?): Long? {
+        iso ?: return null
+        return runCatching { java.time.OffsetDateTime.parse(iso).toInstant().toEpochMilli() }.getOrNull()
+            ?: runCatching { java.time.Instant.parse(iso).toEpochMilli() }.getOrNull()
     }
 
     /** The 60-digit safety number for verifying the v=2 conversation with
@@ -778,6 +905,10 @@ class Session(context: Context) {
         _groups.value = emptyList()
         _groupMessages.value = emptyMap()
         _stories.value = emptyList()
+        activeRandomPeer = null
+        activeRandomPairId = null
+        _randomMessages.value = emptyList()
+        _random.value = RandomState.Idle
         _typingFrom.value = null
         started = false
         everConnected = false
@@ -1199,6 +1330,12 @@ class Session(context: Context) {
             // the server can't filter by sender, so we gate on receipt.
             if (LocalStores.isRemoved(dec.senderUin)) return@runCatching
             val now = System.currentTimeMillis()
+            // Random-chat peer: keep the conversation ephemeral (in-memory,
+            // never persisted, never on Home). Text only for v=1.
+            if (dec.senderUin == activeRandomPeer) {
+                (dec.envelope as? Envelope.Text)?.let { appendRandom(ChatMessage(it.id, dec.senderUin, fromMe = false, body = it.text, sentAt = now)) }
+                return@runCatching
+            }
             when (val env = dec.envelope) {
                 is Envelope.Text ->
                     store(ChatMessage(env.id, dec.senderUin, false, env.text, now, replyToSnippet = env.replyTo?.snippet, replyToAuthor = env.replyTo?.authorName))
@@ -1346,6 +1483,22 @@ class Session(context: Context) {
             }
             "presence" -> scope.launch { runCatching { refreshContacts() } }
             "story_posted", "story_deleted" -> scope.launch { runCatching { refreshStories() } }
+            "random_match" -> {
+                val pairId = obj.get("pair_id")?.takeIf { !it.isJsonNull }?.asString
+                obj.getAsJsonObject("peer")?.let { p ->
+                    runCatching { gson.fromJson(p, RcqApi.RandomPeerInfo::class.java) }.getOrNull()?.let { peer ->
+                        enterMatch(pairId, peer, obj.get("expires_at")?.takeIf { !it.isJsonNull }?.asString)
+                    }
+                }
+            }
+            "random_end" -> {
+                val pairId = obj.get("pair_id")?.takeIf { !it.isJsonNull }?.asString
+                if (pairId == null || pairId == activeRandomPairId) {
+                    activeRandomPeer = null
+                    activeRandomPairId = null
+                    _random.value = RandomState.Ended(obj.get("reason")?.takeIf { !it.isJsonNull }?.asString ?: "ended")
+                }
+            }
             else -> Unit
         }
     }
