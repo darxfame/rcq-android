@@ -31,6 +31,39 @@ enum class DeliveryState { SENDING, SENT, DELIVERED, FAILED, READ }
  *  messages after delivery). `id` is the envelope UUID — the dedup key
  *  that prevents a message arriving via both WebSocket and the queue
  *  drain from showing twice (rcq-spec 6.3.1). */
+/** A poll message's content, stored as JSON in [ChatMessage.body] for
+ *  `kind == "poll"` (the live vote tallies are fetched fresh from /polls/{id}
+ *  and never persisted). [pollId] is the server id used to vote/close. */
+data class PollContent(
+    val pollId: Int,
+    val question: String,
+    val options: List<String>,
+    val singleChoice: Boolean,
+    val anonymous: Boolean,
+) {
+    fun toJson(): String = org.json.JSONObject().apply {
+        put("poll", pollId)
+        put("q", question)
+        put("opts", org.json.JSONArray(options))
+        put("sc", singleChoice)
+        put("anon", anonymous)
+    }.toString()
+
+    companion object {
+        fun fromJson(body: String): PollContent? = runCatching {
+            val o = org.json.JSONObject(body)
+            val arr = o.getJSONArray("opts")
+            PollContent(
+                pollId = o.optInt("poll"),
+                question = o.optString("q"),
+                options = (0 until arr.length()).map { arr.getString(it) },
+                singleChoice = o.optBoolean("sc", true),
+                anonymous = o.optBoolean("anon", false),
+            )
+        }.getOrNull()
+    }
+}
+
 data class ChatMessage(
     val id: String,
     val peerUin: Int,             // 1:1 peer; 0 for group messages

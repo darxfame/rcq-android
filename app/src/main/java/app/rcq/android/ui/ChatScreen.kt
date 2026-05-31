@@ -139,6 +139,7 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
     var editMsg by remember { mutableStateOf<ChatMessage?>(null) }
     var replyTarget by remember { mutableStateOf<ChatMessage?>(null) }
     var attachMenu by remember { mutableStateOf(false) }
+    var showPollComposer by remember { mutableStateOf(false) }
     var showSearch by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
 
@@ -440,10 +441,21 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
                     MessageAction(stringResource(R.string.chat_attach_video)) { attachMenu = false; videoPicker.launch("video/*") }
                     MessageAction(stringResource(R.string.chat_attach_file)) { attachMenu = false; filePicker.launch("*/*") }
                     MessageAction(stringResource(R.string.chat_attach_location)) { attachMenu = false; shareLocation() }
+                    if (isGroup) MessageAction(stringResource(R.string.poll_create)) { attachMenu = false; showPollComposer = true }
                 }
             },
             confirmButton = {},
             dismissButton = { TextButton(onClick = { attachMenu = false }) { Text(stringResource(R.string.common_cancel), color = c.textSecondary) } },
+        )
+    }
+
+    if (showPollComposer && groupId != null) {
+        PollComposerDialog(
+            onDismiss = { showPollComposer = false },
+            onCreate = { q, opts, single, anon ->
+                showPollComposer = false
+                scope.launch { runCatching { session.sendPoll(groupId, q, opts, single, anon) } }
+            },
         )
     }
 
@@ -559,6 +571,8 @@ private fun previewOf(m: ChatMessage, context: android.content.Context): String 
     "voice" -> context.getString(R.string.chat_prev_voice)
     "video" -> context.getString(R.string.chat_prev_video)
     "location" -> context.getString(R.string.chat_prev_location)
+    "poll" -> app.rcq.android.model.PollContent.fromJson(m.body)?.question?.take(100)
+        ?: context.getString(R.string.poll_create)
     else -> m.body.take(100)
 }
 
@@ -579,6 +593,8 @@ private fun MessageBubble(session: Session, m: ChatMessage, senderName: String?,
                     modifier = Modifier.padding(top = 2.dp).clip(RoundedCornerShape(10.dp)).background(if (m.fromMe) c.bubbleSelf else c.bubbleOther).padding(horizontal = 10.dp, vertical = 6.dp),
                 )
             }
+        } else if (m.kind == "poll") {
+            PollBubble(session, m, onLongPress)
         } else if (m.kind == "file") {
             FileBubble(session, m, onLongPress)
         } else if (m.kind == "video") {

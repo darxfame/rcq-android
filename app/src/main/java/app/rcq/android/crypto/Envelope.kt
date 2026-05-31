@@ -80,6 +80,18 @@ sealed interface Envelope {
     data class Visit(val at: Double) : Envelope {
         fun atEpochMillis(): Long = ((at + APPLE_EPOCH_OFFSET_SEC) * 1000).toLong()
     }
+    /** Group poll announcement (iOS kind "poll"). The server-side [pollId]
+     *  lets every recipient hit /polls/{id}/vote directly; the question +
+     *  options ride encrypted here so a client that can't reach /polls still
+     *  renders the ballot. Wire keys are terse to match iOS: poll/q/opts/sc/anon. */
+    data class Poll(
+        val id: String,
+        val pollId: Int,
+        val question: String,
+        val options: List<String>,
+        val singleChoice: Boolean,
+        val anonymous: Boolean,
+    ) : Envelope
     data class Unknown(val kind: String) : Envelope
 
     /** Serialize to the exact JSON bytes that get signed and shipped.
@@ -158,6 +170,15 @@ sealed interface Envelope {
         is Visit -> JsonObject().apply {
             addProperty("kind", "visit")
             addProperty("at", at)
+        }.toString().toByteArray(Charsets.UTF_8)
+        is Poll -> JsonObject().apply {
+            addProperty("kind", "poll")
+            addProperty("id", id)
+            addProperty("poll", pollId)
+            addProperty("q", question)
+            add("opts", JsonArray().apply { options.forEach { add(it) } })
+            addProperty("sc", singleChoice)
+            addProperty("anon", anonymous)
         }.toString().toByteArray(Charsets.UTF_8)
         is Unknown -> JsonObject().apply { addProperty("kind", kind) }
             .toString().toByteArray(Charsets.UTF_8)
@@ -258,6 +279,14 @@ sealed interface Envelope {
                     caption = obj.get("caption")?.asString,
                 )
                 "visit" -> Visit(obj.get("at")?.asDouble ?: 0.0)
+                "poll" -> Poll(
+                    id = id,
+                    pollId = obj.get("poll")?.asInt ?: 0,
+                    question = obj.get("q")?.asString.orEmpty(),
+                    options = obj.getAsJsonArray("opts")?.mapNotNull { it.asString } ?: emptyList(),
+                    singleChoice = obj.get("sc")?.asBoolean ?: true,
+                    anonymous = obj.get("anon")?.asBoolean ?: false,
+                )
                 else -> Unknown(kind ?: "unknown")
             }
         }

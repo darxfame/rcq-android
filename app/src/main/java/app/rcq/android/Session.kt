@@ -797,6 +797,31 @@ class Session(context: Context) {
         sendGroupEnvelope(groupId, env, env.id, caption ?: "", kind = "photo", mediaId = upload.media_id, mediaKey = keyB64)
     }
 
+    /** Create a group poll: register the structural shape server-side (gets a
+     *  poll_id), then fan out a "poll" envelope carrying the encrypted question
+     *  + options so every member's chat renders a ballot. The poll content is
+     *  stored in [ChatMessage.body] as JSON (tallies are fetched fresh, never
+     *  persisted). message_id = the envelope UUID, the server's 1:1 link. */
+    suspend fun sendPoll(groupId: Int, question: String, options: List<String>, singleChoice: Boolean, anonymous: Boolean) {
+        val id = java.util.UUID.randomUUID().toString().uppercase()
+        val created = api.createPoll(groupId, RcqApi.CreatePollBody(id, options.size, singleChoice, anonymous))
+        val env = Envelope.Poll(id, created.poll_id, question, options, singleChoice, anonymous)
+        val body = app.rcq.android.model.PollContent(created.poll_id, question, options, singleChoice, anonymous).toJson()
+        sendGroupEnvelope(groupId, env, id, body, kind = "poll")
+    }
+
+    /** Cast/toggle a vote; returns the fresh server tallies (null on failure). */
+    suspend fun votePoll(pollId: Int, optionIndex: Int): RcqApi.PollOut? =
+        runCatching { api.votePoll(pollId, optionIndex) }.getOrNull()
+
+    /** Current server-side tallies for a poll (null on failure). */
+    suspend fun loadPoll(pollId: Int): RcqApi.PollOut? =
+        runCatching { api.getPoll(pollId) }.getOrNull()
+
+    /** Close a poll (creator only, server-enforced); returns fresh state. */
+    suspend fun closePoll(pollId: Int): RcqApi.PollOut? =
+        runCatching { api.closePoll(pollId) }.getOrNull()
+
     /** Encrypt the envelope once per member (skipping self) and fan out in
      *  a single /messages/group-sealed POST. No group key — each blob is a
      *  v=1 sealed envelope, identical to 1:1 (rcq-spec 6.4). */
@@ -889,6 +914,9 @@ class Session(context: Context) {
                 )
                 is Envelope.Location -> storeGroup(
                     ChatMessage(env.id, 0, false, env.caption ?: "", now, kind = "location", lat = env.lat, lng = env.lng, groupId = groupId, senderUin = dec.senderUin)
+                )
+                is Envelope.Poll -> storeGroup(
+                    ChatMessage(env.id, 0, false, app.rcq.android.model.PollContent(env.pollId, env.question, env.options, env.singleChoice, env.anonymous).toJson(), now, kind = "poll", groupId = groupId, senderUin = dec.senderUin)
                 )
                 is Envelope.Reaction -> env.asset?.let { addGroupReaction(groupId, env.targetId, it) }
                 is Envelope.Delete -> {
@@ -1137,6 +1165,9 @@ class Session(context: Context) {
             Envelope.Video(msg.id, msg.mediaId, msg.mediaKey, msg.thumbB64 ?: "", (msg.durationSec ?: 0).toDouble(), msg.body.ifEmpty { null })
         msg.kind == "location" && msg.lat != null && msg.lng != null ->
             Envelope.Location(msg.id, msg.lat, msg.lng, msg.body.ifEmpty { null })
+        msg.kind == "poll" -> app.rcq.android.model.PollContent.fromJson(msg.body)?.let {
+            Envelope.Poll(msg.id, it.pollId, it.question, it.options, it.singleChoice, it.anonymous)
+        } ?: Envelope.Text(msg.id, msg.body)
         else -> Envelope.Text(msg.id, msg.body)
     }
 
@@ -1392,6 +1423,7 @@ class Session(context: Context) {
                 }
                 is Envelope.ReadReceipt -> applyReadReceipt(dec.senderUin, env.targetIds)
                 is Envelope.Visit -> app.rcq.android.data.VisitStore.record(dec.senderUin, env.atEpochMillis())
+                is Envelope.Poll -> Unit       // polls are group-only; ignore in 1:1
                 is Envelope.Unknown -> Unit
             }
         }.onFailure { logDecryptFailure(payloadB64, it) }

@@ -231,6 +231,45 @@ class RcqApi(private val baseUrl: String = DEFAULT_BASE_URL) {
         post("/random/leave", "{}", authed = true, RandomLeaveOut::class.java)
     }
 
+    // ── group polls (rcq-spec) ───────────────────────────────────────
+    // The server is blind to the question/option text (those ride the
+    // encrypted "poll" group envelope); it only holds the structural shape +
+    // per-option tallies. Create returns a poll_id used to vote/close/read.
+    data class CreatePollBody(val message_id: String, val num_options: Int, val single_choice: Boolean, val anonymous: Boolean)
+    data class CreatePollOut(val poll_id: Int, val created_at: String? = null)
+    data class VoteBody(val option_index: Int)
+    data class PollTally(val option_index: Int, val count: Int = 0, val voter_uins: List<Int> = emptyList())
+    data class PollOut(
+        val poll_id: Int,
+        val group_id: Int = 0,
+        val creator_uin: Int = 0,
+        val message_id: String? = null,
+        val num_options: Int = 0,
+        val single_choice: Boolean = true,
+        val anonymous: Boolean = false,
+        val closed_at: String? = null,
+        val created_at: String? = null,
+        val tallies: List<PollTally> = emptyList(),
+        val total_votes: Int = 0,
+        val my_votes: List<Int> = emptyList(),
+    )
+
+    suspend fun createPoll(groupId: Int, body: CreatePollBody): CreatePollOut = withContext(Dispatchers.IO) {
+        post("/groups/$groupId/polls", gson.toJson(body), authed = true, CreatePollOut::class.java)
+    }
+
+    suspend fun votePoll(pollId: Int, optionIndex: Int): PollOut = withContext(Dispatchers.IO) {
+        post("/polls/$pollId/vote", gson.toJson(VoteBody(optionIndex)), authed = true, PollOut::class.java)
+    }
+
+    suspend fun getPoll(pollId: Int): PollOut = withContext(Dispatchers.IO) {
+        get("/polls/$pollId", authed = true, PollOut::class.java)
+    }
+
+    suspend fun closePoll(pollId: Int): PollOut = withContext(Dispatchers.IO) {
+        post("/polls/$pollId/close", "{}", authed = true, PollOut::class.java)
+    }
+
     // ── 1:1 send (rcq-spec 6.2.1) ────────────────────────────────────
 
     data class SendRequest(val to_uin: Int, val envelope_type: String, val payload: String)

@@ -214,6 +214,20 @@
     <string name="pv_network">Сеть</string>
     <string name="pv_obfuscated">Маскировка соединения</string>
     <string name="pv_obfuscated_desc">Проводит соединение через релей, когда сеть блокирует RCQ напрямую. Повышает стабильность на ограничивающих сетях. Применяется при следующем запуске.</string>
+    <!-- Polls -->
+    <string name="poll_create">Создать опрос</string>
+    <string name="poll_question">Вопрос</string>
+    <string name="poll_option_hint">Вариант %1$d</string>
+    <string name="poll_add_option">Добавить вариант</string>
+    <string name="poll_single">Один вариант</string>
+    <string name="poll_anonymous">Анонимно</string>
+    <string name="poll_post">Создать</string>
+    <string name="poll_votes">голосов: %1$d</string>
+    <string name="poll_single_badge">Один вариант</string>
+    <string name="poll_multi_badge">Несколько вариантов</string>
+    <string name="poll_anon_badge">Анонимный</string>
+    <string name="poll_close">Завершить опрос</string>
+    <string name="poll_closed">Завершён</string>
     <!-- Connection diagnostics -->
     <string name="diag_title">Диагностика подключения</string>
     <string name="diag_transport">Маршрут</string>

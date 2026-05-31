@@ -215,6 +215,20 @@
     <string name="pv_network">Network</string>
     <string name="pv_obfuscated">Obfuscated connection</string>
     <string name="pv_obfuscated_desc">Routes the connection through a relay when the network blocks RCQ directly. Improves reliability on restrictive networks. Takes effect on next launch.</string>
+    <!-- Polls -->
+    <string name="poll_create">Create poll</string>
+    <string name="poll_question">Question</string>
+    <string name="poll_option_hint">Option %1$d</string>
+    <string name="poll_add_option">Add option</string>
+    <string name="poll_single">Single choice</string>
+    <string name="poll_anonymous">Anonymous</string>
+    <string name="poll_post">Create</string>
+    <string name="poll_votes">%1$d votes</string>
+    <string name="poll_single_badge">Single choice</string>
+    <string name="poll_multi_badge">Multiple choice</string>
+    <string name="poll_anon_badge">Anonymous</string>
+    <string name="poll_close">Close poll</string>
+    <string name="poll_closed">Closed</string>
     <!-- Connection diagnostics -->
     <string name="diag_title">Connection diagnostics</string>
     <string name="diag_transport">Route</string>
