@@ -105,6 +105,9 @@ private fun RcqApp(session: Session) {
     var state by remember {
         mutableStateOf<UiState>(session.uin?.let { UiState.Registered(it) } ?: UiState.Onboarding)
     }
+    // Panic-PIN lock gate: while locked, the message DB stays closed and the
+    // lock screen replaces the Registered UI (see the `when` below).
+    val locked by app.rcq.android.security.PanicPinService.locked.collectAsState()
     var chatTarget by remember { mutableStateOf<ChatTarget?>(null) }
     var groupInfoId by remember { mutableStateOf<Int?>(null) }
     var peerInfoUin by remember { mutableStateOf<Int?>(null) }
@@ -112,8 +115,9 @@ private fun RcqApp(session: Session) {
     var showProfile by remember { mutableStateOf(false) }
     var showManageAccounts by remember { mutableStateOf(false) }
 
-    LaunchedEffect(state) {
-        if (state is UiState.Registered) session.start()
+    LaunchedEffect(state, locked) {
+        // Only start (which opens the message DB) once unlocked.
+        if (state is UiState.Registered && !locked) session.start()
     }
 
     // Clear every secondary screen so a switch/add lands on a clean Home.
@@ -165,6 +169,7 @@ private fun RcqApp(session: Session) {
         val infoId = groupInfoId
         val peerInfo = peerInfoUin
         when {
+            s is UiState.Registered && locked -> app.rcq.android.ui.PinLockScreen(session)
             s is UiState.Registered && infoId != null -> GroupInfoScreen(
                 session, infoId,
                 onBack = { groupInfoId = null },

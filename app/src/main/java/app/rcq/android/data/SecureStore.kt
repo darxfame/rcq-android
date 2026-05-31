@@ -109,6 +109,7 @@ class SecureStore(context: Context, accountId: String) {
         private fun wipeKeys(prefs: SharedPreferences, prefix: String) {
             val e = prefs.edit()
             (STRING_KEYS + K_UIN).forEach { e.remove(prefix + it) }
+            e.remove(prefix + K_MSGDB_ENC)
             e.apply()
         }
 
@@ -146,5 +147,61 @@ class SecureStore(context: Context, accountId: String) {
         /** Read another account's nickname without making it active. */
         fun peekNickname(context: Context, accountId: String): String? =
             openPrefs(context).getString("$accountId.$K_NICK", null)
+
+        // ── app-global secrets for the panic-PIN at-rest layer ──────────
+        // These are NOT per-account: a PIN locks the whole app, so the
+        // message DBs of every account are encrypted under one dataKey
+        // (the device key when no PIN, the vault key when a PIN is set).
+        private const val GP = "_global."
+        private const val K_DEVICE_KEY = "device_key"
+        private const val K_PIN_PEPPER = "pin_pepper"
+        private const val K_PIN_ATTEMPTS = "pin_attempts"
+        private const val K_MSGDB_ENC = "msgdb_enc"
+
+        private fun getOrCreateBytes(context: Context, key: String, len: Int): ByteArray {
+            val prefs = openPrefs(context)
+            prefs.getString(key, null)?.let { return Base64.decode(it, Base64.NO_WRAP) }
+            val b = ByteArray(len).also { java.security.SecureRandom().nextBytes(it) }
+            prefs.edit().putString(key, Base64.encodeToString(b, Base64.NO_WRAP)).apply()
+            return b
+        }
+
+        /** Random 32-byte device key: encrypts the message DBs when no PIN is
+         *  set (always-on at-rest encryption, auto-unlocked with the device).
+         *  Stable once generated; lives in the Keystore-wrapped prefs. */
+        fun deviceKey(context: Context): ByteArray = getOrCreateBytes(context, GP + K_DEVICE_KEY, 32)
+
+        /** Random 32-byte PIN pepper, mixed into the PBKDF2 so the vault file
+         *  alone (without this device's keystore) can't be brute-forced. */
+        fun pinPepper(context: Context): ByteArray = getOrCreateBytes(context, GP + K_PIN_PEPPER, 32)
+
+        fun loadPinAttempts(context: Context): String? =
+            openPrefs(context).getString(GP + K_PIN_ATTEMPTS, null)
+
+        fun savePinAttempts(context: Context, json: String) {
+            openPrefs(context).edit().putString(GP + K_PIN_ATTEMPTS, json).apply()
+        }
+
+        fun clearPinAttempts(context: Context) {
+            openPrefs(context).edit().remove(GP + K_PIN_ATTEMPTS).apply()
+        }
+
+        /** Forget the PIN pepper + attempt-state (vault destroyed). The device
+         *  key is kept so the no-PIN message DBs stay readable. */
+        fun clearPinSecrets(context: Context) {
+            openPrefs(context).edit()
+                .remove(GP + K_PIN_PEPPER)
+                .remove(GP + K_PIN_ATTEMPTS)
+                .apply()
+        }
+
+        /** Per-account marker: has this account's plaintext message DB already
+         *  been migrated to the SQLCipher-encrypted format? */
+        fun isMsgDbMigrated(context: Context, accountId: String): Boolean =
+            openPrefs(context).getBoolean("$accountId.$K_MSGDB_ENC", false)
+
+        fun setMsgDbMigrated(context: Context, accountId: String) {
+            openPrefs(context).edit().putBoolean("$accountId.$K_MSGDB_ENC", true).apply()
+        }
     }
 }

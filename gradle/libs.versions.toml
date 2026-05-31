@@ -21,6 +21,11 @@ bouncycastle = "1.78.1"
 # this range, but iOS<->Android v=2 interop MUST be cross-device verified.
 libsignal = "0.86.5"
 desugar = "2.1.5"
+# SQLCipher: at-rest whole-DB encryption for the local message DB under a
+# PIN-derived (or device) key. Maintained net.zetetic artifact; bundles its
+# own native .so per ABI and the androidx.sqlite support interfaces.
+sqlcipher = "4.6.1"
+androidxSqlite = "2.4.0"
 junit = "4.13.2"
 junitVersion = "1.1.5"
 espressoCore = "3.5.1"
@@ -43,6 +48,9 @@ androidx-navigation-compose = { group = "androidx.navigation", name = "navigatio
 zxing-core = { group = "com.google.zxing", name = "core", version.ref = "zxing" }
 androidx-datastore = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastore" }
 androidx-security-crypto = { group = "androidx.security", name = "security-crypto", version.ref = "security" }
+androidx-lifecycle-process = { group = "androidx.lifecycle", name = "lifecycle-process", version.ref = "lifecycleRuntimeKtx" }
+sqlcipher-android = { group = "net.zetetic", name = "sqlcipher-android", version.ref = "sqlcipher" }
+androidx-sqlite = { group = "androidx.sqlite", name = "sqlite", version.ref = "androidxSqlite" }
 okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
 okhttp-logging = { group = "com.squareup.okhttp3", name = "logging-interceptor", version.ref = "okhttp" }
 gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }

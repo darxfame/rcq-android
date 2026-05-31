@@ -85,6 +85,14 @@ dependencies {
     implementation(libs.androidx.datastore)
     implementation(libs.androidx.security.crypto)
 
+    // SQLCipher: whole-DB encryption of the local message store under a
+    // PIN-derived (or device) key for the panic-PIN at-rest protection.
+    implementation(libs.sqlcipher.android)
+    implementation(libs.androidx.sqlite)
+
+    // ProcessLifecycleOwner — re-lock the app when it goes to background.
+    implementation(libs.androidx.lifecycle.process)
+
     debugImplementation(libs.androidx.compose.ui.tooling)
 
     testImplementation(libs.junit)

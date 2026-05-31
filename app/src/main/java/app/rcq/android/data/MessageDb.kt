@@ -2,31 +2,48 @@ package app.rcq.android.data
 
 import android.content.ContentValues
 import android.content.Context
-import android.database.sqlite.SQLiteDatabase
-import android.database.sqlite.SQLiteOpenHelper
+import android.util.Log
 import app.rcq.android.model.ChatMessage
 import app.rcq.android.model.DeliveryState
+import net.zetetic.database.sqlcipher.SQLiteDatabase
 import java.io.File
 
 /**
- * Local message store. The backend drains messages on delivery (rcq-spec
- * 6.3.1), so chat history only survives if the client keeps it — this is
- * the Android analogue of the iOS MessageDB. Hand-rolled SQLite (like iOS)
- * rather than Room to avoid an annotation-processor dependency.
+ * Local message store, encrypted at rest with SQLCipher. The backend drains
+ * messages on delivery (rcq-spec 6.3.1), so chat history only survives if the
+ * client keeps it. Hand-rolled SQLite (like iOS) rather than Room.
  *
- * The primary key is the envelope UUID, and inserts are INSERT OR IGNORE,
- * which gives free de-duplication for a message that arrives over both the
- * WebSocket and the queue drain.
+ * The whole DB is encrypted under a [dataKey] passphrase: a per-device key when
+ * no PIN is set (always-on at-rest encryption, auto-unlocked with the device),
+ * or the PIN-vault key when a panic PIN is configured (history then only
+ * decrypts after PIN entry). Changing the PIN is a single [rekey]
+ * (`PRAGMA rekey` under the hood), never a per-row re-encryption.
  *
- * Multi-account: the SQLite file is named per [Account.id]
- * (`rcq-messages-<id>.db`) so each identity's threads stay separate. A
- * pre-multi-account install's `rcq-messages.db` is renamed under Account[0]
- * by [migrateLegacyToAccount].
+ * The primary key is the envelope UUID and inserts are INSERT OR IGNORE, which
+ * de-dups a message arriving over both the WebSocket and the queue drain.
+ * Multi-account: the file is named per [Account.id] (`rcq-messages-<id>.db`).
  */
-class MessageDb(context: Context, accountId: String) :
-    SQLiteOpenHelper(context.applicationContext, dbName(accountId), null, VERSION) {
+class MessageDb(context: Context, accountId: String, dataKey: ByteArray) {
 
-    override fun onCreate(db: SQLiteDatabase) {
+    private val db: SQLiteDatabase
+
+    init {
+        val file = context.applicationContext.getDatabasePath(dbName(accountId))
+        file.parentFile?.mkdirs()
+        db = SQLiteDatabase.openOrCreateDatabase(file, passphrase(dataKey), null, null)
+        when (val v = db.version) {
+            0 -> { createSchema(db); db.version = VERSION }
+            in 1 until VERSION -> { upgrade(db, v); db.version = VERSION }
+        }
+    }
+
+    /** Re-encrypt the entire DB to [newKey] (PIN set / change / remove). */
+    fun rekey(newKey: ByteArray) = db.changePassword(passphrase(newKey))
+
+    /** Close the underlying connection (called when the session rebinds/locks). */
+    fun close() { runCatching { db.close() } }
+
+    private fun createSchema(db: SQLiteDatabase) {
         db.execSQL(
             """
             CREATE TABLE messages (
@@ -59,10 +76,8 @@ class MessageDb(context: Context, accountId: String) :
         db.execSQL("CREATE INDEX idx_messages_group ON messages(group_id, sent_at)")
     }
 
-    override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        if (oldVersion < 2) {
-            db.execSQL("ALTER TABLE messages ADD COLUMN state TEXT NOT NULL DEFAULT 'DELIVERED'")
-        }
+    private fun upgrade(db: SQLiteDatabase, oldVersion: Int) {
+        if (oldVersion < 2) db.execSQL("ALTER TABLE messages ADD COLUMN state TEXT NOT NULL DEFAULT 'DELIVERED'")
         if (oldVersion < 3) {
             db.execSQL("ALTER TABLE messages ADD COLUMN kind TEXT NOT NULL DEFAULT 'text'")
             db.execSQL("ALTER TABLE messages ADD COLUMN media_id TEXT")
@@ -77,23 +92,15 @@ class MessageDb(context: Context, accountId: String) :
             db.execSQL("ALTER TABLE messages ADD COLUMN sender_uin INTEGER")
             db.execSQL("CREATE INDEX IF NOT EXISTS idx_messages_group ON messages(group_id, sent_at)")
         }
-        if (oldVersion < 6) {
-            db.execSQL("ALTER TABLE messages ADD COLUMN reactions TEXT")
-        }
-        if (oldVersion < 7) {
-            db.execSQL("ALTER TABLE messages ADD COLUMN edited INTEGER NOT NULL DEFAULT 0")
-        }
+        if (oldVersion < 6) db.execSQL("ALTER TABLE messages ADD COLUMN reactions TEXT")
+        if (oldVersion < 7) db.execSQL("ALTER TABLE messages ADD COLUMN edited INTEGER NOT NULL DEFAULT 0")
         if (oldVersion < 8) {
             db.execSQL("ALTER TABLE messages ADD COLUMN file_name TEXT")
             db.execSQL("ALTER TABLE messages ADD COLUMN file_mime TEXT")
             db.execSQL("ALTER TABLE messages ADD COLUMN file_size INTEGER")
         }
-        if (oldVersion < 9) {
-            db.execSQL("ALTER TABLE messages ADD COLUMN duration_sec INTEGER")
-        }
-        if (oldVersion < 10) {
-            db.execSQL("ALTER TABLE messages ADD COLUMN thumb_b64 TEXT")
-        }
+        if (oldVersion < 9) db.execSQL("ALTER TABLE messages ADD COLUMN duration_sec INTEGER")
+        if (oldVersion < 10) db.execSQL("ALTER TABLE messages ADD COLUMN thumb_b64 TEXT")
         if (oldVersion < 11) {
             db.execSQL("ALTER TABLE messages ADD COLUMN lat REAL")
             db.execSQL("ALTER TABLE messages ADD COLUMN lng REAL")
@@ -126,40 +133,34 @@ class MessageDb(context: Context, accountId: String) :
             put("lat", msg.lat)
             put("lng", msg.lng)
         }
-        val rowId = writableDatabase.insertWithOnConflict(
-            "messages", null, values, SQLiteDatabase.CONFLICT_IGNORE,
-        )
+        val rowId = db.insertWithOnConflict("messages", null, values, SQLiteDatabase.CONFLICT_IGNORE)
         return rowId != -1L
     }
 
     fun updateState(id: String, state: DeliveryState) {
-        val values = ContentValues().apply { put("state", state.name) }
-        writableDatabase.update("messages", values, "id = ?", arrayOf(id))
+        db.update("messages", ContentValues().apply { put("state", state.name) }, "id = ?", arrayOf(id))
     }
 
     fun updateReactions(id: String, reactions: List<String>) {
-        val values = ContentValues().apply { put("reactions", reactions.joinToString(REACTION_DELIM)) }
-        writableDatabase.update("messages", values, "id = ?", arrayOf(id))
+        db.update("messages", ContentValues().apply { put("reactions", reactions.joinToString(REACTION_DELIM)) }, "id = ?", arrayOf(id))
     }
 
-    /** Replace a message's body and mark it edited (delete-for-everyone uses
-     *  [delete] instead). */
+    /** Replace a message's body and mark it edited. */
     fun updateBody(id: String, body: String) {
-        val values = ContentValues().apply { put("body", body); put("edited", 1) }
-        writableDatabase.update("messages", values, "id = ?", arrayOf(id))
+        db.update("messages", ContentValues().apply { put("body", body); put("edited", 1) }, "id = ?", arrayOf(id))
     }
 
     fun wipe() {
-        writableDatabase.execSQL("DELETE FROM messages")
+        db.execSQL("DELETE FROM messages")
     }
 
     fun delete(id: String) {
-        writableDatabase.delete("messages", "id = ?", arrayOf(id))
+        db.delete("messages", "id = ?", arrayOf(id))
     }
 
     fun all(): List<ChatMessage> {
         val out = ArrayList<ChatMessage>()
-        readableDatabase.rawQuery(
+        db.rawQuery(
             "SELECT id, peer_uin, from_me, body, sent_at, state, kind, media_id, media_key, reply_snippet, reply_author, group_id, sender_uin, reactions, edited, file_name, file_mime, file_size, duration_sec, thumb_b64, lat, lng FROM messages ORDER BY sent_at ASC", null,
         ).use { c ->
             while (c.moveToNext()) {
@@ -195,16 +196,75 @@ class MessageDb(context: Context, accountId: String) :
     }
 
     companion object {
+        // SQLCipher's native lib must be loaded before any SQLiteDatabase use.
+        // Runs once when the class is first touched (constructor or migration).
+        init { System.loadLibrary("sqlcipher") }
+
         const val VERSION = 11
         private const val LEGACY_NAME = "rcq-messages.db"
-        // SQLite sidecar suffixes that travel with the main db file.
         private val SIDECARS = listOf("", "-wal", "-shm", "-journal")
 
         private fun dbName(accountId: String) = "rcq-messages-$accountId.db"
 
-        /** Rename the legacy single-account db (+ its WAL/SHM sidecars) under
-         *  [accountId]. Safe to call before the db is opened; no-op if the
-         *  legacy file is absent. */
+        /** The SQLCipher passphrase for a 32-byte key: its lowercase hex. */
+        fun passphrase(key: ByteArray): String = key.joinToString("") { "%02x".format(it) }
+
+        private fun countRows(db: SQLiteDatabase): Int =
+            db.rawQuery("SELECT count(*) FROM messages", null).use { if (it.moveToFirst()) it.getInt(0) else 0 }
+
+        /**
+         * One-time migration of an existing PLAINTEXT message DB to the
+         * SQLCipher-encrypted format under [dataKey]. Idempotent (a marker in
+         * [SecureStore] makes it run once per account). Data-loss-safe: exports
+         * via `sqlcipher_export`, verifies the encrypted copy opens AND has the
+         * same row count, and only then swaps the file. On any failure the
+         * plaintext DB is left untouched and false is returned.
+         */
+        fun migrateToEncrypted(context: Context, accountId: String, dataKey: ByteArray): Boolean {
+            val ctx = context.applicationContext
+            if (SecureStore.isMsgDbMigrated(ctx, accountId)) return true
+            val plain = ctx.getDatabasePath(dbName(accountId))
+            if (!plain.exists()) {
+                SecureStore.setMsgDbMigrated(ctx, accountId)
+                return true
+            }
+            val tmp = File(plain.path + ".enc")
+            SIDECARS.forEach { File(tmp.path + it).delete() }
+            tmp.delete()
+            return try {
+                val pass = passphrase(dataKey)
+                // Open plaintext (no key) and read the source version + count.
+                val src = SQLiteDatabase.openOrCreateDatabase(plain, null as SQLiteDatabase.CursorFactory?)
+                val srcVersion = src.version
+                val srcCount = countRows(src)
+                src.rawExecSQL("ATTACH DATABASE '${tmp.path}' AS enc KEY '$pass'")
+                src.rawExecSQL("SELECT sqlcipher_export('enc')")
+                src.rawExecSQL("DETACH DATABASE enc")
+                src.close()
+                // Verify the encrypted copy independently.
+                val enc = SQLiteDatabase.openOrCreateDatabase(tmp, pass, null, null)
+                enc.version = srcVersion
+                val encCount = countRows(enc)
+                enc.close()
+                if (encCount != srcCount) {
+                    Log.e("RCQpin", "msgdb migration row mismatch ($encCount != $srcCount); keeping plaintext")
+                    tmp.delete()
+                    return false
+                }
+                // Swap: drop plaintext (+ sidecars), promote the encrypted file.
+                SIDECARS.forEach { File(plain.path + it).delete() }
+                if (!tmp.renameTo(plain)) { plain.writeBytes(tmp.readBytes()); tmp.delete() }
+                SecureStore.setMsgDbMigrated(ctx, accountId)
+                Log.i("RCQpin", "msgdb migrated to encrypted for $accountId ($srcCount rows)")
+                true
+            } catch (e: Exception) {
+                Log.e("RCQpin", "msgdb migration failed: ${e.javaClass.simpleName}: ${e.message}")
+                runCatching { tmp.delete() }
+                false
+            }
+        }
+
+        /** Rename the legacy single-account db (+ sidecars) under [accountId]. */
         fun migrateLegacyToAccount(context: Context, accountId: String) {
             val ctx = context.applicationContext
             val legacy = ctx.getDatabasePath(LEGACY_NAME)
@@ -218,10 +278,11 @@ class MessageDb(context: Context, accountId: String) :
 
         /** Delete an account's db file (local account delete / burn). */
         fun wipeAccount(context: Context, accountId: String) {
-            context.applicationContext.deleteDatabase(dbName(accountId))
+            val ctx = context.applicationContext
+            val f = ctx.getDatabasePath(dbName(accountId))
+            SIDECARS.forEach { File(f.path + it).delete() }
         }
 
-        // Delimiter for the joined reactions column; not a valid emoji char.
-        const val REACTION_DELIM = "\u0001"
+        const val REACTION_DELIM = ""
     }
 }

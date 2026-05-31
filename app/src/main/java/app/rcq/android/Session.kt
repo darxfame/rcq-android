@@ -34,6 +34,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import app.rcq.android.security.PanicPinService
 import org.bouncycastle.crypto.params.Ed25519PrivateKeyParameters
 import org.bouncycastle.crypto.params.X25519PrivateKeyParameters
 
@@ -58,7 +60,10 @@ class Session(context: Context) {
     private var socket = newSocket()
     private fun newApi(): RcqApi = RcqApi("https://${serverHost()}").apply { if (store.isRegistered) setToken(store.token) }
     private fun newSocket(): RcqSocket = RcqSocket("wss://${serverHost()}")
-    private var db = MessageDb(appCtx, AccountManager.activeId.value ?: "")
+    // Opened lazily by [bindDb] (in [start]) so the message DB is never opened
+    // before the panic-PIN dataKey is available — opening a PIN-encrypted DB
+    // with the wrong key would fail. While locked it stays closed.
+    private lateinit var db: MessageDb
     // Per-account libsignal stores (v=2 forward secrecy). Rebuilt by rebindTo
     // on account switch, like store/db.
     private var signalStores = SignalStores(SignalStoreDb(appCtx, AccountManager.activeId.value ?: ""))
@@ -119,6 +124,17 @@ class Session(context: Context) {
     // reconnect-driven graph resync so the initial launch doesn't double up.
     @Volatile
     private var everConnected = false
+
+    init {
+        // The app locking (background with a PIN set) is signalled by the
+        // PanicPinService.locked flow; tear the live session down so the
+        // unlocked key + plaintext history don't linger in this process.
+        scope.launch {
+            PanicPinService.locked.collect { isLocked ->
+                if (isLocked && started) tearDownForLock()
+            }
+        }
+    }
 
     val isRegistered: Boolean get() = store.isRegistered
     val uin: Int? get() = store.uin
@@ -188,7 +204,8 @@ class Session(context: Context) {
      *  store at [accountId]; [start] then loads its history + connects. */
     private fun rebindTo(accountId: String) {
         store = SecureStore(appCtx, accountId)
-        db = MessageDb(appCtx, accountId)
+        // db is (re)opened by bindDb() in start(), with the current dataKey.
+        if (::db.isInitialized) db.close()
         signalStores = SignalStores(SignalStoreDb(appCtx, accountId))
         LocalStores.bindAccount(accountId)
         app.rcq.android.data.VisitStore.bindAccount(accountId)
@@ -219,6 +236,7 @@ class Session(context: Context) {
         val uin = store.uin ?: return
         val token = store.token ?: return
         started = true
+        bindDb(AccountManager.activeId.value ?: "")
         loadMessagesFromDb()
         socket.connect(
             uin = uin,
@@ -262,6 +280,80 @@ class Session(context: Context) {
     }
 
     fun stop() = socket.disconnect()
+
+    // ── panic-PIN at-rest lock ───────────────────────────────────────
+
+    /** (Re)open the active account's message DB under the current dataKey:
+     *  the unlocked PIN-vault key if a PIN is set, else the device key. On the
+     *  device-key path, migrate any legacy plaintext DB to encrypted once. */
+    private fun bindDb(accountId: String) {
+        if (::db.isInitialized) db.close()
+        val pinKey = PanicPinService.dataKey
+        val key = if (pinKey != null) pinKey else {
+            val deviceKey = SecureStore.deviceKey(appCtx)
+            runCatching { MessageDb.migrateToEncrypted(appCtx, accountId, deviceKey) }
+            deviceKey
+        }
+        db = MessageDb(appCtx, accountId, key)
+    }
+
+    /** Tear the live session down when the app locks (background with a PIN
+     *  set, flipped by [PanicPinService.lock]): drop the socket + in-memory
+     *  history and close the DB so the unlocked dataKey + plaintext history
+     *  leave this process's memory. [start] reopens everything after unlock.
+     *  Driven by the [PanicPinService.locked] flow (observed in init). */
+    private fun tearDownForLock() {
+        socket.disconnect()
+        _connected.value = false
+        _messages.value = emptyMap()
+        _groupMessages.value = emptyMap()
+        if (::db.isInitialized) { db.close() }
+        started = false
+        everConnected = false
+    }
+
+    /** Set a real PIN: create the vault, then rekey EVERY account's message DB
+     *  from the device key to the new vault key (the PIN locks the whole app,
+     *  so all accounts' DBs move under it). */
+    suspend fun setPin(pin: String): Boolean = withContext(Dispatchers.IO) {
+        val deviceKey = SecureStore.deviceKey(appCtx)
+        val newKey = PanicPinService.setRealPin(appCtx, pin) ?: return@withContext false
+        rekeyAllAccountDbs(from = deviceKey, to = newKey)
+        true
+    }
+
+    /** Change the PIN (re-seal the vault slot; the dataKey + DBs are untouched). */
+    suspend fun changePin(newPin: String): Boolean = withContext(Dispatchers.IO) {
+        PanicPinService.changeRealPin(appCtx, newPin)
+    }
+
+    /** Remove the PIN: rekey every DB from the vault key back to the device key,
+     *  then destroy the vault. */
+    suspend fun removePin(): Boolean = withContext(Dispatchers.IO) {
+        val vaultKey = PanicPinService.dataKey ?: return@withContext false
+        val deviceKey = SecureStore.deviceKey(appCtx)
+        rekeyAllAccountDbs(from = vaultKey, to = deviceKey)
+        PanicPinService.removePin(appCtx)
+        true
+    }
+
+    /** Rekey the active DB in place + every inactive account's DB (opened then
+     *  closed). Each is first ensured-encrypted under [from] (handles a fresh
+     *  account whose plaintext DB was never migrated). */
+    private fun rekeyAllAccountDbs(from: ByteArray, to: ByteArray) {
+        val activeId = AccountManager.activeId.value
+        if (::db.isInitialized) db.rekey(to)
+        AccountManager.accounts.value.map { it.id }.filter { it != activeId }.forEach { id ->
+            runCatching {
+                MessageDb.migrateToEncrypted(appCtx, id, from)
+                val m = MessageDb(appCtx, id, from)
+                m.rekey(to)
+                m.close()
+            }.onFailure { android.util.Log.e("RCQpin", "rekey failed for $id: ${it.message}") }
+        }
+    }
+
+    val pinConfigured: Boolean get() = PanicPinService.isConfigured(appCtx)
 
     /** Wipe local message history (both 1:1 and group threads) without
      *  touching the account. Mirrors iOS "Clear history". */

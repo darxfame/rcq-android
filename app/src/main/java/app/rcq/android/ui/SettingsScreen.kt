@@ -31,7 +31,9 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Autorenew
+import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.Password
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LocalFireDepartment
@@ -60,6 +62,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -74,7 +81,7 @@ import app.rcq.android.net.RcqApi
 import kotlinx.coroutines.launch
 
 /** Sub-screens inside Settings (kept self-contained, no nav graph). */
-private enum class SettingsRoute { ROOT, PROFILE, PRIVACY, NOTIFICATIONS, BLOCKED, CUSTOM_SERVER, SOUNDS, LANGUAGE }
+private enum class SettingsRoute { ROOT, PROFILE, PRIVACY, NOTIFICATIONS, BLOCKED, CUSTOM_SERVER, SOUNDS, LANGUAGE, PIN_CODES }
 
 @Composable
 internal fun SettingsScreen(session: Session, uin: Int, onBack: () -> Unit, onBurned: (Int?) -> Unit, onMigrated: (Int) -> Unit) {
@@ -96,6 +103,7 @@ internal fun SettingsScreen(session: Session, uin: Int, onBack: () -> Unit, onBu
         SettingsRoute.SOUNDS -> SoundsScreen { route = SettingsRoute.ROOT }
         SettingsRoute.LANGUAGE -> LanguageScreen { route = SettingsRoute.ROOT }
         SettingsRoute.BLOCKED -> BlockedUsersScreen(session) { route = SettingsRoute.ROOT }
+        SettingsRoute.PIN_CODES -> PinCodesScreen(session) { route = SettingsRoute.ROOT }
         SettingsRoute.CUSTOM_SERVER -> CustomServerScreen(
             session,
             onBack = { route = SettingsRoute.ROOT },
@@ -179,6 +187,12 @@ private fun SettingsRoot(
                 SettingsRow(Icons.AutoMirrored.Filled.VolumeUp, stringResource(R.string.settings_row_sounds)) { onOpen(SettingsRoute.SOUNDS) }
                 Divider()
                 SettingsRow(Icons.Outlined.Block, stringResource(R.string.settings_row_blocked), value = if (blockedCount > 0) "$blockedCount" else null) { onOpen(SettingsRoute.BLOCKED) }
+                Divider()
+                SettingsRow(
+                    Icons.Filled.Password,
+                    stringResource(R.string.settings_row_pin_codes),
+                    value = if (session.pinConfigured) stringResource(R.string.pin_on) else null,
+                ) { onOpen(SettingsRoute.PIN_CODES) }
             }
             SectionFooter(stringResource(R.string.settings_foot_privacy))
 
@@ -713,6 +727,98 @@ private fun SettingsTopBar(title: String, onBack: () -> Unit, trailing: @Composa
         Text(title, color = c.textPrimary, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.weight(1f))
         trailing?.invoke()
+    }
+}
+
+// ── PIN codes (panic-PIN, Phase 1: real PIN) ─────────────────────────
+
+@Composable
+private fun PinCodesScreen(session: Session, onBack: () -> Unit) {
+    val c = RcqTheme.colors
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    var configured by remember { mutableStateOf(session.pinConfigured) }
+    var editing by remember { mutableStateOf(false) }
+    var pin by remember { mutableStateOf("") }
+    var confirm by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+    var busy by remember { mutableStateOf(false) }
+
+    fun onlyDigits(s: String) = s.length <= 12 && s.all { it.isDigit() }
+
+    Column(Modifier.fillMaxSize().background(c.bgPrimary)) {
+        SettingsTopBar(stringResource(R.string.pin_codes_title), onBack)
+        Column(
+            Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            if (editing) {
+                OutlinedTextField(
+                    value = pin,
+                    onValueChange = { if (onlyDigits(it)) pin = it },
+                    label = { Text(stringResource(R.string.pin_new)) },
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = confirm,
+                    onValueChange = { if (onlyDigits(it)) confirm = it },
+                    label = { Text(stringResource(R.string.pin_confirm)) },
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                error?.let { Text(it, color = Color(0xFFE5484D), fontSize = 13.sp) }
+                CapsuleButton(
+                    label = if (busy) stringResource(R.string.pin_busy) else stringResource(R.string.common_save),
+                    enabled = pin.length >= 4 && !busy,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    if (pin != confirm) { error = context.getString(R.string.pin_mismatch); return@CapsuleButton }
+                    scope.launch {
+                        busy = true; error = null
+                        val ok = withContext(Dispatchers.Default) {
+                            if (configured) session.changePin(pin) else session.setPin(pin)
+                        }
+                        busy = false
+                        if (ok) { configured = true; editing = false; pin = ""; confirm = "" }
+                        else error = context.getString(R.string.pin_too_short)
+                    }
+                }
+                TextButton(onClick = { editing = false; error = null }) {
+                    Text(stringResource(R.string.common_cancel), color = c.textSecondary)
+                }
+            } else if (!configured) {
+                CapsuleButton(stringResource(R.string.pin_set), modifier = Modifier.fillMaxWidth()) {
+                    editing = true; pin = ""; confirm = ""; error = null
+                }
+            } else {
+                SettingsGroup {
+                    SettingsRow(Icons.Filled.Password, stringResource(R.string.pin_change)) {
+                        editing = true; pin = ""; confirm = ""; error = null
+                    }
+                    Divider()
+                    SettingsRow(Icons.Filled.DeleteSweep, stringResource(R.string.pin_remove), destructive = true) {
+                        if (!busy) scope.launch {
+                            busy = true
+                            withContext(Dispatchers.Default) { session.removePin() }
+                            busy = false; configured = false
+                        }
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                SectionLabel(stringResource(R.string.pin_soon_label))
+                SettingsGroup {
+                    SettingsRow(Icons.Filled.Lock, stringResource(R.string.pin_decoy_soon)) {}
+                    Divider()
+                    SettingsRow(Icons.Filled.DeleteForever, stringResource(R.string.pin_wipe_soon)) {}
+                }
+            }
+            SectionFooter(stringResource(R.string.pin_codes_footer))
+        }
     }
 }
 
