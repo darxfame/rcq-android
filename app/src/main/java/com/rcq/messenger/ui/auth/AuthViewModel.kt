@@ -15,6 +15,7 @@ import com.rcq.messenger.crypto.EciesKeyStore
 import com.rcq.messenger.data.api.RCQApiService
 import com.rcq.messenger.data.api.RegisterRequest
 import com.rcq.messenger.di.PreferencesKeys
+import com.rcq.messenger.service.ProxyManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.*
@@ -31,11 +32,15 @@ class AuthViewModel @Inject constructor(
     private val webSocketService: com.rcq.messenger.data.websocket.WebSocketService,
     private val cryptoService: CryptoService,
     private val eciesKeyStore: EciesKeyStore,
-    private val chatRepository: com.rcq.messenger.data.repository.ChatRepository
+    private val chatRepository: com.rcq.messenger.data.repository.ChatRepository,
+    private val proxyManager: ProxyManager,
 ) : ViewModel() {
 
     private val _authState = MutableStateFlow<AuthState>(AuthState.Loading)
     val authState: StateFlow<AuthState> = _authState.asStateFlow()
+
+    private val _connectionStatus = MutableStateFlow("Запуск…")
+    val connectionStatus: StateFlow<String> = _connectionStatus.asStateFlow()
 
     private val _isAuthenticated = MutableStateFlow(false)
     val isAuthenticated: StateFlow<Boolean> = _isAuthenticated.asStateFlow()
@@ -83,16 +88,20 @@ class AuthViewModel @Inject constructor(
                 val identityKey = prefs[KEY_IDENTITY_KEY]
 
                 if (uin != null && token != null && identityKey != null) {
+                    // Probe connection before entering app — auto-enable bypass if needed
+                    proxyManager.probeAndAutoEnable { _connectionStatus.value = it }
+
                     _nickname.value = savedNickname
                     _currentUin.value = uin
                     _isAuthenticated.value = true
                     _authState.value = AuthState.Authenticated
-                    // Load ECIES keys so incoming iOS messages can be decrypted
                     eciesKeyStore.loadOrGenerate(cryptoService.ecies)
                     cryptoService.ecies.ownUin = uin
                     chatRepository.setCurrentUserUin(uin)
                     webSocketService.connect()
                 } else {
+                    // First launch: probe connection for onboarding too
+                    proxyManager.probeAndAutoEnable { _connectionStatus.value = it }
                     _authState.value = AuthState.Onboarding
                 }
             }

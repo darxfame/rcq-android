@@ -2,12 +2,18 @@ package com.rcq.messenger.service
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.rcq.messenger.BuildConfig
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import java.util.concurrent.TimeUnit
 import timber.log.Timber
 import java.io.IOException
 import java.net.InetSocketAddress
@@ -106,6 +112,45 @@ class ProxyManager @Inject constructor(
                 _statusLabel.value = computeLabel()
             }
         }
+    }
+
+    /**
+     * Пробует прямое подключение к серверу.
+     * Если недоступен — активирует bypass (AUTO-режим → sing-box или MANUAL-прокси).
+     * Возвращает true если прямое соединение работает.
+     */
+    suspend fun probeAndAutoEnable(
+        onStatus: (String) -> Unit = {}
+    ): Boolean = withContext(Dispatchers.IO) {
+        onStatus("Проверяю соединение…")
+        val probeUrl = BuildConfig.API_BASE_URL.trimEnd('/') + "/health"
+        val directOk = withTimeoutOrNull(5_000) {
+            runCatching {
+                val client = OkHttpClient.Builder()
+                    .connectTimeout(4, TimeUnit.SECONDS)
+                    .readTimeout(4, TimeUnit.SECONDS)
+                    .build()
+                val resp = client.newCall(Request.Builder().url(probeUrl).head().build()).execute()
+                resp.close()
+                resp.isSuccessful || resp.code in 401..403
+            }.getOrDefault(false)
+        } ?: false
+
+        if (directOk) {
+            onStatus("Прямое подключение ✓")
+            Timber.i("ProxyManager: direct probe OK — no bypass needed")
+        } else {
+            onStatus("Прямое соединение недоступно, включаю обход…")
+            Timber.i("ProxyManager: direct probe FAILED — enabling bypass")
+            if (bypassMode == BypassMode.OFF) bypassMode = BypassMode.AUTO
+            if (bypassMode == BypassMode.AUTO && !singBoxTransport.isActive) {
+                singBoxTransport.start()
+                prefs.edit().putBoolean(KEY_SINGBOX_WAS_ACTIVE, true).apply()
+                _statusLabel.value = computeLabel()
+            }
+            onStatus("Обход включён")
+        }
+        directOk
     }
 
     /** Явная остановка sing-box пользователем — сбрасывает персистентный флаг */

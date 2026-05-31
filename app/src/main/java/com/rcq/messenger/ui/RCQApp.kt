@@ -1,13 +1,28 @@
 package com.rcq.messenger.ui
 
-import androidx.compose.foundation.layout.padding
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.rcq.messenger.ui.theme.LocalRCQColors
+import com.rcq.messenger.ui.theme.StatusOnline
+import com.rcq.messenger.ui.theme.StatusAway
+import com.rcq.messenger.ui.theme.StatusBusy
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -241,8 +256,13 @@ fun AuthNavigation(navController: NavHostController, authViewModel: AuthViewMode
     val authState by authViewModel.authState.collectAsState()
     val recoveryPhrase by authViewModel.recoveryPhrase.collectAsState()
     val currentUin by authViewModel.currentUin.collectAsState()
+    val connectionStatus by authViewModel.connectionStatus.collectAsState()
 
     when (authState) {
+        is AuthState.Loading -> {
+            ConnectionProbeSplash(statusText = connectionStatus)
+            return
+        }
         is AuthState.ShowRecoveryPhrase -> {
             RecoveryPhraseScreen(
                 phrase = recoveryPhrase,
@@ -267,6 +287,40 @@ fun AuthNavigation(navController: NavHostController, authViewModel: AuthViewMode
                     )
                 }
             }
+        }
+    }
+}
+@Composable
+fun ConnectionProbeSplash(statusText: String) {
+    val rcq = LocalRCQColors.current
+    val rotation by rememberInfiniteTransition(label = "spin").animateFloat(
+        initialValue = 0f, targetValue = 360f,
+        animationSpec = infiniteRepeatable(tween(1800, easing = LinearEasing)),
+        label = "rot"
+    )
+    Box(Modifier.fillMaxSize().background(rcq.bgPrimary), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            // ICQ flower: 8 petals rotating
+            Box(Modifier.size(72.dp), contentAlignment = Alignment.Center) {
+                val petalColors = listOf(StatusOnline, StatusAway, StatusBusy, rcq.accent,
+                    StatusOnline, StatusAway, StatusBusy, rcq.accent)
+                petalColors.forEachIndexed { i, color ->
+                    Box(
+                        Modifier
+                            .rotate(rotation + i * 45f)
+                            .offset(y = (-20).dp)
+                            .size(14.dp, 22.dp)
+                            .clip(CircleShape)
+                            .background(color.copy(alpha = 0.75f + i * 0.03f))
+                    )
+                }
+                Box(Modifier.size(16.dp).clip(CircleShape).background(rcq.accent))
+            }
+            Spacer(Modifier.height(24.dp))
+            Text("RCQ", fontSize = 22.sp, fontWeight = FontWeight.Bold,
+                color = rcq.accent, fontFamily = FontFamily.Monospace)
+            Spacer(Modifier.height(12.dp))
+            Text(statusText, fontSize = 13.sp, color = rcq.textSecondary)
         }
     }
 }
