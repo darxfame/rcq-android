@@ -40,7 +40,9 @@ import java.security.SecureRandom
 object SealedSender {
 
     private val HKDF_INFO_V1 = "RCQ-1to1-v1".toByteArray(Charsets.UTF_8)
+    private val HKDF_INFO_V2 = "RCQ-1to1-v2".toByteArray(Charsets.UTF_8)
     private const val WIRE_V1 = 1
+    private const val WIRE_V2 = 2
 
     class DecryptException(message: String) : Exception(message)
 
@@ -49,6 +51,12 @@ object SealedSender {
         val envelope: Envelope,
         val senderSigningPub: ByteArray,
     )
+
+    /** A v=2 envelope after the outer ECIES is peeled but before the inner
+     *  libsignal ciphertext is run through the Double Ratchet. [kind] is
+     *  "prekey" (a PreKeySignalMessage that establishes the inbound session)
+     *  or "signal" (a SignalMessage on an existing session). */
+    data class UnwrappedV2(val senderUin: Int, val kind: String, val msgBytes: ByteArray)
 
     fun encryptV1(
         envelope: Envelope,
@@ -65,7 +73,7 @@ object SealedSender {
         val ephPriv = kp.private as X25519PrivateKeyParameters
         val ephPub = (kp.public as X25519PublicKeyParameters).encoded
 
-        val aeadKey = deriveKey(ephPriv, X25519PublicKeyParameters(recipientIdentityPub, 0), ephPub, recipientIdentityPub)
+        val aeadKey = deriveKey(ephPriv, X25519PublicKeyParameters(recipientIdentityPub, 0), ephPub, recipientIdentityPub, HKDF_INFO_V1)
 
         val envJson = envelope.toJsonBytes()
 
@@ -107,7 +115,7 @@ object SealedSender {
         val ct = unb64(wire.get("ct").asString)
 
         val ownPriv = X25519PrivateKeyParameters(ownIdentityPriv, 0)
-        val aeadKey = deriveKey(ownPriv, X25519PublicKeyParameters(ek, 0), ek, ownIdentityPub)
+        val aeadKey = deriveKey(ownPriv, X25519PublicKeyParameters(ek, 0), ek, ownIdentityPub, HKDF_INFO_V1)
 
         val inner = try {
             aeadOpen(aeadKey, aad = ek, combined = ct)
@@ -136,20 +144,106 @@ object SealedSender {
         )
     }
 
+    // ── v=2 forward-secrecy ECIES wrapper ────────────────────────────
+    // v=2 keeps the exact same outer ECIES as v=1 (ephemeral X25519 + HKDF
+    // + ChaCha20-Poly1305) but swaps the HKDF info to "RCQ-1to1-v2" and
+    // carries a libsignal Double-Ratchet ciphertext instead of a signed
+    // plaintext envelope. The inner JSON is {from, kind, msg}: no spub/sig,
+    // because the libsignal session itself authenticates the sender. The
+    // ratchet machinery lives in [SignalSession]; this is just the wrap.
+
+    /** Wrap an already-serialized libsignal ciphertext in the v=2 outer
+     *  ECIES, addressed to [recipientIdentityPub] (the peer's X25519
+     *  messaging identity key, same one v=1 uses). [kind] is "prekey" or
+     *  "signal". Byte-compatible with iOS `encryptStage3`. */
+    fun wrapV2(
+        libsignalBytes: ByteArray,
+        kind: String,
+        recipientIdentityPub: ByteArray,
+        ownUin: Int,
+    ): String {
+        val gen = X25519KeyPairGenerator().apply {
+            init(X25519KeyGenerationParameters(SecureRandom()))
+        }
+        val kp = gen.generateKeyPair()
+        val ephPriv = kp.private as X25519PrivateKeyParameters
+        val ephPub = (kp.public as X25519PublicKeyParameters).encoded
+
+        val aeadKey = deriveKey(ephPriv, X25519PublicKeyParameters(recipientIdentityPub, 0), ephPub, recipientIdentityPub, HKDF_INFO_V2)
+
+        val inner = JsonObject().apply {
+            addProperty("from", ownUin)
+            addProperty("kind", kind)
+            addProperty("msg", b64(libsignalBytes))
+        }.toString().toByteArray(Charsets.UTF_8)
+
+        val combined = aeadSeal(aeadKey, aad = ephPub, plaintext = inner)
+
+        val wire = JsonObject().apply {
+            addProperty("v", WIRE_V2)
+            addProperty("ek", b64(ephPub))
+            addProperty("ct", b64(combined))
+        }.toString().toByteArray(Charsets.UTF_8)
+
+        return b64(wire)
+    }
+
+    /** Peel the v=2 outer ECIES, returning the inner libsignal ciphertext
+     *  bytes + kind for [SignalSession] to run through the ratchet. */
+    fun unwrapV2(
+        payloadB64: String,
+        ownIdentityPriv: ByteArray,
+        ownIdentityPub: ByteArray,
+    ): UnwrappedV2 {
+        val wire = JsonParser.parseString(String(unb64(payloadB64), Charsets.UTF_8)).asJsonObject
+        val v = wire.get("v")?.asInt ?: 0
+        if (v != WIRE_V2) throw DecryptException("expected wire version v=2, got v=$v")
+        val ek = unb64(wire.get("ek").asString)
+        val ct = unb64(wire.get("ct").asString)
+
+        val ownPriv = X25519PrivateKeyParameters(ownIdentityPriv, 0)
+        val aeadKey = deriveKey(ownPriv, X25519PublicKeyParameters(ek, 0), ek, ownIdentityPub, HKDF_INFO_V2)
+
+        val inner = try {
+            aeadOpen(aeadKey, aad = ek, combined = ct)
+        } catch (e: Exception) {
+            throw DecryptException("AEAD open failed: ${e.message}")
+        }
+
+        val obj = JsonParser.parseString(String(inner, Charsets.UTF_8)).asJsonObject
+        val from = obj.get("from")?.asInt ?: throw DecryptException("missing sender")
+        val kind = obj.get("kind")?.asString ?: throw DecryptException("missing kind")
+        val msg = unb64(obj.get("msg").asString)
+        return UnwrappedV2(senderUin = from, kind = kind, msgBytes = msg)
+    }
+
+    /** Peek the outer wire version (1 or 2) without decrypting, so the
+     *  ingest path can dispatch. Returns 0 on a malformed payload. */
+    fun wireVersion(payloadB64: String): Int = try {
+        JsonParser.parseString(String(unb64(payloadB64), Charsets.UTF_8))
+            .asJsonObject.get("v")?.asInt ?: 0
+    } catch (e: Exception) {
+        0
+    }
+
     // ── primitives ───────────────────────────────────────────────────
 
     /** HKDF-SHA256 with the X25519 ECDH secret as IKM and
-     *  salt = localEphemeralOrEk || peerIdentityPub, matching iOS. */
+     *  salt = localEphemeralOrEk || peerIdentityPub, matching iOS. [info]
+     *  is the HKDF info string, "RCQ-1to1-v1" for v=1 or "RCQ-1to1-v2" for
+     *  the v=2 forward-secrecy wrapper — the rest of the outer ECIES is
+     *  identical between versions. */
     private fun deriveKey(
         priv: X25519PrivateKeyParameters,
         pub: X25519PublicKeyParameters,
         ek: ByteArray,
         recipientPub: ByteArray,
+        info: ByteArray,
     ): ByteArray {
         val secret = ByteArray(32)
         priv.generateSecret(pub, secret, 0)
         val hkdf = HKDFBytesGenerator(SHA256Digest())
-        hkdf.init(HKDFParameters(secret, ek + recipientPub, HKDF_INFO_V1))
+        hkdf.init(HKDFParameters(secret, ek + recipientPub, info))
         val out = ByteArray(32)
         hkdf.generateBytes(out, 0, 32)
         return out

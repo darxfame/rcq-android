@@ -8,6 +8,7 @@ import app.rcq.android.crypto.MediaCrypto
 import app.rcq.android.crypto.Reply
 import app.rcq.android.crypto.SealedSender
 import app.rcq.android.crypto.SignalBootstrap
+import app.rcq.android.crypto.SignalSession
 import app.rcq.android.crypto.SignalStoreDb
 import app.rcq.android.crypto.SignalStores
 import app.rcq.android.data.AccountManager
@@ -94,6 +95,11 @@ class Session(context: Context) {
 
     // uin -> recipient X25519 identity public (raw), from contacts or lookup.
     private val peerIdentityCache = HashMap<Int, ByteArray>()
+
+    // Peers known to have no v=2 bundle this session — send them v=1 without
+    // re-probing /keys/{uin}/bundle on every message. Cleared on account
+    // switch (a peer may publish a bundle later; we re-probe next session).
+    private val noV2Peers = java.util.concurrent.ConcurrentHashMap.newKeySet<Int>()
     // media_id -> decrypted plaintext bytes (sender seeds it; receiver caches).
     private val imageCache = java.util.concurrent.ConcurrentHashMap<String, ByteArray>()
 
@@ -188,6 +194,7 @@ class Session(context: Context) {
         api = newApi()
         socket = newSocket()
         peerIdentityCache.clear()
+        noV2Peers.clear()
         ackedReads.clear()
         lastVisitAt.clear()
         _contacts.value = emptyList()
@@ -308,13 +315,7 @@ class Session(context: Context) {
         lastVisitAt[uin]?.let { if (now - it < 3_600_000L) return }
         lastVisitAt[uin] = now
         runCatching {
-            val payload = SealedSender.encryptV1(
-                envelope = Envelope.visit(now),
-                recipientIdentityPub = recipientKey(uin),
-                ownUin = me,
-                signingPriv = signingPriv(),
-                signingPub = signingPub(),
-            )
+            val payload = encryptFor(uin, Envelope.visit(now))
             api.sendSealed(uin, payload, envelopeType = "visit")
         }.onFailure { lastVisitAt.remove(uin) }
     }
@@ -524,7 +525,7 @@ class Session(context: Context) {
     /** Decrypt + store an inbound group message under its group thread. */
     private fun ingestGroup(payloadB64: String, groupId: Int) {
         runCatching {
-            val dec = SealedSender.decryptV1(payloadB64, identityPriv(), identityPub())
+            val dec = decryptInbound(payloadB64)
             val now = System.currentTimeMillis()
             when (val env = dec.envelope) {
                 is Envelope.Text -> storeGroup(
@@ -583,6 +584,7 @@ class Session(context: Context) {
             app.rcq.android.data.VisitStore.wipe()
         }
         peerIdentityCache.clear()
+        noV2Peers.clear()
         ackedReads.clear()
         _contacts.value = emptyList()
         _pending.value = emptyList()
@@ -632,6 +634,7 @@ class Session(context: Context) {
         // No db.wipe(): history is peer-keyed and survives the UIN change.
         // start() below reloads it from the (intact) db.
         peerIdentityCache.clear()
+        noV2Peers.clear()
         ackedReads.clear()
         _contacts.value = emptyList()
         _pending.value = emptyList()
@@ -801,18 +804,43 @@ class Session(context: Context) {
         sendEnvelope(env, msg.id, msg.peerUin)
     }
 
+    /**
+     * Encrypt [env] to [toUin], negotiating v=2 forward secrecy: when we've
+     * bootstrapped a libsignal identity AND a session with the peer exists or
+     * can be established, send v=2 (Double Ratchet); otherwise fall back to
+     * v=1, which every account supports. Any v=2 failure degrades to v=1
+     * rather than breaking the send — v=2 is strictly additive.
+     *
+     * Called ONCE per logical send (not inside [withRetry]) so a retry resends
+     * the identical ciphertext bytes. That is required for ratchet
+     * correctness: libsignal emits a self-contained PreKeySignalMessage on
+     * every send until the peer first replies, so re-POSTing the same bytes is
+     * always safe (the recipient dedups), whereas re-encrypting would advance
+     * the ratchet on each attempt.
+     */
+    private suspend fun encryptFor(toUin: Int, env: Envelope): String {
+        val me = store.uin ?: error("not registered")
+        val recipientPub = recipientKey(toUin)
+        if (signalStores.hasLocalIdentity() && toUin !in noV2Peers) {
+            if (SignalSession.ensureSession(signalStores, api, toUin)) {
+                runCatching {
+                    return SignalSession.encrypt(signalStores, env, recipientPub, toUin, me)
+                }.onFailure {
+                    android.util.Log.w("RCQsignal", "v2 encrypt failed for $toUin, falling back to v1: ${it.message}")
+                }
+            } else {
+                // Peer has no bundle (or it's unreachable): stop re-probing it
+                // this session, just use v=1.
+                noV2Peers.add(toUin)
+            }
+        }
+        return SealedSender.encryptV1(env, recipientPub, me, signingPriv(), signingPub())
+    }
+
     private suspend fun sendEnvelope(env: Envelope, id: String, toUin: Int) {
         try {
-            val resp = withRetry {
-                val payload = SealedSender.encryptV1(
-                    envelope = env,
-                    recipientIdentityPub = recipientKey(toUin),
-                    ownUin = store.uin ?: error("not registered"),
-                    signingPriv = signingPriv(),
-                    signingPub = signingPub(),
-                )
-                api.sendSealed(toUin, payload)
-            }
+            val payload = encryptFor(toUin, env)
+            val resp = withRetry { api.sendSealed(toUin, payload) }
             updateMessageState(id, toUin, if (resp.delivered) DeliveryState.DELIVERED else DeliveryState.SENT)
         } catch (e: Exception) {
             updateMessageState(id, toUin, DeliveryState.FAILED)
@@ -927,16 +955,8 @@ class Session(context: Context) {
      *  Reuses the send-retry but tracks no delivery state. */
     private suspend fun sendControl(toUin: Int, env: Envelope) {
         runCatching {
-            withRetry {
-                val payload = SealedSender.encryptV1(
-                    envelope = env,
-                    recipientIdentityPub = recipientKey(toUin),
-                    ownUin = store.uin ?: error("not registered"),
-                    signingPriv = signingPriv(),
-                    signingPub = signingPub(),
-                )
-                api.sendSealed(toUin, payload)
-            }
+            val payload = encryptFor(toUin, env)
+            withRetry { api.sendSealed(toUin, payload) }
         }
     }
 
@@ -987,7 +1007,7 @@ class Session(context: Context) {
 
     private fun ingest(payloadB64: String) {
         runCatching {
-            val dec = SealedSender.decryptV1(payloadB64, identityPriv(), identityPub())
+            val dec = decryptInbound(payloadB64)
             // Removed contacts are silently dropped — sealed sender means
             // the server can't filter by sender, so we gate on receipt.
             if (LocalStores.isRemoved(dec.senderUin)) return@runCatching
@@ -1264,6 +1284,19 @@ class Session(context: Context) {
         }
         if (changed) { cur[groupId] = updated; _groupMessages.value = cur }
     }
+
+    /** Decrypt an inbound sealed payload, dispatching on the outer wire
+     *  version: v=2 (libsignal forward secrecy) runs through the Double
+     *  Ratchet — a prekey message auto-establishes the inbound session with
+     *  no server round-trip — while v=1 (and anything else) uses the legacy
+     *  ECIES path. Shared by 1:1 and group ingest so a v=2 message decrypts
+     *  wherever it lands. Synchronous (no network on either path). */
+    private fun decryptInbound(payloadB64: String): SealedSender.Decrypted =
+        if (SealedSender.wireVersion(payloadB64) == 2) {
+            SignalSession.decrypt(signalStores, payloadB64, identityPriv(), identityPub())
+        } else {
+            SealedSender.decryptV1(payloadB64, identityPriv(), identityPub())
+        }
 
     // ── own key material (derived from stored privates) ──────────────
 
