@@ -119,6 +119,7 @@ internal fun HomeScreen(
     onOpenGroup: (Int) -> Unit,
     onOpenSettings: () -> Unit,
     onOpenProfile: () -> Unit = {},
+    onOpenNews: () -> Unit = {},
     onSwitchAccount: (String) -> Unit = {},
     onAddAccount: (String?) -> Unit = {},
     onManageAccounts: () -> Unit = {},
@@ -203,6 +204,7 @@ internal fun HomeScreen(
                 onSearch = { showSearch = true },
                 onOpenSettings = onOpenSettings,
                 onOpenProfile = onOpenProfile,
+                onOpenNews = onOpenNews,
                 onComingSoon = { comingSoon = it },
                 onSwitchAccount = onSwitchAccount,
                 onAddAccount = { showAddAccount = true },
@@ -403,6 +405,7 @@ private fun HomeHeader(
     onSearch: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenProfile: () -> Unit,
+    onOpenNews: () -> Unit,
     onComingSoon: (String) -> Unit,
     onSwitchAccount: (String) -> Unit,
     onAddAccount: () -> Unit,
@@ -505,7 +508,7 @@ private fun HomeHeader(
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.home_menu_news), color = c.textPrimary) },
                     leadingIcon = { Icon(Icons.Filled.Newspaper, null, tint = c.accent) },
-                    onClick = { overflowMenu = false; onComingSoon("News") },
+                    onClick = { overflowMenu = false; onOpenNews() },
                 )
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.home_menu_saved), color = c.textPrimary) },

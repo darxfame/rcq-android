@@ -395,6 +395,9 @@ class Session(context: Context) {
     suspend fun loadPeerProfile(uin: Int): RcqApi.MeProfile? =
         runCatching { api.getMe(uin) }.getOrNull()
 
+    /** Fetch the admin-posted news feed (GET /news); null on failure. */
+    suspend fun loadNews(): RcqApi.NewsFeed? = runCatching { api.news() }.getOrNull()
+
     /** The 60-digit safety number for verifying the v=2 conversation with
      *  [uin] out-of-band (key-fingerprint verification, closes the server-MITM
      *  gap). Computed over the PINNED libsignal identities, so it verifies the

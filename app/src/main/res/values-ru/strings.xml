@@ -61,6 +61,9 @@
     <string name="home_menu_search">Поиск</string>
     <string name="home_menu_post_story">Опубликовать историю</string>
     <string name="home_menu_news">Новости</string>
+    <string name="news_title">Новости</string>
+    <string name="news_empty">Пока новостей нет.</string>
+    <string name="news_has_media">С вложением</string>
     <string name="home_menu_saved">Сохранённые сообщения</string>
     <string name="home_menu_add_account">Добавить аккаунт</string>
     <string name="home_menu_manage_accounts">Управление аккаунтами</string>

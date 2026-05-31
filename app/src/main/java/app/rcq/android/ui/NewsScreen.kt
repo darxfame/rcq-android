@@ -1,0 +1,122 @@
+package app.rcq.android.ui
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import app.rcq.android.R
+import app.rcq.android.Session
+import app.rcq.android.net.RcqApi
+
+/**
+ * Read-only admin-posted news feed (GET /news), iOS NewsSheet parity. Phase 1
+ * renders the text posts (author + date + body) with a media indicator;
+ * rendering the attachment images is a follow-up.
+ */
+@Composable
+fun NewsScreen(session: Session, onBack: () -> Unit) {
+    val c = RcqTheme.colors
+    var feed by remember { mutableStateOf<RcqApi.NewsFeed?>(null) }
+    var loading by remember { mutableStateOf(true) }
+
+    LaunchedEffect(Unit) {
+        feed = session.loadNews()
+        loading = false
+    }
+
+    Column(Modifier.fillMaxSize().background(c.bgPrimary)) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(12.dp)) {
+            Icon(
+                Icons.AutoMirrored.Filled.ArrowBack,
+                stringResource(R.string.common_back),
+                tint = c.accent,
+                modifier = Modifier.size(26.dp).clickable(onClick = onBack),
+            )
+            Text(
+                stringResource(R.string.news_title),
+                color = c.textPrimary,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(start = 12.dp),
+            )
+        }
+
+        val items = feed?.items.orEmpty()
+        when {
+            loading -> Box(Modifier.fillMaxSize(), Alignment.Center) { CircularProgressIndicator(color = c.accent) }
+            items.isEmpty() -> Box(Modifier.fillMaxSize(), Alignment.Center) {
+                Text(stringResource(R.string.news_empty), color = c.textSecondary, fontSize = 14.sp)
+            }
+            else -> LazyColumn(
+                Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                item { Box(Modifier.size(4.dp)) }
+                items(items) { post -> NewsCard(post) }
+                item { Box(Modifier.size(8.dp)) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun NewsCard(post: RcqApi.NewsPost) {
+    val c = RcqTheme.colors
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(c.bgSecondary).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(post.author_label ?: "RCQ", color = c.accent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            formatNewsDate(post.published_at)?.let { Text(it, color = c.textSecondary, fontSize = 12.sp) }
+        }
+        if (!post.body.isNullOrBlank()) {
+            Text(post.body, color = c.textPrimary, fontSize = 15.sp)
+        }
+        if (post.attachments.isNotEmpty()) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Icon(Icons.Filled.AttachFile, null, tint = c.textSecondary, modifier = Modifier.size(15.dp))
+                Text(stringResource(R.string.news_has_media), color = c.textSecondary, fontSize = 12.sp)
+            }
+        }
+    }
+}
+
+/** Best-effort ISO-8601 -> localized date/time; falls back to the date part. */
+private fun formatNewsDate(iso: String?): String? {
+    if (iso.isNullOrBlank()) return null
+    val fmt = java.time.format.DateTimeFormatter
+        .ofLocalizedDateTime(java.time.format.FormatStyle.MEDIUM)
+        .withZone(java.time.ZoneId.systemDefault())
+    return runCatching { fmt.format(java.time.OffsetDateTime.parse(iso).toInstant()) }
+        .recoverCatching { fmt.format(java.time.Instant.parse(iso)) }
+        .getOrDefault(iso.take(10))
+}

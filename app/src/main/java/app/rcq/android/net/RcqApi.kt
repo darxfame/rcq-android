@@ -121,6 +121,21 @@ class RcqApi(private val baseUrl: String = DEFAULT_BASE_URL) {
         get("/users/$uin/info", authed = true, UserInfo::class.java)
     }
 
+    // ── news (admin-posted feed, rcq-spec) ───────────────────────────
+    data class NewsAttachment(val media_id: String?, val mime: String?, val kind: String?)
+    data class NewsPost(
+        val id: Int,
+        val body: String?,
+        val attachments: List<NewsAttachment> = emptyList(),
+        val author_label: String?,
+        val published_at: String?,
+    )
+    data class NewsFeed(val items: List<NewsPost> = emptyList(), val latest_id: Int = 0)
+
+    suspend fun news(): NewsFeed = withContext(Dispatchers.IO) {
+        get("/news", authed = true, NewsFeed::class.java)
+    }
+
     // ── 1:1 send (rcq-spec 6.2.1) ────────────────────────────────────
 
     data class SendRequest(val to_uin: Int, val envelope_type: String, val payload: String)
