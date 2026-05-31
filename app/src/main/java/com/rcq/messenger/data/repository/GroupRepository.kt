@@ -21,13 +21,10 @@ class GroupRepository @Inject constructor(
 ) {
     companion object { private const val TAG = "GroupRepository" }
 
-    fun getGroups(): Flow<List<Group>> = combine(
-        groupDao.getGroups(),
-        dataStore.data.map { it[PreferencesKeys.USER_UIN] ?: 0L }
-    ) { entities, ownUin ->
-        entities
-            .filter { ownUin == 0L || ownUin in it.memberIds }
-            .map { it.toDomain() }
+    // GET /groups returns only the user's groups — no client-side memberIds filter needed.
+    // memberIds may be empty if server omits the members array to save bandwidth.
+    fun getGroups(): Flow<List<Group>> = groupDao.getGroups().map { entities ->
+        entities.map { it.toDomain() }
     }
 
     suspend fun syncGroups(): Result<Unit> = runCatching {

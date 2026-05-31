@@ -65,13 +65,8 @@ class ContactsViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     // Only show groups where the current user is a member
-    val groups: StateFlow<List<Group>> = combine(
-        groupRepository.getGroups(),
-        dataStore.data.map { it[PreferencesKeys.USER_UIN] ?: 0L }
-    ) { allGroups, ownUin ->
-        if (ownUin == 0L) emptyList()
-        else allGroups.filter { it.memberIds.contains(ownUin) }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val groups: StateFlow<List<Group>> = groupRepository.getGroups()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val pendingRequestsCount: StateFlow<Int> = contactRepository.pendingRequests
         .map { it.size }

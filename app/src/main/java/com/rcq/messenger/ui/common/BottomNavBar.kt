@@ -3,6 +3,8 @@ package com.rcq.messenger.ui.common
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -22,7 +24,7 @@ fun BottomNavBar(
     onNavigate: (com.rcq.messenger.ui.Screen) -> Unit
 ) {
     val rcq = LocalRCQColors.current
-    Column(modifier = Modifier.fillMaxWidth()) {
+    Column(modifier = Modifier.fillMaxWidth().navigationBarsPadding()) {
         HorizontalDivider(thickness = RCQMetrics.dividerThick, color = rcq.divider)
         Row(
             modifier = Modifier
