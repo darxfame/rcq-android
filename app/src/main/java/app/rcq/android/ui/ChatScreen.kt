@@ -46,6 +46,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AddPhotoAlternate
+import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Groups
@@ -115,6 +116,11 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
     val isGroup = target is ChatTarget.Group
     val groupId = (target as? ChatTarget.Group)?.id
     val peer = (target as? ChatTarget.Peer)?.uin
+    // A 1:1 thread pointed at your own UIN = "Saved messages" (notes to self).
+    // Self-sends loop through the sealed path but dedup by envelope UUID, so a
+    // note shows once as a `fromMe` bubble; typing / contact-info are pointless
+    // against yourself, so they're suppressed below.
+    val isSelf = !isGroup && peer != null && peer == ownUin
 
     val peerAll by session.messages.collectAsState()
     val groupAll by session.groupMessages.collectAsState()
@@ -226,10 +232,10 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
     val thisThread = if (isGroup) app.rcq.android.data.LocalStores.groupThread(groupId!!) else app.rcq.android.data.LocalStores.peerThread(peer!!)
     DisposableEffect(target) {
         session.openThread(thisThread)
-        if (!isGroup && peer != null) session.sendReadReceipts(peer)
+        if (!isGroup && !isSelf && peer != null) session.sendReadReceipts(peer)
         onDispose {
             session.closeThread()
-            if (!isGroup && peer != null) session.sendTyping(peer, false)
+            if (!isGroup && !isSelf && peer != null) session.sendTyping(peer, false)
         }
     }
     // A message can land while the chat is already open — re-clear so the
@@ -240,7 +246,7 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
         // Header.
         Row(
             Modifier.fillMaxWidth().background(c.bgSecondary.copy(alpha = 0.6f))
-                .clickable { if (isGroup) groupId?.let(onOpenGroupInfo) else peer?.let(onOpenPeerInfo) }
+                .clickable(enabled = !isSelf) { if (isGroup) groupId?.let(onOpenGroupInfo) else peer?.let(onOpenPeerInfo) }
                 .padding(horizontal = 8.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -251,18 +257,25 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
             Spacer(Modifier.width(6.dp))
             if (isGroup) {
                 GroupAvatar(group, session, 28.dp)
+            } else if (isSelf) {
+                Icon(Icons.Filled.Bookmark, null, tint = c.accent, modifier = Modifier.size(26.dp))
             } else {
                 StatusIcon(peerContact?.presence ?: UserStatus.OFFLINE, size = 26.dp)
             }
             Spacer(Modifier.width(8.dp))
             Column(Modifier.weight(1f)) {
-                val title = if (isGroup) (group?.name ?: stringResource(R.string.chat_group)) else session.contactName(peer ?: 0)
+                val title = when {
+                    isGroup -> group?.name ?: stringResource(R.string.chat_group)
+                    isSelf -> stringResource(R.string.chat_saved_title)
+                    else -> session.contactName(peer ?: 0)
+                }
                 Text(title, color = c.textPrimary, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 val sub = when {
                     isGroup -> {
                         val n = group?.members?.size ?: 0
                         pluralStringResource(R.plurals.members, n, n)
                     }
+                    isSelf -> stringResource(R.string.chat_saved_subtitle)
                     isTyping -> stringResource(R.string.chat_typing)
                     peerContact == null -> "$peer"
                     peerContact.presence == UserStatus.OFFLINE && peerContact.lastSeen != null -> stringResource(R.string.last_seen_fmt, relativeLastSeen(peerContact.lastSeen, context))
@@ -319,14 +332,14 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
                 accentColor = c.accent,
                 onDraftChange = {
                     draft = it
-                    if (!isGroup && peer != null) session.sendTyping(peer, it.isNotBlank())
+                    if (!isGroup && !isSelf && peer != null) session.sendTyping(peer, it.isNotBlank())
                 },
                 onAttach = { attachMenu = true },
                 onSend = {
                     val body = draft.trim(); draft = ""
                     val reply = replyTarget?.let { Reply(it.id, previewOf(it, context), authorName(it)) }
                     replyTarget = null
-                    if (!isGroup && peer != null) session.sendTyping(peer, false)
+                    if (!isGroup && !isSelf && peer != null) session.sendTyping(peer, false)
                     scope.launch {
                         runCatching {
                             if (isGroup) session.sendGroupText(groupId!!, body, reply)

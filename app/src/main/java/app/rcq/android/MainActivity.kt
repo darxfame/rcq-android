@@ -212,6 +212,7 @@ private fun RcqApp(session: Session) {
                 onOpenSettings = { showSettings = true },
                 onOpenProfile = { showProfile = true },
                 onOpenNews = { showNews = true },
+                onOpenSaved = { session.uin?.let { chatTarget = ChatTarget.Peer(it) } },
                 onSwitchAccount = ::switchAccount,
                 onAddAccount = ::addAccount,
                 onManageAccounts = { showManageAccounts = true },

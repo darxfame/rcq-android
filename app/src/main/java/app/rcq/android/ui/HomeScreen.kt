@@ -120,6 +120,7 @@ internal fun HomeScreen(
     onOpenSettings: () -> Unit,
     onOpenProfile: () -> Unit = {},
     onOpenNews: () -> Unit = {},
+    onOpenSaved: () -> Unit = {},
     onSwitchAccount: (String) -> Unit = {},
     onAddAccount: (String?) -> Unit = {},
     onManageAccounts: () -> Unit = {},
@@ -205,6 +206,7 @@ internal fun HomeScreen(
                 onOpenSettings = onOpenSettings,
                 onOpenProfile = onOpenProfile,
                 onOpenNews = onOpenNews,
+                onOpenSaved = onOpenSaved,
                 onComingSoon = { comingSoon = it },
                 onSwitchAccount = onSwitchAccount,
                 onAddAccount = { showAddAccount = true },
@@ -406,6 +408,7 @@ private fun HomeHeader(
     onOpenSettings: () -> Unit,
     onOpenProfile: () -> Unit,
     onOpenNews: () -> Unit,
+    onOpenSaved: () -> Unit,
     onComingSoon: (String) -> Unit,
     onSwitchAccount: (String) -> Unit,
     onAddAccount: () -> Unit,
@@ -513,7 +516,7 @@ private fun HomeHeader(
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.home_menu_saved), color = c.textPrimary) },
                     leadingIcon = { Icon(Icons.Filled.Bookmark, null, tint = c.accent) },
-                    onClick = { overflowMenu = false; onComingSoon("Saved messages") },
+                    onClick = { overflowMenu = false; onOpenSaved() },
                 )
             }
         }

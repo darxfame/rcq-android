@@ -295,6 +295,8 @@
     <!-- Chat -->
     <string name="chat_group">Группа</string>
     <string name="chat_typing">печатает…</string>
+    <string name="chat_saved_title">Избранное</string>
+    <string name="chat_saved_subtitle">Заметки для себя</string>
     <!-- In-chat message search -->
     <string name="chat_search_hint">Поиск в этом чате</string>
     <string name="chat_search_idle">Поиск по сообщениям в этом чате.</string>
