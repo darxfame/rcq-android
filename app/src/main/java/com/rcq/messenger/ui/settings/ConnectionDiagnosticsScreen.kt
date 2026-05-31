@@ -46,6 +46,10 @@ class DiagnosticsViewModel @Inject constructor(
             running.value = true
             val out = mutableListOf<DiagLine>()
 
+            // Active server domain — verify endpoints point at the right host
+            out += DiagLine("Сервер", BuildConfig.API_BASE_URL, ok = true)
+            lines.value = out.toList()
+
             // Transport / proxy status
             out += DiagLine(
                 label = "Транспорт",
@@ -80,7 +84,7 @@ class DiagnosticsViewModel @Inject constructor(
             lines.value = out.toList()
 
             // Authenticated endpoints via Retrofit (uses proxy + auth interceptor)
-            out += apiTest("GET /users/me") { api.getCurrentUser().code() to null }
+            out += apiTest("GET /users/me/info") { api.getCurrentUser().code() to null }
             lines.value = out.toList()
 
             out += apiTest("GET /contacts") { api.getContacts().code() to null }
@@ -119,7 +123,9 @@ class DiagnosticsViewModel @Inject constructor(
                 val ms = System.currentTimeMillis() - t0
                 when (code) {
                     in 200..299 -> "HTTP $code — ${ms}ms" to true
-                    401, 403 -> "HTTP $code (нет авт.) — ${ms}ms" to false
+                    // 401/403 prove the connection works end-to-end — only auth is missing.
+                    401, 403 -> "HTTP $code соединение OK (нужна авторизация) — ${ms}ms" to true
+                    404, 405 -> "HTTP $code эндпоинт недоступен — ${ms}ms" to false
                     else -> "HTTP $code — ${ms}ms" to false
                 }
             }.getOrElse { e -> "FAIL — ${e.message?.take(80)}" to false }

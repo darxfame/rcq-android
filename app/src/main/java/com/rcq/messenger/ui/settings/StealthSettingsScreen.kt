@@ -71,6 +71,15 @@ class StealthViewModel @Inject constructor(
         }
     }
 
+    fun forceEnableBypass() {
+        viewModelScope.launch {
+            proxyManager.forceEnableNow()
+            singboxActive.value = singBox.isActive
+            singboxEnabled.value = singBox.isEnabled
+            lastError.value = singBox.lastStartError
+        }
+    }
+
     fun setSingboxEnabled(on: Boolean) {
         viewModelScope.launch {
             singBox.setEnabled(on)
@@ -232,6 +241,13 @@ fun StealthSettingsScreen(
                                     style = MaterialTheme.typography.labelSmall,
                                     color = Online
                                 )
+                            }
+                        } else {
+                            Button(
+                                onClick = { viewModel.forceEnableBypass() },
+                                colors = ButtonDefaults.buttonColors(containerColor = Primary)
+                            ) {
+                                Text("Включить сейчас", style = MaterialTheme.typography.labelMedium)
                             }
                         }
                     }

@@ -153,6 +153,23 @@ class ProxyManager @Inject constructor(
         directOk
     }
 
+    /**
+     * Немедленно включает обход вручную, не дожидаясь порога ошибок.
+     * В OFF-режиме переключает в AUTO, затем запускает sing-box сразу.
+     */
+    fun forceEnableNow() {
+        scope.launch {
+            if (bypassMode == BypassMode.OFF) bypassMode = BypassMode.AUTO
+            if (!singBoxTransport.isActive) {
+                singBoxTransport.start()
+                prefs.edit().putBoolean(KEY_SINGBOX_WAS_ACTIVE, true).apply()
+            }
+            failureCount.set(AUTO_THRESHOLD)
+            _statusLabel.value = computeLabel()
+            Timber.i("ProxyManager: bypass force-enabled by user")
+        }
+    }
+
     /** Явная остановка sing-box пользователем — сбрасывает персистентный флаг */
     fun stopSingBox() {
         singBoxTransport.stop()

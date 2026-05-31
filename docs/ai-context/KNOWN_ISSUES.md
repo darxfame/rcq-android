@@ -18,6 +18,12 @@
 - **Diagnose:** `adb logcat | grep "decryptWrapped\|ChatRepository"`
 - **File:** `crypto/CryptoService.kt:decryptWrapped`
 
+### Endpoint audit (2026-05-31, проверено против live `api.rcq.app`)
+- **DNS:** `api.rcq.app` → 165.232.69.229 ✓ · `api.staging.rcq.app` → **нет записи** (staging-флавор не подключится)
+- **Реальные эндпоинты (401=есть, нужна авт.):** `/health` 200, `/contacts`, `/contacts/pending`, `/messages/queue`, `/groups`, `/groups/browse?q=`, `/users/search?q=` — все ✓
+- **Исправлено:** `getCurrentUser()` использовал `GET /users/me` → 405; правильный путь `GET /users/me/info` (по спеке)
+- **Client-only (нет на сервере, не баг):** `/chats`, `/settings`, `/rooms` → 404 — деривируются локально из Room/queue; диагностика больше не маркирует 401 как сбой
+
 ---
 
 ## Resolved

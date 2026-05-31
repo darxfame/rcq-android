@@ -24,7 +24,15 @@ class GroupBrowseViewModel @Inject constructor(
     private val _searchResults = MutableStateFlow<List<Group>>(emptyList())
 
     val filteredGroups: StateFlow<List<Group>> = combine(_myGroups, searchQuery, _searchResults) { mine, query, results ->
-        if (query.isBlank()) mine else results
+        if (query.isBlank()) {
+            mine
+        } else {
+            // Partial match anywhere in the name on the user's own/known groups,
+            // merged with server-side discovery results. Local first, deduped by id.
+            val q = query.trim()
+            val localMatches = mine.filter { it.name.contains(q, ignoreCase = true) }
+            (localMatches + results).distinctBy { it.id }
+        }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val isLoading = MutableStateFlow(false)

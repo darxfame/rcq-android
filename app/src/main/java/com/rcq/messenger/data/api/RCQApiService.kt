@@ -12,8 +12,8 @@ interface RCQApiService {
     @POST("auth/register")
     suspend fun register(@Body request: RegisterRequest): Response<AuthResponse>
 
-    // User
-    @GET("users/me")
+    // User — server exposes current-user data at /users/me/info (GET /users/me is PUT-only → 405)
+    @GET("users/me/info")
     suspend fun getCurrentUser(): Response<User>
 
     @PUT("users/me")
