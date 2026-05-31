@@ -23,6 +23,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.PersonRemove
 import androidx.compose.material.icons.filled.Star
@@ -81,6 +82,9 @@ internal fun ContactInfoScreen(session: Session, uin: Int, onBack: () -> Unit, o
 
     var profile by remember { mutableStateOf<RcqApi.MeProfile?>(null) }
     var confirmRemove by remember { mutableStateOf(false) }
+    var showSafety by remember { mutableStateOf(false) }
+    var safetyNumber by remember { mutableStateOf<String?>(null) }
+    var safetyLoading by remember { mutableStateOf(false) }
 
     LaunchedEffect(uin) {
         profile = session.loadPeerProfile(uin)
@@ -178,6 +182,15 @@ internal fun ContactInfoScreen(session: Session, uin: Int, onBack: () -> Unit, o
                 InfoAction(Icons.Outlined.Block, stringResource(if (blocked) R.string.ci_unblock else R.string.ci_block), danger = !blocked) {
                     scope.launch { runCatching { session.toggleBlock(uin) } }
                 }
+                InfoDivider()
+                InfoAction(Icons.Filled.Lock, stringResource(R.string.ci_safety)) {
+                    showSafety = true
+                    safetyLoading = true
+                    scope.launch {
+                        safetyNumber = session.safetyNumber(uin)
+                        safetyLoading = false
+                    }
+                }
             }
 
             Spacer(Modifier.height(16.dp))
@@ -207,6 +220,34 @@ internal fun ContactInfoScreen(session: Session, uin: Int, onBack: () -> Unit, o
                 }) { Text(stringResource(R.string.common_remove), color = DANGER) }
             },
             dismissButton = { TextButton(onClick = { confirmRemove = false }) { Text(stringResource(R.string.common_cancel), color = c.textSecondary) } },
+        )
+    }
+
+    if (showSafety) {
+        AlertDialog(
+            onDismissRequest = { showSafety = false },
+            containerColor = c.bgSecondary,
+            title = { Text(stringResource(R.string.ci_safety_title), color = c.textPrimary) },
+            text = {
+                Column {
+                    when {
+                        safetyLoading -> Text(stringResource(R.string.ci_safety_loading), color = c.textSecondary)
+                        safetyNumber == null -> Text(stringResource(R.string.ci_safety_unavailable), color = c.textSecondary)
+                        else -> {
+                            Text(
+                                safetyNumber!!,
+                                color = c.textPrimary,
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 16.sp,
+                                lineHeight = 26.sp,
+                            )
+                            Spacer(Modifier.height(12.dp))
+                            Text(stringResource(R.string.ci_safety_body), color = c.textSecondary, fontSize = 13.sp)
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { showSafety = false }) { Text(stringResource(R.string.common_close), color = c.accent) } },
         )
     }
 }

@@ -262,6 +262,11 @@
     <string name="ci_remove">Удалить контакт</string>
     <string name="ci_remove_title">Удалить %1$s?</string>
     <string name="ci_remove_body">Вы оба будете удалены из контактов друг друга, будущие сообщения от этого UIN отбрасываются.</string>
+    <string name="ci_safety">Код безопасности</string>
+    <string name="ci_safety_title">Код безопасности</string>
+    <string name="ci_safety_loading">Вычисляем…</string>
+    <string name="ci_safety_unavailable">Контакт ещё не опубликовал ключи forward secrecy, проверять нечего.</string>
+    <string name="ci_safety_body">Сравните этот код с контактом по доверенному каналу: лично или по звонку. Если на обоих телефонах он совпадает, вашу переписку никто не перехватывает.</string>
 
     <!-- Chat -->
     <string name="chat_group">Группа</string>

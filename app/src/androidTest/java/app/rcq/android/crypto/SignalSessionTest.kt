@@ -160,6 +160,39 @@ class SignalSessionTest {
     }
 
     @Test
+    fun safetyNumberIsSymmetric() {
+        val aliceUin = 555_111
+        val bobUin = 666_222
+        val alice = freshStores("test-fs-alice3")
+        val bob = freshStores("test-fs-bob3")
+        val carol = freshStores("test-fs-carol3")
+        try {
+            bootstrapLocal(alice, aliceUin)
+            bootstrapLocal(bob, bobUin)
+            bootstrapLocal(carol, 777_333)
+            val aliceId = SignalSession.ownIdentity(alice)!!
+            val bobId = SignalSession.ownIdentity(bob)!!
+            val carolId = SignalSession.ownIdentity(carol)!!
+
+            // Each side passes (self, peer); both must compute the same number.
+            val onAlice = SignalSession.safetyNumber(aliceUin, aliceId, bobUin, bobId)
+            val onBob = SignalSession.safetyNumber(bobUin, bobId, aliceUin, aliceId)
+            assertEquals(onAlice, onBob)
+
+            // 60 digits, grouped into twelve fives.
+            val digits = onAlice.replace(" ", "")
+            assertEquals(60, digits.length)
+            assertTrue("safety number must be all digits", digits.all { it.isDigit() })
+
+            // A different peer key yields a different number (no collisions).
+            val aliceCarol = SignalSession.safetyNumber(aliceUin, aliceId, 777_333, carolId)
+            assertNotEquals(onAlice, aliceCarol)
+        } finally {
+            alice.wipe(); bob.wipe(); carol.wipe()
+        }
+    }
+
+    @Test
     fun wireVersionDispatch() {
         // A v=1 payload must report version 1 so [Session.decryptInbound] keeps
         // it on the legacy ECIES path (and never routes it through libsignal).

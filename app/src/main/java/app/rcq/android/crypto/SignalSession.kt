@@ -10,6 +10,7 @@ import org.signal.libsignal.protocol.SessionBuilder
 import org.signal.libsignal.protocol.SessionCipher
 import org.signal.libsignal.protocol.SignalProtocolAddress
 import org.signal.libsignal.protocol.ecc.ECPublicKey
+import org.signal.libsignal.protocol.fingerprint.NumericFingerprintGenerator
 import org.signal.libsignal.protocol.kem.KEMPublicKey
 import org.signal.libsignal.protocol.message.CiphertextMessage
 import org.signal.libsignal.protocol.message.PreKeySignalMessage
@@ -221,4 +222,47 @@ object SignalSession {
     }
 
     private fun b64d(s: String): ByteArray = Base64.decode(s, Base64.NO_WRAP)
+
+    // ── safety numbers (key-fingerprint verification) ────────────────
+    // Closes the server-MITM gap: TOFU accepts whatever identity key the
+    // server hands us, so a malicious server could substitute a key. The
+    // safety number lets two users compare their pinned identity keys over a
+    // trusted out-of-band channel; if the numbers match, no key was swapped.
+    // Standard Signal iteration count; the version is fixed (Android is the
+    // first client with this, so it sets the convention) and must match on
+    // both ends.
+    private const val FINGERPRINT_ITERATIONS = 5200
+    private const val FINGERPRINT_VERSION = 2
+
+    /**
+     * The 60-digit safety number for the conversation between [ownUin] (with
+     * libsignal identity [ownIdentity]) and [peerUin] (with [peerIdentity]).
+     * Both devices compute the SAME number when each passes its own (self,
+     * peer) in the (local, remote) slots — the generator orders the two halves
+     * canonically. Formatted in groups of five for reading aloud.
+     */
+    fun safetyNumber(
+        ownUin: Int,
+        ownIdentity: IdentityKey,
+        peerUin: Int,
+        peerIdentity: IdentityKey,
+    ): String {
+        val fp = NumericFingerprintGenerator(FINGERPRINT_ITERATIONS).createFor(
+            FINGERPRINT_VERSION,
+            ownUin.toString().toByteArray(Charsets.UTF_8),
+            ownIdentity,
+            peerUin.toString().toByteArray(Charsets.UTF_8),
+            peerIdentity,
+        )
+        return fp.displayableFingerprint.displayText.chunked(5).joinToString(" ")
+    }
+
+    /** Our own libsignal identity public key, or null if not bootstrapped. */
+    fun ownIdentity(stores: SignalStores): IdentityKey? =
+        if (stores.hasLocalIdentity()) stores.identityKeyPair.publicKey else null
+
+    /** The peer's PINNED libsignal identity (the one our sessions actually
+     *  use), or null if we have no session/identity for them yet. */
+    fun pinnedIdentity(stores: SignalStores, peerUin: Int): IdentityKey? =
+        synchronized(stores) { stores.getIdentity(addressOf(peerUin)) }
 }

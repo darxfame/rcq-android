@@ -263,6 +263,11 @@
     <string name="ci_remove">Remove contact</string>
     <string name="ci_remove_title">Remove %1$s?</string>
     <string name="ci_remove_body">You\'ll both be removed from each other\'s contacts and future messages from this UIN are dropped.</string>
+    <string name="ci_safety">Safety number</string>
+    <string name="ci_safety_title">Safety number</string>
+    <string name="ci_safety_loading">Computing…</string>
+    <string name="ci_safety_unavailable">This contact hasn\'t published forward-secrecy keys yet, so there\'s nothing to verify.</string>
+    <string name="ci_safety_body">Compare this number with your contact over a channel you trust, in person or on a call. If it matches on both phones, no one is intercepting your messages.</string>
 
     <!-- Chat -->
     <string name="chat_group">Group</string>

@@ -303,6 +303,25 @@ class Session(context: Context) {
     suspend fun loadPeerProfile(uin: Int): RcqApi.MeProfile? =
         runCatching { api.getMe(uin) }.getOrNull()
 
+    /** The 60-digit safety number for verifying the v=2 conversation with
+     *  [uin] out-of-band (key-fingerprint verification, closes the server-MITM
+     *  gap). Computed over the PINNED libsignal identities, so it verifies the
+     *  key our sessions actually use, not a fresh server-supplied one. Returns
+     *  null when there is nothing to verify: we aren't bootstrapped, or the
+     *  peer is v=1-only (never published a libsignal bundle). Establishing the
+     *  session first pins the peer's identity (TOFU). */
+    suspend fun safetyNumber(uin: Int): String? {
+        val me = store.uin ?: return null
+        val myIdentity = SignalSession.ownIdentity(signalStores) ?: return null
+        var peer = SignalSession.pinnedIdentity(signalStores, uin)
+        if (peer == null) {
+            runCatching { SignalSession.ensureSession(signalStores, api, uin) }
+            peer = SignalSession.pinnedIdentity(signalStores, uin)
+        }
+        if (peer == null) return null
+        return runCatching { SignalSession.safetyNumber(me, myIdentity, uin, peer) }.getOrNull()
+    }
+
     // Per-target throttle for fire-and-forget profile-view pings (1h).
     private val lastVisitAt = java.util.concurrent.ConcurrentHashMap<Int, Long>()
 

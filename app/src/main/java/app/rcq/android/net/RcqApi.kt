@@ -112,8 +112,9 @@ class RcqApi(private val baseUrl: String = DEFAULT_BASE_URL) {
     data class UserInfo(
         val uin: Int,
         val nickname: String?,
-        val identity_key: String?,   // base64 raw X25519 public
-        val signing_key: String?,    // base64 raw Ed25519 public
+        val identity_key: String?,        // base64 raw X25519 public
+        val signing_key: String?,         // base64 raw Ed25519 public
+        val signal_identity_key: String? = null,  // base64 libsignal IdentityKey; null = v=1 only
     )
 
     suspend fun userInfo(uin: Int): UserInfo = withContext(Dispatchers.IO) {
