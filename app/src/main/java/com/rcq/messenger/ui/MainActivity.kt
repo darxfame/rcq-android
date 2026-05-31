@@ -42,12 +42,14 @@ class MainActivity : ComponentActivity() {
             val darkTheme by appPrefs.darkTheme.collectAsState()
             val amoledTheme by appPrefs.amoledTheme.collectAsState()
             val highContrast by appPrefs.highContrast.collectAsState()
+            val compactMode by appPrefs.compactMode.collectAsState()
 
             RCQTheme(
                 darkTheme = darkTheme,
                 amoledTheme = amoledTheme,
                 highContrast = highContrast,
                 retroMode = retroMode,
+                compactMode = compactMode,
             ) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),

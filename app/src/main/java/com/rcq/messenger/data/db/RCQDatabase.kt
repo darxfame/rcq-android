@@ -27,7 +27,7 @@ import com.rcq.messenger.data.db.PendingOutboxDao
         SignalKeyEntity::class,
         PendingOutboxEntity::class
     ],
-    version = 13,
+    version = 14,
     exportSchema = false
 )
 @TypeConverters(RoomTypeConverters::class)
@@ -177,6 +177,12 @@ abstract class RCQDatabase : RoomDatabase() {
         val MIGRATION_11_12 = object : Migration(11, 12) {
             override fun migrate(database: SupportSQLiteDatabase) {
                 database.execSQL("DROP TABLE IF EXISTS pets")
+            }
+        }
+
+        val MIGRATION_13_14 = object : Migration(13, 14) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE contacts ADD COLUMN statusMessage TEXT")
             }
         }
     }

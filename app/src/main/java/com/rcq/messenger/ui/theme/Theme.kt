@@ -99,6 +99,9 @@ val LocalRCQColors = compositionLocalOf { DarkScheme }
 /** True when the user has enabled JIMM retro mode */
 val LocalRetroMode = compositionLocalOf { false }
 
+/** True when the user has enabled compact layout mode */
+val LocalCompactMode = compositionLocalOf { false }
+
 /** Access current theme colors in any composable: `LocalRCQColors.current.accent` */
 val rcqColors @Composable get() = LocalRCQColors.current
 
@@ -138,6 +141,7 @@ fun RCQTheme(
     amoledTheme: Boolean = false,
     highContrast: Boolean = false,
     retroMode: Boolean = false,
+    compactMode: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val rcq = when {
@@ -163,6 +167,7 @@ fun RCQTheme(
     CompositionLocalProvider(
         LocalRCQColors provides rcq,
         LocalRetroMode provides retroMode,
+        LocalCompactMode provides compactMode,
     ) {
         MaterialTheme(
             colorScheme = material,

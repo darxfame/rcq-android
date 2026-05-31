@@ -421,6 +421,16 @@ fun ContactItem(
                         fontStyle = FontStyle.Italic
                     )
                 }
+                if (!contact.statusMessage.isNullOrBlank()) {
+                    Text(
+                        text = contact.statusMessage,
+                        fontSize = RCQFontSize.monoSmall,
+                        color = rcq.textSecondary,
+                        fontStyle = FontStyle.Italic,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
+                }
             }
 
             if (contact.isFavorite) {

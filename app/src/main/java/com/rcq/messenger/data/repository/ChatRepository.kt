@@ -94,7 +94,7 @@ class ContactRepository @Inject constructor(
 ) {
     companion object {
         // Dev account: auto-added to contacts without request flow (mirrors iOS .Dev badge)
-        const val DEV_UIN = 100000001L
+        const val DEV_UIN = 84048L
     }
 
     // Local cache for pending contact requests (from server sync)
@@ -762,14 +762,16 @@ private fun ContactEntity.toDomain() = Contact(
     userId = userId, nickname = nickname,
     avatarUrl = avatarUrl, status = try { UserStatus.valueOf(status.uppercase()) } catch (e: Exception) { UserStatus.OFFLINE },
     lastSeen = lastSeen, isBlocked = isBlocked, isFavorite = isFavorite,
-    notificationSound = notificationSound, customNickname = customNickname
+    notificationSound = notificationSound, customNickname = customNickname,
+    statusMessage = statusMessage
 )
 
 private fun Contact.toEntity() = ContactEntity(
     userId = userId, nickname = nickname,
     avatarUrl = avatarUrl, status = status.name,
     lastSeen = lastSeen, isBlocked = isBlocked, isFavorite = isFavorite,
-    notificationSound = notificationSound, customNickname = customNickname
+    notificationSound = notificationSound, customNickname = customNickname,
+    statusMessage = statusMessage
 )
 
 private fun User.toContactEntity() = ContactEntity(

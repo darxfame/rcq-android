@@ -24,6 +24,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -146,19 +148,23 @@ fun ChatScreen(
                 reverseLayout = false
             ) {
                 items(messages, key = { it.id }) { message ->
-                    MessageBubble(
-                        message = message,
-                        isOwnMessage = message.senderId == currentUserId,
-                        onReply = { viewModel.setReplyTo(message) },
-                        onForward = { viewModel.forwardMessage(message) },
-                        onEdit = { viewModel.editMessage(message, message.content) },
-                        onDelete = { viewModel.deleteMessage(message.id) },
-                        onReact = { viewModel.addReaction(message.id, "👍") },
-                        onVoicePlay = { _ -> viewModel.playVoice(message) },
-                        onVoicePause = { viewModel.pauseVoice() },
-                        isVoicePlaying = activeVoiceId == message.mediaId,
-                        playbackState = playbackState
-                    )
+                    if (message.kind == MessageKind.SYSTEM_NOTICE) {
+                        RetroSystemMessage(text = message.content)
+                    } else {
+                        MessageBubble(
+                            message = message,
+                            isOwnMessage = message.senderId == currentUserId,
+                            onReply = { viewModel.setReplyTo(message) },
+                            onForward = { viewModel.forwardMessage(message) },
+                            onEdit = { viewModel.editMessage(message, message.content) },
+                            onDelete = { viewModel.deleteMessage(message.id) },
+                            onReact = { viewModel.addReaction(message.id, "👍") },
+                            onVoicePlay = { _ -> viewModel.playVoice(message) },
+                            onVoicePause = { viewModel.pauseVoice() },
+                            isVoicePlaying = activeVoiceId == message.mediaId,
+                            playbackState = playbackState
+                        )
+                    }
                 }
             }
 
@@ -482,6 +488,7 @@ fun MessageInput(
     isRecording: Boolean = false
 ) {
     val rcq = LocalRCQColors.current
+    val haptic = LocalHapticFeedback.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -520,7 +527,7 @@ fun MessageInput(
 
         if (text.isNotBlank() && !isRecording) {
             IconButton(
-                onClick = onSend,
+                onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); onSend() },
                 modifier = Modifier.size(44.dp).background(rcq.accent, CircleShape)
             ) {
                 Icon(Icons.AutoMirrored.Filled.Send, "Send", tint = androidx.compose.ui.graphics.Color.White)
@@ -539,6 +546,24 @@ fun MessageInput(
                 )
             }
         }
+    }
+}
+
+@Composable
+fun RetroSystemMessage(text: String) {
+    val rcq = LocalRCQColors.current
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 32.dp, vertical = 4.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodySmall,
+            color = rcq.textSecondary,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+        )
     }
 }
 

@@ -73,12 +73,20 @@ class SettingsViewModel @Inject constructor(
         .map { it[PreferencesKeys.HIGH_CONTRAST] ?: false }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
+    val compactMode: StateFlow<Boolean> = dataStore.data
+        .map { it[PreferencesKeys.COMPACT_MODE] ?: false }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
     fun setDarkTheme(enabled: Boolean) {
         viewModelScope.launch { dataStore.edit { it[PreferencesKeys.DARK_THEME] = enabled } }
     }
 
     fun setRetroMode(enabled: Boolean) {
         viewModelScope.launch { dataStore.edit { it[PreferencesKeys.RETRO_MODE] = enabled } }
+    }
+
+    fun setCompactMode(enabled: Boolean) {
+        viewModelScope.launch { dataStore.edit { it[PreferencesKeys.COMPACT_MODE] = enabled } }
     }
 
     fun setAmoledTheme(enabled: Boolean) {
@@ -158,6 +166,7 @@ fun SettingsScreen(
     val retroMode by viewModel.retroMode.collectAsState()
     val amoledTheme by viewModel.amoledTheme.collectAsState()
     val highContrast by viewModel.highContrast.collectAsState()
+    val compactMode by viewModel.compactMode.collectAsState()
 
     LaunchedEffect(Unit) {
         viewModel.loadCurrentUser()
@@ -401,6 +410,13 @@ fun SettingsScreen(
                         subtitle = "WCAG AAA — maximum readability",
                         checked = highContrast,
                         onCheckedChange = { viewModel.setHighContrast(it) }
+                    )
+                    SettingsToggleItem(
+                        icon = Icons.Default.ViewCompact,
+                        title = "Compact Mode",
+                        subtitle = "Уменьшенные отступы и строки",
+                        checked = compactMode,
+                        onCheckedChange = { viewModel.setCompactMode(it) }
                     )
                 }
             }

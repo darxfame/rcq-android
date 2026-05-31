@@ -35,6 +35,10 @@ class AppPrefsViewModel @Inject constructor(
         .map { it[PreferencesKeys.HIGH_CONTRAST] ?: false }
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
+    val compactMode: StateFlow<Boolean> = dataStore.data
+        .map { it[PreferencesKeys.COMPACT_MODE] ?: false }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
     fun setRetroMode(enabled: Boolean) {
         viewModelScope.launch { dataStore.edit { it[PreferencesKeys.RETRO_MODE] = enabled } }
     }
@@ -53,5 +57,9 @@ class AppPrefsViewModel @Inject constructor(
         viewModelScope.launch {
             dataStore.edit { it[PreferencesKeys.HIGH_CONTRAST] = enabled }
         }
+    }
+
+    fun setCompactMode(enabled: Boolean) {
+        viewModelScope.launch { dataStore.edit { it[PreferencesKeys.COMPACT_MODE] = enabled } }
     }
 }
