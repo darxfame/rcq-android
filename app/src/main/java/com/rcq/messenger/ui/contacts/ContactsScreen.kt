@@ -290,11 +290,9 @@ fun ContactsScreen(
                 singleLine = true
             )
 
-            val retroMode = LocalRetroMode.current
-
             if (filteredContacts.isEmpty() && groups.isEmpty() && !isLoading) {
                 EmptyContactsState(onAddContact = onAddContact)
-            } else if (retroMode) {
+            } else {
                 StatusGroupedContactList(
                     contacts = filteredContacts,
                     groups = groups,
@@ -305,35 +303,6 @@ fun ContactsScreen(
                     onBlock = { viewModel.blockContact(it.userId) },
                     onRemove = { viewModel.removeContact(it.userId) },
                 )
-            } else {
-                LazyColumn {
-                    if (groups.isNotEmpty()) {
-                        item(key = "header_groups") {
-                            SectionHeader(title = "Groups (${groups.size})")
-                        }
-                        items(groups, key = { "group_${it.id}" }) { group ->
-                            GroupContactItem(
-                                group = group,
-                                onClick = { onGroupClick(group.id) }
-                            )
-                        }
-                    }
-                    if (filteredContacts.isNotEmpty()) {
-                        item(key = "header_contacts") {
-                            SectionHeader(title = "Contacts (${filteredContacts.size})")
-                        }
-                        items(filteredContacts, key = { it.id }) { contact ->
-                            ContactItem(
-                                contact = contact,
-                                onClick = { viewModel.openOrCreateChat(contact.userId) },
-                                onToggleFavorite = { viewModel.toggleFavorite(contact.userId, contact.isFavorite) },
-                                onEditNickname = { viewModel.startEditNickname(contact) },
-                                onBlock = { viewModel.blockContact(contact.userId) },
-                                onRemove = { viewModel.removeContact(contact.userId) }
-                            )
-                        }
-                    }
-                }
             }
         }
     }
@@ -367,7 +336,8 @@ fun ContactItem(
     }
     var menuExpanded by remember { mutableStateOf(false) }
 
-    Box {
+    Column {
+      Box {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -375,27 +345,26 @@ fun ContactItem(
                 .padding(horizontal = RCQMetrics.rowHPad, vertical = RCQMetrics.rowVPad),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box {
-                Box(
-                    modifier = Modifier
-                        .size(RCQMetrics.avatarLg)
-                        .clip(CircleShape)
-                        .background(rcq.bgSecondary),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = (contact.customNickname ?: contact.nickname).firstOrNull()?.uppercase() ?: "?",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = rcq.accent
-                    )
-                }
-                Box(
-                    modifier = Modifier
-                        .size(RCQMetrics.statusDot)
-                        .clip(CircleShape)
-                        .background(statusColor)
-                        .align(Alignment.BottomEnd)
+            // JIMM: status dot at far left
+            Box(
+                modifier = Modifier
+                    .size(RCQMetrics.statusDot)
+                    .clip(CircleShape)
+                    .background(statusColor)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Box(
+                modifier = Modifier
+                    .size(RCQMetrics.avatarLg)
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(rcq.bgSecondary),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = (contact.customNickname ?: contact.nickname).firstOrNull()?.uppercase() ?: "?",
+                    fontSize = RCQFontSize.nickname,
+                    fontWeight = FontWeight.Bold,
+                    color = rcq.accent
                 )
             }
 
@@ -404,23 +373,22 @@ fun ContactItem(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = contact.customNickname ?: contact.nickname,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Bold,
+                    fontSize = RCQFontSize.nickname,
+                    fontWeight = FontWeight.SemiBold,
                     color = rcq.textPrimary
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = contact.userId.toString(),
-                        style = MaterialTheme.typography.labelSmall,
                         fontSize = RCQFontSize.monoSmall,
                         color = rcq.textMono,
-                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                        fontFamily = FontFamily.Monospace
                     )
                     Text(
-                        text = " · $statusLabel",
-                        style = MaterialTheme.typography.labelSmall,
+                        text = "  $statusLabel",
                         fontSize = RCQFontSize.monoSmall,
-                        color = statusColor
+                        color = statusColor,
+                        fontStyle = FontStyle.Italic
                     )
                 }
             }
@@ -452,7 +420,9 @@ fun ContactItem(
                 onClick = { menuExpanded = false; onRemove() }
             )
         }
-    }
+      } // closes inner Box
+      HorizontalDivider(thickness = RCQMetrics.dividerThick, color = rcq.divider, modifier = Modifier.padding(start = 28.dp))
+    } // closes outer Column
 }
 
 @Composable

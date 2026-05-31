@@ -534,31 +534,28 @@ fun SettingsHeader(currentUin: Long?, nickname: String) {
     }
 }
 
+/** Flat QIP-style section — no card, just label + divider-separated rows */
 @Composable
 fun SettingsSection(
     title: String,
     content: @Composable ColumnScope.() -> Unit
 ) {
+    val rcq = LocalRCQColors.current
     Column(modifier = Modifier.fillMaxWidth()) {
+        HorizontalDivider(thickness = RCQMetrics.dividerThick, color = rcq.divider)
         Text(
-            text = title,
-            style = MaterialTheme.typography.labelLarge,
-            color = TextSecondary,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+            text = title.uppercase(),
+            fontSize = RCQFontSize.sectionLabel,
+            fontWeight = FontWeight.SemiBold,
+            color = rcq.accent,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp)
         )
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            colors = CardDefaults.cardColors(containerColor = Surface),
-            shape = RoundedCornerShape(16.dp)
-        ) {
-            Column {
-                content()
-            }
+        HorizontalDivider(thickness = RCQMetrics.dividerThick, color = rcq.divider)
+        Column(modifier = Modifier.fillMaxWidth().background(rcq.bgSecondary)) {
+            content()
         }
     }
-    Spacer(modifier = Modifier.height(16.dp))
+    Spacer(modifier = Modifier.height(8.dp))
 }
 
 @Composable
@@ -576,31 +573,15 @@ fun SettingsItem(
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = tint,
-            modifier = Modifier.size(24.dp)
-        )
-        Spacer(modifier = Modifier.width(16.dp))
+        Icon(imageVector = icon, contentDescription = null, tint = tint, modifier = Modifier.size(18.dp))
+        Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium,
-                color = TextPrimary
-            )
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = TextSecondary
-            )
+            Text(title, fontSize = RCQFontSize.nickname, color = TextPrimary)
+            Text(subtitle, fontSize = RCQFontSize.caption, color = TextSecondary)
         }
-        Icon(
-            Icons.Default.ChevronRight,
-            contentDescription = null,
-            tint = TextTertiary
-        )
+        Icon(Icons.Default.ChevronRight, contentDescription = null, tint = TextTertiary, modifier = Modifier.size(16.dp))
     }
+    HorizontalDivider(thickness = RCQMetrics.dividerThick, color = SurfaceVariant.copy(alpha = 0.4f))
 }
 
 @Composable
@@ -612,38 +593,28 @@ fun SettingsToggleItem(
     onCheckedChange: (Boolean) -> Unit,
     enabled: Boolean = true
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(enabled = enabled, onClick = { onCheckedChange(!checked) })
-            .padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = if (enabled) Primary else TextSecondary,
-            modifier = Modifier.size(24.dp)
-        )
-        Spacer(modifier = Modifier.width(16.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium,
-                color = if (enabled) TextPrimary else TextSecondary
-            )
-            if (subtitle != null) {
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = TextSecondary
-                )
+    val rcq = LocalRCQColors.current
+    Column {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(enabled = enabled, onClick = { onCheckedChange(!checked) })
+                .padding(horizontal = 12.dp, vertical = 9.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(imageVector = icon, contentDescription = null, tint = if (enabled) rcq.accent else rcq.textSecondary, modifier = Modifier.size(18.dp))
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(title, fontSize = RCQFontSize.nickname, color = if (enabled) rcq.textPrimary else rcq.textSecondary)
+                if (subtitle != null) Text(subtitle, fontSize = RCQFontSize.caption, color = rcq.textSecondary)
             }
+            Switch(
+                checked = checked,
+                onCheckedChange = onCheckedChange,
+                enabled = enabled,
+                colors = SwitchDefaults.colors(checkedThumbColor = rcq.accent, checkedTrackColor = rcq.accent.copy(alpha = 0.3f))
+            )
         }
-        Switch(
-            checked = checked,
-            onCheckedChange = onCheckedChange,
-            enabled = enabled
-        )
+        HorizontalDivider(thickness = RCQMetrics.dividerThick, color = rcq.divider)
     }
 }

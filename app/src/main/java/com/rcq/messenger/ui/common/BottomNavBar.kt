@@ -10,9 +10,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.rcq.messenger.ui.theme.*
 
+/** Flat QIP/JIMM-style tab bar — accent top-line on active tab, no pill */
 @Composable
 fun BottomNavBar(
     items: List<com.rcq.messenger.ui.Screen>,
@@ -20,32 +22,47 @@ fun BottomNavBar(
     onNavigate: (com.rcq.messenger.ui.Screen) -> Unit
 ) {
     val rcq = LocalRCQColors.current
-    NavigationBar(
-        containerColor = rcq.navBar,
-        contentColor = rcq.textPrimary
-    ) {
-        items.forEach { screen ->
-            val selected = currentRoute == screen.route
-            NavigationBarItem(
-                selected = selected,
-                onClick = { onNavigate(screen) },
-                icon = {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        HorizontalDivider(thickness = RCQMetrics.dividerThick, color = rcq.divider)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(RCQMetrics.navBarHeight)
+                .background(rcq.navBar),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+            items.forEach { screen ->
+                val selected = currentRoute == screen.route
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .clickable { onNavigate(screen) },
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Top
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(2.dp)
+                            .background(if (selected) rcq.accent else rcq.navBar)
+                    )
+                    Spacer(modifier = Modifier.height(7.dp))
                     Icon(
                         imageVector = if (selected) screen.selectedIcon else screen.unselectedIcon,
-                        contentDescription = screen.title
+                        contentDescription = screen.title,
+                        tint = if (selected) rcq.accent else rcq.textSecondary,
+                        modifier = Modifier.size(20.dp)
                     )
-                },
-                label = {
-                    Text(text = screen.title, style = MaterialTheme.typography.labelSmall)
-                },
-                colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = rcq.accent,
-                    selectedTextColor = rcq.accent,
-                    unselectedIconColor = rcq.textSecondary,
-                    unselectedTextColor = rcq.textSecondary,
-                    indicatorColor = rcq.accent.copy(alpha = 0.12f)
-                )
-            )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = screen.title,
+                        fontSize = RCQFontSize.monoSmall,
+                        color = if (selected) rcq.accent else rcq.textSecondary,
+                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
+                    )
+                }
+            }
         }
     }
 }

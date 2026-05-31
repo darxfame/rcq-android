@@ -178,84 +178,78 @@ fun ChatItem(
     onClick: () -> Unit
 ) {
     val rcq = LocalRCQColors.current
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = RCQMetrics.rowHPad, vertical = RCQMetrics.rowVPad),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box {
+    Column {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onClick)
+                .padding(horizontal = RCQMetrics.rowHPad, vertical = RCQMetrics.rowVPad),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // JIMM-style: status dot at left edge
+            Box(
+                modifier = Modifier
+                    .size(RCQMetrics.statusDot)
+                    .clip(CircleShape)
+                    .background(if (chat.isMuted) rcq.textSecondary else StatusOnline)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            // Square mini-avatar
             Box(
                 modifier = Modifier
                     .size(RCQMetrics.avatarLg)
-                    .clip(CircleShape)
+                    .clip(RoundedCornerShape(3.dp))
                     .background(rcq.bgSecondary),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = chat.targetNickname.firstOrNull()?.uppercase() ?: "?",
-                    style = MaterialTheme.typography.titleMedium,
+                    chat.targetNickname.firstOrNull()?.uppercase() ?: "?",
+                    fontSize = RCQFontSize.nickname,
                     fontWeight = FontWeight.Bold,
                     color = rcq.accent
                 )
             }
-            if (!chat.isMuted) {
-                Box(
-                    modifier = Modifier
-                        .size(RCQMetrics.statusDot)
-                        .clip(CircleShape)
-                        .background(if (chat.isPinned) rcq.accent else StatusOnline)
-                        .align(Alignment.BottomEnd)
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.width(RCQMetrics.rowHPad))
-
-        Column(modifier = Modifier.weight(1f)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = chat.targetNickname,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = rcq.textPrimary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f)
-                )
-                chat.lastMessage?.let {
+            Spacer(modifier = Modifier.width(8.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Text(
-                        text = formatTime(it.timestamp),
-                        style = MaterialTheme.typography.labelSmall,
-                        fontSize = RCQFontSize.timestamp,
-                        color = rcq.textSecondary
+                        chat.targetNickname,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = RCQFontSize.nickname,
+                        color = rcq.textPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
                     )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        chat.lastMessage?.let {
+                            Text(formatTime(it.timestamp), fontSize = RCQFontSize.timestamp, color = rcq.textSecondary)
+                        }
+                        if (chat.unreadCount > 0) {
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                "(${if (chat.unreadCount > 99) "99+" else chat.unreadCount})",
+                                fontSize = RCQFontSize.monoSmall,
+                                color = rcq.accent,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
                 }
-            }
-
-            Spacer(modifier = Modifier.height(2.dp))
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                chat.lastMessage?.let { message ->
-                    Icon(
-                        imageVector = when (message.kind) {
-                            com.rcq.messenger.domain.model.MessageKind.PHOTO -> Icons.Default.Image
-                            com.rcq.messenger.domain.model.MessageKind.VOICE -> Icons.Default.Mic
-                            else -> Icons.Default.ChatBubbleOutline
-                        },
-                        contentDescription = null,
-                        modifier = Modifier.size(14.dp),
-                        tint = rcq.textSecondary
-                    )
-                    Spacer(modifier = Modifier.width(3.dp))
+                chat.lastMessage?.let { msg ->
                     Text(
-                        text = message.content,
-                        style = MaterialTheme.typography.bodySmall,
+                        msg.content.ifBlank {
+                            when (msg.kind) {
+                                com.rcq.messenger.domain.model.MessageKind.PHOTO -> "[Photo]"
+                                com.rcq.messenger.domain.model.MessageKind.VOICE -> "[Voice]"
+                                com.rcq.messenger.domain.model.MessageKind.VIDEO -> "[Video]"
+                                else -> ""
+                            }
+                        },
                         fontSize = RCQFontSize.caption,
                         color = rcq.textSecondary,
                         maxLines = 1,
@@ -264,25 +258,7 @@ fun ChatItem(
                 }
             }
         }
-
-        if (chat.unreadCount > 0) {
-            Spacer(modifier = Modifier.width(6.dp))
-            Box(
-                modifier = Modifier
-                    .defaultMinSize(minWidth = 20.dp, minHeight = 20.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(rcq.accent),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = if (chat.unreadCount > 99) "99+" else chat.unreadCount.toString(),
-                    style = MaterialTheme.typography.labelSmall,
-                    fontSize = RCQFontSize.monoSmall,
-                    color = androidx.compose.ui.graphics.Color.White,
-                    modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
-                )
-            }
-        }
+        HorizontalDivider(thickness = RCQMetrics.dividerThick, color = rcq.divider, modifier = Modifier.padding(start = 28.dp))
     }
 }
 
