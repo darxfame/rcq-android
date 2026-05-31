@@ -97,9 +97,9 @@ util/         - Utility functions and extensions
 
 ### Key Components
 
-**Database (Room v7):**
+**Database (Room v14):**
 - All entities support E2EE with `ciphertext`, `signalType`, `isEncrypted` fields
-- Migration v6→v7 adds Signal Protocol support
+- Migrations v6→v14: Signal Protocol, pending outbox, JIMM status fields, pets removed
 - Separate DAO files for each entity (UserDao, MessageDao, etc.)
 
 **E2EE Integration:**
@@ -109,8 +109,8 @@ util/         - Utility functions and extensions
 - Full iOS client compatibility via identical Signal Protocol implementation
 
 **Real-time Communication:**
-- `WebSocketManager` handles connection lifecycle with exponential backoff
-- Event-driven architecture with 40+ typed WebSocket events
+- `WebSocketService` handles connection lifecycle with exponential backoff
+- Event-driven architecture with typed WebSocket events (messaging, presence, groups, calls, stories)
 - Automatic reconnection and keepalive pings
 
 **API Integration:**

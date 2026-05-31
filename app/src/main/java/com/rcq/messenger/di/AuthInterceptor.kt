@@ -26,6 +26,13 @@ object PreferencesKeys {
     val AMOLED_THEME = booleanPreferencesKey("pref_amoled_theme")
     val HIGH_CONTRAST = booleanPreferencesKey("pref_high_contrast")
     val COMPACT_MODE = booleanPreferencesKey("pref_compact_mode")
+    val NOTIFICATIONS_ENABLED = booleanPreferencesKey("pref_notifications_enabled")
+    val MESSAGE_PREVIEW = booleanPreferencesKey("pref_message_preview")
+    val SOUND_ENABLED = booleanPreferencesKey("pref_sound_enabled")
+    val VIBRATION_ENABLED = booleanPreferencesKey("pref_vibration_enabled")
+    val READ_RECEIPTS = booleanPreferencesKey("pref_read_receipts")
+    val LAST_SEEN_VISIBLE = booleanPreferencesKey("pref_last_seen_visible")
+    val ONLINE_VISIBLE = booleanPreferencesKey("pref_online_visible")
 }
 
 @Singleton

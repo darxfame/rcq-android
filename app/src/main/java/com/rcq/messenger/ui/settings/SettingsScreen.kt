@@ -50,13 +50,36 @@ class SettingsViewModel @Inject constructor(
     val isLoading = MutableStateFlow(false)
     val error: MutableStateFlow<String?> = MutableStateFlow(null)
 
-    val notificationsEnabled = MutableStateFlow(true)
-    val messagePreview = MutableStateFlow(true)
-    val soundEnabled = MutableStateFlow(true)
-    val vibrationEnabled = MutableStateFlow(true)
-    val readReceipts = MutableStateFlow(true)
-    val lastSeenVisible = MutableStateFlow(true)
-    val onlineVisible = MutableStateFlow(true)
+    val notificationsEnabled: StateFlow<Boolean> = dataStore.data
+        .map { it[PreferencesKeys.NOTIFICATIONS_ENABLED] ?: true }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+    val messagePreview: StateFlow<Boolean> = dataStore.data
+        .map { it[PreferencesKeys.MESSAGE_PREVIEW] ?: true }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+    val soundEnabled: StateFlow<Boolean> = dataStore.data
+        .map { it[PreferencesKeys.SOUND_ENABLED] ?: true }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+    val vibrationEnabled: StateFlow<Boolean> = dataStore.data
+        .map { it[PreferencesKeys.VIBRATION_ENABLED] ?: true }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+    val readReceipts: StateFlow<Boolean> = dataStore.data
+        .map { it[PreferencesKeys.READ_RECEIPTS] ?: true }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+    val lastSeenVisible: StateFlow<Boolean> = dataStore.data
+        .map { it[PreferencesKeys.LAST_SEEN_VISIBLE] ?: true }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+    val onlineVisible: StateFlow<Boolean> = dataStore.data
+        .map { it[PreferencesKeys.ONLINE_VISIBLE] ?: true }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
+    fun setNotificationsEnabled(v: Boolean) { viewModelScope.launch { dataStore.edit { it[PreferencesKeys.NOTIFICATIONS_ENABLED] = v } } }
+    fun setMessagePreview(v: Boolean) { viewModelScope.launch { dataStore.edit { it[PreferencesKeys.MESSAGE_PREVIEW] = v } } }
+    fun setSoundEnabled(v: Boolean) { viewModelScope.launch { dataStore.edit { it[PreferencesKeys.SOUND_ENABLED] = v } } }
+    fun setVibrationEnabled(v: Boolean) { viewModelScope.launch { dataStore.edit { it[PreferencesKeys.VIBRATION_ENABLED] = v } } }
+    fun setReadReceipts(v: Boolean) { viewModelScope.launch { dataStore.edit { it[PreferencesKeys.READ_RECEIPTS] = v } } }
+    fun setLastSeenVisible(v: Boolean) { viewModelScope.launch { dataStore.edit { it[PreferencesKeys.LAST_SEEN_VISIBLE] = v } } }
+    fun setOnlineVisible(v: Boolean) { viewModelScope.launch { dataStore.edit { it[PreferencesKeys.ONLINE_VISIBLE] = v } } }
+
     val darkTheme: StateFlow<Boolean> = dataStore.data
         .map { it[PreferencesKeys.DARK_THEME] ?: true }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
@@ -273,6 +296,7 @@ fun SettingsScreen(
         )
     }
 
+    val rcq = LocalRCQColors.current
     Scaffold(
         topBar = {
             TopAppBar(
@@ -284,12 +308,12 @@ fun SettingsScreen(
                     )
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Background,
-                    titleContentColor = TextPrimary
+                    containerColor = rcq.bgPrimary,
+                    titleContentColor = rcq.textPrimary
                 )
             )
         },
-        containerColor = Background
+        containerColor = rcq.bgPrimary
     ) { paddingValues ->
         LazyColumn(
             modifier = Modifier
@@ -335,26 +359,26 @@ fun SettingsScreen(
                         icon = Icons.Default.Notifications,
                         title = "Notifications",
                         checked = notificationsEnabled,
-                        onCheckedChange = { viewModel.notificationsEnabled.value = it }
+                        onCheckedChange = { viewModel.setNotificationsEnabled(it) }
                     )
                     SettingsToggleItem(
                         icon = Icons.Default.Preview,
                         title = "Message preview",
                         checked = messagePreview,
-                        onCheckedChange = { viewModel.messagePreview.value = it },
+                        onCheckedChange = { viewModel.setMessagePreview(it) },
                         enabled = notificationsEnabled
                     )
                     SettingsToggleItem(
                         icon = Icons.Default.VolumeUp,
                         title = "Sound",
                         checked = soundEnabled,
-                        onCheckedChange = { viewModel.soundEnabled.value = it }
+                        onCheckedChange = { viewModel.setSoundEnabled(it) }
                     )
                     SettingsToggleItem(
                         icon = Icons.Default.Vibration,
                         title = "Vibration",
                         checked = vibrationEnabled,
-                        onCheckedChange = { viewModel.vibrationEnabled.value = it }
+                        onCheckedChange = { viewModel.setVibrationEnabled(it) }
                     )
                 }
             }
@@ -365,19 +389,19 @@ fun SettingsScreen(
                         icon = Icons.Default.DoneAll,
                         title = "Read receipts",
                         checked = readReceipts,
-                        onCheckedChange = { viewModel.readReceipts.value = it }
+                        onCheckedChange = { viewModel.setReadReceipts(it) }
                     )
                     SettingsToggleItem(
                         icon = Icons.Default.AccessTime,
                         title = "Show last seen",
                         checked = lastSeenVisible,
-                        onCheckedChange = { viewModel.lastSeenVisible.value = it }
+                        onCheckedChange = { viewModel.setLastSeenVisible(it) }
                     )
                     SettingsToggleItem(
                         icon = Icons.Default.Circle,
                         title = "Show online status",
                         checked = onlineVisible,
-                        onCheckedChange = { viewModel.onlineVisible.value = it }
+                        onCheckedChange = { viewModel.setOnlineVisible(it) }
                     )
                 }
             }
@@ -497,6 +521,7 @@ fun SettingsScreen(
 
 @Composable
 fun SettingsHeader(currentUin: Long?, nickname: String) {
+    val rcq = LocalRCQColors.current
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -507,13 +532,13 @@ fun SettingsHeader(currentUin: Long?, nickname: String) {
             modifier = Modifier
                 .size(80.dp)
                 .clip(CircleShape)
-                .background(SurfaceVariant),
+                .background(rcq.bgSecondary),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 text = nickname.take(1).uppercase().ifEmpty { "?" },
                 style = MaterialTheme.typography.displaySmall,
-                color = Primary
+                color = rcq.accent
             )
         }
 

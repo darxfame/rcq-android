@@ -95,15 +95,16 @@ fun ChatScreen(
         topBar = {
             TopAppBar(
                 title = {
+                    val rcqTitle = LocalRCQColors.current
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(
                             modifier = Modifier
                                 .size(40.dp)
-                                .clip(CircleShape)
-                                .background(SurfaceVariant),
+                                .clip(RoundedCornerShape(3.dp))
+                                .background(rcqTitle.bgSecondary),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(chatTitle.firstOrNull()?.uppercase() ?: "?", color = Primary)
+                            Text(chatTitle.firstOrNull()?.uppercase() ?: "?", color = rcqTitle.accent)
                         }
                         Spacer(modifier = Modifier.width(12.dp))
                         Text(

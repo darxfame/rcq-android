@@ -1,7 +1,7 @@
 # Current State — 2026-05-31
 
 ## Build
-- **Debug:** ✅ Passing · **DB:** v13 · **Branch:** `phase-1-core-messaging`
+- **Debug:** ✅ Passing · **DB:** v14 · **Branch:** `phase-1-core-messaging`
 
 ## Working ✅
 - Registration + JWT auth + ECIES key generation (iOS-compat)
@@ -23,7 +23,6 @@
 |-------|-----------|
 | SingBox не маршрутизирует трафик | Заглушка — бинарник отсутствует в APK |
 | Входящие DM иногда показывают 🔒 | Signal-сессия не установлена для нового собеседника |
-| statusMessage под именем контакта | Нет поля в ContactEntity (нужна миграция 13→14) |
 | JIMM mode влияет только на контакты | Другие экраны не читают LocalRetroMode |
 | P5 Звуки / P7 Смайлы JIMM | Не реализованы (0%) |
 

@@ -18,17 +18,13 @@
 - **Diagnose:** `adb logcat | grep "decryptWrapped\|ChatRepository"`
 - **File:** `crypto/CryptoService.kt:decryptWrapped`
 
-### BUG-007: statusMessage под именем контакта — нет поля
-- **Severity:** Low (JIMM feature gap)
-- **Root cause:** Поле не добавлено в `ContactEntity`, нужна Room migration 13→14
-- **Fix:** Миграция + обновить `ContactEntity`, `Contact`
-
 ---
 
 ## Resolved
 
 | ID | Описание | Дата | Коммит |
 |----|----------|------|--------|
+| BUG-007 | statusMessage поле в ContactEntity + Migration 13→14 | 2026-05-31 | `2ec2980` |
 | BUG-004 | Входящие DM тихо дропались (TOFU hard-drop) | 2026-05-31 | `0333e30` |
 | BUG-003 | Группы не показывались (memberIds фильтр) | 2026-05-31 | `084a836` |
 | — | Navbar скрывался под системными кнопками | 2026-05-31 | `084a836` |

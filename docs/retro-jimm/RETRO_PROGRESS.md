@@ -36,9 +36,9 @@
 | `StatusGroupHeader` (коллапс по клику) | ✅ | this |
 | Сортировка Online→Away→Busy→Offline | ✅ | this |
 | Offline свёрнут по умолчанию | ✅ | this |
-| Compact mode | ⏳ | — |
-| Статус-сообщение под ником | ⏳ | — (нет поля в модели) |
-| Room migration 13→14 | ⏳ | — |
+| Compact mode | ✅ | existing |
+| Статус-сообщение под ником | ✅ | `2ec2980` |
+| Room migration 13→14 | ✅ | `2ec2980` |
 
 ## P4 — Chat UI
 
@@ -69,7 +69,7 @@
 | Retro Mode toggle | ✅ | this |
 | AMOLED Black toggle | ✅ | this |
 | High Contrast toggle | ✅ | this |
-| Compact mode toggle | ⏳ | — |
+| Compact mode toggle | ✅ | existing |
 | Звуки настройки | ⏳ | — |
 
 ## P7 — Retro Assets
@@ -112,10 +112,10 @@
 ```
 P1 Foundation:    ██████████ 100%
 P2 Design System: █████████░  90%
-P3 Contact List:  ███████░░░  70%
+P3 Contact List:  █████████░  90%
 P4 Chat UI:       ███████░░░  70%
 P5 Sounds:        ░░░░░░░░░░   0%
-P6 Settings:      ████████░░  80%
+P6 Settings:      ██████████ 100%
 P7 Assets:        ░░░░░░░░░░   0%
 P8 Polish:        ░░░░░░░░░░   0%
 Backend:          ░░░░░░░░░░   0%
