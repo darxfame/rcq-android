@@ -93,6 +93,12 @@ class Session(context: Context) {
     val typingFrom: StateFlow<Int?> = _typingFrom.asStateFlow()
     private var typingSeq = 0
 
+    /** Active 24h stories feed, grouped by poster (own group first). Drives
+     *  the home ring strip + the full-screen viewer. Refreshed on start, on
+     *  WS story_posted/story_deleted nudges, and after post/view/delete. */
+    private val _stories = MutableStateFlow<List<RcqApi.StoryGroupOut>>(emptyList())
+    val stories: StateFlow<List<RcqApi.StoryGroupOut>> = _stories.asStateFlow()
+
     /** Own presence status, reflected in the header status picker. */
     private val _status = MutableStateFlow(UserStatus.ONLINE)
     val status: StateFlow<UserStatus> = _status.asStateFlow()
@@ -220,6 +226,7 @@ class Session(context: Context) {
         _messages.value = emptyMap()
         _groups.value = emptyList()
         _groupMessages.value = emptyMap()
+        _stories.value = emptyList()
         _typingFrom.value = null
         _status.value = UserStatus.ONLINE
         readReceiptsVisibility = "everyone"
@@ -267,6 +274,7 @@ class Session(context: Context) {
         scope.launch { runCatching { withRetry { refreshPending() } } }
         scope.launch { runCatching { withRetry { refreshGroups() } } }
         scope.launch { runCatching { withRetry { loadOwnReadReceiptSetting() } } }
+        scope.launch { runCatching { refreshStories() } }
         // Ensure our libsignal prekey bundle is published so peers can start
         // v=2 sessions with us. Best-effort: failure leaves us on v=1.
         scope.launch { runCatching { store.uin?.let { SignalBootstrap.ensureBootstrapped(signalStores, api, it) } }.onFailure { android.util.Log.w("RCQsignal", "bootstrap failed: ${it.javaClass.simpleName}: ${it.message}") } }
@@ -397,6 +405,58 @@ class Session(context: Context) {
 
     /** Fetch the admin-posted news feed (GET /news); null on failure. */
     suspend fun loadNews(): RcqApi.NewsFeed? = runCatching { api.news() }.getOrNull()
+
+    // ── stories (24h ephemeral) ──────────────────────────────────────
+
+    /** Pull the active stories feed into [stories]. Soft-fails (keeps the
+     *  last good list) so a transient error doesn't blank the ring strip. */
+    suspend fun refreshStories() {
+        runCatching { api.storiesFeed() }.onSuccess { _stories.value = it.groups }
+    }
+
+    /** Encrypt + upload a JPEG, then post it as a 24h photo story. Reuses the
+     *  same sealed-blob path as photo messages. Refreshes the feed on success
+     *  so the poster's own ring appears immediately. Throws on failure. */
+    suspend fun postPhotoStory(jpeg: ByteArray, caption: String?, anonymous: Boolean) {
+        val key = MediaCrypto.newKey()
+        val blob = MediaCrypto.seal(jpeg, key)
+        val keyB64 = Base64.encodeToString(key, Base64.NO_WRAP)
+        val upload = api.uploadBlob(blob)
+        imageCache[upload.media_id] = jpeg
+        api.postStory(
+            RcqApi.PostStoryBody(
+                media_id = upload.media_id,
+                media_kind = "photo",
+                media_key_b64 = keyB64,
+                caption = caption?.takeIf { it.isNotBlank() },
+                is_anonymous = anonymous,
+                duration_sec = null,
+            )
+        )
+        refreshStories()
+    }
+
+    /** Mark a story watched (idempotent server-side) and flip its `viewed`
+     *  flag in [stories] so the ring greys out without a full refresh. */
+    fun markStoryViewed(storyId: String) {
+        scope.launch {
+            runCatching { api.markStoryViewed(storyId) }
+            _stories.value = _stories.value.map { g ->
+                if (g.stories.none { it.id == storyId }) g
+                else g.copy(stories = g.stories.map { if (it.id == storyId) it.copy(viewed = true) else it })
+            }
+        }
+    }
+
+    /** The viewer list for one of your own stories (owner-only server-side). */
+    suspend fun storyViewers(storyId: String): List<RcqApi.StoryViewer> =
+        runCatching { api.storyViewers(storyId).viewers }.getOrDefault(emptyList())
+
+    /** Delete one of your own stories early, then refresh the feed. */
+    suspend fun deleteStory(storyId: String) {
+        runCatching { api.deleteStory(storyId) }
+        refreshStories()
+    }
 
     /** The 60-digit safety number for verifying the v=2 conversation with
      *  [uin] out-of-band (key-fingerprint verification, closes the server-MITM
@@ -717,6 +777,7 @@ class Session(context: Context) {
         _messages.value = emptyMap()
         _groups.value = emptyList()
         _groupMessages.value = emptyMap()
+        _stories.value = emptyList()
         _typingFrom.value = null
         started = false
         everConnected = false
@@ -1284,6 +1345,7 @@ class Session(context: Context) {
                 }
             }
             "presence" -> scope.launch { runCatching { refreshContacts() } }
+            "story_posted", "story_deleted" -> scope.launch { runCatching { refreshStories() } }
             else -> Unit
         }
     }

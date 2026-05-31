@@ -136,6 +136,64 @@ class RcqApi(private val baseUrl: String = DEFAULT_BASE_URL) {
         get("/news", authed = true, NewsFeed::class.java)
     }
 
+    // ── stories (24h ephemeral, rcq-spec) ────────────────────────────
+    // Media reuses the sealed-blob path: encrypt → /media/upload → the
+    // resulting media_id + key go up with the story. Datetimes arrive as
+    // ISO-8601 strings.
+    data class StoryOut(
+        val id: String,
+        val owner_uin: Int?,            // null for an anonymous story (non-owner view)
+        val owner_nickname: String?,
+        val media_id: String,
+        val media_kind: String,         // "photo" | "video"
+        val media_key_b64: String,
+        val caption: String?,
+        val is_anonymous: Boolean = false,
+        val duration_sec: Int? = null,
+        val posted_at: String?,
+        val expires_at: String?,
+        val view_count: Int = 0,
+        val viewed: Boolean = false,
+    )
+    data class StoryGroupOut(
+        val owner_uin: Int?,
+        val owner_nickname: String?,
+        val is_anonymous: Boolean = false,
+        val stories: List<StoryOut> = emptyList(),
+    )
+    data class StoriesFeed(val groups: List<StoryGroupOut> = emptyList())
+    data class PostStoryBody(
+        val media_id: String,
+        val media_kind: String,
+        val media_key_b64: String,
+        val caption: String?,
+        val is_anonymous: Boolean,
+        val duration_sec: Int?,
+    )
+    data class PostedStory(val story: StoryOut)
+    data class StoryViewer(val viewer_uin: Int, val viewer_nickname: String?, val viewed_at: String?)
+    data class StoryViewers(val viewers: List<StoryViewer> = emptyList())
+
+    suspend fun storiesFeed(): StoriesFeed = withContext(Dispatchers.IO) {
+        get("/stories/feed", authed = true, StoriesFeed::class.java)
+    }
+
+    suspend fun postStory(body: PostStoryBody): PostedStory = withContext(Dispatchers.IO) {
+        post("/stories", gson.toJson(body), authed = true, PostedStory::class.java)
+    }
+
+    suspend fun markStoryViewed(storyId: String) = withContext(Dispatchers.IO) {
+        sendNoResult("POST", "/stories/$storyId/view", "{}", authed = true)
+    }
+
+    suspend fun storyViewers(storyId: String): StoryViewers = withContext(Dispatchers.IO) {
+        get("/stories/$storyId/viewers", authed = true, StoryViewers::class.java)
+    }
+
+    suspend fun deleteStory(storyId: String) = withContext(Dispatchers.IO) {
+        sendNoResult("DELETE", "/stories/$storyId", null, authed = true)
+    }
+
     // ── 1:1 send (rcq-spec 6.2.1) ────────────────────────────────────
 
     data class SendRequest(val to_uin: Int, val envelope_type: String, val payload: String)

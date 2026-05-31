@@ -1,5 +1,7 @@
 package app.rcq.android.ui
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -14,6 +16,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -21,6 +24,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -91,8 +95,11 @@ import app.rcq.android.data.LocalStores
 import app.rcq.android.model.Contact
 import app.rcq.android.model.RcqGroup
 import app.rcq.android.model.UserStatus
+import app.rcq.android.net.RcqApi
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** One row's worth of long-press action, mirrors iOS ContextAction. */
 internal data class ContextAction(
@@ -127,6 +134,7 @@ internal fun HomeScreen(
 ) {
     val c = RcqTheme.colors
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     val contacts by session.contacts.collectAsState()
     val groups by session.groups.collectAsState()
     val pending by session.pending.collectAsState()
@@ -135,6 +143,19 @@ internal fun HomeScreen(
     val favorites by LocalStores.favorites.collectAsState()
     val archived by LocalStores.archived.collectAsState()
     val unread by LocalStores.unread.collectAsState()
+    val storyGroups by session.stories.collectAsState()
+
+    // Stories: a compressed JPEG awaiting the caption/anonymous dialog before
+    // posting, and the group currently open in the full-screen viewer.
+    var pendingStory by remember { mutableStateOf<ByteArray?>(null) }
+    var viewerGroup by remember { mutableStateOf<RcqApi.StoryGroupOut?>(null) }
+    val storyPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) scope.launch {
+            val jpeg = withContext(Dispatchers.IO) { compressImageFor(context, uri) }
+            if (jpeg != null) pendingStory = jpeg
+            else android.widget.Toast.makeText(context, context.getString(R.string.story_pick_failed), android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
 
     var showAdd by remember { mutableStateOf(false) }
     var showQr by remember { mutableStateOf(false) }
@@ -167,8 +188,6 @@ internal fun HomeScreen(
     val offlineContacts = byRecency(nonArchived.filter { it.presence == UserStatus.OFFLINE })
     val archivedContacts = byRecency(contacts.filter { LocalStores.peerThread(it.uin) in archived })
     val visibleGroups = groups.filterNot { LocalStores.groupThread(it.id) in archived }
-
-    val context = LocalContext.current
 
     // Local account roster for the switcher (live nick/UIN peeked per account).
     val accountList by app.rcq.android.data.AccountManager.accounts.collectAsState()
@@ -207,6 +226,7 @@ internal fun HomeScreen(
                 onOpenProfile = onOpenProfile,
                 onOpenNews = onOpenNews,
                 onOpenSaved = onOpenSaved,
+                onPostStory = { storyPicker.launch("image/*") },
                 onComingSoon = { comingSoon = it },
                 onSwitchAccount = onSwitchAccount,
                 onAddAccount = { showAddAccount = true },
@@ -214,6 +234,16 @@ internal fun HomeScreen(
             )
 
             LazyColumn(Modifier.weight(1f).fillMaxWidth()) {
+                if (storyGroups.isNotEmpty()) {
+                    item(key = "stories") {
+                        StoriesStrip(
+                            groups = storyGroups,
+                            ownUin = session.uin,
+                            onAdd = { storyPicker.launch("image/*") },
+                            onOpen = { viewerGroup = it },
+                        )
+                    }
+                }
                 if (pending.isNotEmpty()) {
                     item(key = "req-h") { SectionHeader(stringResource(R.string.home_sec_requests), pending.size, collapsed = false, onToggle = {}) }
                     items(pending, key = { "p${it.requestId}" }) { req ->
@@ -296,6 +326,10 @@ internal fun HomeScreen(
                 onDismiss = { previewGroup = null },
             )
         }
+        // Full-screen story viewer overlays everything (incl. the bottom bar).
+        viewerGroup?.let { g ->
+            StoryViewer(session = session, group = g, onClose = { viewerGroup = null })
+        }
     }
 
     if (showAdd) {
@@ -336,6 +370,96 @@ internal fun HomeScreen(
             text = { Text(stringResource(R.string.home_coming_soon_body, feature), color = c.textSecondary) },
             confirmButton = { TextButton(onClick = { comingSoon = null }) { Text(stringResource(R.string.common_ok), color = c.accent) } },
         )
+    }
+    // Confirm + caption/anonymous before posting a picked photo as a story.
+    pendingStory?.let { jpeg ->
+        var caption by remember { mutableStateOf("") }
+        var anon by remember { mutableStateOf(false) }
+        AlertDialog(
+            onDismissRequest = { pendingStory = null },
+            containerColor = c.bgSecondary,
+            title = { Text(stringResource(R.string.story_post_title), color = c.textPrimary) },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = caption,
+                        onValueChange = { caption = it.take(280) },
+                        placeholder = { Text(stringResource(R.string.story_caption_hint), color = c.textSecondary) },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable { anon = !anon },
+                    ) {
+                        Checkbox(checked = anon, onCheckedChange = { anon = it })
+                        Text(stringResource(R.string.story_anonymous_post), color = c.textPrimary, fontSize = 14.sp)
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val cap = caption.trim()
+                    val a = anon
+                    pendingStory = null
+                    scope.launch {
+                        runCatching { session.postPhotoStory(jpeg, cap, a) }
+                            .onSuccess { android.widget.Toast.makeText(context, context.getString(R.string.story_posted), android.widget.Toast.LENGTH_SHORT).show() }
+                            .onFailure { android.widget.Toast.makeText(context, context.getString(R.string.story_post_failed), android.widget.Toast.LENGTH_SHORT).show() }
+                    }
+                }) { Text(stringResource(R.string.story_post), color = c.accent) }
+            },
+            dismissButton = { TextButton(onClick = { pendingStory = null }) { Text(stringResource(R.string.common_cancel), color = c.textSecondary) } },
+        )
+    }
+}
+
+/** Horizontal ring strip at the top of Home (iOS stories row parity). First
+ *  tile adds a story; each following tile is one poster's group — an accent
+ *  ring while it has an unwatched story, grey once all are seen. */
+@Composable
+private fun StoriesStrip(
+    groups: List<RcqApi.StoryGroupOut>,
+    ownUin: Int?,
+    onAdd: () -> Unit,
+    onOpen: (RcqApi.StoryGroupOut) -> Unit,
+) {
+    LazyRow(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        contentPadding = PaddingValues(horizontal = 14.dp),
+    ) {
+        item(key = "story-add") { StoryTile(label = stringResource(R.string.story_add), initial = "+", ring = false, onClick = onAdd) }
+        items(groups, key = { it.owner_uin ?: (it.stories.firstOrNull()?.id ?: "anon") }) { g ->
+            val isOwn = g.owner_uin != null && g.owner_uin == ownUin
+            val unwatched = g.stories.any { !it.viewed }
+            val name = when {
+                isOwn -> stringResource(R.string.story_you)
+                g.is_anonymous || g.owner_uin == null -> stringResource(R.string.story_anonymous)
+                else -> g.owner_nickname ?: "${g.owner_uin}"
+            }
+            StoryTile(label = name, initial = name.take(1).uppercase(), ring = unwatched, onClick = { onOpen(g) })
+        }
+    }
+}
+
+@Composable
+private fun StoryTile(label: String, initial: String, ring: Boolean, onClick: () -> Unit) {
+    val c = RcqTheme.colors
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.width(66.dp).clip(RoundedCornerShape(10.dp)).clickable(onClick = onClick).padding(vertical = 2.dp),
+    ) {
+        Box(
+            Modifier.size(60.dp).clip(CircleShape).background(if (ring) c.accent else c.divider),
+            contentAlignment = Alignment.Center,
+        ) {
+            Box(Modifier.size(53.dp).clip(CircleShape).background(c.bgSecondary), contentAlignment = Alignment.Center) {
+                Text(initial, color = c.textPrimary, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+            }
+        }
+        Spacer(Modifier.height(4.dp))
+        Text(label, color = c.textSecondary, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -409,6 +533,7 @@ private fun HomeHeader(
     onOpenProfile: () -> Unit,
     onOpenNews: () -> Unit,
     onOpenSaved: () -> Unit,
+    onPostStory: () -> Unit,
     onComingSoon: (String) -> Unit,
     onSwitchAccount: (String) -> Unit,
     onAddAccount: () -> Unit,
@@ -506,7 +631,7 @@ private fun HomeHeader(
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.home_menu_post_story), color = c.textPrimary) },
                     leadingIcon = { Icon(Icons.Filled.AddAPhoto, null, tint = c.accent) },
-                    onClick = { overflowMenu = false; onComingSoon("Stories") },
+                    onClick = { overflowMenu = false; onPostStory() },
                 )
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.home_menu_news), color = c.textPrimary) },
