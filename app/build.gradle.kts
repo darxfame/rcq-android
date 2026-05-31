@@ -78,6 +78,13 @@ dependencies {
     // libsignal: Double Ratchet + PQXDH for v=2 forward secrecy (additive over
     // the v=1 ECIES sealed sender). Ships native .so per ABI in the .aar.
     implementation(libs.libsignal.android)
+
+    // rcqbox: the embedded sing-box core (VLESS+Reality / Hysteria2) for the
+    // censorship-circumvention transport — a gomobile-bound Go wrapper, same
+    // Start/Stop API the iOS client uses. Built from ~/sing-box-src/rcqbox via
+    // `gomobile bind -target=android/arm64,android/arm,android/amd64
+    // -androidapi 26 -tags "with_utls,with_quic"`. Ships libgojni.so per ABI.
+    implementation(files("libs/rcqbox.aar"))
     coreLibraryDesugaring(libs.desugar.jdk.libs)
 
     // Encrypted-at-rest storage for the per-account identity (UIN, JWT,

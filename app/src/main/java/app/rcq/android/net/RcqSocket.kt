@@ -21,6 +21,10 @@ class RcqSocket(private val baseWsUrl: String = DEFAULT_WS_URL) {
 
     private val client = OkHttpClient.Builder()
         .pingInterval(20, TimeUnit.SECONDS)
+        // Ride the embedded sing-box SOCKS proxy when the transport is engaged
+        // (null = direct). Captured at build; Session rebuilds the socket after
+        // engaging so it picks the proxy up.
+        .proxy(SingBoxTransport.proxy())
         .build()
 
     private var ws: WebSocket? = null

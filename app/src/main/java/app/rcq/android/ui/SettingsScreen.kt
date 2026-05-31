@@ -414,6 +414,8 @@ private fun PrivacyScreen(session: Session, onOpenCustomServer: () -> Unit, onBa
     var presencePersistent by remember { mutableStateOf(false) }
     var presenceTtl by remember { mutableStateOf(1440) }
     val screenSec by app.rcq.android.data.LocalStores.screenSecurity.collectAsState()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var obfuscated by remember { mutableStateOf(app.rcq.android.net.SingBoxTransport.isEnabled(context)) }
 
     androidx.compose.runtime.LaunchedEffect(Unit) {
         session.loadProfile()?.let { p ->
@@ -489,6 +491,20 @@ private fun PrivacyScreen(session: Session, onOpenCustomServer: () -> Unit, onBa
                     stringResource(R.string.pv_custom_server),
                     value = if (host == RcqApi.DEFAULT_HOST) stringResource(R.string.pv_default) else host,
                     onClick = onOpenCustomServer,
+                )
+            }
+
+            // Obfuscated connection (embedded sing-box). Off by default; takes
+            // effect on next launch. Honest framing as "connection reliability".
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(stringResource(R.string.pv_obfuscated), color = c.textPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                    Text(stringResource(R.string.pv_obfuscated_desc), color = c.textSecondary, fontSize = 11.sp)
+                }
+                Switch(
+                    checked = obfuscated,
+                    onCheckedChange = { obfuscated = it; app.rcq.android.net.SingBoxTransport.setEnabled(context, it) },
+                    colors = SwitchDefaults.colors(checkedTrackColor = c.accent),
                 )
             }
         }

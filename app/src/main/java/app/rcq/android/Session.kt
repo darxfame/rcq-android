@@ -274,6 +274,25 @@ class Session(context: Context) {
         started = true
         bindDb(AccountManager.activeId.value ?: "")
         loadMessagesFromDb()
+        scope.launch {
+            // Opt-in obfuscated transport (censorship circumvention): engage
+            // BEFORE the socket/API connect so they ride the sing-box tunnel.
+            // The blocking sing-box start runs here off the main thread;
+            // api/socket are rebuilt so the new instances capture the SOCKS
+            // proxy. Off by default = no-op, we connect directly as before.
+            if (app.rcq.android.net.SingBoxTransport.isEnabled(appCtx) && !app.rcq.android.net.SingBoxTransport.isActive) {
+                if (app.rcq.android.net.SingBoxTransport.start()) {
+                    api = newApi()
+                    socket = newSocket()
+                }
+            }
+            connectAndSync(uin, token)
+        }
+    }
+
+    /** Open the WebSocket + pull the contact graph. Split out of [start] so the
+     *  transport engage can run first on a background coroutine. */
+    private fun connectAndSync(uin: Int, token: String) {
         socket.connect(
             uin = uin,
             token = token,

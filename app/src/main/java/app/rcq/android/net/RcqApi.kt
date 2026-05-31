@@ -30,6 +30,11 @@ class RcqApi(private val baseUrl: String = DEFAULT_BASE_URL) {
         // Don't let pooled connections sit idle long enough to die unnoticed;
         // a fresh one is cheap next to a 10s+ dead-socket hang.
         .connectionPool(okhttp3.ConnectionPool(5, 30, TimeUnit.SECONDS))
+        // Route through the embedded sing-box SOCKS proxy when the
+        // circumvention transport is engaged (null = direct, the default).
+        // Captured at build time; Session rebuilds this RcqApi after engaging
+        // the transport so the new instance picks the proxy up.
+        .proxy(SingBoxTransport.proxy())
         .build()
     private val gson = Gson()
 
