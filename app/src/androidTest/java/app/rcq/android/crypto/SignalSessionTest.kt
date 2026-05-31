@@ -130,6 +130,36 @@ class SignalSessionTest {
     }
 
     @Test
+    fun replayIsRejected() {
+        val aliceUin = 333_111
+        val bobUin = 444_222
+        val alice = freshStores("test-fs-alice2")
+        val bob = freshStores("test-fs-bob2")
+        try {
+            bootstrapLocal(alice, aliceUin)
+            val bobBundle = bootstrapLocal(bob, bobUin)
+            val bobMsg = IdentityKeys.generate()
+            assertTrue(SignalSession.establishSession(alice, bobBundle))
+
+            val p1 = SignalSession.encrypt(alice, Envelope.text("once"), bobMsg.identityPublic, bobUin, aliceUin)
+            assertEquals("once", (SignalSession.decrypt(bob, p1, bobMsg.identityPrivate, bobMsg.identityPublic).envelope as Envelope.Text).text)
+
+            // Replaying the identical payload must be rejected by the ratchet
+            // (replay protection), not silently re-delivered as a second
+            // message. Exercises the recovery/exception path in decrypt().
+            var rejected = false
+            try {
+                SignalSession.decrypt(bob, p1, bobMsg.identityPrivate, bobMsg.identityPublic)
+            } catch (e: Exception) {
+                rejected = true
+            }
+            assertTrue("a replayed v2 message must be rejected", rejected)
+        } finally {
+            alice.wipe(); bob.wipe()
+        }
+    }
+
+    @Test
     fun wireVersionDispatch() {
         // A v=1 payload must report version 1 so [Session.decryptInbound] keeps
         // it on the legacy ECIES path (and never routes it through libsignal).

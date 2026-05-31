@@ -3,7 +3,9 @@ package app.rcq.android.crypto
 import android.util.Base64
 import android.util.Log
 import app.rcq.android.net.RcqApi
+import org.signal.libsignal.protocol.DuplicateMessageException
 import org.signal.libsignal.protocol.IdentityKey
+import org.signal.libsignal.protocol.InvalidKeyIdException
 import org.signal.libsignal.protocol.SessionBuilder
 import org.signal.libsignal.protocol.SessionCipher
 import org.signal.libsignal.protocol.SignalProtocolAddress
@@ -188,10 +190,29 @@ object SignalSession {
         val addr = addressOf(u.senderUin)
         val plain: ByteArray = synchronized(stores) {
             val cipher = SessionCipher(stores, stores, stores, stores, stores, addr)
-            when (u.kind) {
-                "prekey" -> cipher.decrypt(PreKeySignalMessage(u.msgBytes))
-                "signal" -> cipher.decrypt(SignalMessage(u.msgBytes))
-                else -> throw SealedSender.DecryptException("unknown v2 kind ${u.kind}")
+            try {
+                when (u.kind) {
+                    "prekey" -> cipher.decrypt(PreKeySignalMessage(u.msgBytes))
+                    "signal" -> cipher.decrypt(SignalMessage(u.msgBytes))
+                    else -> throw SealedSender.DecryptException("unknown v2 kind ${u.kind}")
+                }
+            } catch (e: DuplicateMessageException) {
+                // Same ciphertext delivered twice (live socket + offline queue):
+                // the ratchet already consumed it. Benign, propagate quietly so
+                // the caller skips re-storing it.
+                throw e
+            } catch (e: InvalidKeyIdException) {
+                // A prekey message references a one-time/signed pre-key that is
+                // gone from our store (consumed or rotated), so this half-built
+                // session can't complete. Drop it so the next PreKeySignalMessage
+                // rebuilds cleanly. Mirrors iOS decryptV2's missingSignedPreKey
+                // handling.
+                Log.w(TAG, "v2 decrypt InvalidKeyId from ${u.senderUin}; dropping session to allow rebuild")
+                stores.deleteSession(addr)
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "v2 decrypt failed from ${u.senderUin} (kind=${u.kind}): ${e.javaClass.simpleName}: ${e.message}")
+                throw e
             }
         }
         // v=2 carries no separate signing pub — the ratchet authenticates the

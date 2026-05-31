@@ -11,6 +11,7 @@ import app.rcq.android.crypto.SignalBootstrap
 import app.rcq.android.crypto.SignalSession
 import app.rcq.android.crypto.SignalStoreDb
 import app.rcq.android.crypto.SignalStores
+import org.signal.libsignal.protocol.DuplicateMessageException
 import app.rcq.android.data.AccountManager
 import app.rcq.android.data.LocalStores
 import app.rcq.android.data.MessageDb
@@ -560,7 +561,7 @@ class Session(context: Context) {
                 is Envelope.Visit -> Unit        // visits are 1:1 only
                 is Envelope.Unknown -> Unit
             }
-        }
+        }.onFailure { logDecryptFailure(payloadB64, it) }
     }
 
     /** Irreversible burn of the ACTIVE account: delete it server-side, wipe
@@ -1039,7 +1040,7 @@ class Session(context: Context) {
                 is Envelope.Visit -> app.rcq.android.data.VisitStore.record(dec.senderUin, env.atEpochMillis())
                 is Envelope.Unknown -> Unit
             }
-        }
+        }.onFailure { logDecryptFailure(payloadB64, it) }
     }
 
     private suspend fun drainQueue() {
@@ -1297,6 +1298,20 @@ class Session(context: Context) {
         } else {
             SealedSender.decryptV1(payloadB64, identityPriv(), identityPub())
         }
+
+    /** Surface a failed inbound decrypt instead of swallowing it. A v=2
+     *  message that won't decrypt (damaged ratchet session, malformed
+     *  payload) would otherwise vanish with no trace, which makes the
+     *  iOS<->Android v=2 interop pass impossible to debug. Duplicates (the
+     *  same message arriving via both the live socket and the offline queue)
+     *  are expected and benign, so they stay quiet. */
+    private fun logDecryptFailure(payloadB64: String, e: Throwable) {
+        if (e is DuplicateMessageException) return
+        android.util.Log.w(
+            "RCQsignal",
+            "ingest decrypt failed (wire v=${SealedSender.wireVersion(payloadB64)}): ${e.javaClass.simpleName}: ${e.message}",
+        )
+    }
 
     // ── own key material (derived from stored privates) ──────────────
 
