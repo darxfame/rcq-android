@@ -1,10 +1,13 @@
 package app.rcq.android.net
 
 import android.content.Context
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.InetSocketAddress
 import java.net.Proxy
+import java.util.concurrent.TimeUnit
 
 /**
  * Embedded censorship-circumvention transport. Runs sing-box in-process (via
@@ -56,6 +59,23 @@ object SingBoxTransport {
 
     fun isEnabled(ctx: Context): Boolean =
         ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_ENABLED, false)
+
+    // Forces a direct connection (NO_PROXY) so the probe is never routed
+    // through an already-engaged transport. Short timeout — a DPI'd network
+    // often hangs rather than refusing, and we don't want to stall boot.
+    private val probeClient = OkHttpClient.Builder()
+        .callTimeout(5, TimeUnit.SECONDS)
+        .proxy(Proxy.NO_PROXY)
+        .build()
+
+    /** Is the backend reachable DIRECTLY (no transport)? Drives boot-time
+     *  auto-engage: a `false` here means the network is blocking RCQ, so we
+     *  bring the tunnel up without the user touching anything (they couldn't
+     *  reach Settings to flip the toggle anyway). Blocking — call off-main. */
+    fun probeDirect(host: String): Boolean = runCatching {
+        probeClient.newCall(Request.Builder().url("https://$host/health").get().build())
+            .execute().use { it.isSuccessful }
+    }.getOrElse { false }
 
     fun setEnabled(ctx: Context, on: Boolean) {
         ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_ENABLED, on).apply()

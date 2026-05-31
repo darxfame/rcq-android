@@ -275,16 +275,21 @@ class Session(context: Context) {
         bindDb(AccountManager.activeId.value ?: "")
         loadMessagesFromDb()
         scope.launch {
-            // Opt-in obfuscated transport (censorship circumvention): engage
-            // BEFORE the socket/API connect so they ride the sing-box tunnel.
-            // The blocking sing-box start runs here off the main thread;
-            // api/socket are rebuilt so the new instances capture the SOCKS
-            // proxy. Off by default = no-op, we connect directly as before.
-            if (app.rcq.android.net.SingBoxTransport.isEnabled(appCtx) && !app.rcq.android.net.SingBoxTransport.isActive) {
+            // Obfuscated transport (censorship circumvention), engaged BEFORE
+            // the socket/API connect so they ride the sing-box tunnel. Engage
+            // when the user forced it on OR — the chicken-and-egg fix — when a
+            // direct /health probe fails, since a blocked user can't reach
+            // Settings to flip the toggle. Healthy network + toggle off = the
+            // probe succeeds and we connect directly as before (no transport,
+            // no overhead). The blocking sing-box start runs here off the main
+            // thread; api/socket are rebuilt so they capture the SOCKS proxy.
+            val transport = app.rcq.android.net.SingBoxTransport
+            val engage = transport.isEnabled(appCtx) || !transport.probeDirect(serverHost())
+            if (engage && !transport.isActive) {
                 // Use the freshest known relay list (last verified payload off
                 // disk) before building the transport; bundled if none yet.
                 app.rcq.android.net.RelayConfigStore.prime(appCtx)
-                if (app.rcq.android.net.SingBoxTransport.start()) {
+                if (transport.start()) {
                     api = newApi()
                     socket = newSocket()
                 }
