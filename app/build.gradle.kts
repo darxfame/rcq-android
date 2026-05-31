@@ -14,6 +14,11 @@ android {
         versionCode = 1
         versionName = "0.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // libsignal ships native .so for 4 ABIs; keep the real-device ones
+        // (arm64-v8a, armeabi-v7a) + x86_64 for the emulator, drop 32-bit x86.
+        ndk {
+            abiFilters.addAll(listOf("arm64-v8a", "armeabi-v7a", "x86_64"))
+        }
     }
 
     buildTypes {
@@ -23,10 +28,22 @@ android {
         }
     }
     compileOptions {
+        // Required by libsignal-android; with
+        // android.enableApiModelingAndGlobalSynthetics=true (gradle.properties)
+        // this gives D8 the global-synthetics path to desugar its Java records.
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
     buildFeatures { compose = true }
+
+    packaging {
+        jniLibs {
+            // libsignal_jni_testing.so is a ~80MB-per-ABI test-only native lib;
+            // never ship it. (Halves the APK.)
+            excludes += "**/libsignal_jni_testing.so"
+        }
+    }
 }
 
 dependencies {
@@ -57,6 +74,11 @@ dependencies {
     // 32-byte key access, which is exactly the wire format the backend
     // expects (base64 of raw public keys, per rcq-spec 2.2).
     implementation(libs.bouncycastle)
+
+    // libsignal: Double Ratchet + PQXDH for v=2 forward secrecy (additive over
+    // the v=1 ECIES sealed sender). Ships native .so per ABI in the .aar.
+    implementation(libs.libsignal.android)
+    coreLibraryDesugaring(libs.desugar.jdk.libs)
 
     // Encrypted-at-rest storage for the per-account identity (UIN, JWT,
     // private keys) — the Android equivalent of the iOS Keychain.

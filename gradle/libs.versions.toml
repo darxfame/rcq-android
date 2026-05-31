@@ -16,6 +16,11 @@ gson = "2.10.1"
 datastore = "1.0.0"
 security = "1.1.0-alpha06"
 bouncycastle = "1.78.1"
+# libsignal (Double Ratchet / PQXDH) for v=2 forward secrecy. Maven Central
+# tops at 0.86.5; iOS vendors 0.93.1. Protocol wire format is stable across
+# this range, but iOS<->Android v=2 interop MUST be cross-device verified.
+libsignal = "0.86.5"
+desugar = "2.1.5"
 junit = "4.13.2"
 junitVersion = "1.1.5"
 espressoCore = "3.5.1"
@@ -42,6 +47,8 @@ okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhtt
 okhttp-logging = { group = "com.squareup.okhttp3", name = "logging-interceptor", version.ref = "okhttp" }
 gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }
 bouncycastle = { group = "org.bouncycastle", name = "bcprov-jdk18on", version.ref = "bouncycastle" }
+libsignal-android = { group = "org.signal", name = "libsignal-android", version.ref = "libsignal" }
+desugar-jdk-libs = { group = "com.android.tools", name = "desugar_jdk_libs", version.ref = "desugar" }
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
