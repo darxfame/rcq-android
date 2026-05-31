@@ -187,6 +187,21 @@ object PinVault {
         return (0 until SLOT_COUNT).firstOrNull { it !in used }
     }
 
+    /** Seal [payload] into the first free slot (per [layout]) under a key
+     *  derived from [pin]; returns the slot index, or null if [pin] already
+     *  opens a slot (would collide with an existing PIN) or no slot is free.
+     *  Used to add a decoy / wipe PIN to an unlocked real vault. */
+    fun addSlot(context: Context, pin: String, payload: SlotPayload, layout: Layout): Int? {
+        val vault = readVault(context) ?: return null
+        val key = deriveKey(context, pin, vault.salt)
+        if (vault.slots.any { openSlot(it, key) != null }) return null // pin already in use
+        val slot = freeSlotIndex(layout) ?: return null
+        val slots = vault.slots.toMutableList()
+        slots[slot] = sealSlot(payload, key)
+        writeVault(context, VaultFile(vault.salt, slots))
+        return slot
+    }
+
     fun dataKeyBytes(payload: SlotPayload): ByteArray? =
         payload.dataKeyB64?.let { android.util.Base64.decode(it, android.util.Base64.NO_WRAP) }
 

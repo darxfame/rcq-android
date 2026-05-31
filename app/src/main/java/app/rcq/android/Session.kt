@@ -422,6 +422,40 @@ class Session(context: Context) {
     }
 
     val pinConfigured: Boolean get() = PanicPinService.isConfigured(appCtx)
+    val hasWipePin: Boolean get() = PanicPinService.hasWipePin()
+
+    /** Add a wipe PIN: entering it at the lock screen erases everything. */
+    suspend fun setWipePin(pin: String): Boolean = withContext(Dispatchers.IO) { PanicPinService.setWipePin(appCtx, pin) }
+
+    /** Remove the wipe PIN. */
+    suspend fun removeWipePin(): Boolean = withContext(Dispatchers.IO) { PanicPinService.removeWipePin(appCtx) }
+
+    /** DURESS WIPE: erase ALL local data for every account + the PIN vault, so
+     *  the app drops to a fresh-install / onboarding state. Local-only (no
+     *  server call) — it must work offline and instantly under coercion. The
+     *  server-side accounts survive (recoverable later from another device if
+     *  the keys were backed up); this is about the seized device. */
+    suspend fun wipeEverything() = withContext(Dispatchers.IO) {
+        runCatching { socket.disconnect() }
+        started = false
+        everConnected = false
+        if (::db.isInitialized) runCatching { db.close() }
+        AccountManager.accounts.value.forEach { acc ->
+            runCatching {
+                SecureStore.wipeAccount(appCtx, acc.id)
+                MessageDb.wipeAccount(appCtx, acc.id)
+                SignalStoreDb.wipeAccount(appCtx, acc.id)
+                app.rcq.android.data.VisitStore.wipeAccount(acc.id)
+                LocalStores.clearAccount(acc.id)
+            }
+            AccountManager.remove(acc.id)
+        }
+        PanicPinService.removePin(appCtx)   // destroys the vault, clears the lock + dataKey
+        peerIdentityCache.clear(); noV2Peers.clear(); ackedReads.clear()
+        _contacts.value = emptyList(); _pending.value = emptyList(); _messages.value = emptyMap()
+        _groups.value = emptyList(); _groupMessages.value = emptyMap(); _stories.value = emptyList()
+        activeRandomPeer = null; activeRandomPairId = null; _randomMessages.value = emptyList(); _random.value = RandomState.Idle
+    }
 
     /** Wipe local message history (both 1:1 and group threads) without
      *  touching the account. Mirrors iOS "Clear history". */

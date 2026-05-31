@@ -112,6 +112,12 @@
     <string name="pin_soon_label">Ещё (скоро)</string>
     <string name="pin_decoy_soon">Ложный PIN (скоро)</string>
     <string name="pin_wipe_soon">PIN-стирание (скоро)</string>
+    <string name="pin_duress_label">Под принуждением</string>
+    <string name="pin_wipe_set">Задать PIN стирания</string>
+    <string name="pin_wipe_remove">Убрать PIN стирания</string>
+    <string name="pin_wipe_new">PIN стирания</string>
+    <string name="pin_wipe_desc">Если ввести этот PIN вместо настоящего, все данные RCQ на устройстве стираются, а приложение сбрасывается. Без подтверждения и без отмены. На случай, если вас заставляют разблокировать.</string>
+    <string name="pin_wipe_taken">Выберите PIN, отличный от настоящего.</string>
     <string name="pin_lock_title">Введите PIN</string>
     <string name="pin_lock_subtitle">Сообщения на этом устройстве заблокированы.</string>
     <string name="pin_unlock">Разблокировать</string>

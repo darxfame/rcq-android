@@ -44,7 +44,7 @@ import kotlinx.coroutines.withContext
  * unlocked key. Wrong attempts escalate into a lockout countdown.
  */
 @Composable
-fun PinLockScreen(session: Session) {
+fun PinLockScreen(session: Session, onWiped: () -> Unit = {}) {
     val c = RcqTheme.colors
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -73,7 +73,14 @@ fun PinLockScreen(session: Session) {
             busy = false
             when (res) {
                 PanicPinService.SubmitResult.REAL -> Unit // host recomposes away
-                PanicPinService.SubmitResult.WRONG, PanicPinService.SubmitResult.WIPE -> {
+                PanicPinService.SubmitResult.WIPE -> {
+                    // Duress wipe: erase everything, then drop to onboarding.
+                    // No error shown — it silently resets to a fresh install.
+                    busy = true
+                    withContext(Dispatchers.Default) { session.wipeEverything() }
+                    onWiped()
+                }
+                PanicPinService.SubmitResult.WRONG -> {
                     error = context.getString(R.string.pin_wrong)
                     pin = ""
                     lockedOutUntil = PanicPinService.lockedOutUntil(context)

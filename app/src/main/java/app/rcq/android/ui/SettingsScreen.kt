@@ -855,6 +855,12 @@ private fun PinCodesScreen(session: Session, onBack: () -> Unit) {
     var confirm by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
+    // Wipe PIN (panic-PIN phase 2): a second PIN that erases everything.
+    var wipeConfigured by remember { mutableStateOf(session.hasWipePin) }
+    var wipeEditing by remember { mutableStateOf(false) }
+    var wpin by remember { mutableStateOf("") }
+    var wconfirm by remember { mutableStateOf("") }
+    var werror by remember { mutableStateOf<String?>(null) }
 
     fun onlyDigits(s: String) = s.length <= 12 && s.all { it.isDigit() }
 
@@ -903,6 +909,44 @@ private fun PinCodesScreen(session: Session, onBack: () -> Unit) {
                 TextButton(onClick = { editing = false; error = null }) {
                     Text(stringResource(R.string.common_cancel), color = c.textSecondary)
                 }
+            } else if (wipeEditing) {
+                Text(stringResource(R.string.pin_wipe_desc), color = c.textSecondary, fontSize = 13.sp)
+                OutlinedTextField(
+                    value = wpin,
+                    onValueChange = { if (onlyDigits(it)) wpin = it },
+                    label = { Text(stringResource(R.string.pin_wipe_new)) },
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = wconfirm,
+                    onValueChange = { if (onlyDigits(it)) wconfirm = it },
+                    label = { Text(stringResource(R.string.pin_confirm)) },
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                werror?.let { Text(it, color = Color(0xFFE5484D), fontSize = 13.sp) }
+                CapsuleButton(
+                    label = if (busy) stringResource(R.string.pin_busy) else stringResource(R.string.common_save),
+                    enabled = wpin.length >= 4 && !busy,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    if (wpin != wconfirm) { werror = context.getString(R.string.pin_mismatch); return@CapsuleButton }
+                    scope.launch {
+                        busy = true; werror = null
+                        val ok = withContext(Dispatchers.Default) { session.setWipePin(wpin) }
+                        busy = false
+                        if (ok) { wipeConfigured = true; wipeEditing = false; wpin = ""; wconfirm = "" }
+                        else werror = context.getString(R.string.pin_wipe_taken)
+                    }
+                }
+                TextButton(onClick = { wipeEditing = false; werror = null }) {
+                    Text(stringResource(R.string.common_cancel), color = c.textSecondary)
+                }
             } else if (!configured) {
                 CapsuleButton(stringResource(R.string.pin_set), modifier = Modifier.fillMaxWidth()) {
                     editing = true; pin = ""; confirm = ""; error = null
@@ -922,11 +966,23 @@ private fun PinCodesScreen(session: Session, onBack: () -> Unit) {
                     }
                 }
                 Spacer(Modifier.height(8.dp))
-                SectionLabel(stringResource(R.string.pin_soon_label))
+                SectionLabel(stringResource(R.string.pin_duress_label))
                 SettingsGroup {
-                    SettingsRow(Icons.Filled.Lock, stringResource(R.string.pin_decoy_soon)) {}
+                    if (!wipeConfigured) {
+                        SettingsRow(Icons.Filled.DeleteForever, stringResource(R.string.pin_wipe_set)) {
+                            wipeEditing = true; wpin = ""; wconfirm = ""; werror = null
+                        }
+                    } else {
+                        SettingsRow(Icons.Filled.DeleteForever, stringResource(R.string.pin_wipe_remove), destructive = true) {
+                            if (!busy) scope.launch {
+                                busy = true
+                                withContext(Dispatchers.Default) { session.removeWipePin() }
+                                busy = false; wipeConfigured = false
+                            }
+                        }
+                    }
                     Divider()
-                    SettingsRow(Icons.Filled.DeleteForever, stringResource(R.string.pin_wipe_soon)) {}
+                    SettingsRow(Icons.Filled.Lock, stringResource(R.string.pin_decoy_soon)) {}
                 }
             }
             SectionFooter(stringResource(R.string.pin_codes_footer))

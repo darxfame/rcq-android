@@ -171,7 +171,10 @@ private fun RcqApp(session: Session) {
         val infoId = groupInfoId
         val peerInfo = peerInfoUin
         when {
-            s is UiState.Registered && locked -> app.rcq.android.ui.PinLockScreen(session)
+            s is UiState.Registered && locked -> app.rcq.android.ui.PinLockScreen(
+                session,
+                onWiped = { resetNav(); state = UiState.Onboarding },
+            )
             s is UiState.Registered && infoId != null -> GroupInfoScreen(
                 session, infoId,
                 onBack = { groupInfoId = null },

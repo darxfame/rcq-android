@@ -113,6 +113,12 @@
     <string name="pin_soon_label">More (coming soon)</string>
     <string name="pin_decoy_soon">Decoy PIN (coming soon)</string>
     <string name="pin_wipe_soon">Wipe PIN (coming soon)</string>
+    <string name="pin_duress_label">Duress</string>
+    <string name="pin_wipe_set">Set wipe PIN</string>
+    <string name="pin_wipe_remove">Remove wipe PIN</string>
+    <string name="pin_wipe_new">Wipe PIN</string>
+    <string name="pin_wipe_desc">Entering this PIN instead of your real one erases all RCQ data on this device and resets the app. There is no confirmation and no undo. Use it if you are forced to unlock.</string>
+    <string name="pin_wipe_taken">Pick a different PIN from your real one.</string>
     <string name="pin_lock_title">Enter your PIN</string>
     <string name="pin_lock_subtitle">Your messages are locked on this device.</string>
     <string name="pin_unlock">Unlock</string>

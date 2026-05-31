@@ -33,6 +33,11 @@ object PanicPinService {
     val isLocked: Boolean get() = _locked.value
 
     private var realPayload: PinVault.SlotPayload? = null
+    // The real slot's derived key, kept while unlocked so we can re-seal the
+    // real slot (e.g. to record a new decoy/wipe slot in its layout) without
+    // re-deriving from the PIN.
+    @Volatile
+    private var realSlotKey: ByteArray? = null
 
     fun isConfigured(context: Context): Boolean = PinVault.isConfigured(context)
 
@@ -41,6 +46,7 @@ object PanicPinService {
         _locked.value = PinVault.isConfigured(context)
         dataKey = null
         realPayload = null
+        realSlotKey = null
     }
 
     /** Epoch-ms the lockout lasts until, or null if not locked out. */
@@ -65,12 +71,13 @@ object PanicPinService {
         return when (unlock.payload.mode) {
             PinVault.MODE_REAL -> {
                 realPayload = unlock.payload
+                realSlotKey = unlock.slotKey
                 dataKey = PinVault.dataKeyBytes(unlock.payload)
                 _locked.value = false
                 SubmitResult.REAL
             }
             PinVault.MODE_WIPE -> SubmitResult.WIPE
-            else -> SubmitResult.WRONG // decoy: Phase 2
+            else -> SubmitResult.WRONG // decoy: Phase 2c
         }
     }
 
@@ -81,9 +88,41 @@ object PanicPinService {
         if (pin.length < PinVault.MIN_PIN_LENGTH) return null
         val unlock = PinVault.createWithRealPin(context, pin)
         realPayload = unlock.payload
+        realSlotKey = unlock.slotKey
         dataKey = PinVault.dataKeyBytes(unlock.payload)
         _locked.value = false
         return dataKey
+    }
+
+    /** Is a wipe PIN configured? (Only meaningful while unlocked-real.) */
+    fun hasWipePin(): Boolean = realPayload?.layout?.wipeSlot != null
+
+    /** Add a wipe PIN: entering it at the lock screen erases everything (the
+     *  caller acts on [SubmitResult.WIPE]). Seals a WIPE slot under [pin] and
+     *  records it in the real slot's layout. Requires an unlocked real session;
+     *  [pin] must differ from the real/decoy PINs and a slot must be free. */
+    fun setWipePin(context: Context, pin: String): Boolean {
+        if (pin.length < PinVault.MIN_PIN_LENGTH) return false
+        val real = realPayload ?: return false
+        val key = realSlotKey ?: return false
+        val layout = real.layout ?: return false
+        val slot = PinVault.addSlot(context, pin, PinVault.SlotPayload(mode = PinVault.MODE_WIPE), layout) ?: return false
+        layout.wipeSlot = slot
+        PinVault.writeSlot(context, layout.realSlot, real, key) // re-seal real with the updated layout
+        return true
+    }
+
+    /** Remove the wipe PIN (clears its slot back to random, drops it from the
+     *  real layout). */
+    fun removeWipePin(context: Context): Boolean {
+        val real = realPayload ?: return false
+        val key = realSlotKey ?: return false
+        val layout = real.layout ?: return false
+        val slot = layout.wipeSlot ?: return true
+        PinVault.writeSlot(context, slot, null, null)
+        layout.wipeSlot = null
+        PinVault.writeSlot(context, layout.realSlot, real, key)
+        return true
     }
 
     /** Re-seal the real slot under [newPin]; the dataKey (and the DB) are
@@ -101,6 +140,7 @@ object PanicPinService {
         PinVault.destroy(context)
         dataKey = null
         realPayload = null
+        realSlotKey = null
         _locked.value = false
         return SecureStore.deviceKey(context)
     }
@@ -110,6 +150,7 @@ object PanicPinService {
         if (!PinVault.isConfigured(context)) return
         dataKey = null
         realPayload = null
+        realSlotKey = null
         _locked.value = true
     }
 }
