@@ -1,44 +1,33 @@
-# Current State — 2026-05-29
-
-> Updated after each significant change.
+# Current State — 2026-05-31
 
 ## Build
-
-- **Debug:** ✅ Passing
-- **DB version:** 12 (pets table removed in Phase 0)
-- **Tests:** ⚠️ Minimal
+- **Debug:** ✅ Passing · **DB:** v13 · **Branch:** `phase-1-core-messaging`
 
 ## Working ✅
+- Registration + JWT auth + ECIES key generation (iOS-compat)
+- Outgoing messages (Android → iPad confirmed working)
+- Incoming messages (with 🔒 placeholder if decrypt fails)
+- Contact sync, group sync (all user groups shown correctly)
+- WebSocket: connect, send, receive, reconnect with backoff
+- Dark mode (persisted DataStore, applied at launch)
+- JIMM retro mode toggle (status-grouped contacts when ON)
+- JIMM/QIP flat UI: compact 50dp NavBar, compact typography, status-dot rows
+- Startup connection probe → auto-enables bypass if server unreachable
+- Stealth: ProxyManager AUTO/MANUAL/OFF, sing-box persistence across restarts
+- PanicPIN / Biometric unlock
+- Delivery states SENT/DELIVERED/READ, typing indicators, presence
+- Edit/delete/reactions, pin/mute/archive, message search
 
-- Registration + JWT auth + ECIES key generation
-- ECIES v=1 iOS-compatible encryption/decryption
-- Signal Protocol sessions (Double Ratchet, TOFU)
-- Push notifications (FCM + deep links)
-- Contact sync from server
-- Pending contact requests (WS + pull)
-- Direct message send (`/messages/sealed`)
-- Group creation
-- Chat list (Room DB)
-- Bottom nav: Chats / Contacts / Settings
+## Broken / Partial 🔴
+| Issue | Root Cause |
+|-------|-----------|
+| SingBox не маршрутизирует трафик | Заглушка — бинарник отсутствует в APK |
+| Входящие DM иногда показывают 🔒 | Signal-сессия не установлена для нового собеседника |
+| statusMessage под именем контакта | Нет поля в ContactEntity (нужна миграция 13→14) |
+| JIMM mode влияет только на контакты | Другие экраны не читают LocalRetroMode |
+| P5 Звуки / P7 Смайлы JIMM | Не реализованы (0%) |
 
-## Broken 🔴
-
-| Bug ID | Symptom | Root Cause |
-|---|---|---|
-| BUG-001 | WS 500 on connect | Auth header mismatch? |
-| BUG-002 | Messages in wrong order | System.currentTimeMillis() vs serverTime |
-| BUG-003 | Groups show non-member groups | No membership JOIN in query |
-| BUG-004 | Incoming DMs missing | Blocked by BUG-001 (no WS) |
-
-## Deleted in Phase 0 🗑️
-
-- `WebSocketManager.kt`, `WebSocketEvent.kt` — duplicate WS engine
-- `GameRepository.kt`, `GamesScreen.kt`, `MarketplaceScreen.kt`
-- `Game.kt`, `Marketplace.kt`, `PetEntity.kt`, `PetDao.kt`
-- DB: pets table (migration 11→12)
-
-## Missing — Not Started ❌
-
-Offline outbox, typing indicators, presence, reactions, editing,
-deletion, search, drafts, replies (wired), forwards, pins, archive,
-mute, crash reporting, CI/CD, unit tests, screenshot tests.
+## Removed 🗑️
+- `WebSocketManager.kt` — дублирующий WS движок
+- `GameRepository`, `GamesScreen`, `MarketplaceScreen` — удалены по scope
+- `PetEntity`, `PetDao` — pets table (DB migration 11→12)

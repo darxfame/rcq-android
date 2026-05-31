@@ -2,25 +2,38 @@
 
 Android client for **RCQ** — privacy-first messenger with 9-digit IDs, no phone, no email, end-to-end encrypted by default.
 
-> **Status:** Pre-alpha, in active development
-> **Build:** ✅ GREEN (`assembleDebug` passing, DB v9)
-> **Current work:** Phase 1 audit + polish → Phase 2 media messaging
+> **Status:** Pre-alpha, active development
+> **Build:** ✅ GREEN (`assembleDebug` passing)
+> **DB:** v13  |  **Branch:** `phase-1-core-messaging`  |  **Date:** 2026-05-31
 
 ---
 
 ## Project Status
 
-| Phase | Focus | Status | Date |
-|-------|-------|--------|------|
-| **0** | Critical bug fixes | ✅ DONE | May 25, 2026 |
-| **1** | Core messaging + E2EE | ✅ DONE | May 26, 2026 |
-| **Build fix** | 123 compile errors resolved | ✅ DONE | May 28, 2026 |
-| **1 audit** | Runtime fixes, WebSocket, UX polish | 🔄 IN PROGRESS | May 28, 2026 |
-| **2** | Media messaging (photo/video/file/voice + E2EE) | 📋 NEXT | — |
-| **3** | Calls + Audio rooms | 📋 PLANNED | — |
-| **4** | Social (Stories, Games, Marketplace) | 📋 PLANNED | — |
+| Milestone | Focus | Status | Date |
+|-----------|-------|--------|------|
+| Phase 0 | Critical bug fixes | ✅ DONE | 2026-05-25 |
+| Phase 1 | Core messaging + E2EE | ✅ DONE | 2026-05-26 |
+| Build fix | 123 compile errors | ✅ DONE | 2026-05-28 |
+| Phase 1 audit | WS fixes, runtime bugs | ✅ DONE | 2026-05-29 |
+| Phase 2 | Delivery states, typing, reactions, search | ✅ DONE | 2026-05-30 |
+| Stealth | ProxyManager, SingBox, PanicPIN | ✅ DONE | 2026-05-30 |
+| JIMM UI | Retro JIMM/QIP visual redesign (~46%) | 🔄 ACTIVE | 2026-05-31 |
+| Bug sprint | DMs, dark mode, timeouts, groups, navbar | ✅ DONE | 2026-05-31 |
+| Next | JIMM P5 sounds, P7 emoticons, statusMessage | 📋 NEXT | — |
 
-**Overall progress:** ~65%
+**DB version:** 13 · **Functional progress:** ~75%
+
+### Recent fixes (2026-05-31)
+
+| Commit | What changed |
+|--------|-------------|
+| `084a836` | Navbar hidden under gesture nav buttons → `navigationBarsPadding()`; all groups now show (removed broken `memberIds` filter) |
+| `933c602` | Startup splash: 8-petal ICQ flower + connection probe, auto-enables bypass if server unreachable |
+| `0333e30` | HTTP timeout 60s→10s; dark mode persisted to DataStore; incoming DMs: TOFU no longer drops silently, fallback placeholder; JIMM toggle restored |
+| `0b65680` | Full JIMM/QIP redesign: flat 50dp NavBar, compact typography, status-dot list items |
+| `763a718` | JIMM retro mode, status-grouped contacts, group server-side search with debounce |
+| `699c8aa` | Stealth: BypassMode AUTO/MANUAL/OFF, sing-box persistence across restarts |
 
 ---
 
