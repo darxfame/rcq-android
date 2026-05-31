@@ -108,6 +108,15 @@ class SignalStoreDb(context: Context, accountId: String) :
         return out
     }
 
+    /** Drop all libsignal state (re-bootstrap on UIN drift / server wipe). */
+    fun clear() {
+        writableDatabase.apply {
+            for (t in listOf("local_identity", "prekeys", "signed_prekeys", "kyber_prekeys", "sessions", "identities")) {
+                execSQL("DELETE FROM $t")
+            }
+        }
+    }
+
     companion object {
         const val VERSION = 1
         private fun dbName(accountId: String) = "signal-stores-$accountId.db"

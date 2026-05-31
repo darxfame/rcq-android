@@ -45,6 +45,9 @@ class SignalStores(private val db: SignalStoreDb) :
         db.storeLocalIdentity(uin, identityKeyPair.serialize(), registrationId)
     }
 
+    /** Drop all libsignal state (re-bootstrap on UIN drift / server wipe). */
+    fun wipe() = db.clear()
+
     // ── IdentityKeyStore ─────────────────────────────────────────────
     override fun getIdentityKeyPair(): IdentityKeyPair {
         val row = db.loadLocalIdentity() ?: error("no local libsignal identity")

@@ -7,6 +7,9 @@ import app.rcq.android.crypto.IdentityKeys
 import app.rcq.android.crypto.MediaCrypto
 import app.rcq.android.crypto.Reply
 import app.rcq.android.crypto.SealedSender
+import app.rcq.android.crypto.SignalBootstrap
+import app.rcq.android.crypto.SignalStoreDb
+import app.rcq.android.crypto.SignalStores
 import app.rcq.android.data.AccountManager
 import app.rcq.android.data.LocalStores
 import app.rcq.android.data.MessageDb
@@ -54,6 +57,9 @@ class Session(context: Context) {
     private fun newApi(): RcqApi = RcqApi("https://${serverHost()}").apply { if (store.isRegistered) setToken(store.token) }
     private fun newSocket(): RcqSocket = RcqSocket("wss://${serverHost()}")
     private var db = MessageDb(appCtx, AccountManager.activeId.value ?: "")
+    // Per-account libsignal stores (v=2 forward secrecy). Rebuilt by rebindTo
+    // on account switch, like store/db.
+    private var signalStores = SignalStores(SignalStoreDb(appCtx, AccountManager.activeId.value ?: ""))
     private val gson = com.google.gson.Gson()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -176,6 +182,7 @@ class Session(context: Context) {
     private fun rebindTo(accountId: String) {
         store = SecureStore(appCtx, accountId)
         db = MessageDb(appCtx, accountId)
+        signalStores = SignalStores(SignalStoreDb(appCtx, accountId))
         LocalStores.bindAccount(accountId)
         app.rcq.android.data.VisitStore.bindAccount(accountId)
         api = newApi()
@@ -234,6 +241,9 @@ class Session(context: Context) {
         scope.launch { runCatching { withRetry { refreshPending() } } }
         scope.launch { runCatching { withRetry { refreshGroups() } } }
         scope.launch { runCatching { withRetry { loadOwnReadReceiptSetting() } } }
+        // Ensure our libsignal prekey bundle is published so peers can start
+        // v=2 sessions with us. Best-effort: failure leaves us on v=1.
+        scope.launch { runCatching { store.uin?.let { SignalBootstrap.ensureBootstrapped(signalStores, api, it) } }.onFailure { android.util.Log.w("RCQsignal", "bootstrap failed: ${it.javaClass.simpleName}: ${it.message}") } }
     }
 
     /** Cache the owner's read-receipt visibility so we honour a "nobody"
@@ -563,6 +573,7 @@ class Session(context: Context) {
         if (burnedId != null) {
             SecureStore.wipeAccount(appCtx, burnedId)
             MessageDb.wipeAccount(appCtx, burnedId)
+            SignalStoreDb.wipeAccount(appCtx, burnedId)
             app.rcq.android.data.VisitStore.wipeAccount(burnedId)
             LocalStores.clearAccount(burnedId)
             AccountManager.remove(burnedId)   // active falls back to first remaining (or null)
@@ -600,6 +611,7 @@ class Session(context: Context) {
         if (accountId == AccountManager.activeId.value) return
         SecureStore.wipeAccount(appCtx, accountId)
         MessageDb.wipeAccount(appCtx, accountId)
+        SignalStoreDb.wipeAccount(appCtx, accountId)
         app.rcq.android.data.VisitStore.wipeAccount(accountId)
         LocalStores.clearAccount(accountId)
         AccountManager.remove(accountId)

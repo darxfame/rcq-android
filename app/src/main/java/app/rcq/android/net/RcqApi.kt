@@ -1,6 +1,7 @@
 package app.rcq.android.net
 
 import com.google.gson.Gson
+import com.google.gson.annotations.SerializedName
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -55,6 +56,52 @@ class RcqApi(private val baseUrl: String = DEFAULT_BASE_URL) {
     )
 
     data class RegisterResponse(val uin: Int, val token: String)
+
+    // ── libsignal prekey bundle (v=2 forward secrecy) ─────────────────
+    // JSON key is "public" (a Kotlin keyword) → @SerializedName.
+    data class SignedPreKeyDto(val id: Int, @SerializedName("public") val publicKey: String, val signature: String)
+    data class KyberPreKeyDto(val id: Int, @SerializedName("public") val publicKey: String, val signature: String)
+    data class OneTimePreKeyDto(val id: Int, @SerializedName("public") val publicKey: String)
+    data class KeysBundleBody(
+        val signal_identity_key: String,
+        val registration_id: Int,
+        val signed_prekey: SignedPreKeyDto,
+        val kyber_prekey: KyberPreKeyDto,
+        val one_time_prekeys: List<OneTimePreKeyDto>,
+    )
+    data class PrekeysBody(val one_time_prekeys: List<OneTimePreKeyDto>)
+    data class KeysStatus(
+        val has_bundle: Boolean,
+        val one_time_prekey_count: Int,
+        val target_count: Int,
+        val signed_prekey_age_seconds: Int?,
+    )
+    /** Peer's published bundle for session establishment (PQXDH). */
+    data class PeerBundle(
+        val uin: Int,
+        val registration_id: Int,
+        val signal_identity_key: String,
+        val signed_prekey: SignedPreKeyDto,
+        val kyber_prekey: KyberPreKeyDto,
+        val one_time_prekey: OneTimePreKeyDto?,
+    )
+
+    /** Upload the full prekey bundle (POST /keys/bundle → 204). */
+    suspend fun uploadKeysBundle(body: KeysBundleBody) = withContext(Dispatchers.IO) {
+        postNoContent("/keys/bundle", gson.toJson(body), authed = true)
+    }
+    /** Replenish the one-time prekey pool (POST /keys/prekeys → 204). */
+    suspend fun replenishPrekeys(body: PrekeysBody) = withContext(Dispatchers.IO) {
+        postNoContent("/keys/prekeys", gson.toJson(body), authed = true)
+    }
+    /** Own prekey-pool status (for top-up decisions). */
+    suspend fun keysStatus(): KeysStatus = withContext(Dispatchers.IO) {
+        get("/keys/me/status", authed = true, KeysStatus::class.java)
+    }
+    /** Fetch a peer's bundle to establish a v=2 session. */
+    suspend fun fetchPeerBundle(uin: Int): PeerBundle = withContext(Dispatchers.IO) {
+        get("/keys/$uin/bundle", authed = true, PeerBundle::class.java)
+    }
 
     suspend fun register(req: RegisterRequest): RegisterResponse = withContext(Dispatchers.IO) {
         post("/auth/register", gson.toJson(req), authed = false, RegisterResponse::class.java)
@@ -383,6 +430,15 @@ class RcqApi(private val baseUrl: String = DEFAULT_BASE_URL) {
             .post(json.toRequestBody(JSON))
         if (authed) token?.let { builder.header("Authorization", "Bearer $it") }
         return execute(builder.build(), type)
+    }
+
+    /** POST with no response body to parse (204 endpoints). Throws on !2xx. */
+    private fun postNoContent(path: String, json: String, authed: Boolean) {
+        val builder = Request.Builder().url("$baseUrl$path").post(json.toRequestBody(JSON))
+        if (authed) token?.let { builder.header("Authorization", "Bearer $it") }
+        client.newCall(builder.build()).execute().use { resp ->
+            if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}: ${resp.body?.string()?.take(200)}")
+        }
     }
 
     private fun <T> get(path: String, authed: Boolean, type: Class<T>): T {
