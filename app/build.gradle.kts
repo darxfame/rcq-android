@@ -37,6 +37,24 @@ android {
     }
     buildFeatures { compose = true }
 
+    // Split the APK by ABI so a device downloads only its own native libs.
+    // libsignal + rcqbox (sing-box) each ship a ~40MB .so per ABI, so a
+    // universal APK is ~3x heavier than any device needs — painful to
+    // sideload over a slow/censored network (exactly our RU-tester case).
+    // Per-ABI APKs land at app/build/outputs/apk/<type>/app-<abi>-<type>.apk.
+    // universalApk stays on as a single-file fallback (and for the emulator
+    // test flow). NB for a Play multi-APK upload each ABI needs a distinct
+    // versionCode (an offset) — add that when/if we ship via Play; for
+    // sideload it's irrelevant.
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a", "armeabi-v7a", "x86_64")
+            isUniversalApk = true
+        }
+    }
+
     packaging {
         jniLibs {
             // libsignal_jni_testing.so is a ~80MB-per-ABI test-only native lib;
