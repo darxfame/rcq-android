@@ -322,6 +322,17 @@ class Session(context: Context) {
         return runCatching { SignalSession.safetyNumber(me, myIdentity, uin, peer) }.getOrNull()
     }
 
+    /** True if [uin]'s libsignal identity changed since the user last verified
+     *  it (re-register / new device / possible MITM) — drives the safety-number
+     *  "changed" warning. */
+    fun peerIdentityChanged(uin: Int): Boolean =
+        runCatching { signalStores.peerIdentityChanged(uin) }.getOrDefault(false)
+
+    /** Clear the change flag once the user has re-checked the safety number. */
+    fun acknowledgePeerIdentity(uin: Int) {
+        runCatching { signalStores.acknowledgePeerIdentity(uin) }
+    }
+
     // Per-target throttle for fire-and-forget profile-view pings (1h).
     private val lastVisitAt = java.util.concurrent.ConcurrentHashMap<Int, Long>()
 

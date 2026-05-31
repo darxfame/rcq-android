@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.PersonRemove
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.outlined.Block
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
@@ -85,9 +86,11 @@ internal fun ContactInfoScreen(session: Session, uin: Int, onBack: () -> Unit, o
     var showSafety by remember { mutableStateOf(false) }
     var safetyNumber by remember { mutableStateOf<String?>(null) }
     var safetyLoading by remember { mutableStateOf(false) }
+    var identityChanged by remember { mutableStateOf(false) }
 
     LaunchedEffect(uin) {
         profile = session.loadPeerProfile(uin)
+        identityChanged = session.peerIdentityChanged(uin)
         // Tell them we looked (fire-and-forget; tallied on their device).
         runCatching { session.sendVisit(uin) }
     }
@@ -138,6 +141,19 @@ internal fun ContactInfoScreen(session: Session, uin: Int, onBack: () -> Unit, o
                 Icon(Icons.Filled.ContentCopy, stringResource(R.string.common_copy_uin), tint = c.textSecondary, modifier = Modifier.size(18.dp))
             }
 
+            // Safety-number-changed warning (re-register / new device / MITM).
+            if (identityChanged) {
+                Spacer(Modifier.height(12.dp))
+                Row(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(c.bgSecondary).padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Filled.Warning, null, tint = DANGER, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(10.dp))
+                    Text(stringResource(R.string.ci_identity_changed), color = c.textPrimary, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                }
+            }
+
             // Profile fields (only those the server let us see). Labels are
             // resolved here because buildList's lambda isn't composable.
             val lblAge = stringResource(R.string.pe_age)
@@ -186,6 +202,11 @@ internal fun ContactInfoScreen(session: Session, uin: Int, onBack: () -> Unit, o
                 InfoAction(Icons.Filled.Lock, stringResource(R.string.ci_safety)) {
                     showSafety = true
                     safetyLoading = true
+                    // Opening it to re-check counts as acknowledging the change.
+                    if (identityChanged) {
+                        session.acknowledgePeerIdentity(uin)
+                        identityChanged = false
+                    }
                     scope.launch {
                         safetyNumber = session.safetyNumber(uin)
                         safetyLoading = false

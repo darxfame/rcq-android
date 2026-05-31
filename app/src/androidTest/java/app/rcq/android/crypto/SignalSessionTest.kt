@@ -5,11 +5,13 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import app.rcq.android.net.RcqApi
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.signal.libsignal.protocol.IdentityKeyPair
+import org.signal.libsignal.protocol.SignalProtocolAddress
 import org.signal.libsignal.protocol.ecc.ECKeyPair
 import org.signal.libsignal.protocol.kem.KEMKeyPair
 import org.signal.libsignal.protocol.kem.KEMKeyType
@@ -189,6 +191,36 @@ class SignalSessionTest {
             assertNotEquals(onAlice, aliceCarol)
         } finally {
             alice.wipe(); bob.wipe(); carol.wipe()
+        }
+    }
+
+    @Test
+    fun identityChangeIsFlaggedThenAcknowledged() {
+        val alice = freshStores("test-fs-idchg")
+        val peerUin = 888_444
+        try {
+            bootstrapLocal(alice, 999_111)
+            val addr = SignalProtocolAddress(peerUin.toString(), 1)
+            val first = IdentityKeyPair.generate().publicKey
+            val second = IdentityKeyPair.generate().publicKey
+
+            // First time we learn the peer's identity: NEW, no warning.
+            alice.saveIdentity(addr, first)
+            assertFalse(alice.peerIdentityChanged(peerUin))
+
+            // Same key again: still no change.
+            alice.saveIdentity(addr, first)
+            assertFalse(alice.peerIdentityChanged(peerUin))
+
+            // A different key under the same address: REPLACED -> flagged.
+            alice.saveIdentity(addr, second)
+            assertTrue(alice.peerIdentityChanged(peerUin))
+
+            // Re-verifying clears it.
+            alice.acknowledgePeerIdentity(peerUin)
+            assertFalse(alice.peerIdentityChanged(peerUin))
+        } finally {
+            alice.wipe()
         }
     }
 

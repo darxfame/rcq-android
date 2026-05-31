@@ -63,11 +63,23 @@ class SignalStores(private val db: SignalStoreDb) :
         val serialized = identityKey.serialize()
         db.putBlobByAddress("identities", "identity_key", key, serialized)
         return if (existing != null && !existing.contentEquals(serialized)) {
+            // The peer's identity key changed under a known address: re-register,
+            // new device, or a server swapping keys (MITM). Flag it so the UI can
+            // warn the user to re-verify the safety number; TOFU still accepts it.
+            db.markIdentityChanged(key)
             IdentityKeyStore.IdentityChange.REPLACED_EXISTING
         } else {
             IdentityKeyStore.IdentityChange.NEW_OR_UNCHANGED
         }
     }
+
+    /** Has [uin]'s pinned identity changed since the user last verified it? */
+    fun peerIdentityChanged(uin: Int): Boolean =
+        db.isIdentityChanged(addressKey(SignalProtocolAddress(uin.toString(), 1)))
+
+    /** Clear the change flag for [uin] (the user re-verified). */
+    fun acknowledgePeerIdentity(uin: Int) =
+        db.clearIdentityChanged(addressKey(SignalProtocolAddress(uin.toString(), 1)))
 
     override fun isTrustedIdentity(
         address: SignalProtocolAddress,

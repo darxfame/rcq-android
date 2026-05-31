@@ -27,10 +27,16 @@ class SignalStoreDb(context: Context, accountId: String) :
         db.execSQL("CREATE TABLE kyber_prekeys (kyber_prekey_id INTEGER PRIMARY KEY, record BLOB NOT NULL)")
         db.execSQL("CREATE TABLE sessions (address TEXT PRIMARY KEY, record BLOB NOT NULL)")
         db.execSQL("CREATE TABLE identities (address TEXT PRIMARY KEY, identity_key BLOB NOT NULL)")
+        // Addresses whose pinned identity key was REPLACED (re-register / new
+        // device / possible MITM) and not yet re-verified by the user. Drives
+        // the "safety number changed" warning. Presence = changed + unacked.
+        db.execSQL("CREATE TABLE identity_changes (address TEXT PRIMARY KEY)")
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        // v1 only so far; future schema bumps are additive.
+        if (oldVersion < 2) {
+            db.execSQL("CREATE TABLE IF NOT EXISTS identity_changes (address TEXT PRIMARY KEY)")
+        }
     }
 
     // ── local identity ───────────────────────────────────────────────
@@ -108,17 +114,29 @@ class SignalStoreDb(context: Context, accountId: String) :
         return out
     }
 
+    // ── identity-change flags (safety-number "changed" warning) ────────
+    fun markIdentityChanged(address: String) {
+        writableDatabase.execSQL("INSERT OR IGNORE INTO identity_changes (address) VALUES (?)", arrayOf<Any>(address))
+    }
+
+    fun isIdentityChanged(address: String): Boolean =
+        readableDatabase.rawQuery("SELECT 1 FROM identity_changes WHERE address = ? LIMIT 1", arrayOf(address)).use { it.moveToFirst() }
+
+    fun clearIdentityChanged(address: String) {
+        writableDatabase.delete("identity_changes", "address = ?", arrayOf(address))
+    }
+
     /** Drop all libsignal state (re-bootstrap on UIN drift / server wipe). */
     fun clear() {
         writableDatabase.apply {
-            for (t in listOf("local_identity", "prekeys", "signed_prekeys", "kyber_prekeys", "sessions", "identities")) {
+            for (t in listOf("local_identity", "prekeys", "signed_prekeys", "kyber_prekeys", "sessions", "identities", "identity_changes")) {
                 execSQL("DELETE FROM $t")
             }
         }
     }
 
     companion object {
-        const val VERSION = 1
+        const val VERSION = 2
         private fun dbName(accountId: String) = "signal-stores-$accountId.db"
 
         /** Drop an account's libsignal store file (burn / local delete). */

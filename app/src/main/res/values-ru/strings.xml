@@ -267,6 +267,7 @@
     <string name="ci_safety_loading">Вычисляем…</string>
     <string name="ci_safety_unavailable">Контакт ещё не опубликовал ключи forward secrecy, проверять нечего.</string>
     <string name="ci_safety_body">Сравните этот код с контактом по доверенному каналу: лично или по звонку. Если на обоих телефонах он совпадает, вашу переписку никто не перехватывает.</string>
+    <string name="ci_identity_changed">Код безопасности этого контакта изменился. Это может быть новое устройство или попытка перехвата. Откройте, чтобы сверить заново.</string>
 
     <!-- Chat -->
     <string name="chat_group">Группа</string>
