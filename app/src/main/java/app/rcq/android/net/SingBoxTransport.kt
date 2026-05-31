@@ -45,21 +45,9 @@ object SingBoxTransport {
         val obfsPassword: String? = null,
     )
 
-    /** Bundled relay pool — mirrors the live signed config (v9). A fetched +
-     *  verified remote list (so rotations need no app update) is the next
-     *  phase; until then a fresh install always has a working pool. */
-    private val bundledRelays = listOf(
-        Relay("relay-do-fra-yandex-hy2", "hysteria2", "165.22.90.214", 443, "www.yandex.ru", password = "JN0qzA4LJfhHPKKN3QHj4eN8", obfsPassword = "jXfGkLToOkTihpeJzDiNf8Bb"),
-        Relay("relay-do-fra-yandex", "vless", "165.22.90.214", 443, "www.yandex.ru", uuid = "2081b3c4-faaa-4cce-a0ab-607197b28237", publicKey = "n33TZTLNrc6X7jTGrKWex_sk8aIQ6Qqz-eC8lqYMii8", shortId = "aa5d483441e59ac7", flow = "xtls-rprx-vision"),
-        Relay("relay-oracle-il-hy2", "hysteria2", "129.159.143.135", 443, "www.microsoft.com", password = "bvuvu74CVsiXdcJazcYphnO5", obfsPassword = "PaEHrZABTk36orhfFON7Jure"),
-        Relay("relay-oracle-il", "vless", "129.159.143.135", 443, "www.microsoft.com", uuid = "ff005e0c-175e-4475-a166-eeac88f514e2", publicKey = "_Hhc-2pjkvR914mddMdmuoOVaT74vWR8Gby7KmJp9F8", shortId = "318567678ac9878e", flow = "xtls-rprx-vision"),
-        Relay("relay-gcp-hy2", "hysteria2", "35.238.53.96", 443, "www.apple.com", password = "QaY3uT8EmfZxfON65jaT5bSu", obfsPassword = "fLpJ2c211xjnZcP9VNcNpbZP"),
-        Relay("relay-gcp", "vless", "35.238.53.96", 443, "www.apple.com", uuid = "8e3b35d3-18a6-406d-9ac6-c5558a806663", publicKey = "mQZ8CJeMWyf7oYGWJG8oOI52or2kx4yTthl6AGZkSTw", shortId = "b5b8979af1f27aab", flow = "xtls-rprx-vision"),
-        Relay("relay-aws-sg-hy2", "hysteria2", "47.129.249.170", 443, "www.amazon.com", password = "IjO9NlfvuXuP8w4tZNXHZwGL", obfsPassword = "yBlwN4J7IMzQi3VCMo0oKZHh"),
-        Relay("relay-aws-sg", "vless", "47.129.249.170", 443, "www.amazon.com", uuid = "2b0a3318-7bfc-4ff2-83ae-2f322cb91ef8", publicKey = "xxasGveo2BtMx4doxftb-AJcvIXL-9LpymZcV9tIRxo", shortId = "533142a04b016a00", flow = "xtls-rprx-vision"),
-    )
-
-    private fun relays(): List<Relay> = bundledRelays
+    /** Relay pool: the verified remote list when available, else the bundled
+     *  fallback — both resolved by [RelayConfigStore]. */
+    private fun relays(): List<Relay> = RelayConfigStore.currentRelays()
 
     /** SOCKS proxy pointing at the local sing-box inbound, or null when the
      *  transport is off (OkHttp treats null as a direct connection). */

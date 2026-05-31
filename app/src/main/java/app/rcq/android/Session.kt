@@ -281,12 +281,19 @@ class Session(context: Context) {
             // api/socket are rebuilt so the new instances capture the SOCKS
             // proxy. Off by default = no-op, we connect directly as before.
             if (app.rcq.android.net.SingBoxTransport.isEnabled(appCtx) && !app.rcq.android.net.SingBoxTransport.isActive) {
+                // Use the freshest known relay list (last verified payload off
+                // disk) before building the transport; bundled if none yet.
+                app.rcq.android.net.RelayConfigStore.prime(appCtx)
                 if (app.rcq.android.net.SingBoxTransport.start()) {
                     api = newApi()
                     socket = newSocket()
                 }
             }
             connectAndSync(uin, token)
+            // Pull a fresh signed relay list (direct mirrors) for NEXT launch —
+            // best-effort, never blocks the connect. So a rotated relay is
+            // picked up without an app update.
+            launch { runCatching { app.rcq.android.net.RelayConfigStore.refresh(appCtx) } }
         }
     }
 
