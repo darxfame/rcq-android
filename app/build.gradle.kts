@@ -83,6 +83,12 @@ android {
 }
 
 dependencies {
+    // sing-box нативное ядро (libbox.aar).
+    // Положите собранный libbox.aar в app/libs/ — Gradle подхватит автоматически.
+    // Сборка ядра из форка Lantern: см. docs/SINGBOX_INTEGRATION.md
+    // Пустой каталог libs/ не ломает сборку (fileTree вернёт пустой набор).
+    implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.aar", "*.jar"))))
+
     // Logging
     implementation("com.jakewharton.timber:timber:5.0.1")
 

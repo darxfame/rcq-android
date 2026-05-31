@@ -3,7 +3,10 @@ package com.rcq.messenger.service
 import android.content.Context
 import android.content.SharedPreferences
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import org.json.JSONArray
@@ -61,10 +64,25 @@ class SingBoxTransport @Inject constructor(
     private val prefs: SharedPreferences =
         context.getSharedPreferences("singbox", Context.MODE_PRIVATE)
 
-    // private var boxService: io.nekohasekai.libbox.BoxService? = null
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    /**
+     * Держим ссылку на нативный сервис через Any?, чтобы файл компилировался
+     * и без libbox.aar на classpath. Реальный тип — io.nekohasekai.libbox.BoxService.
+     */
+    private var boxService: Any? = null
 
     var isActive = false
         private set
+
+    /**
+     * true только если нативный движок libbox реально присутствует на classpath
+     * (app/libs/libbox.aar добавлен). Проверяется один раз через reflection,
+     * чтобы UI мог честно показать «движок не установлен» вместо ложного «активен».
+     */
+    val isEngineAvailable: Boolean by lazy {
+        runCatching { Class.forName("io.nekohasekai.libbox.BoxService") }.isSuccess
+    }
 
     val isEnabled: Boolean get() = prefs.getBoolean(PREF_ENABLED, false)
 
@@ -74,28 +92,87 @@ class SingBoxTransport @Inject constructor(
     fun proxyAddress(): InetSocketAddress? =
         if (isActive) InetSocketAddress("127.0.0.1", LOCAL_PORT) else null
 
-    suspend fun start() {
-        if (isActive) return
+    suspend fun start() = withContext(Dispatchers.IO) {
+        if (isActive) return@withContext
         val config = buildSingBoxConfig() ?: run {
-            Timber.e("$TAG: Failed to build sing-box config"); return
+            Timber.e("$TAG: Failed to build sing-box config"); return@withContext
+        }
+        if (!isEngineAvailable) {
+            // Честно фиксируем причину: нативный движок не собран в APK.
+            val msg = "Движок sing-box не установлен: добавьте app/libs/libbox.aar и пересоберите."
+            prefs.edit().putString(PREF_LAST_ERROR, msg).apply()
+            Timber.w("$TAG: engine unavailable — bypass NOT active. $msg")
+            return@withContext
         }
         runCatching {
-            // val box = io.nekohasekai.libbox.BoxService()
-            // box.start(config)
-            // boxService = box
-            // isActive = true
-            // prefs.edit().remove(PREF_LAST_ERROR).apply()
-            // scope.launch { probeRelaysInBackground() }
-            Timber.i("$TAG: Config ready (add libbox.aar to activate):\n${config.take(200)}")
+            boxService = startNativeEngine(config)
+            isActive = true
+            prefs.edit().remove(PREF_LAST_ERROR).apply()
+            Timber.i("$TAG: sing-box started on 127.0.0.1:$LOCAL_PORT")
+            scope.launch { probeRelaysInBackground() }
         }.onFailure { e ->
+            isActive = false
+            boxService = null
             prefs.edit().putString(PREF_LAST_ERROR, e.message?.take(400) ?: "unknown").apply()
-            Timber.e("$TAG: start failed: ${e.message}")
+            Timber.e(e, "$TAG: start failed: ${e.message}")
         }
+        Unit
+    }
+
+    /**
+     * Запускает нативное ядро через reflection — без статической зависимости от libbox,
+     * чтобы модуль компилировался и без .aar. Зеркалит iOS (service.start(configJSON)).
+     *
+     * Пробуем два варианта API libbox:
+     *  1) iOS-style: `BoxService(config).start()` или `BoxService().start(config)` (конструктор).
+     *  2) SagerNet-style: `Libbox.newService(config, platform).start()` с no-op PlatformInterface.
+     * Возвращает живой объект BoxService (для последующего .close()/.stop()).
+     */
+    private fun startNativeEngine(config: String): Any {
+        val boxServiceClass = Class.forName("io.nekohasekai.libbox.BoxService")
+
+        // Вариант 1: конструктор BoxService(String) + start()
+        runCatching {
+            val ctor = boxServiceClass.getConstructor(String::class.java)
+            val svc = ctor.newInstance(config)
+            boxServiceClass.getMethod("start").invoke(svc)
+            Timber.d("$TAG: engine via BoxService(config).start()")
+            return svc
+        }
+        // Вариант 1b: пустой конструктор + start(String)
+        runCatching {
+            val svc = boxServiceClass.getDeclaredConstructor().newInstance()
+            boxServiceClass.getMethod("start", String::class.java).invoke(svc, config)
+            Timber.d("$TAG: engine via BoxService().start(config)")
+            return svc
+        }
+        // Вариант 2: Libbox.newService(config, PlatformInterface) + start()
+        val libboxClass = Class.forName("io.nekohasekai.libbox.Libbox")
+        val platformIface = Class.forName("io.nekohasekai.libbox.PlatformInterface")
+        val platformStub = java.lang.reflect.Proxy.newProxyInstance(
+            platformIface.classLoader,
+            arrayOf(platformIface),
+            NoopPlatformHandler
+        )
+        val svc = libboxClass
+            .getMethod("newService", String::class.java, platformIface)
+            .invoke(null, config, platformStub)
+            ?: error("Libbox.newService вернул null")
+        svc.javaClass.getMethod("start").invoke(svc)
+        Timber.d("$TAG: engine via Libbox.newService(config, stub).start()")
+        return svc
     }
 
     fun stop() {
-        // boxService?.stop(); boxService = null
+        val svc = boxService
+        boxService = null
         isActive = false
+        if (svc != null) {
+            // Метод закрытия отличается между сборками: close() (SagerNet) или stop() (iOS-style)
+            runCatching { svc.javaClass.getMethod("close").invoke(svc) }
+                .recoverCatching { svc.javaClass.getMethod("stop").invoke(svc) }
+                .onFailure { Timber.w(it, "$TAG: stop failed") }
+        }
         Timber.d("$TAG: stopped")
     }
 
@@ -172,4 +249,23 @@ class SingBoxTransport @Inject constructor(
             runCatching { Socket().use { it.connect(InetSocketAddress(host, port), 4000); true } }
                 .getOrDefault(false)
         }
+}
+
+/**
+ * No-op реализация libbox PlatformInterface через reflection-прокси.
+ * В режиме mixed/SOCKS5 (без tun-inbound) ядро sing-box не вызывает методы
+ * туннелирования, поэтому безопасно вернуть нейтральные значения по типу возврата.
+ * Используется только когда .aar требует Libbox.newService(config, platform).
+ */
+private object NoopPlatformHandler : java.lang.reflect.InvocationHandler {
+    override fun invoke(proxy: Any?, method: java.lang.reflect.Method, args: Array<out Any?>?): Any? {
+        return when (method.returnType) {
+            Boolean::class.javaPrimitiveType -> false
+            Int::class.javaPrimitiveType -> 0
+            Long::class.javaPrimitiveType -> 0L
+            java.lang.String::class.java -> ""
+            Void.TYPE -> null
+            else -> null
+        }
+    }
 }

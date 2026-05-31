@@ -3,6 +3,9 @@ build/
 app/build/
 */build/
 
+# Нативное ядро sing-box — бинарник 64МБ, тянуть отдельно (см. docs/SINGBOX_INTEGRATION.md)
+app/libs/*.aar
+
 # Gradle
 .gradle/
 local.properties

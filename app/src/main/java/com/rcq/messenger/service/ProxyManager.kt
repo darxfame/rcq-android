@@ -185,6 +185,9 @@ class ProxyManager @Inject constructor(
         BypassMode.MANUAL -> manualProxyUrl.ifBlank { "Ручной (не задан)" }
         BypassMode.AUTO -> when {
             singBoxTransport.isActive -> "Авто: sing-box активен"
+            // Движок не собран в APK — честно сообщаем, а не «подключаю прокси…» без конца
+            !singBoxTransport.isEngineAvailable && failureCount.get() > 0 ->
+                "Авто: движок sing-box не установлен (нужен libbox.aar)"
             failureCount.get() > 0 -> "Авто: ${failureCount.get()} ошибок, подключаю прокси…"
             else -> "Авто: прямое подключение"
         }
