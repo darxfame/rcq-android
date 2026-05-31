@@ -19,7 +19,13 @@ import kotlinx.coroutines.flow.asStateFlow
  * won't reshuffle the vault.
  */
 object PanicPinService {
-    enum class SubmitResult { REAL, WIPE, WRONG, LOCKED_OUT }
+    enum class SubmitResult { REAL, DECOY, WIPE, WRONG, LOCKED_OUT }
+
+    /** Set on a DECOY submit: the account the caller should switch to + hide
+     *  the rest behind. Consumed by [Session] right after [submit]. */
+    @Volatile
+    var pendingDecoyAccountId: String? = null
+        private set
 
     @Volatile
     var dataKey: ByteArray? = null
@@ -47,6 +53,7 @@ object PanicPinService {
         dataKey = null
         realPayload = null
         realSlotKey = null
+        pendingDecoyAccountId = null
     }
 
     /** Epoch-ms the lockout lasts until, or null if not locked out. */
@@ -76,8 +83,19 @@ object PanicPinService {
                 _locked.value = false
                 SubmitResult.REAL
             }
+            PinVault.MODE_DECOY -> {
+                // Unlock into the decoy account, hiding the real ones. The
+                // decoy slot carries the SAME dataKey (so the encrypted DBs
+                // open). We do NOT clear `locked` here — the caller
+                // (Session.applyDecoyUnlock) switches + filters the roster
+                // FIRST, then calls completeUnlock, so the real accounts never
+                // flash on screen. Real PIN entry later exits decoy mode.
+                dataKey = PinVault.dataKeyBytes(unlock.payload)
+                pendingDecoyAccountId = unlock.payload.decoyAccountId
+                SubmitResult.DECOY
+            }
             PinVault.MODE_WIPE -> SubmitResult.WIPE
-            else -> SubmitResult.WRONG // decoy: Phase 2c
+            else -> SubmitResult.WRONG
         }
     }
 
@@ -125,6 +143,56 @@ object PanicPinService {
         return true
     }
 
+    /** Is a decoy PIN configured, and which account does it reveal? */
+    fun hasDecoyPin(): Boolean = realPayload?.layout?.decoySlot != null
+    fun decoyAccountId(): String? = realPayload?.layout?.decoyAccountId
+
+    /** Add a decoy PIN that unlocks into [decoyAccountId], hiding the other
+     *  (real) accounts. The decoy slot carries the SAME dataKey as the real
+     *  one (so the encrypted DBs open), plus the decoy account id. Requires an
+     *  unlocked real session with a free slot. */
+    fun setDecoyPin(context: Context, pin: String, decoyAccountId: String): Boolean {
+        if (pin.length < PinVault.MIN_PIN_LENGTH) return false
+        val real = realPayload ?: return false
+        val key = realSlotKey ?: return false
+        val dk = dataKey ?: return false
+        val layout = real.layout ?: return false
+        val payload = PinVault.SlotPayload(
+            mode = PinVault.MODE_DECOY,
+            dataKeyB64 = android.util.Base64.encodeToString(dk, android.util.Base64.NO_WRAP),
+            decoyAccountId = decoyAccountId,
+        )
+        val slot = PinVault.addSlot(context, pin, payload, layout) ?: return false
+        layout.decoySlot = slot
+        layout.decoyAccountId = decoyAccountId
+        PinVault.writeSlot(context, layout.realSlot, real, key)
+        return true
+    }
+
+    fun removeDecoyPin(context: Context): Boolean {
+        val real = realPayload ?: return false
+        val key = realSlotKey ?: return false
+        val layout = real.layout ?: return false
+        val slot = layout.decoySlot ?: return true
+        PinVault.writeSlot(context, slot, null, null)
+        layout.decoySlot = null
+        layout.decoyAccountId = null
+        PinVault.writeSlot(context, layout.realSlot, real, key)
+        return true
+    }
+
+    /** Take + clear the pending decoy account id (after a DECOY submit). */
+    fun consumeDecoyAccountId(): String? {
+        val id = pendingDecoyAccountId
+        pendingDecoyAccountId = null
+        return id
+    }
+
+    /** Clear the lock — called by [Session.applyDecoyUnlock] only AFTER it has
+     *  switched to the decoy account + filtered the roster, so the UI never
+     *  flashes the real accounts. */
+    fun completeUnlock() { _locked.value = false }
+
     /** Re-seal the real slot under [newPin]; the dataKey (and the DB) are
      *  unchanged. Requires an unlocked real session. */
     fun changeRealPin(context: Context, newPin: String): Boolean {
@@ -141,6 +209,7 @@ object PanicPinService {
         dataKey = null
         realPayload = null
         realSlotKey = null
+        pendingDecoyAccountId = null
         _locked.value = false
         return SecureStore.deviceKey(context)
     }
@@ -151,6 +220,7 @@ object PanicPinService {
         dataKey = null
         realPayload = null
         realSlotKey = null
+        pendingDecoyAccountId = null
         _locked.value = true
     }
 }

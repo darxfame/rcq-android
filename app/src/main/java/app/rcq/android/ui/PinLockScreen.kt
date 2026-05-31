@@ -44,7 +44,7 @@ import kotlinx.coroutines.withContext
  * unlocked key. Wrong attempts escalate into a lockout countdown.
  */
 @Composable
-fun PinLockScreen(session: Session, onWiped: () -> Unit = {}) {
+fun PinLockScreen(session: Session, onWiped: () -> Unit = {}, onAccountChanged: (Int) -> Unit = {}) {
     val c = RcqTheme.colors
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -72,7 +72,19 @@ fun PinLockScreen(session: Session, onWiped: () -> Unit = {}) {
             val res = withContext(Dispatchers.Default) { PanicPinService.submit(context, pin) }
             busy = false
             when (res) {
-                PanicPinService.SubmitResult.REAL -> Unit // host recomposes away
+                PanicPinService.SubmitResult.REAL -> {
+                    // Real PIN reveals everything: make sure decoy mode is off.
+                    app.rcq.android.data.AccountManager.exitDecoyMode()
+                    // host recomposes away
+                }
+                PanicPinService.SubmitResult.DECOY -> {
+                    // Switch to the decoy account + hide the rest, THEN unlock.
+                    busy = true
+                    withContext(Dispatchers.Default) { session.applyDecoyUnlock() }
+                    // The active account changed — update the host's uin so the
+                    // header shows the decoy's number, not the hidden account's.
+                    session.uin?.let { onAccountChanged(it) }
+                }
                 PanicPinService.SubmitResult.WIPE -> {
                     // Duress wipe: erase everything, then drop to onboarding.
                     // No error shown — it silently resets to a fresh install.

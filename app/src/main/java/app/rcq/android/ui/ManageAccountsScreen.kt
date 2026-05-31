@@ -61,7 +61,8 @@ import app.rcq.android.net.RcqApi
 internal fun ManageAccountsScreen(session: Session, onBack: () -> Unit) {
     val c = RcqTheme.colors
     val context = LocalContext.current
-    val accounts by AccountManager.accounts.collectAsState()
+    // Decoy-aware: only the decoy account shows while decoy mode is active.
+    val accounts by AccountManager.visibleAccounts.collectAsState(initial = AccountManager.visibleNow())
     val activeId by AccountManager.activeId.collectAsState()
     var pendingDelete by remember { mutableStateOf<Account?>(null) }
 

@@ -162,7 +162,12 @@ class Session(context: Context) {
         // unlocked key + plaintext history don't linger in this process.
         scope.launch {
             PanicPinService.locked.collect { isLocked ->
-                if (isLocked && started) tearDownForLock()
+                if (isLocked) {
+                    // Leaving decoy mode on re-lock so the next unlock starts
+                    // clean (a fresh real PIN reveals all accounts again).
+                    AccountManager.exitDecoyMode()
+                    if (started) tearDownForLock()
+                }
             }
         }
     }
@@ -455,6 +460,28 @@ class Session(context: Context) {
         _contacts.value = emptyList(); _pending.value = emptyList(); _messages.value = emptyMap()
         _groups.value = emptyList(); _groupMessages.value = emptyMap(); _stories.value = emptyList()
         activeRandomPeer = null; activeRandomPairId = null; _randomMessages.value = emptyList(); _random.value = RandomState.Idle
+    }
+
+    val hasDecoyPin: Boolean get() = PanicPinService.hasDecoyPin()
+    fun decoyAccountId(): String? = PanicPinService.decoyAccountId()
+
+    /** Add a decoy PIN that unlocks into [decoyAccountId] and hides the other
+     *  accounts. Requires an unlocked real session + ≥2 accounts. */
+    suspend fun setDecoyPin(pin: String, decoyAccountId: String): Boolean = withContext(Dispatchers.IO) {
+        PanicPinService.setDecoyPin(appCtx, pin, decoyAccountId)
+    }
+
+    suspend fun removeDecoyPin(): Boolean = withContext(Dispatchers.IO) { PanicPinService.removeDecoyPin(appCtx) }
+
+    /** After a DECOY submit at the lock screen: switch the active account to the
+     *  decoy + filter the roster down to it, so the real accounts stay hidden.
+     *  The dataKey is already set (the decoy slot carries the real one). */
+    suspend fun applyDecoyUnlock() {
+        val decoyId = PanicPinService.consumeDecoyAccountId() ?: return
+        AccountManager.enterDecoyMode(decoyId)                  // hide the real accounts FIRST
+        if (AccountManager.activeId.value == decoyId) start()   // already active; just bring it up
+        else switchToAccount(decoyId)                           // disconnect + rebind + start
+        PanicPinService.completeUnlock()                        // only now reveal the (decoy) UI
     }
 
     /** Wipe local message history (both 1:1 and group threads) without

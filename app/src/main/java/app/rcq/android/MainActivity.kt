@@ -174,6 +174,7 @@ private fun RcqApp(session: Session) {
             s is UiState.Registered && locked -> app.rcq.android.ui.PinLockScreen(
                 session,
                 onWiped = { resetNav(); state = UiState.Onboarding },
+                onAccountChanged = { newUin -> resetNav(); state = UiState.Registered(newUin) },
             )
             s is UiState.Registered && infoId != null -> GroupInfoScreen(
                 session, infoId,

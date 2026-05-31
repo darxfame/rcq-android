@@ -119,6 +119,12 @@
     <string name="pin_wipe_new">Wipe PIN</string>
     <string name="pin_wipe_desc">Entering this PIN instead of your real one erases all RCQ data on this device and resets the app. There is no confirmation and no undo. Use it if you are forced to unlock.</string>
     <string name="pin_wipe_taken">Pick a different PIN from your real one.</string>
+    <string name="pin_decoy_set">Set decoy PIN</string>
+    <string name="pin_decoy_remove">Remove decoy PIN</string>
+    <string name="pin_decoy_new">Decoy PIN</string>
+    <string name="pin_decoy_needs_two">Add a 2nd account first</string>
+    <string name="pin_decoy_desc">Entering this PIN instead of your real one opens the app showing only the account you pick below. Your other accounts stay hidden until you enter your real PIN.</string>
+    <string name="pin_decoy_pick">Account the decoy PIN shows</string>
     <string name="pin_lock_title">Enter your PIN</string>
     <string name="pin_lock_subtitle">Your messages are locked on this device.</string>
     <string name="pin_unlock">Unlock</string>

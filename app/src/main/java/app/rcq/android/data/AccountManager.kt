@@ -4,9 +4,11 @@ import android.content.Context
 import android.content.SharedPreferences
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import java.util.UUID
 
 /**
@@ -43,6 +45,33 @@ object AccountManager {
 
     private val _activeId = MutableStateFlow<String?>(null)
     val activeId: StateFlow<String?> = _activeId.asStateFlow()
+
+    // Decoy mode (panic-PIN): the id of the decoy account when the decoy PIN
+    // is active, else null. Runtime-only (never persisted — a cold start is
+    // always locked, never pre-decoyed). While set, [visibleAccounts] shows
+    // ONLY the decoy account so the real ones are hidden from the UI.
+    private val _decoyMode = MutableStateFlow<String?>(null)
+    val decoyMode: StateFlow<String?> = _decoyMode.asStateFlow()
+
+    /** The roster as the UI should show it: the full list normally, or just
+     *  the decoy account while decoy mode is active. Account switcher + manage
+     *  screen read THIS, never [accounts], so the real accounts stay hidden. */
+    val visibleAccounts: Flow<List<Account>> =
+        combine(_accounts, _decoyMode) { accts, decoy ->
+            if (decoy != null) accts.filter { it.id == decoy } else accts
+        }
+
+    fun enterDecoyMode(decoyAccountId: String) { _decoyMode.value = decoyAccountId }
+    fun exitDecoyMode() { _decoyMode.value = null }
+    val isDecoyMode: Boolean get() = _decoyMode.value != null
+
+    /** Current filtered snapshot (decoy-aware) — the [collectAsState] initial
+     *  value, so the UI never shows the full roster for even one frame while
+     *  decoy mode is active. */
+    fun visibleNow(): List<Account> {
+        val d = _decoyMode.value
+        return if (d != null) _accounts.value.filter { it.id == d } else _accounts.value
+    }
 
     /** The currently active account, or null on a fresh install before any
      *  onboarding has run. */

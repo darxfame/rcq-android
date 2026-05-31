@@ -39,6 +39,8 @@ import androidx.compose.material.icons.filled.NetworkCheck
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.RadioButtonChecked
+import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Warning
@@ -861,6 +863,14 @@ private fun PinCodesScreen(session: Session, onBack: () -> Unit) {
     var wpin by remember { mutableStateOf("") }
     var wconfirm by remember { mutableStateOf("") }
     var werror by remember { mutableStateOf<String?>(null) }
+    // Decoy PIN (panic-PIN phase 2): a PIN that reveals only a chosen account.
+    val roster by app.rcq.android.data.AccountManager.accounts.collectAsState()
+    var decoyConfigured by remember { mutableStateOf(session.hasDecoyPin) }
+    var decoyEditing by remember { mutableStateOf(false) }
+    var dpin by remember { mutableStateOf("") }
+    var dconfirm by remember { mutableStateOf("") }
+    var derror by remember { mutableStateOf<String?>(null) }
+    var decoyAccount by remember { mutableStateOf<String?>(null) }
 
     fun onlyDigits(s: String) = s.length <= 12 && s.all { it.isDigit() }
 
@@ -947,6 +957,60 @@ private fun PinCodesScreen(session: Session, onBack: () -> Unit) {
                 TextButton(onClick = { wipeEditing = false; werror = null }) {
                     Text(stringResource(R.string.common_cancel), color = c.textSecondary)
                 }
+            } else if (decoyEditing) {
+                Text(stringResource(R.string.pin_decoy_desc), color = c.textSecondary, fontSize = 13.sp)
+                Text(stringResource(R.string.pin_decoy_pick), color = c.textPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                SettingsGroup {
+                    roster.forEachIndexed { i, a ->
+                        if (i > 0) Divider()
+                        val nick = app.rcq.android.data.SecureStore.peekNickname(context, a.id) ?: "—"
+                        val uin = app.rcq.android.data.SecureStore.peekUin(context, a.id)
+                        Row(
+                            Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).clickable { decoyAccount = a.id }.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(
+                                if (decoyAccount == a.id) Icons.Filled.RadioButtonChecked else Icons.Filled.RadioButtonUnchecked,
+                                null, tint = if (decoyAccount == a.id) c.accent else c.textSecondary, modifier = Modifier.size(20.dp),
+                            )
+                            Spacer(Modifier.width(10.dp))
+                            Column { Text(nick, color = c.textPrimary, fontSize = 14.sp); uin?.let { Text("$it", color = c.textSecondary, fontSize = 12.sp) } }
+                        }
+                    }
+                }
+                OutlinedTextField(
+                    value = dpin, onValueChange = { if (onlyDigits(it)) dpin = it },
+                    label = { Text(stringResource(R.string.pin_decoy_new)) },
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                    singleLine = true, modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = dconfirm, onValueChange = { if (onlyDigits(it)) dconfirm = it },
+                    label = { Text(stringResource(R.string.pin_confirm)) },
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                    singleLine = true, modifier = Modifier.fillMaxWidth(),
+                )
+                derror?.let { Text(it, color = Color(0xFFE5484D), fontSize = 13.sp) }
+                CapsuleButton(
+                    label = if (busy) stringResource(R.string.pin_busy) else stringResource(R.string.common_save),
+                    enabled = dpin.length >= 4 && decoyAccount != null && !busy,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    if (dpin != dconfirm) { derror = context.getString(R.string.pin_mismatch); return@CapsuleButton }
+                    val acc = decoyAccount ?: return@CapsuleButton
+                    scope.launch {
+                        busy = true; derror = null
+                        val ok = withContext(Dispatchers.Default) { session.setDecoyPin(dpin, acc) }
+                        busy = false
+                        if (ok) { decoyConfigured = true; decoyEditing = false; dpin = ""; dconfirm = "" }
+                        else derror = context.getString(R.string.pin_wipe_taken)
+                    }
+                }
+                TextButton(onClick = { decoyEditing = false; derror = null }) {
+                    Text(stringResource(R.string.common_cancel), color = c.textSecondary)
+                }
             } else if (!configured) {
                 CapsuleButton(stringResource(R.string.pin_set), modifier = Modifier.fillMaxWidth()) {
                     editing = true; pin = ""; confirm = ""; error = null
@@ -982,7 +1046,24 @@ private fun PinCodesScreen(session: Session, onBack: () -> Unit) {
                         }
                     }
                     Divider()
-                    SettingsRow(Icons.Filled.Lock, stringResource(R.string.pin_decoy_soon)) {}
+                    if (!decoyConfigured) {
+                        if (roster.size >= 2) {
+                            SettingsRow(Icons.Filled.Lock, stringResource(R.string.pin_decoy_set)) {
+                                decoyEditing = true; dpin = ""; dconfirm = ""; derror = null
+                                decoyAccount = roster.firstOrNull()?.id
+                            }
+                        } else {
+                            SettingsRow(Icons.Filled.Lock, stringResource(R.string.pin_decoy_set), value = stringResource(R.string.pin_decoy_needs_two)) {}
+                        }
+                    } else {
+                        SettingsRow(Icons.Filled.Lock, stringResource(R.string.pin_decoy_remove), destructive = true) {
+                            if (!busy) scope.launch {
+                                busy = true
+                                withContext(Dispatchers.Default) { session.removeDecoyPin() }
+                                busy = false; decoyConfigured = false
+                            }
+                        }
+                    }
                 }
             }
             SectionFooter(stringResource(R.string.pin_codes_footer))

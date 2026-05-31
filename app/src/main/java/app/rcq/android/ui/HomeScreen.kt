@@ -191,7 +191,9 @@ internal fun HomeScreen(
     val visibleGroups = groups.filterNot { LocalStores.groupThread(it.id) in archived }
 
     // Local account roster for the switcher (live nick/UIN peeked per account).
-    val accountList by app.rcq.android.data.AccountManager.accounts.collectAsState()
+    // Decoy-aware roster: in decoy mode only the decoy account is visible, so
+    // the account switcher never reveals the hidden real accounts.
+    val accountList by app.rcq.android.data.AccountManager.visibleAccounts.collectAsState(initial = app.rcq.android.data.AccountManager.visibleNow())
     val activeId by app.rcq.android.data.AccountManager.activeId.collectAsState()
     val accountRows = remember(accountList, activeId, session.nickname) {
         accountList.sortedBy { it.createdAt }.map { a ->

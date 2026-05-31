@@ -55,6 +55,9 @@ object PinVault {
         val mode: Int,
         val dataKeyB64: String? = null,
         var layout: Layout? = null,
+        // On a DECOY slot: which local account the decoy PIN reveals (the real
+        // accounts are hidden while it's active).
+        val decoyAccountId: String? = null,
     )
 
     /** Result of a successful unlock: the matched payload + the derived key
