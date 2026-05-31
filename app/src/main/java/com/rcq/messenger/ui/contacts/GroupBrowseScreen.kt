@@ -110,19 +110,22 @@ fun GroupBrowseScreen(
                             tint = TextSecondary
                         )
                         Text(
-                            text = if (searchQuery.isBlank()) "You haven't joined any groups yet"
-                                   else "No groups match \"$searchQuery\"",
+                            text = when {
+                                searchQuery.isBlank() -> "You haven't joined any groups yet"
+                                else -> "No public groups match \"$searchQuery\""
+                            },
                             color = TextSecondary,
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center
                         )
-                        if (searchQuery.isBlank()) {
-                            Text(
-                                text = "Create a new group or ask someone to add you",
-                                color = TextTertiary,
-                                style = MaterialTheme.typography.bodySmall,
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                            )
-                        }
+                        Text(
+                            text = if (searchQuery.isBlank())
+                                "Create a new group or type to search public groups"
+                            else
+                                "Try a different search term",
+                            color = TextTertiary,
+                            style = MaterialTheme.typography.bodySmall,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
                     }
                 }
             } else {

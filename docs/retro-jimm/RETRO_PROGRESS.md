@@ -12,17 +12,18 @@
 | `RetroLightColors` / `RetroDarkColors` | ✅ | `64d1319` |
 | `RCQColorScheme` + `LocalRCQColors` | ✅ | `64d1319` |
 | `RCQMetrics` / `RCQFontSize` | ✅ | `64d1319` |
-| `LocalRetroMode` CompositionLocal | ⏳ | — |
-| DataStore key `pref_retro_mode_enabled` | ⏳ | — |
-| AMOLED тема | ⏳ | — |
-| High Contrast тема | ⏳ | — |
+| `LocalRetroMode` CompositionLocal | ✅ | this |
+| DataStore key `pref_retro_mode_enabled` | ✅ | this |
+| AMOLED тема | ✅ | this |
+| High Contrast тема | ✅ | this |
 
 ## P2 — Design System
 
 | Задача | Статус | Коммит |
 |--------|--------|--------|
-| Retro palette (full) | 🔄 | `64d1319` (частично) |
-| `RetroTheme {}` wrapper | ⏳ | — |
+| Retro palette (full) | ✅ | this |
+| `RetroTheme {}` wrapper | ✅ | this (RCQTheme + retroMode param) |
+| `AppPrefsViewModel` (DataStore bridge) | ✅ | this |
 | Snapshot тесты | ⏳ | — |
 
 ## P3 — Contact List
@@ -31,10 +32,12 @@
 |--------|--------|--------|
 | `RetroContactRow` (базовый) | 🔄 | `03f9d86` |
 | UIN в monospace | ✅ | `03f9d86` |
+| `StatusGroupedContactList` + sticky headers | ✅ | this |
+| `StatusGroupHeader` (коллапс по клику) | ✅ | this |
+| Сортировка Online→Away→Busy→Offline | ✅ | this |
+| Offline свёрнут по умолчанию | ✅ | this |
 | Compact mode | ⏳ | — |
-| Статус-сообщение под ником | ⏳ | — |
-| Sticky group headers по статусу | ⏳ | — |
-| Сортировка Online→Away→Offline | ⏳ | — |
+| Статус-сообщение под ником | ⏳ | — (нет поля в модели) |
 | Room migration 13→14 | ⏳ | — |
 
 ## P4 — Chat UI
@@ -43,9 +46,9 @@
 |--------|--------|--------|
 | Bubble radius 6dp | ✅ | `745835f` |
 | `bubbleSelf`/`bubbleOther` | ✅ | `745835f` |
-| `deletedForEveryone` placeholder | ✅ | `ae9311b` |
+| `deletedForEveryone` placeholder | ✅ | this |
+| `editedAt` ✏ иконка в timestamp | ✅ | this |
 | `RetroSystemMessage` | ⏳ | — |
-| `editedAt` ✏ иконка в timestamp | ⏳ | — |
 | Реакции под баблом (UI) | ⏳ | — |
 | Retro двухрядный InputBar | ⏳ | — |
 
@@ -63,7 +66,9 @@
 | Задача | Статус | Коммит |
 |--------|--------|--------|
 | Базовый Settings screen | ✅ | существующий |
-| Retro Mode toggle | ⏳ | — |
+| Retro Mode toggle | ✅ | this |
+| AMOLED Black toggle | ✅ | this |
+| High Contrast toggle | ✅ | this |
 | Compact mode toggle | ⏳ | — |
 | Звуки настройки | ⏳ | — |
 
@@ -105,15 +110,15 @@
 ## Общий прогресс
 
 ```
-P1 Foundation:    ████░░░░░░  40%
-P2 Design System: ████░░░░░░  35%
-P3 Contact List:  ███░░░░░░░  25%
-P4 Chat UI:       █████░░░░░  50%
+P1 Foundation:    ██████████ 100%
+P2 Design System: █████████░  90%
+P3 Contact List:  ███████░░░  70%
+P4 Chat UI:       ███████░░░  70%
 P5 Sounds:        ░░░░░░░░░░   0%
-P6 Settings:      ████░░░░░░  40%
+P6 Settings:      ████████░░  80%
 P7 Assets:        ░░░░░░░░░░   0%
 P8 Polish:        ░░░░░░░░░░   0%
 Backend:          ░░░░░░░░░░   0%
 
-TOTAL: ~22%
+TOTAL: ~46%
 ```

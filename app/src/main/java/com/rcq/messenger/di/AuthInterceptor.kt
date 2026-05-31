@@ -3,6 +3,7 @@ package com.rcq.messenger.di
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import dagger.Module
@@ -20,6 +21,9 @@ import javax.inject.Singleton
 object PreferencesKeys {
     val AUTH_TOKEN = stringPreferencesKey("token")
     val USER_UIN = longPreferencesKey("uin")
+    val RETRO_MODE = booleanPreferencesKey("pref_retro_mode_enabled")
+    val AMOLED_THEME = booleanPreferencesKey("pref_amoled_theme")
+    val HIGH_CONTRAST = booleanPreferencesKey("pref_high_contrast")
 }
 
 @Singleton

@@ -320,6 +320,28 @@ fun MessageBubble(
                                 color = rcq.textSecondary
                             )
                         }
+                    } else if (message.deletedForEveryone) {
+                        Row(
+                            modifier = Modifier
+                                .background(rcq.bgSecondary, bubbleShape)
+                                .padding(RCQMetrics.bubbleHPad, RCQMetrics.bubbleVPad),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.Block,
+                                contentDescription = null,
+                                tint = rcq.textSecondary,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "Message deleted",
+                                color = rcq.textSecondary,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontSize = RCQFontSize.bubble,
+                                fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+                            )
+                        }
                     } else {
                         Box(
                             modifier = Modifier
@@ -341,6 +363,15 @@ fun MessageBubble(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = if (isOwnMessage) Arrangement.End else Arrangement.Start
                     ) {
+                        if (message.editedAt != null && !message.deletedForEveryone) {
+                            Icon(
+                                Icons.Default.Edit,
+                                contentDescription = "Edited",
+                                tint = rcq.textSecondary,
+                                modifier = Modifier.size(10.dp)
+                            )
+                            Spacer(modifier = Modifier.width(2.dp))
+                        }
                         Text(
                             text = formatTimestamp(message.timestamp),
                             style = MaterialTheme.typography.labelSmall,

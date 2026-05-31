@@ -20,6 +20,8 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
+import com.rcq.messenger.di.PreferencesKeys
+import kotlinx.coroutines.flow.map
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -28,7 +30,9 @@ import com.rcq.messenger.domain.model.User
 import com.rcq.messenger.ui.theme.*
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -54,6 +58,30 @@ class SettingsViewModel @Inject constructor(
     val lastSeenVisible = MutableStateFlow(true)
     val onlineVisible = MutableStateFlow(true)
     val darkTheme = MutableStateFlow(false)
+
+    val retroMode: StateFlow<Boolean> = dataStore.data
+        .map { it[PreferencesKeys.RETRO_MODE] ?: false }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    val amoledTheme: StateFlow<Boolean> = dataStore.data
+        .map { it[PreferencesKeys.AMOLED_THEME] ?: false }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    val highContrast: StateFlow<Boolean> = dataStore.data
+        .map { it[PreferencesKeys.HIGH_CONTRAST] ?: false }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    fun setRetroMode(enabled: Boolean) {
+        viewModelScope.launch { dataStore.edit { it[PreferencesKeys.RETRO_MODE] = enabled } }
+    }
+
+    fun setAmoledTheme(enabled: Boolean) {
+        viewModelScope.launch { dataStore.edit { it[PreferencesKeys.AMOLED_THEME] = enabled } }
+    }
+
+    fun setHighContrast(enabled: Boolean) {
+        viewModelScope.launch { dataStore.edit { it[PreferencesKeys.HIGH_CONTRAST] = enabled } }
+    }
 
     private var currentUser: User? = null
 
@@ -121,6 +149,9 @@ fun SettingsScreen(
     val lastSeenVisible by viewModel.lastSeenVisible.collectAsState()
     val onlineVisible by viewModel.onlineVisible.collectAsState()
     val darkTheme by viewModel.darkTheme.collectAsState()
+    val retroMode by viewModel.retroMode.collectAsState()
+    val amoledTheme by viewModel.amoledTheme.collectAsState()
+    val highContrast by viewModel.highContrast.collectAsState()
 
     LaunchedEffect(Unit) {
         viewModel.loadCurrentUser()
@@ -343,6 +374,27 @@ fun SettingsScreen(
                         title = "Dark theme",
                         checked = darkTheme,
                         onCheckedChange = { viewModel.darkTheme.value = it }
+                    )
+                    SettingsToggleItem(
+                        icon = Icons.Default.History,
+                        title = "JIMM Retro Mode",
+                        subtitle = "ICQ-style contact groups & layout",
+                        checked = retroMode,
+                        onCheckedChange = { viewModel.setRetroMode(it) }
+                    )
+                    SettingsToggleItem(
+                        icon = Icons.Default.BrightnessLow,
+                        title = "AMOLED Black",
+                        subtitle = "Pure black background (OLED screens)",
+                        checked = amoledTheme,
+                        onCheckedChange = { viewModel.setAmoledTheme(it) }
+                    )
+                    SettingsToggleItem(
+                        icon = Icons.Default.Contrast,
+                        title = "High Contrast",
+                        subtitle = "WCAG AAA — maximum readability",
+                        checked = highContrast,
+                        onCheckedChange = { viewModel.setHighContrast(it) }
                     )
                 }
             }

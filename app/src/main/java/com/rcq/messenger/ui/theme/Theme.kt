@@ -62,7 +62,42 @@ private val DarkScheme = RCQColorScheme(
     navBar        = DarkColors.navBar,
 )
 
+private val AmoledScheme = RCQColorScheme(
+    bgPrimary     = AmoledColors.bgPrimary,
+    bgSecondary   = AmoledColors.bgSecondary,
+    bgRowHover    = AmoledColors.bgRowHover,
+    textPrimary   = AmoledColors.textPrimary,
+    textSecondary = AmoledColors.textSecondary,
+    textMono      = AmoledColors.textMono,
+    accent        = AmoledColors.accent,
+    accentPressed = AmoledColors.accentPressed,
+    bubbleSelf    = AmoledColors.bubbleSelf,
+    bubbleOther   = AmoledColors.bubbleOther,
+    divider       = AmoledColors.divider,
+    inputBg       = AmoledColors.inputBg,
+    navBar        = AmoledColors.navBar,
+)
+
+private val HighContrastScheme = RCQColorScheme(
+    bgPrimary     = HighContrastColors.bgPrimary,
+    bgSecondary   = HighContrastColors.bgSecondary,
+    bgRowHover    = HighContrastColors.bgRowHover,
+    textPrimary   = HighContrastColors.textPrimary,
+    textSecondary = HighContrastColors.textSecondary,
+    textMono      = HighContrastColors.textMono,
+    accent        = HighContrastColors.accent,
+    accentPressed = HighContrastColors.accentPressed,
+    bubbleSelf    = HighContrastColors.bubbleSelf,
+    bubbleOther   = HighContrastColors.bubbleOther,
+    divider       = HighContrastColors.divider,
+    inputBg       = HighContrastColors.inputBg,
+    navBar        = HighContrastColors.navBar,
+)
+
 val LocalRCQColors = compositionLocalOf { DarkScheme }
+
+/** True when the user has enabled JIMM retro mode */
+val LocalRetroMode = compositionLocalOf { false }
 
 /** Access current theme colors in any composable: `LocalRCQColors.current.accent` */
 val rcqColors @Composable get() = LocalRCQColors.current
@@ -100,10 +135,19 @@ private fun materialDark(c: RCQColorScheme) = darkColorScheme(
 @Composable
 fun RCQTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
+    amoledTheme: Boolean = false,
+    highContrast: Boolean = false,
+    retroMode: Boolean = false,
     content: @Composable () -> Unit
 ) {
-    val rcq = if (darkTheme) DarkScheme else LightScheme
-    val material = if (darkTheme) materialDark(rcq) else materialLight(rcq)
+    val rcq = when {
+        highContrast -> HighContrastScheme
+        amoledTheme  -> AmoledScheme
+        darkTheme    -> DarkScheme
+        else         -> LightScheme
+    }
+    val isDark = darkTheme || amoledTheme || highContrast
+    val material = if (isDark) materialDark(rcq) else materialLight(rcq)
 
     val view = LocalView.current
     if (!view.isInEditMode) {
@@ -112,11 +156,14 @@ fun RCQTheme(
             window.statusBarColor = rcq.bgPrimary.toArgb()
             window.navigationBarColor = rcq.navBar.toArgb()
             WindowCompat.getInsetsController(window, view)
-                .isAppearanceLightStatusBars = !darkTheme
+                .isAppearanceLightStatusBars = !isDark
         }
     }
 
-    CompositionLocalProvider(LocalRCQColors provides rcq) {
+    CompositionLocalProvider(
+        LocalRCQColors provides rcq,
+        LocalRetroMode provides retroMode,
+    ) {
         MaterialTheme(
             colorScheme = material,
             typography = Typography,

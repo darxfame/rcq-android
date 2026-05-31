@@ -30,7 +30,7 @@ class ProxyManager @Inject constructor(
         private const val PREFS = "rcq_proxy"
         private const val KEY_MANUAL_URL = "manual_proxy_url"
         private const val KEY_BYPASS_MODE = "bypass_mode"
-        // Сколько подряд неудачных соединений → автозапуск sing-box
+        private const val KEY_SINGBOX_WAS_ACTIVE = "singbox_was_active"
         private const val AUTO_THRESHOLD = 3
     }
 
@@ -42,6 +42,17 @@ class ProxyManager @Inject constructor(
 
     private val _statusLabel = MutableStateFlow(computeLabel())
     val statusLabel: StateFlow<String> = _statusLabel
+
+    init {
+        // Restore sing-box if it was active when the process was last killed
+        if (bypassMode == BypassMode.AUTO && prefs.getBoolean(KEY_SINGBOX_WAS_ACTIVE, false)) {
+            scope.launch {
+                Timber.i("ProxyManager: restoring sing-box from last session")
+                singBoxTransport.start()
+                _statusLabel.value = computeLabel()
+            }
+        }
+    }
 
     var bypassMode: BypassMode
         get() = BypassMode.entries.getOrElse(
@@ -91,9 +102,18 @@ class ProxyManager @Inject constructor(
             Timber.i("ProxyManager: failure threshold reached → starting sing-box")
             scope.launch {
                 singBoxTransport.start()
+                prefs.edit().putBoolean(KEY_SINGBOX_WAS_ACTIVE, true).apply()
                 _statusLabel.value = computeLabel()
             }
         }
+    }
+
+    /** Явная остановка sing-box пользователем — сбрасывает персистентный флаг */
+    fun stopSingBox() {
+        singBoxTransport.stop()
+        prefs.edit().putBoolean(KEY_SINGBOX_WAS_ACTIVE, false).apply()
+        failureCount.set(0)
+        _statusLabel.value = computeLabel()
     }
 
     fun stealthStatusLabel(): String = computeLabel()

@@ -47,6 +47,40 @@ val StatusOffline   = Color(0xFF9E9E9E)
 val ColorError      = Color(0xFFEF4444)
 val ColorSuccess    = Color(0xFF4CAF50)
 
+// ── AMOLED palette (pure black — OLED power saving ~15%) ─────────────────────
+object AmoledColors {
+    val bgPrimary       = Color(0xFF000000)
+    val bgSecondary     = Color(0xFF0D0D0D)
+    val bgRowHover      = Color(0xFF1A1A1A)
+    val textPrimary     = Color(0xFFFFFFFF)
+    val textSecondary   = Color(0xFFAAAAAA)
+    val textMono        = Color(0xFFCCCCCC)
+    val accent          = Color(0xFF84C32C)
+    val accentPressed   = Color(0xFF6BB12C)
+    val bubbleSelf      = Color(0xFF1A2633)
+    val bubbleOther     = Color(0xFF111111)
+    val divider         = Color(0xFF1E1E1E)
+    val inputBg         = Color(0xFF111111)
+    val navBar          = Color(0xFF000000)
+}
+
+// ── High Contrast palette (WCAG AAA — 7:1 contrast ratio) ────────────────────
+object HighContrastColors {
+    val bgPrimary       = Color(0xFF000000)
+    val bgSecondary     = Color(0xFF0A0A0A)
+    val bgRowHover      = Color(0xFF1A1A1A)
+    val textPrimary     = Color(0xFFFFFFFF)
+    val textSecondary   = Color(0xFFE0E0E0)
+    val textMono        = Color(0xFFFFFFFF)
+    val accent          = Color(0xFF00E676)
+    val accentPressed   = Color(0xFF00BF60)
+    val bubbleSelf      = Color(0xFF003355)
+    val bubbleOther     = Color(0xFF1A1A1A)
+    val divider         = Color(0xFFFFFFFF)
+    val inputBg         = Color(0xFF0A0A0A)
+    val navBar          = Color(0xFF000000)
+}
+
 // ── Backward-compat aliases (старые имена → новые токены) ─────────────────────
 // Постепенно мигрируем экраны на прямое использование LightColors/DarkColors
 // через LocalRCQColors.current. Эти aliases — временный мост.

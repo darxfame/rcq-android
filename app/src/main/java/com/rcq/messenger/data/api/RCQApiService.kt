@@ -107,6 +107,10 @@ interface RCQApiService {
     @GET("groups")
     suspend fun getGroups(): Response<List<GroupApiResponse>>
 
+    /** Browse public groups the user can join. Server filters by name/description. */
+    @GET("groups/browse")
+    suspend fun browsePublicGroups(@retrofit2.http.Query("q") query: String): Response<List<GroupApiResponse>>
+
     @POST("groups")
     suspend fun createGroup(@Body request: CreateGroupRequest): Response<Group>
 

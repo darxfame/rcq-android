@@ -45,6 +45,17 @@ class GroupRepository @Inject constructor(
         }
     }.onFailure { e -> Log.e(TAG, "syncGroups: exception — ${e.message}", e) }
 
+    /** Search public groups by name/description — server-side, not limited to user's groups */
+    suspend fun searchPublicGroups(query: String): Result<List<Group>> = runCatching {
+        val response = api.browsePublicGroups(query)
+        if (response.isSuccessful) {
+            response.body()?.map { it.toGroupEntity().toDomain() } ?: emptyList()
+        } else {
+            Log.e(TAG, "browsePublicGroups: HTTP ${response.code()} — ${response.errorBody()?.string()}")
+            emptyList()
+        }
+    }.onFailure { e -> Log.e(TAG, "browsePublicGroups: exception — ${e.message}", e) }
+
     suspend fun createGroup(name: String, memberIds: List<Long>): Result<Group> = runCatching {
         api.createGroup(CreateGroupRequest(name = name, memberUins = memberIds)).let { response ->
             if (response.isSuccessful) response.body()!!.also {

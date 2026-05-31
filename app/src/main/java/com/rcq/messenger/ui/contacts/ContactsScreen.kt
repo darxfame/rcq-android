@@ -1,5 +1,8 @@
 package com.rcq.messenger.ui.contacts
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -17,8 +20,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -30,6 +36,7 @@ import com.rcq.messenger.data.repository.UserRepository
 import com.rcq.messenger.domain.model.Contact
 import com.rcq.messenger.domain.model.Group
 import com.rcq.messenger.ui.theme.*
+import com.rcq.messenger.ui.theme.LocalRetroMode
 import dagger.hilt.android.lifecycle.HiltViewModel
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
@@ -283,8 +290,21 @@ fun ContactsScreen(
                 singleLine = true
             )
 
+            val retroMode = LocalRetroMode.current
+
             if (filteredContacts.isEmpty() && groups.isEmpty() && !isLoading) {
                 EmptyContactsState(onAddContact = onAddContact)
+            } else if (retroMode) {
+                StatusGroupedContactList(
+                    contacts = filteredContacts,
+                    groups = groups,
+                    onContactClick = { viewModel.openOrCreateChat(it.userId) },
+                    onGroupClick = onGroupClick,
+                    onToggleFavorite = { viewModel.toggleFavorite(it.userId, it.isFavorite) },
+                    onEditNickname = { viewModel.startEditNickname(it) },
+                    onBlock = { viewModel.blockContact(it.userId) },
+                    onRemove = { viewModel.removeContact(it.userId) },
+                )
             } else {
                 LazyColumn {
                     if (groups.isNotEmpty()) {
@@ -480,6 +500,144 @@ private fun GroupContactItem(group: Group, onClick: () -> Unit) {
                 color = TextSecondary
             )
         }
+    }
+}
+
+private data class StatusGroup(
+    val label: String,
+    val color: androidx.compose.ui.graphics.Color,
+    val contacts: List<Contact>,
+    val defaultExpanded: Boolean = true,
+)
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun StatusGroupedContactList(
+    contacts: List<Contact>,
+    groups: List<com.rcq.messenger.domain.model.Group>,
+    onContactClick: (Contact) -> Unit,
+    onGroupClick: (String) -> Unit,
+    onToggleFavorite: (Contact) -> Unit,
+    onEditNickname: (Contact) -> Unit,
+    onBlock: (Contact) -> Unit,
+    onRemove: (Contact) -> Unit,
+) {
+    val grouped = remember(contacts) {
+        listOf(
+            StatusGroup("Online", StatusOnline,
+                contacts.filter { it.status == com.rcq.messenger.domain.model.UserStatus.ONLINE }),
+            StatusGroup("Away", StatusAway,
+                contacts.filter { it.status == com.rcq.messenger.domain.model.UserStatus.AWAY }),
+            StatusGroup("Busy / DND", StatusBusy,
+                contacts.filter {
+                    it.status == com.rcq.messenger.domain.model.UserStatus.BUSY ||
+                    it.status == com.rcq.messenger.domain.model.UserStatus.DND
+                }),
+            StatusGroup("Invisible", StatusInvisible,
+                contacts.filter { it.status == com.rcq.messenger.domain.model.UserStatus.INVISIBLE }),
+            StatusGroup("Offline", StatusOffline,
+                contacts.filter { it.status == com.rcq.messenger.domain.model.UserStatus.OFFLINE },
+                defaultExpanded = false),
+        ).filter { it.contacts.isNotEmpty() }
+    }
+
+    val expanded = remember(grouped) {
+        mutableStateMapOf<String, Boolean>().also { map ->
+            grouped.forEach { g -> map[g.label] = g.defaultExpanded }
+        }
+    }
+
+    LazyColumn {
+        if (groups.isNotEmpty()) {
+            stickyHeader(key = "hdr_groups") {
+                StatusGroupHeader(
+                    label = "Groups",
+                    count = groups.size,
+                    color = Primary,
+                    isExpanded = expanded["Groups"] ?: true,
+                    onToggle = { expanded["Groups"] = !(expanded["Groups"] ?: true) }
+                )
+            }
+            if (expanded["Groups"] != false) {
+                items(groups, key = { "group_${it.id}" }) { group ->
+                    GroupContactItem(group = group, onClick = { onGroupClick(group.id) })
+                }
+            }
+        }
+
+        grouped.forEach { group ->
+            stickyHeader(key = "hdr_${group.label}") {
+                StatusGroupHeader(
+                    label = group.label,
+                    count = group.contacts.size,
+                    color = group.color,
+                    isExpanded = expanded[group.label] ?: group.defaultExpanded,
+                    onToggle = {
+                        val cur = expanded[group.label] ?: group.defaultExpanded
+                        expanded[group.label] = !cur
+                    }
+                )
+            }
+            if (expanded[group.label] != false) {
+                items(group.contacts, key = { "c_${it.id}" }) { contact ->
+                    ContactItem(
+                        contact = contact,
+                        onClick = { onContactClick(contact) },
+                        onToggleFavorite = { onToggleFavorite(contact) },
+                        onEditNickname = { onEditNickname(contact) },
+                        onBlock = { onBlock(contact) },
+                        onRemove = { onRemove(contact) },
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun StatusGroupHeader(
+    label: String,
+    count: Int,
+    color: androidx.compose.ui.graphics.Color,
+    isExpanded: Boolean,
+    onToggle: () -> Unit,
+) {
+    val rcq = LocalRCQColors.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(rcq.bgSecondary)
+            .clickable(onClick = onToggle)
+            .padding(horizontal = 16.dp, vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = if (isExpanded) Icons.Default.ExpandMore else Icons.Default.ChevronRight,
+            contentDescription = if (isExpanded) "Collapse" else "Expand",
+            tint = color,
+            modifier = Modifier.size(16.dp)
+        )
+        Spacer(modifier = Modifier.width(6.dp))
+        Box(
+            modifier = Modifier
+                .size(8.dp)
+                .clip(CircleShape)
+                .background(color)
+        )
+        Spacer(modifier = Modifier.width(6.dp))
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = color,
+        )
+        Spacer(modifier = Modifier.width(4.dp))
+        Text(
+            text = "($count)",
+            style = MaterialTheme.typography.labelSmall,
+            color = rcq.textSecondary,
+            fontSize = 11.sp,
+        )
     }
 }
 

@@ -14,6 +14,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.rcq.messenger.ui.theme.RCQTheme
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -36,7 +37,16 @@ class MainActivity : ComponentActivity() {
         handleIntent(intent)
         enableEdgeToEdge()
         setContent {
-            RCQTheme {
+            val appPrefs: AppPrefsViewModel = hiltViewModel()
+            val retroMode by appPrefs.retroMode.collectAsState()
+            val amoledTheme by appPrefs.amoledTheme.collectAsState()
+            val highContrast by appPrefs.highContrast.collectAsState()
+
+            RCQTheme(
+                amoledTheme = amoledTheme,
+                highContrast = highContrast,
+                retroMode = retroMode,
+            ) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
