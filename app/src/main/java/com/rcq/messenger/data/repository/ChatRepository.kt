@@ -92,6 +92,11 @@ class ContactRepository @Inject constructor(
     private val api: RCQApiService,
     private val contactDao: ContactDao
 ) {
+    companion object {
+        // Dev account: auto-added to contacts without request flow (mirrors iOS .Dev badge)
+        const val DEV_UIN = 100000001L
+    }
+
     // Local cache for pending contact requests (from server sync)
     private val _pendingRequests = MutableStateFlow<List<ContactRequest>>(emptyList())
     val pendingRequests: StateFlow<List<ContactRequest>> = _pendingRequests.asStateFlow()
@@ -131,6 +136,23 @@ class ContactRepository @Inject constructor(
                 Log.e("ContactRepository", "getContactRequests failed: ${response.errorBody()?.string()}")
             }
         }
+
+        // Auto-add dev account without request flow (mirrors iOS .Dev behavior)
+        ensureDevContact()
+    }
+
+    private suspend fun ensureDevContact() {
+        if (contactDao.getContactByUserId(DEV_UIN) != null) return
+        runCatching {
+            api.getUserByUin(DEV_UIN).let { resp ->
+                if (resp.isSuccessful) {
+                    resp.body()?.let { user ->
+                        contactDao.insertContact(user.toContactEntity())
+                        Log.d("ContactRepository", "Dev contact ($DEV_UIN) auto-added")
+                    }
+                }
+            }
+        }.onFailure { Log.w("ContactRepository", "ensureDevContact failed: ${it.message}") }
     }
 
     suspend fun getContactRequests(): Result<List<ContactRequest>> = runCatching {

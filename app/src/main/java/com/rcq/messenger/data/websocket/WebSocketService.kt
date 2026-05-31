@@ -10,6 +10,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import com.rcq.messenger.di.PreferencesKeys
 import com.rcq.messenger.service.ProxyManager
+import com.rcq.messenger.service.RcqProxySelector
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
@@ -192,6 +193,7 @@ class WebSocketService @Inject constructor(
     private val okHttpClient = OkHttpClient.Builder()
         .readTimeout(0, TimeUnit.MILLISECONDS)
         .pingInterval(PING_INTERVAL_SECONDS, TimeUnit.SECONDS)
+        .proxySelector(RcqProxySelector(proxyManager))
         .build()
 
     // Reconnect immediately when network becomes available

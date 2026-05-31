@@ -15,6 +15,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rcq.messenger.BuildConfig
+import com.rcq.messenger.data.api.RCQApiService
+import com.rcq.messenger.data.websocket.WebSocketService
 import com.rcq.messenger.service.ProxyManager
 import com.rcq.messenger.service.SingBoxTransport
 import com.rcq.messenger.ui.theme.*
@@ -23,6 +25,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
 
 data class DiagLine(val label: String, val value: String, val ok: Boolean)
@@ -30,7 +33,9 @@ data class DiagLine(val label: String, val value: String, val ok: Boolean)
 @HiltViewModel
 class DiagnosticsViewModel @Inject constructor(
     private val singBox: SingBoxTransport,
-    private val proxyManager: ProxyManager
+    private val proxyManager: ProxyManager,
+    private val api: RCQApiService,
+    private val wsService: WebSocketService
 ) : ViewModel() {
 
     val lines = MutableStateFlow<List<DiagLine>>(emptyList())
@@ -41,6 +46,7 @@ class DiagnosticsViewModel @Inject constructor(
             running.value = true
             val out = mutableListOf<DiagLine>()
 
+            // Transport / proxy status
             out += DiagLine(
                 label = "Транспорт",
                 value = "enabled=${singBox.isEnabled}  active=${singBox.isActive}  port=${SingBoxTransport.LOCAL_PORT}",
@@ -50,27 +56,75 @@ class DiagnosticsViewModel @Inject constructor(
                 out += DiagLine("Ошибка транспорта", it, ok = false)
             }
             out += DiagLine("Прокси", proxyManager.stealthStatusLabel(), ok = true)
+
+            // WebSocket connection state
+            val wsState = wsService.connectionState.value
+            out += DiagLine(
+                label = "WebSocket",
+                value = wsState.name.lowercase().replace('_', ' '),
+                ok = wsState.name == "CONNECTED"
+            )
             lines.value = out.toList()
 
-            val t0 = System.currentTimeMillis()
-            val (healthMsg, healthOk) = runCatching {
+            // HTTP health (no auth — direct TCP probe)
+            out += apiTest("GET /health (прямой)") {
                 withContext(Dispatchers.IO) {
                     val conn = java.net.URL("${BuildConfig.API_BASE_URL}health")
                         .openConnection() as java.net.HttpURLConnection
-                    conn.requestMethod = "GET"
-                    conn.connectTimeout = 5_000
-                    conn.readTimeout = 5_000
+                    conn.connectTimeout = 5_000; conn.readTimeout = 5_000
                     val code = conn.responseCode
-                    val ms = System.currentTimeMillis() - t0
-                    if (code in 200..299) "HTTP $code — ${ms}ms" to true
-                    else "HTTP $code — ${ms}ms" to false
+                    conn.disconnect()
+                    code to null
                 }
-            }.getOrElse { e -> "FAIL — ${e.message}" to false }
-            out += DiagLine("GET /health", healthMsg, healthOk)
+            }
+            lines.value = out.toList()
+
+            // Authenticated endpoints via Retrofit (uses proxy + auth interceptor)
+            out += apiTest("GET /users/me") { api.getCurrentUser().code() to null }
+            lines.value = out.toList()
+
+            out += apiTest("GET /contacts") { api.getContacts().code() to null }
+            lines.value = out.toList()
+
+            out += apiTest("GET /contacts/pending") { api.getContactRequests().code() to null }
+            lines.value = out.toList()
+
+            out += apiTest("GET /chats") { api.getChats().code() to null }
+            lines.value = out.toList()
+
+            out += apiTest("GET /messages/queue") { api.getMessageQueue().code() to null }
+            lines.value = out.toList()
+
+            out += apiTest("GET /settings") { api.getSettings().code() to null }
+            lines.value = out.toList()
+
+            out += apiTest("GET /groups") { api.getGroups().code() to null }
+            lines.value = out.toList()
+
+            out += apiTest("GET /stories") { api.getStories().code() to null }
+            lines.value = out.toList()
+
+            out += apiTest("GET /rooms") { api.getAudioRooms().code() to null }
             lines.value = out.toList()
 
             running.value = false
         }
+    }
+
+    private suspend fun apiTest(label: String, block: suspend () -> Pair<Int, Any?>): DiagLine {
+        val t0 = System.currentTimeMillis()
+        val (msg, ok) = withTimeoutOrNull(8_000L) {
+            runCatching {
+                val (code, _) = block()
+                val ms = System.currentTimeMillis() - t0
+                when (code) {
+                    in 200..299 -> "HTTP $code — ${ms}ms" to true
+                    401, 403 -> "HTTP $code (нет авт.) — ${ms}ms" to false
+                    else -> "HTTP $code — ${ms}ms" to false
+                }
+            }.getOrElse { e -> "FAIL — ${e.message?.take(80)}" to false }
+        } ?: ("Таймаут 8s" to false)
+        return DiagLine(label, msg, ok)
     }
 }
 
@@ -134,7 +188,11 @@ fun ConnectionDiagnosticsScreen(
                 }
             }
             if (running) {
-                CircularProgressIndicator(Modifier.padding(top = 8.dp).size(24.dp), color = Primary, strokeWidth = 2.dp)
+                CircularProgressIndicator(
+                    modifier = Modifier.padding(top = 8.dp).size(24.dp),
+                    color = Primary,
+                    strokeWidth = 2.dp
+                )
             }
         }
     }

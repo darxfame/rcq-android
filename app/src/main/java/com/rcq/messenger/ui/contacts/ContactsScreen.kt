@@ -31,6 +31,7 @@ import androidx.lifecycle.viewModelScope
 import com.rcq.messenger.data.db.ContactDao
 import com.rcq.messenger.data.repository.ChatRepository
 import com.rcq.messenger.data.repository.ContactRepository
+import com.rcq.messenger.data.repository.ContactRepository.Companion.DEV_UIN
 import com.rcq.messenger.data.repository.GroupRepository
 import com.rcq.messenger.data.repository.UserRepository
 import com.rcq.messenger.domain.model.Contact
@@ -390,12 +391,22 @@ fun ContactItem(
             Spacer(modifier = Modifier.width(RCQMetrics.rowHPad))
 
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = contact.customNickname ?: contact.nickname,
-                    fontSize = RCQFontSize.nickname,
-                    fontWeight = FontWeight.SemiBold,
-                    color = rcq.textPrimary
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = contact.customNickname ?: contact.nickname,
+                        fontSize = RCQFontSize.nickname,
+                        fontWeight = FontWeight.SemiBold,
+                        color = rcq.textPrimary
+                    )
+                    if (contact.userId == DEV_UIN) {
+                        Text(
+                            text = " (.Dev)",
+                            fontSize = RCQFontSize.monoSmall,
+                            color = rcq.accent,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+                }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text = contact.userId.toString(),
