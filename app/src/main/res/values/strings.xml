@@ -215,6 +215,24 @@
     <string name="pv_network">Network</string>
     <string name="pv_obfuscated">Obfuscated connection</string>
     <string name="pv_obfuscated_desc">Routes the connection through a relay when the network blocks RCQ directly. Improves reliability on restrictive networks. Takes effect on next launch.</string>
+    <!-- Connection diagnostics -->
+    <string name="diag_title">Connection diagnostics</string>
+    <string name="diag_transport">Route</string>
+    <string name="diag_mode_tunnel">Relay (obfuscated)</string>
+    <string name="diag_mode_direct">Direct</string>
+    <string name="diag_backend_direct">Server, direct</string>
+    <string name="diag_backend_route">Server, current route</string>
+    <string name="diag_ws">Real-time channel</string>
+    <string name="diag_relays">Relays</string>
+    <string name="diag_reachable">Reachable</string>
+    <string name="diag_blocked">Blocked</string>
+    <string name="diag_unreachable">Unreachable</string>
+    <string name="diag_connected">Connected</string>
+    <string name="diag_disconnected">Disconnected</string>
+    <string name="diag_relays_remote">%1$d relays · signed v%2$d</string>
+    <string name="diag_relays_bundled">%1$d relays · bundled</string>
+    <string name="diag_run_again">Run again</string>
+    <string name="diag_footer">If the server is blocked directly but reachable on the current route, the relay is doing its job. If both fail, your network is blocking everything we can reach.</string>
     <string name="pv_custom_server">Custom server</string>
     <string name="pv_default">Default</string>
 

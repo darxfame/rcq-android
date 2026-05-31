@@ -77,6 +77,14 @@ object SingBoxTransport {
             .execute().use { it.isSuccessful }
     }.getOrElse { false }
 
+    /** Reach the backend through whatever route is live RIGHT NOW — the tunnel
+     *  if engaged, else direct. Used by the diagnostics screen. Blocking. */
+    fun probeCurrentRoute(host: String): Boolean = runCatching {
+        OkHttpClient.Builder().callTimeout(6, TimeUnit.SECONDS).proxy(proxy() ?: Proxy.NO_PROXY).build()
+            .newCall(Request.Builder().url("https://$host/health").get().build())
+            .execute().use { it.isSuccessful }
+    }.getOrElse { false }
+
     fun setEnabled(ctx: Context, on: Boolean) {
         ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY_ENABLED, on).apply()
     }

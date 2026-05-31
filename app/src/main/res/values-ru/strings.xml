@@ -214,6 +214,24 @@
     <string name="pv_network">Сеть</string>
     <string name="pv_obfuscated">Маскировка соединения</string>
     <string name="pv_obfuscated_desc">Проводит соединение через релей, когда сеть блокирует RCQ напрямую. Повышает стабильность на ограничивающих сетях. Применяется при следующем запуске.</string>
+    <!-- Connection diagnostics -->
+    <string name="diag_title">Диагностика подключения</string>
+    <string name="diag_transport">Маршрут</string>
+    <string name="diag_mode_tunnel">Релей (маскировка)</string>
+    <string name="diag_mode_direct">Прямой</string>
+    <string name="diag_backend_direct">Сервер, напрямую</string>
+    <string name="diag_backend_route">Сервер, текущий маршрут</string>
+    <string name="diag_ws">Канал реального времени</string>
+    <string name="diag_relays">Релеи</string>
+    <string name="diag_reachable">Доступен</string>
+    <string name="diag_blocked">Заблокирован</string>
+    <string name="diag_unreachable">Недоступен</string>
+    <string name="diag_connected">Подключено</string>
+    <string name="diag_disconnected">Отключено</string>
+    <string name="diag_relays_remote">релеев: %1$d, подписанный v%2$d</string>
+    <string name="diag_relays_bundled">релеев: %1$d, встроенные</string>
+    <string name="diag_run_again">Проверить снова</string>
+    <string name="diag_footer">Если сервер недоступен напрямую, но доступен по текущему маршруту, релей работает. Если не проходит ни то, ни другое, сеть блокирует всё, до чего мы можем дотянуться.</string>
     <string name="pv_custom_server">Свой сервер</string>
     <string name="pv_default">По умолчанию</string>
 

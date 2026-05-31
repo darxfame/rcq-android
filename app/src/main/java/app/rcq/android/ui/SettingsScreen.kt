@@ -35,6 +35,7 @@ import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Password
 import androidx.compose.material.icons.filled.Dns
+import androidx.compose.material.icons.filled.NetworkCheck
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.Lock
@@ -43,6 +44,7 @@ import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.outlined.Block
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
@@ -50,6 +52,7 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -81,7 +84,7 @@ import app.rcq.android.net.RcqApi
 import kotlinx.coroutines.launch
 
 /** Sub-screens inside Settings (kept self-contained, no nav graph). */
-private enum class SettingsRoute { ROOT, PROFILE, PRIVACY, NOTIFICATIONS, BLOCKED, CUSTOM_SERVER, SOUNDS, LANGUAGE, PIN_CODES }
+private enum class SettingsRoute { ROOT, PROFILE, PRIVACY, NOTIFICATIONS, BLOCKED, CUSTOM_SERVER, SOUNDS, LANGUAGE, PIN_CODES, DIAGNOSTICS }
 
 @Composable
 internal fun SettingsScreen(session: Session, uin: Int, onBack: () -> Unit, onBurned: (Int?) -> Unit, onMigrated: (Int) -> Unit) {
@@ -98,7 +101,9 @@ internal fun SettingsScreen(session: Session, uin: Int, onBack: () -> Unit, onBu
         SettingsRoute.PRIVACY -> PrivacyScreen(
             session,
             onOpenCustomServer = { route = SettingsRoute.CUSTOM_SERVER },
+            onOpenDiagnostics = { route = SettingsRoute.DIAGNOSTICS },
         ) { route = SettingsRoute.ROOT }
+        SettingsRoute.DIAGNOSTICS -> DiagnosticsScreen(session) { route = SettingsRoute.ROOT }
         SettingsRoute.NOTIFICATIONS -> NotificationsScreen { route = SettingsRoute.ROOT }
         SettingsRoute.SOUNDS -> SoundsScreen { route = SettingsRoute.ROOT }
         SettingsRoute.LANGUAGE -> LanguageScreen { route = SettingsRoute.ROOT }
@@ -403,7 +408,7 @@ internal fun ProfileEditScreen(session: Session, onBack: () -> Unit) {
 // ── Privacy & Network ────────────────────────────────────────────────
 
 @Composable
-private fun PrivacyScreen(session: Session, onOpenCustomServer: () -> Unit, onBack: () -> Unit) {
+private fun PrivacyScreen(session: Session, onOpenCustomServer: () -> Unit, onOpenDiagnostics: () -> Unit, onBack: () -> Unit) {
     val c = RcqTheme.colors
     val scope = rememberCoroutineScope()
     var lastSeen by remember { mutableStateOf("everyone") }
@@ -492,6 +497,11 @@ private fun PrivacyScreen(session: Session, onOpenCustomServer: () -> Unit, onBa
                     value = if (host == RcqApi.DEFAULT_HOST) stringResource(R.string.pv_default) else host,
                     onClick = onOpenCustomServer,
                 )
+                SettingsRow(
+                    Icons.Filled.NetworkCheck,
+                    stringResource(R.string.diag_title),
+                    onClick = onOpenDiagnostics,
+                )
             }
 
             // Obfuscated connection (embedded sing-box). Off by default; takes
@@ -509,6 +519,92 @@ private fun PrivacyScreen(session: Session, onOpenCustomServer: () -> Unit, onBa
             }
         }
     }
+}
+
+/** Connection diagnostics (iOS ConnectionDiagnosticsView parity) — the tool
+ *  for debugging "why won't it connect" on a censored network: shows the live
+ *  route (direct vs tunnel), whether the backend is reachable directly and via
+ *  the current route, the real-time channel state, and which relay list is in
+ *  use. Re-runnable. */
+@Composable
+private fun DiagnosticsScreen(session: Session, onBack: () -> Unit) {
+    val c = RcqTheme.colors
+    val scope = rememberCoroutineScope()
+    val transport = app.rcq.android.net.SingBoxTransport
+    val store = app.rcq.android.net.RelayConfigStore
+    val connected by session.connected.collectAsState()
+
+    var running by remember { mutableStateOf(true) }
+    var directOk by remember { mutableStateOf<Boolean?>(null) }
+    var routeOk by remember { mutableStateOf<Boolean?>(null) }
+
+    fun run() {
+        running = true; directOk = null; routeOk = null
+        scope.launch {
+            val host = session.currentServer
+            directOk = withContext(Dispatchers.IO) { transport.probeDirect(host) }
+            routeOk = withContext(Dispatchers.IO) { transport.probeCurrentRoute(host) }
+            running = false
+        }
+    }
+    LaunchedEffect(Unit) { run() }
+
+    Column(Modifier.fillMaxSize().background(c.bgPrimary)) {
+        SettingsTopBar(stringResource(R.string.diag_title), onBack)
+        Column(Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            SettingsGroup {
+                DiagRow(
+                    stringResource(R.string.diag_transport),
+                    if (transport.isActive) stringResource(R.string.diag_mode_tunnel) else stringResource(R.string.diag_mode_direct),
+                    ok = if (transport.isActive) null else true,
+                )
+                DiagRow(
+                    stringResource(R.string.diag_backend_direct),
+                    statusText(directOk, stringResource(R.string.diag_reachable), stringResource(R.string.diag_blocked)),
+                    ok = directOk,
+                )
+                DiagRow(
+                    stringResource(R.string.diag_backend_route),
+                    statusText(routeOk, stringResource(R.string.diag_reachable), stringResource(R.string.diag_unreachable)),
+                    ok = routeOk,
+                )
+                DiagRow(
+                    stringResource(R.string.diag_ws),
+                    if (connected) stringResource(R.string.diag_connected) else stringResource(R.string.diag_disconnected),
+                    ok = connected,
+                )
+                DiagRow(
+                    stringResource(R.string.diag_relays),
+                    if (store.usingRemote()) stringResource(R.string.diag_relays_remote, store.relayCount(), store.version ?: 0)
+                    else stringResource(R.string.diag_relays_bundled, store.relayCount()),
+                    ok = null,
+                )
+            }
+            SectionFooter(stringResource(R.string.diag_footer))
+            CapsuleButton(stringResource(R.string.diag_run_again), enabled = !running) { run() }
+        }
+    }
+}
+
+/** A label + a status value tinted by [ok] (true=green, false=red, null=neutral). */
+@Composable
+private fun DiagRow(label: String, value: String, ok: Boolean?) {
+    val c = RcqTheme.colors
+    val tint = when (ok) {
+        true -> Color(0xFF4CAF50)
+        false -> Color(0xFFE5484D)
+        null -> c.textSecondary
+    }
+    Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, color = c.textPrimary, fontSize = 14.sp, modifier = Modifier.weight(1f))
+        Text(value, color = tint, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+    }
+}
+
+private fun statusText(ok: Boolean?, yes: String, no: String): String = when (ok) {
+    true -> yes
+    false -> no
+    null -> "…"
 }
 
 @Composable

@@ -42,6 +42,19 @@ object RelayConfigStore {
     @Volatile
     private var cached: List<SingBoxTransport.Relay>? = null
 
+    /** Version of the last verified remote payload (null = never fetched a
+     *  valid one this process; the list in use is then disk/bundled). For the
+     *  diagnostics screen. */
+    @Volatile
+    var version: Int? = null
+        private set
+
+    /** True when [currentRelays] is serving a verified remote list (in memory),
+     *  false when it's the bundled fallback. Diagnostics only. */
+    fun usingRemote(): Boolean = cached != null
+
+    fun relayCount(): Int = currentRelays().size
+
     private val client = OkHttpClient.Builder()
         .connectTimeout(8, TimeUnit.SECONDS)
         .readTimeout(8, TimeUnit.SECONDS)
@@ -106,6 +119,7 @@ object RelayConfigStore {
         val signer = Ed25519Signer().apply { init(false, pub); update(message, 0, message.size) }
         if (!signer.verifySignature(Base64.decode(sigB64, Base64.DEFAULT))) return null
 
+        root.get("version")?.takeIf { !it.isJsonNull }?.let { version = runCatching { it.asInt }.getOrNull() }
         val out = ArrayList<Pair<Int, SingBoxTransport.Relay>>()
         for (el in root.getAsJsonArray("relays")) {
             val o = el.asJsonObject
