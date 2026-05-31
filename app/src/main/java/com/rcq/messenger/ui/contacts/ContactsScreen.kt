@@ -290,9 +290,11 @@ fun ContactsScreen(
                 singleLine = true
             )
 
+            val retroMode = LocalRetroMode.current
+
             if (filteredContacts.isEmpty() && groups.isEmpty() && !isLoading) {
                 EmptyContactsState(onAddContact = onAddContact)
-            } else {
+            } else if (retroMode) {
                 StatusGroupedContactList(
                     contacts = filteredContacts,
                     groups = groups,
@@ -303,6 +305,28 @@ fun ContactsScreen(
                     onBlock = { viewModel.blockContact(it.userId) },
                     onRemove = { viewModel.removeContact(it.userId) },
                 )
+            } else {
+                LazyColumn {
+                    if (groups.isNotEmpty()) {
+                        item(key = "hdr_groups") { SectionHeader(title = "Groups (${groups.size})") }
+                        items(groups, key = { "g_${it.id}" }) { group ->
+                            GroupContactItem(group = group, onClick = { onGroupClick(group.id) })
+                        }
+                    }
+                    if (filteredContacts.isNotEmpty()) {
+                        item(key = "hdr_contacts") { SectionHeader(title = "Contacts (${filteredContacts.size})") }
+                        items(filteredContacts, key = { it.id }) { contact ->
+                            ContactItem(
+                                contact = contact,
+                                onClick = { viewModel.openOrCreateChat(contact.userId) },
+                                onToggleFavorite = { viewModel.toggleFavorite(contact.userId, contact.isFavorite) },
+                                onEditNickname = { viewModel.startEditNickname(contact) },
+                                onBlock = { viewModel.blockContact(contact.userId) },
+                                onRemove = { viewModel.removeContact(contact.userId) }
+                            )
+                        }
+                    }
+                }
             }
         }
     }

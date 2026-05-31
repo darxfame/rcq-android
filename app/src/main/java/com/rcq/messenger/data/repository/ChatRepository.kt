@@ -271,56 +271,68 @@ class ChatRepository @Inject constructor(
                             val decrypted = runCatching { cryptoService.decryptWrapped(rawPayload) }
                                 .onFailure { e -> Log.w("ChatRepository", "decryptWrapped failed: ${e.message}") }
                                 .getOrNull()
-                            if (decrypted == null) {
-                                Log.w("ChatRepository", "WS MessageNew: decrypt null (key mismatch or malformed)")
+
+                            // TOFU — warn but do not drop (avoid losing messages due to key rotation)
+                            if (decrypted?.signerPubKeyB64 != null) {
+                                val stored = contactDao.getContactByUserId(decrypted.senderUin)?.signingKey
+                                if (stored != null && stored != decrypted.signerPubKeyB64) {
+                                    Log.w("ChatRepository", "ECIES signing key mismatch for ${decrypted.senderUin} — delivering anyway")
+                                } else if (stored == null) {
+                                    contactDao.updateSigningKey(decrypted.senderUin, decrypted.signerPubKeyB64)
+                                }
+                            }
+
+                            // Extract sender even when decrypt fails so we can show a placeholder
+                            val senderUin = decrypted?.senderUin
+                                ?: obj["from"]?.jsonPrimitive?.longOrNull
+                                ?: obj["sender_uin"]?.jsonPrimitive?.longOrNull
+                                ?: obj["sender"]?.jsonPrimitive?.longOrNull
+                                ?: 0L
+                            if (senderUin == 0L && decrypted == null) {
+                                Log.w("ChatRepository", "WS MessageNew: cannot identify sender — dropping")
                                 return@onEach
                             }
 
-                            // TOFU / key pinning
-                            if (decrypted.signerPubKeyB64 != null) {
-                                val stored = contactDao.getContactByUserId(decrypted.senderUin)?.signingKey
-                                if (stored != null && stored != decrypted.signerPubKeyB64) {
-                                    Log.e("ChatRepository", "ECIES signing key mismatch for ${decrypted.senderUin} — dropping")
-                                    return@onEach
-                                }
-                                if (stored == null) contactDao.updateSigningKey(decrypted.senderUin, decrypted.signerPubKeyB64)
-                            }
-
-                            val senderId = decrypted.senderUin
-                            if (currentUserUin != 0L && senderId == currentUserUin) return@onEach
+                            // senderUin already derived above (handles decrypt==null case)
+                            if (currentUserUin != 0L && senderUin == currentUserUin) return@onEach
 
                             val chatId = when {
                                 groupId != null -> groupId.toString()
-                                senderId != 0L -> "direct_$senderId"
+                                senderUin != 0L -> "direct_$senderUin"
                                 else -> { Log.w("ChatRepository", "WS MessageNew: cannot determine chatId"); return@onEach }
                             }
 
-                            // server_time is ISO-8601; fall back to now
                             val serverTimeStr = obj["server_time"]?.jsonPrimitive?.contentOrNull
                             val timestamp = serverTimeStr?.let {
                                 runCatching { java.time.Instant.parse(it).toEpochMilli() }.getOrNull()
                             } ?: System.currentTimeMillis()
 
+                            val msgId = decrypted?.messageId
+                                ?: obj["message_id"]?.jsonPrimitive?.contentOrNull
+                                ?: java.util.UUID.randomUUID().toString()
+                            val msgKind = runCatching {
+                                json.decodeFromString<com.rcq.messenger.domain.model.MessageKind>("\"${decrypted?.kind ?: "text"}\"")
+                            }.getOrDefault(com.rcq.messenger.domain.model.MessageKind.TEXT)
+                            val msgContent = decrypted?.content ?: "🔒 Зашифрованное сообщение"
+
                             val msg = com.rcq.messenger.domain.model.Message(
-                                id = decrypted.messageId,
+                                id = msgId,
                                 chatId = chatId,
-                                senderId = senderId,
+                                senderId = senderUin,
                                 isFromMe = false,
-                                kind = runCatching {
-                                    json.decodeFromString<com.rcq.messenger.domain.model.MessageKind>("\"${decrypted.kind}\"")
-                                }.getOrDefault(com.rcq.messenger.domain.model.MessageKind.TEXT),
-                                content = decrypted.content,
+                                kind = msgKind,
+                                content = msgContent,
                                 timestamp = timestamp
                             )
-                            Log.d("ChatRepository", "WS ingest: id=${msg.id} chatId=$chatId kind=${decrypted.kind} sender=$senderId content='${decrypted.content.take(40)}'")
+                            Log.d("ChatRepository", "WS ingest: id=${msg.id} chatId=$chatId kind=${decrypted?.kind} sender=$senderUin decrypted=${decrypted != null}")
                             messageDao.insertMessage(msg.toEntity())
 
                             // Upsert chat row + notification
                             val now = System.currentTimeMillis()
                             val existingChat = chatDao.getChat(chatId)
                             val senderName = existingChat?.targetNickname
-                                ?: contactDao.getContactByUserId(senderId)?.nickname
-                                ?: senderId.toString()
+                                ?: contactDao.getContactByUserId(senderUin)?.nickname
+                                ?: senderUin.toString()
                             notificationHelper.showMessageNotification(
                                 chatId = chatId,
                                 senderName = senderName,
@@ -331,7 +343,7 @@ class ChatRepository @Inject constructor(
                             } else {
                                 chatDao.insertChat(ChatEntity(
                                     id = chatId,
-                                    targetId = senderId,
+                                    targetId = senderUin,
                                     targetNickname = senderName,
                                     targetAvatar = null,
                                     unreadCount = 1,

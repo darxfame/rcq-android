@@ -122,9 +122,9 @@ class ProxyManager @Inject constructor(
         BypassMode.OFF -> "Выключено"
         BypassMode.MANUAL -> manualProxyUrl.ifBlank { "Ручной (не задан)" }
         BypassMode.AUTO -> when {
-            singBoxTransport.isActive -> "Авто (sing-box активен)"
-            failureCount.get() > 0 -> "Авто (${failureCount.get()} ошибок…)"
-            else -> "Авто (прямое подключение)"
+            singBoxTransport.isActive -> "Авто: sing-box активен"
+            failureCount.get() > 0 -> "Авто: ${failureCount.get()} ошибок, подключаю прокси…"
+            else -> "Авто: прямое подключение"
         }
     }
 

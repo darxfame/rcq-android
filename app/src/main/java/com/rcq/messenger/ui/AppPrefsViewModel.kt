@@ -23,6 +23,10 @@ class AppPrefsViewModel @Inject constructor(
         .map { it[PreferencesKeys.RETRO_MODE] ?: false }
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
+    val darkTheme: StateFlow<Boolean> = dataStore.data
+        .map { it[PreferencesKeys.DARK_THEME] ?: true }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
+
     val amoledTheme: StateFlow<Boolean> = dataStore.data
         .map { it[PreferencesKeys.AMOLED_THEME] ?: false }
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
@@ -32,9 +36,11 @@ class AppPrefsViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     fun setRetroMode(enabled: Boolean) {
-        viewModelScope.launch {
-            dataStore.edit { it[PreferencesKeys.RETRO_MODE] = enabled }
-        }
+        viewModelScope.launch { dataStore.edit { it[PreferencesKeys.RETRO_MODE] = enabled } }
+    }
+
+    fun setDarkTheme(enabled: Boolean) {
+        viewModelScope.launch { dataStore.edit { it[PreferencesKeys.DARK_THEME] = enabled } }
     }
 
     fun setAmoledTheme(enabled: Boolean) {

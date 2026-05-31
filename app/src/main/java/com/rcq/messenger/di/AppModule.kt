@@ -56,10 +56,10 @@ object AppModule {
             .addInterceptor(loggingInterceptor)
             .addInterceptor(authInterceptor)
             .proxySelector(RcqProxySelector(proxyManager))
-            .connectTimeout(60, TimeUnit.SECONDS)
-            .readTimeout(60, TimeUnit.SECONDS)
-            .writeTimeout(60, TimeUnit.SECONDS)
-            .retryOnConnectionFailure(true)
+            .connectTimeout(10, TimeUnit.SECONDS)
+            .readTimeout(15, TimeUnit.SECONDS)
+            .writeTimeout(15, TimeUnit.SECONDS)
+            .retryOnConnectionFailure(false)
             .build()
     }
 

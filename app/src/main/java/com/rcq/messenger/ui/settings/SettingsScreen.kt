@@ -57,7 +57,9 @@ class SettingsViewModel @Inject constructor(
     val readReceipts = MutableStateFlow(true)
     val lastSeenVisible = MutableStateFlow(true)
     val onlineVisible = MutableStateFlow(true)
-    val darkTheme = MutableStateFlow(false)
+    val darkTheme: StateFlow<Boolean> = dataStore.data
+        .map { it[PreferencesKeys.DARK_THEME] ?: true }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
 
     val retroMode: StateFlow<Boolean> = dataStore.data
         .map { it[PreferencesKeys.RETRO_MODE] ?: false }
@@ -70,6 +72,10 @@ class SettingsViewModel @Inject constructor(
     val highContrast: StateFlow<Boolean> = dataStore.data
         .map { it[PreferencesKeys.HIGH_CONTRAST] ?: false }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    fun setDarkTheme(enabled: Boolean) {
+        viewModelScope.launch { dataStore.edit { it[PreferencesKeys.DARK_THEME] = enabled } }
+    }
 
     fun setRetroMode(enabled: Boolean) {
         viewModelScope.launch { dataStore.edit { it[PreferencesKeys.RETRO_MODE] = enabled } }
@@ -373,7 +379,7 @@ fun SettingsScreen(
                         icon = Icons.Default.DarkMode,
                         title = "Dark theme",
                         checked = darkTheme,
-                        onCheckedChange = { viewModel.darkTheme.value = it }
+                        onCheckedChange = { viewModel.setDarkTheme(it) }
                     )
                     SettingsToggleItem(
                         icon = Icons.Default.History,

@@ -39,10 +39,12 @@ class MainActivity : ComponentActivity() {
         setContent {
             val appPrefs: AppPrefsViewModel = hiltViewModel()
             val retroMode by appPrefs.retroMode.collectAsState()
+            val darkTheme by appPrefs.darkTheme.collectAsState()
             val amoledTheme by appPrefs.amoledTheme.collectAsState()
             val highContrast by appPrefs.highContrast.collectAsState()
 
             RCQTheme(
+                darkTheme = darkTheme,
                 amoledTheme = amoledTheme,
                 highContrast = highContrast,
                 retroMode = retroMode,

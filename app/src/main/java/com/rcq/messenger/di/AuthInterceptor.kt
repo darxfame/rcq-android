@@ -22,6 +22,7 @@ object PreferencesKeys {
     val AUTH_TOKEN = stringPreferencesKey("token")
     val USER_UIN = longPreferencesKey("uin")
     val RETRO_MODE = booleanPreferencesKey("pref_retro_mode_enabled")
+    val DARK_THEME = booleanPreferencesKey("pref_dark_theme")
     val AMOLED_THEME = booleanPreferencesKey("pref_amoled_theme")
     val HIGH_CONTRAST = booleanPreferencesKey("pref_high_contrast")
 }
