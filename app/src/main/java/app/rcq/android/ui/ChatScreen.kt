@@ -417,14 +417,13 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
                     ) {
-                        listOf("👍", "❤️", "😂", "😮", "😢", "🔥").forEach { e ->
-                            Text(
-                                e, fontSize = 24.sp,
+                        Emoticons.reactions.forEach { asset ->
+                            Box(
                                 modifier = Modifier.clip(CircleShape).clickable {
-                                    scope.launch { runCatching { session.sendReaction(m, e) } }
+                                    scope.launch { runCatching { session.sendReaction(m, asset) } }
                                     actionMsg = null
                                 }.padding(4.dp),
-                            )
+                            ) { EmoticonGif(asset, Modifier.size(32.dp)) }
                         }
                     }
                     MessageAction(stringResource(R.string.chat_reply)) { replyTarget = m; actionMsg = null }
@@ -923,12 +922,7 @@ private fun MessageBubble(session: Session, m: ChatMessage, senderName: String?,
                 horizontalArrangement = Arrangement.spacedBy(3.dp),
                 modifier = Modifier.padding(top = 2.dp, start = 4.dp, end = 4.dp),
             ) {
-                m.reactions.distinct().forEach { emoji ->
-                    Text(
-                        emoji, fontSize = 13.sp,
-                        modifier = Modifier.clip(RoundedCornerShape(10.dp)).background(c.bgSecondary).padding(horizontal = 6.dp, vertical = 2.dp),
-                    )
-                }
+                m.reactions.distinct().forEach { asset -> ReactionChip(asset) }
             }
         }
         Row(
