@@ -492,6 +492,10 @@
     <string name="chat_attach_location">Геопозиция</string>
     <string name="chat_recording">Запись  %1$s</string>
     <string name="chat_send">Отправить</string>
+    <string name="chat_media_preview_title">Отправить медиа</string>
+    <string name="chat_spoiler_off_hint">Нажмите на превью, чтобы скрыть его под спойлером.</string>
+    <string name="chat_spoiler_on_hint">Скрыто. Получатель нажмёт, чтобы открыть.</string>
+    <string name="chat_spoiler_reveal">Нажмите, чтобы открыть</string>
     <string name="chat_record_voice">Записать голос</string>
     <string name="chat_input_hint">Сообщение</string>
     <string name="chat_play_voice">Воспроизвести голос</string>

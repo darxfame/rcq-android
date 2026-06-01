@@ -493,6 +493,10 @@
     <string name="chat_attach_location">Location</string>
     <string name="chat_recording">Recording  %1$s</string>
     <string name="chat_send">Send</string>
+    <string name="chat_media_preview_title">Send media</string>
+    <string name="chat_spoiler_off_hint">Tap the preview to hide it as a spoiler.</string>
+    <string name="chat_spoiler_on_hint">Hidden. The recipient taps to reveal it.</string>
+    <string name="chat_spoiler_reveal">Tap to view</string>
     <string name="chat_record_voice">Record voice</string>
     <string name="chat_input_hint">Message</string>
     <string name="chat_play_voice">Play voice</string>

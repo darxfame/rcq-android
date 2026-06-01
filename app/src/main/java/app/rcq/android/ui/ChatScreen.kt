@@ -58,6 +58,8 @@ import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -79,6 +81,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
@@ -143,6 +146,8 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
     var attachMenu by remember { mutableStateOf(false) }
     var showPollComposer by remember { mutableStateOf(false) }
     var showSearch by remember { mutableStateOf(false) }
+    // A picked photo/video waiting in the pre-send preview (tap to blur).
+    var pendingSend by remember { mutableStateOf<PendingSend?>(null) }
     val listState = rememberLazyListState()
 
     fun authorName(m: ChatMessage): String = when {
@@ -156,9 +161,8 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
             // GIFs ship as RAW bytes (re-compressing to JPEG would kill the
             // animation); everything else downscales to JPEG as before.
             val data = withContext(Dispatchers.IO) { readImageForSend(context, uri) }
-            if (data != null) runCatching {
-                if (isGroup) session.sendGroupPhoto(groupId!!, data, null) else session.sendPhoto(peer!!, data, null)
-            }
+            // Hold it in the pre-send preview so the user can mark it a spoiler.
+            if (data != null) pendingSend = PendingSend.Photo(data)
         }
     }
 
@@ -175,10 +179,7 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
     val videoPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) scope.launch {
             val v = withContext(Dispatchers.IO) { readPickedVideo(context, uri) }
-            if (v != null) runCatching {
-                if (isGroup) session.sendGroupVideo(groupId!!, v.bytes, v.thumbB64, v.durationSec, null)
-                else session.sendVideo(peer!!, v.bytes, v.thumbB64, v.durationSec, null)
-            }
+            if (v != null) pendingSend = PendingSend.Video(v)
         }
     }
 
@@ -492,6 +493,29 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
         )
     }
 
+    // Pre-send preview: tap the media to mark it a spoiler, then Send.
+    pendingSend?.let { ps ->
+        MediaPreviewDialog(
+            pending = ps,
+            onCancel = { pendingSend = null },
+            onSend = { spoiler ->
+                pendingSend = null
+                scope.launch {
+                    runCatching {
+                        when (ps) {
+                            is PendingSend.Photo ->
+                                if (isGroup) session.sendGroupPhoto(groupId!!, ps.bytes, null, spoiler)
+                                else session.sendPhoto(peer!!, ps.bytes, null, spoiler)
+                            is PendingSend.Video ->
+                                if (isGroup) session.sendGroupVideo(groupId!!, ps.v.bytes, ps.v.thumbB64, ps.v.durationSec, null, spoiler)
+                                else session.sendVideo(peer!!, ps.v.bytes, ps.v.thumbB64, ps.v.durationSec, null, spoiler)
+                        }
+                    }
+                }
+            },
+        )
+    }
+
     if (showPollComposer && groupId != null) {
         PollComposerDialog(
             onDismiss = { showPollComposer = false },
@@ -635,6 +659,70 @@ private fun CallHistoryRow(m: ChatMessage) {
     }
 }
 
+/** A picked photo or video waiting in the pre-send preview. */
+private sealed interface PendingSend {
+    data class Photo(val bytes: ByteArray) : PendingSend
+    data class Video(val v: PickedVideo) : PendingSend
+}
+
+/** Pre-send preview for a picked photo/video: tap the thumbnail to toggle a
+ *  spoiler blur, then Send. [onSend] receives the chosen spoiler flag. */
+@Composable
+private fun MediaPreviewDialog(pending: PendingSend, onCancel: () -> Unit, onSend: (Boolean) -> Unit) {
+    val c = RcqTheme.colors
+    var spoiler by remember { mutableStateOf(false) }
+    val isVideo = pending is PendingSend.Video
+    val base = remember(pending) {
+        when (pending) {
+            is PendingSend.Photo -> runCatching { BitmapFactory.decodeByteArray(pending.bytes, 0, pending.bytes.size) }.getOrNull()
+            is PendingSend.Video -> runCatching {
+                val b = android.util.Base64.decode(pending.v.thumbB64, android.util.Base64.NO_WRAP)
+                BitmapFactory.decodeByteArray(b, 0, b.size)
+            }.getOrNull()
+        }
+    }
+    val shown = remember(base, spoiler) {
+        base?.let { (if (spoiler) blurForSpoiler(it) else it).asImageBitmap() }
+    }
+    AlertDialog(
+        onDismissRequest = onCancel,
+        containerColor = c.bgSecondary,
+        title = { Text(stringResource(R.string.chat_media_preview_title), color = c.textPrimary) },
+        text = {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Box(
+                    Modifier
+                        .size(240.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(c.bgPrimary)
+                        .clickable { spoiler = !spoiler },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (shown != null) Image(bitmap = shown, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                    if (isVideo && !spoiler) {
+                        Box(
+                            Modifier.size(48.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.45f)),
+                            contentAlignment = Alignment.Center,
+                        ) { Icon(Icons.Filled.PlayArrow, null, tint = Color.White, modifier = Modifier.size(30.dp)) }
+                    }
+                    Box(
+                        Modifier.align(Alignment.TopEnd).padding(8.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.5f)).padding(6.dp),
+                    ) {
+                        Icon(if (spoiler) Icons.Filled.VisibilityOff else Icons.Filled.Visibility, null, tint = Color.White, modifier = Modifier.size(18.dp))
+                    }
+                }
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    stringResource(if (spoiler) R.string.chat_spoiler_on_hint else R.string.chat_spoiler_off_hint),
+                    color = c.textSecondary, fontSize = 12.sp, textAlign = TextAlign.Center,
+                )
+            }
+        },
+        confirmButton = { TextButton(onClick = { onSend(spoiler) }) { Text(stringResource(R.string.chat_send), color = c.accent) } },
+        dismissButton = { TextButton(onClick = onCancel) { Text(stringResource(R.string.common_cancel), color = c.textSecondary) } },
+    )
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun MessageBubble(session: Session, m: ChatMessage, senderName: String?, onRetry: () -> Unit, onLongPress: () -> Unit) {
@@ -645,7 +733,7 @@ private fun MessageBubble(session: Session, m: ChatMessage, senderName: String?,
             Text(senderName, color = c.accent, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 4.dp, bottom = 1.dp))
         }
         if (m.kind == "photo") {
-            Box(Modifier.combinedClickable(onClick = {}, onLongClick = onLongPress)) { PhotoBubble(session, m) }
+            PhotoBubble(session, m, onLongPress)
             if (m.body.isNotEmpty()) {
                 Text(
                     m.body, color = c.textPrimary, fontSize = 14.sp,
@@ -715,16 +803,34 @@ private fun MessageBubble(session: Session, m: ChatMessage, senderName: String?,
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun PhotoBubble(session: Session, m: ChatMessage) {
+private fun PhotoBubble(session: Session, m: ChatMessage, onLongPress: () -> Unit) {
     val c = RcqTheme.colors
+    var revealed by remember(m.id) { mutableStateOf(false) }
+    val hidden = m.spoiler && !revealed
     val bytes by produceState<ByteArray?>(initialValue = null, m.mediaId) {
         value = if (m.mediaId != null && m.mediaKey != null) session.fetchImage(m.mediaId, m.mediaKey) else null
     }
     val b = bytes
-    Box(Modifier.size(220.dp).clip(RoundedCornerShape(14.dp)).background(c.bgSecondary), contentAlignment = Alignment.Center) {
+    Box(
+        Modifier
+            .size(220.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(c.bgSecondary)
+            .combinedClickable(onClick = { if (hidden) revealed = true }, onLongClick = onLongPress),
+        contentAlignment = Alignment.Center,
+    ) {
         when {
             b == null -> CircularProgressIndicator(color = c.accent, modifier = Modifier.size(22.dp))
+            // Spoiler: render a heavily blurred copy until the viewer taps it.
+            hidden -> {
+                val blurred = remember(b) {
+                    runCatching { BitmapFactory.decodeByteArray(b, 0, b.size)?.let { blurForSpoiler(it).asImageBitmap() } }.getOrNull()
+                }
+                if (blurred != null) Image(bitmap = blurred, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                SpoilerOverlay()
+            }
             // Animated GIF (same "photo" media path iOS uses, gated by magic
             // bytes) — render it animated instead of a frozen first frame.
             b.isGif() && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P ->
@@ -736,6 +842,39 @@ private fun PhotoBubble(session: Session, m: ChatMessage) {
             }
         }
     }
+}
+
+/** Centered "tap to view" chip drawn over a blurred spoiler thumbnail. */
+@Composable
+private fun SpoilerOverlay() {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(5.dp),
+        modifier = Modifier
+            .clip(RoundedCornerShape(20.dp))
+            .background(Color.Black.copy(alpha = 0.5f))
+            .padding(horizontal = 12.dp, vertical = 7.dp),
+    ) {
+        Icon(Icons.Filled.VisibilityOff, null, tint = Color.White, modifier = Modifier.size(16.dp))
+        Text(stringResource(R.string.chat_spoiler_reveal), color = Color.White, fontSize = 12.sp)
+    }
+}
+
+/** Heavy pixelate-blur for a spoiler: downscale to a few px then back up. Used
+ *  instead of Modifier.blur, which is a no-op below API 31 and would otherwise
+ *  leak the original image on older devices (minSdk is 26). */
+private fun blurForSpoiler(src: Bitmap): Bitmap {
+    val w = src.width.coerceAtLeast(1)
+    val h = src.height.coerceAtLeast(1)
+    val scale = 18f / maxOf(w, h).toFloat()
+    val sw = (w * scale).toInt().coerceAtLeast(1)
+    val sh = (h * scale).toInt().coerceAtLeast(1)
+    val small = Bitmap.createScaledBitmap(src, sw, sh, true)
+    // Upscale with filtering for a smooth smear; cap the size so big photos
+    // don't allocate a huge bitmap just to be blurred.
+    val outW = w.coerceAtMost(360)
+    val outH = (outW * h / w).coerceAtLeast(1)
+    return Bitmap.createScaledBitmap(small, outW, outH, true)
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -825,13 +964,18 @@ private fun VideoBubble(session: Session, m: ChatMessage, onLongPress: () -> Uni
     val c = RcqTheme.colors
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val thumb = remember(m.id) {
+    var revealed by remember(m.id) { mutableStateOf(false) }
+    val hidden = m.spoiler && !revealed
+    val thumbBmp = remember(m.id) {
         m.thumbB64?.takeIf { it.isNotEmpty() }?.let {
             runCatching {
                 val b = android.util.Base64.decode(it, android.util.Base64.NO_WRAP)
-                BitmapFactory.decodeByteArray(b, 0, b.size)?.asImageBitmap()
+                BitmapFactory.decodeByteArray(b, 0, b.size)
             }.getOrNull()
         }
+    }
+    val thumb = remember(thumbBmp, hidden) {
+        thumbBmp?.let { (if (hidden) blurForSpoiler(it) else it).asImageBitmap() }
     }
     Box(
         Modifier
@@ -840,6 +984,7 @@ private fun VideoBubble(session: Session, m: ChatMessage, onLongPress: () -> Uni
             .background(c.bgSecondary)
             .combinedClickable(
                 onClick = {
+                    if (hidden) { revealed = true; return@combinedClickable }
                     val mid = m.mediaId; val key = m.mediaKey
                     if (mid != null && key != null) scope.launch {
                         val bytes = session.fetchImage(mid, key)
@@ -853,22 +998,26 @@ private fun VideoBubble(session: Session, m: ChatMessage, onLongPress: () -> Uni
         if (thumb != null) {
             Image(bitmap = thumb, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
         }
-        Box(
-            Modifier.size(48.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.45f)),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(Icons.Filled.PlayArrow, stringResource(R.string.chat_play_video), tint = Color.White, modifier = Modifier.size(30.dp))
-        }
-        (m.durationSec ?: 0).takeIf { it > 0 }?.let {
-            Text(
-                formatDuration(it), color = Color.White, fontSize = 11.sp,
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(6.dp)
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(Color.Black.copy(alpha = 0.5f))
-                    .padding(horizontal = 5.dp, vertical = 1.dp),
-            )
+        if (hidden) {
+            SpoilerOverlay()
+        } else {
+            Box(
+                Modifier.size(48.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.45f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Icons.Filled.PlayArrow, stringResource(R.string.chat_play_video), tint = Color.White, modifier = Modifier.size(30.dp))
+            }
+            (m.durationSec ?: 0).takeIf { it > 0 }?.let {
+                Text(
+                    formatDuration(it), color = Color.White, fontSize = 11.sp,
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(6.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(Color.Black.copy(alpha = 0.5f))
+                        .padding(horizontal = 5.dp, vertical = 1.dp),
+                )
+            }
         }
     }
 }

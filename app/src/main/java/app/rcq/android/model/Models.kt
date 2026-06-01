@@ -87,4 +87,5 @@ data class ChatMessage(
     val thumbB64: String? = null, // kind == "video": base64 JPEG poster frame
     val lat: Double? = null,      // kind == "location"
     val lng: Double? = null,      // kind == "location"
+    val spoiler: Boolean = false, // photo/video sent blurred; tap-to-reveal
 )
