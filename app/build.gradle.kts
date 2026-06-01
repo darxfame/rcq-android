@@ -22,20 +22,7 @@ android {
             useSupportLibrary = true
         }
 
-    }
-
-    flavorDimensions += "env"
-    productFlavors {
-        create("production") {
-            dimension = "env"
-            buildConfigField("String", "API_BASE_URL", "\"https://api.rcq.app/\"")
-        }
-        create("staging") {
-            dimension = "env"
-            applicationIdSuffix = ".staging"
-            versionNameSuffix = "-staging"
-            buildConfigField("String", "API_BASE_URL", "\"https://api.staging.rcq.app/\"")
-        }
+        buildConfigField("String", "API_BASE_URL", "\"https://api.rcq.app/\"")
     }
 
     buildTypes {
