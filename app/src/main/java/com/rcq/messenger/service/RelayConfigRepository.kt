@@ -28,7 +28,7 @@ class RelayConfigRepository @Inject constructor(
         )
         private const val CACHE_FILE = "relay-config.json"
 
-        // Mirrors iOS RelayConfigStore.bundledFallback
+        // Mirrors iOS RelayConfigStore.bundledFallback — все 8 relay из relay-config.json v9
         private val BUNDLED_FALLBACK = listOf(
             RelayEntry(
                 tag = "relay-do-fra-yandex-hy2", proto = "hysteria2",
@@ -44,25 +44,43 @@ class RelayConfigRepository @Inject constructor(
                 short_id = "aa5d483441e59ac7", flow = "xtls-rprx-vision", priority = 1
             ),
             RelayEntry(
+                tag = "relay-oracle-il-hy2", proto = "hysteria2",
+                server = "129.159.143.135", port = 443, sni = "www.microsoft.com",
+                password = "bvuvu74CVsiXdcJazcYphnO5",
+                obfs_password = "PaEHrZABTk36orhfFON7Jure", priority = 2
+            ),
+            RelayEntry(
                 tag = "relay-oracle-il", proto = "vless",
                 server = "129.159.143.135", port = 443, sni = "www.microsoft.com",
                 uuid = "ff005e0c-175e-4475-a166-eeac88f514e2",
                 public_key = "_Hhc-2pjkvR914mddMdmuoOVaT74vWR8Gby7KmJp9F8",
-                short_id = "318567678ac9878e", flow = "xtls-rprx-vision", priority = 2
+                short_id = "318567678ac9878e", flow = "xtls-rprx-vision", priority = 3
+            ),
+            RelayEntry(
+                tag = "relay-gcp-hy2", proto = "hysteria2",
+                server = "35.238.53.96", port = 443, sni = "www.apple.com",
+                password = "QaY3uT8EmfZxfON65jaT5bSu",
+                obfs_password = "fLpJ2c211xjnZcP9VNcNpbZP", priority = 4
             ),
             RelayEntry(
                 tag = "relay-gcp", proto = "vless",
                 server = "35.238.53.96", port = 443, sni = "www.apple.com",
                 uuid = "8e3b35d3-18a6-406d-9ac6-c5558a806663",
                 public_key = "mQZ8CJeMWyf7oYGWJG8oOI52or2kx4yTthl6AGZkSTw",
-                short_id = "b5b8979af1f27aab", flow = "xtls-rprx-vision", priority = 3
+                short_id = "b5b8979af1f27aab", flow = "xtls-rprx-vision", priority = 5
+            ),
+            RelayEntry(
+                tag = "relay-aws-sg-hy2", proto = "hysteria2",
+                server = "47.129.249.170", port = 443, sni = "www.amazon.com",
+                password = "IjO9NlfvuXuP8w4tZNXHZwGL",
+                obfs_password = "yBlwN4J7IMzQi3VCMo0oKZHh", priority = 6
             ),
             RelayEntry(
                 tag = "relay-aws-sg", proto = "vless",
                 server = "47.129.249.170", port = 443, sni = "www.amazon.com",
                 uuid = "2b0a3318-7bfc-4ff2-83ae-2f322cb91ef8",
                 public_key = "xxasGveo2BtMx4doxftb-AJcvIXL-9LpymZcV9tIRxo",
-                short_id = "533142a04b016a00", flow = "xtls-rprx-vision", priority = 4
+                short_id = "533142a04b016a00", flow = "xtls-rprx-vision", priority = 7
             )
         )
     }

@@ -18,6 +18,7 @@ import com.rcq.messenger.BuildConfig
 import com.rcq.messenger.data.api.RCQApiService
 import com.rcq.messenger.data.websocket.WebSocketService
 import com.rcq.messenger.service.ProxyManager
+import com.rcq.messenger.service.RelayConfigRepository
 import com.rcq.messenger.service.SingBoxTransport
 import com.rcq.messenger.ui.theme.*
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -35,11 +36,25 @@ class DiagnosticsViewModel @Inject constructor(
     private val singBox: SingBoxTransport,
     private val proxyManager: ProxyManager,
     private val api: RCQApiService,
-    private val wsService: WebSocketService
+    private val wsService: WebSocketService,
+    private val relayConfigRepo: RelayConfigRepository
 ) : ViewModel() {
 
     val lines = MutableStateFlow<List<DiagLine>>(emptyList())
     val running = MutableStateFlow(false)
+    val bypassActive = MutableStateFlow(singBox.isActive)
+
+    /** Ручное включение/выключение обхода прямо из диагностики */
+    fun toggleBypass() {
+        viewModelScope.launch {
+            if (singBox.isActive) {
+                proxyManager.stopSingBox()
+            } else {
+                proxyManager.forceEnableNow()
+            }
+            bypassActive.value = singBox.isActive
+        }
+    }
 
     fun run() {
         viewModelScope.launch {
@@ -69,6 +84,29 @@ class DiagnosticsViewModel @Inject constructor(
                 ok = wsState.name == "CONNECTED"
             )
             lines.value = out.toList()
+
+            // Relay TCP probes — mirrors iOS SingBoxTransport.probeTCP for visibility
+            // into which relays are reachable from this network without engaging sing-box.
+            val relays = relayConfigRepo.currentRelays()
+            for (r in relays) {
+                val t0 = System.currentTimeMillis()
+                val ok = withContext(Dispatchers.IO) {
+                    runCatching {
+                        java.net.Socket().use {
+                            it.connect(java.net.InetSocketAddress(r.server, r.port), 4_000)
+                            true
+                        }
+                    }.getOrDefault(false)
+                }
+                val ms = System.currentTimeMillis() - t0
+                out += DiagLine(
+                    label = "Relay ${r.tag}",
+                    value = if (ok) "TCP ${r.server}:${r.port} OK — ${ms}ms"
+                            else "TCP ${r.server}:${r.port} НЕ ДОСТУПЕН — ${ms}ms",
+                    ok = ok
+                )
+                lines.value = out.toList()
+            }
 
             // HTTP health (no auth — direct TCP probe)
             out += apiTest("GET /health (прямой)") {
@@ -142,6 +180,7 @@ fun ConnectionDiagnosticsScreen(
 ) {
     val lines by viewModel.lines.collectAsState()
     val running by viewModel.running.collectAsState()
+    val bypassActive by viewModel.bypassActive.collectAsState()
 
     LaunchedEffect(Unit) { viewModel.run() }
 
@@ -155,6 +194,12 @@ fun ConnectionDiagnosticsScreen(
                     }
                 },
                 actions = {
+                    TextButton(onClick = { viewModel.toggleBypass() }) {
+                        Text(
+                            if (bypassActive) "Выкл. обход" else "Вкл. обход",
+                            color = if (bypassActive) Error else Online
+                        )
+                    }
                     TextButton(onClick = { viewModel.run() }, enabled = !running) {
                         Text("Запустить", color = Primary)
                     }
