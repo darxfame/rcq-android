@@ -121,6 +121,14 @@ class Session(context: Context) {
         isAnonymous = { nearby.anonymous.value },
     )
 
+    /** Radio — offline BLE + Wi-Fi-Direct local mesh (text/rooms/PTT voice).
+     *  Fully peer-to-peer (no server); reuses the anonymous Nearby label. */
+    val radio = app.rcq.android.nearby.RadioController(
+        appContext = appCtx,
+        scope = scope,
+        displayName = { if (nearby.anonymous.value) nearby.displayName.value else (store.nickname ?: store.uin?.toString() ?: "Stranger") },
+    )
+
     private val _contacts = MutableStateFlow<List<Contact>>(emptyList())
     val contacts: StateFlow<List<Contact>> = _contacts.asStateFlow()
 
@@ -281,6 +289,7 @@ class Session(context: Context) {
         audioRooms.teardown()
         nearby.teardown()
         hood.teardown()
+        radio.teardown()
         store = SecureStore(appCtx, accountId)
         // db is (re)opened by bindDb() in start(), with the current dataKey.
         if (::db.isInitialized) db.close()
@@ -422,6 +431,7 @@ class Session(context: Context) {
         audioRooms.teardown()
         nearby.teardown()
         hood.teardown()
+        radio.teardown()
         socket.disconnect()
         _connected.value = false
         _messages.value = emptyMap()
@@ -491,6 +501,7 @@ class Session(context: Context) {
         runCatching { audioRooms.teardown() }
         runCatching { nearby.teardown() }
         runCatching { hood.teardown() }
+        runCatching { radio.teardown() }
         runCatching { socket.disconnect() }
         started = false
         everConnected = false

@@ -37,6 +37,7 @@ import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.GraphicEq
+import androidx.compose.material.icons.filled.Sensors
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Flag
@@ -132,6 +133,7 @@ internal fun HomeScreen(
     onOpenAudioRooms: () -> Unit = {},
     onOpenRandom: () -> Unit = {},
     onOpenNearby: () -> Unit = {},
+    onOpenRadio: () -> Unit = {},
     onSwitchAccount: (String) -> Unit = {},
     onAddAccount: (String?) -> Unit = {},
     onManageAccounts: () -> Unit = {},
@@ -233,6 +235,7 @@ internal fun HomeScreen(
                 onOpenNews = onOpenNews,
                 onOpenSaved = onOpenSaved,
                 onOpenAudioRooms = onOpenAudioRooms,
+                onOpenRadio = onOpenRadio,
                 onPostStory = { storyPicker.launch("image/*") },
                 onComingSoon = { comingSoon = it },
                 onSwitchAccount = onSwitchAccount,
@@ -553,6 +556,7 @@ private fun HomeHeader(
     onOpenNews: () -> Unit,
     onOpenSaved: () -> Unit,
     onOpenAudioRooms: () -> Unit,
+    onOpenRadio: () -> Unit,
     onPostStory: () -> Unit,
     onComingSoon: (String) -> Unit,
     onSwitchAccount: (String) -> Unit,
@@ -667,6 +671,11 @@ private fun HomeHeader(
                     text = { Text(stringResource(R.string.home_menu_audio_rooms), color = c.textPrimary) },
                     leadingIcon = { Icon(Icons.Filled.GraphicEq, null, tint = c.accent) },
                     onClick = { overflowMenu = false; onOpenAudioRooms() },
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.home_menu_radio), color = c.textPrimary) },
+                    leadingIcon = { Icon(Icons.Filled.Sensors, null, tint = c.accent) },
+                    onClick = { overflowMenu = false; onOpenRadio() },
                 )
             }
         }

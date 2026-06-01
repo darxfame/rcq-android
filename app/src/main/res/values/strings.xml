@@ -181,6 +181,43 @@
     <string name="call_out_ended">Ended</string>
     <!-- Audio rooms -->
     <string name="home_menu_audio_rooms">Audio rooms</string>
+    <string name="home_menu_radio">Radio</string>
+
+    <!-- Radio (offline BLE + Wi-Fi Direct) -->
+    <string name="radio_title">Radio</string>
+    <string name="radio_on_air">On air as</string>
+    <string name="radio_start">Go on air</string>
+    <string name="radio_stop">Go offline</string>
+    <string name="radio_create_room">Create room</string>
+    <string name="radio_privacy">Finds people nearby over Bluetooth and connects directly over Wi-Fi. No internet, no servers. Works between Android devices only.</string>
+    <string name="radio_searching">Looking for people nearby…</string>
+    <string name="radio_rooms">Rooms</string>
+    <string name="radio_people">People</string>
+    <string name="radio_room">Room</string>
+    <string name="radio_open_room">Open room</string>
+    <string name="radio_locked_room">Password protected</string>
+    <string name="radio_tap_to_chat">Tap to start chatting</string>
+    <string name="radio_connecting">Connecting…</string>
+    <string name="radio_here_count">%1$d here</string>
+    <string name="radio_unencrypted_hint">Encrypted, peer to peer</string>
+    <string name="radio_leave">Leave</string>
+    <string name="radio_talking">%1$s is talking</string>
+    <string name="radio_message_hint">Message</string>
+    <string name="radio_ptt">Hold to talk</string>
+    <string name="radio_send">Send</string>
+    <string name="radio_room_name">Room name</string>
+    <string name="radio_room_password_opt">Password (optional)</string>
+    <string name="radio_room_password">Password</string>
+    <string name="radio_create">Create</string>
+    <string name="radio_join">Join</string>
+    <string name="radio_perm_needed">Bluetooth and Wi-Fi permissions are needed for Radio</string>
+    <string name="radio_mic_needed">Microphone permission is needed to talk</string>
+    <string name="radio_err_ble_off">Turn on Bluetooth to use Radio</string>
+    <string name="radio_err_wrong_password">Wrong password</string>
+    <string name="radio_err_unsupported">This device doesn\'t support Wi-Fi Direct</string>
+    <string name="radio_err_peer_not_found">Couldn\'t reach that peer</string>
+    <string name="radio_err_voice">Couldn\'t start the microphone</string>
+    <string name="radio_err_generic">Radio error</string>
     <string name="rooms_title">Audio rooms</string>
     <string name="rooms_create">Create room</string>
     <string name="rooms_name">Room name</string>

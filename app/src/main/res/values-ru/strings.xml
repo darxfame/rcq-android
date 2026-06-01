@@ -180,6 +180,43 @@
     <string name="call_out_ended">Завершён</string>
     <!-- Audio rooms -->
     <string name="home_menu_audio_rooms">Аудиокомнаты</string>
+    <string name="home_menu_radio">Рация</string>
+
+    <!-- Radio (офлайн BLE + Wi-Fi Direct) -->
+    <string name="radio_title">Рация</string>
+    <string name="radio_on_air">В эфире как</string>
+    <string name="radio_start">Выйти в эфир</string>
+    <string name="radio_stop">Выйти из эфира</string>
+    <string name="radio_create_room">Создать комнату</string>
+    <string name="radio_privacy">Находит людей рядом по Bluetooth и соединяется напрямую по Wi-Fi. Без интернета, без серверов. Работает только между Android-устройствами.</string>
+    <string name="radio_searching">Ищем людей рядом…</string>
+    <string name="radio_rooms">Комнаты</string>
+    <string name="radio_people">Люди</string>
+    <string name="radio_room">Комната</string>
+    <string name="radio_open_room">Открытая комната</string>
+    <string name="radio_locked_room">Под паролем</string>
+    <string name="radio_tap_to_chat">Нажмите, чтобы начать чат</string>
+    <string name="radio_connecting">Соединение…</string>
+    <string name="radio_here_count">В эфире: %1$d</string>
+    <string name="radio_unencrypted_hint">Зашифровано, напрямую</string>
+    <string name="radio_leave">Выйти</string>
+    <string name="radio_talking">%1$s говорит</string>
+    <string name="radio_message_hint">Сообщение</string>
+    <string name="radio_ptt">Удерживайте, чтобы говорить</string>
+    <string name="radio_send">Отправить</string>
+    <string name="radio_room_name">Название комнаты</string>
+    <string name="radio_room_password_opt">Пароль (необязательно)</string>
+    <string name="radio_room_password">Пароль</string>
+    <string name="radio_create">Создать</string>
+    <string name="radio_join">Войти</string>
+    <string name="radio_perm_needed">Для рации нужны разрешения Bluetooth и Wi-Fi</string>
+    <string name="radio_mic_needed">Для разговора нужно разрешение на микрофон</string>
+    <string name="radio_err_ble_off">Включите Bluetooth, чтобы пользоваться рацией</string>
+    <string name="radio_err_wrong_password">Неверный пароль</string>
+    <string name="radio_err_unsupported">Это устройство не поддерживает Wi-Fi Direct</string>
+    <string name="radio_err_peer_not_found">Не удалось связаться с этим собеседником</string>
+    <string name="radio_err_voice">Не удалось включить микрофон</string>
+    <string name="radio_err_generic">Ошибка рации</string>
     <string name="rooms_title">Аудиокомнаты</string>
     <string name="rooms_create">Создать комнату</string>
     <string name="rooms_name">Название комнаты</string>
