@@ -232,7 +232,7 @@ class Session(context: Context) {
      *  creating the local account slot or tearing down the current session,
      *  so an unreachable host / typo throws here with the current account
      *  left completely intact. Throws at the roster cap. */
-    suspend fun registerNewAccount(nickname: String, serverInput: String? = null): Int {
+    suspend fun registerNewAccount(nickname: String, serverInput: String? = null, invite: String? = null): Int {
         if (AccountManager.isAtLimit) throw IllegalStateException("Account limit reached")
         val host = normalizeHost(serverInput)
         val regApi = RcqApi("https://${host ?: RcqApi.DEFAULT_HOST}")
@@ -242,6 +242,7 @@ class Session(context: Context) {
                 nickname = nickname,
                 identity_key = Base64.encodeToString(identity.identityPublic, Base64.NO_WRAP),
                 signing_key = Base64.encodeToString(identity.signingPublic, Base64.NO_WRAP),
+                invite = invite?.takeIf { it.isNotBlank() },
             )
         )
         // Server identity is live. Commit locally: create the account slot,

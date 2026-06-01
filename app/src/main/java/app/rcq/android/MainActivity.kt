@@ -57,6 +57,21 @@ import androidx.compose.ui.platform.LocalContext
 import android.widget.Toast
 import kotlinx.coroutines.launch
 
+/** A pending server-join from a scanned/opened `rcq://server/<host>?invite=<code>`
+ *  deep link. The Activity parses incoming intents into this; RcqApp observes it
+ *  and shows a confirm dialog. (Scanning the QR with any camera fires the VIEW
+ *  intent for the custom scheme — no in-app scanner needed.) */
+object ServerJoinLink {
+    data class Req(val host: String, val invite: String?)
+    val pending = kotlinx.coroutines.flow.MutableStateFlow<Req?>(null)
+
+    fun fromUri(uri: android.net.Uri?): Req? {
+        if (uri == null || uri.scheme != "rcq" || uri.host != "server") return null
+        val host = uri.lastPathSegment?.takeIf { it.isNotBlank() } ?: return null
+        return Req(host, uri.getQueryParameter("invite"))
+    }
+}
+
 // FragmentActivity (not the bare ComponentActivity) so BiometricPrompt can host
 // its dialog for the panic-PIN biometric unlock. FragmentActivity is itself a
 // ComponentActivity, so setContent / enableEdgeToEdge still apply.
@@ -66,8 +81,15 @@ class MainActivity : androidx.fragment.app.FragmentActivity() {
         super.attachBaseContext(app.rcq.android.data.LanguageManager.wrap(newBase))
     }
 
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        ServerJoinLink.fromUri(intent.data)?.let { ServerJoinLink.pending.value = it }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        ServerJoinLink.fromUri(intent?.data)?.let { ServerJoinLink.pending.value = it }
         enableEdgeToEdge()
         app.rcq.android.data.LanguageManager.init(applicationContext)
         LocalStores.init(applicationContext)
@@ -136,11 +158,11 @@ private fun RcqApp(session: Session) {
         showSettings = false; showProfile = false; showManageAccounts = false; showNews = false; showRandom = false; showAudioRooms = false; showNearby = false
     }
 
-    fun register(server: String? = null) {
+    fun register(server: String? = null, invite: String? = null) {
         state = UiState.Registering
         scope.launch {
             state = try {
-                UiState.Registered(session.registerNewAccount("user-${(1000..9999).random()}", server))
+                UiState.Registered(session.registerNewAccount("user-${(1000..9999).random()}", server, invite))
             } catch (e: Exception) {
                 UiState.Failed(e.message ?: "Registration failed")
             }
@@ -150,13 +172,13 @@ private fun RcqApp(session: Session) {
     // Add a further account from the switcher. Register-first means a
     // failure leaves the current account intact, so we surface a toast and
     // stay put rather than dropping to the full-screen Failed state.
-    fun addAccount(server: String? = null) {
+    fun addAccount(server: String? = null, invite: String? = null) {
         val current = (state as? UiState.Registered)?.uin
         resetNav()
         state = UiState.Registering
         scope.launch {
             state = try {
-                UiState.Registered(session.registerNewAccount("user-${(1000..9999).random()}", server))
+                UiState.Registered(session.registerNewAccount("user-${(1000..9999).random()}", server, invite))
             } catch (e: Exception) {
                 Toast.makeText(context, e.message ?: "Couldn't add account", Toast.LENGTH_LONG).show()
                 current?.let { UiState.Registered(it) } ?: UiState.Onboarding
@@ -277,7 +299,40 @@ private fun RcqApp(session: Session) {
                 onDismiss = { update = null },
             )
         }
+
+        // Server-join from a scanned rcq://server/<host>?invite=<code> deep link:
+        // confirm, then register a fresh account on that host with the invite.
+        val joinReq by ServerJoinLink.pending.collectAsState()
+        joinReq?.let { req ->
+            if (!locked) ServerJoinDialog(
+                host = req.host,
+                hasInvite = !req.invite.isNullOrBlank(),
+                onConfirm = {
+                    ServerJoinLink.pending.value = null
+                    if (s is UiState.Onboarding) register(req.host, req.invite) else addAccount(req.host, req.invite)
+                },
+                onDismiss = { ServerJoinLink.pending.value = null },
+            )
+        }
     }
+}
+
+@Composable
+private fun ServerJoinDialog(host: String, hasInvite: Boolean, onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    val c = RcqTheme.colors
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = c.bgSecondary,
+        title = { Text(stringResource(R.string.join_server_title), color = c.textPrimary) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(stringResource(R.string.join_server_body, host), color = c.textSecondary, fontSize = 14.sp)
+                if (hasInvite) Text(stringResource(R.string.join_server_invite), color = c.accent, fontSize = 12.sp)
+            }
+        },
+        confirmButton = { TextButton(onClick = onConfirm) { Text(stringResource(R.string.join_server_join), color = c.accent) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel), color = c.textSecondary) } },
+    )
 }
 
 @Composable

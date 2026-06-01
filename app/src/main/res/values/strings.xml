@@ -93,6 +93,10 @@
     <string name="update_now">Update</string>
     <string name="update_later">Later</string>
     <string name="update_downloading">Downloading…</string>
+    <string name="join_server_title">Join server</string>
+    <string name="join_server_body">Create a new account on %1$s?</string>
+    <string name="join_server_invite">Using an invite link</string>
+    <string name="join_server_join">Join</string>
     <string name="common_close">Close</string>
     <string name="common_done">Done</string>
     <string name="common_save">Save</string>

@@ -29,6 +29,14 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- Server-join deep link: scanning an rcq://server/<host>?invite=<code>
+                 QR with any camera opens the app straight into the join confirm. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="rcq" android:host="server" />
+            </intent-filter>
         </activity>
 
         <provider

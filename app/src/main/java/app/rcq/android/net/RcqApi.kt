@@ -58,6 +58,9 @@ class RcqApi(private val baseUrl: String = DEFAULT_BASE_URL) {
         val identity_key: String,
         val signing_key: String,
         val inviter_uin: Int? = null,
+        // Server-join invite token, required only when the target server runs
+        // REGISTRATION_POLICY=invite. Gson omits it when null (open servers).
+        val invite: String? = null,
     )
 
     data class RegisterResponse(val uin: Int, val token: String)
