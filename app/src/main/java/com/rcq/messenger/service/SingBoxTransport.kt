@@ -121,45 +121,32 @@ class SingBoxTransport @Inject constructor(
 
     /**
      * Запускает нативное ядро через reflection — без статической зависимости от libbox,
-     * чтобы модуль компилировался и без .aar. Зеркалит iOS (service.start(configJSON)).
+     * чтобы модуль компилировался и без .aar.
      *
-     * Пробуем два варианта API libbox:
-     *  1) iOS-style: `BoxService(config).start()` или `BoxService().start(config)` (конструктор).
-     *  2) SagerNet-style: `Libbox.newService(config, platform).start()` с no-op PlatformInterface.
-     * Возвращает живой объект BoxService (для последующего .close()/.stop()).
+     * Реальное API libbox.aar (проверено `javap` против classes.jar):
+     *   - `BoxService()` — пустой конструктор (НЕ принимает config!)
+     *   - `Libbox.newService(String config, PlatformInterface platform)` → возвращает BoxService
+     *   - `boxService.start()` — без аргументов
+     *
+     * Конструктор `BoxService(String)` НЕ существует — раньше мы пытались его дёрнуть и
+     * молча падали в catch. Единственный рабочий путь — `Libbox.newService(config, platform)`,
+     * причём `PlatformInterface` требует не-null возврат для систем-сертификатов и
+     * сетевых интерфейсов, иначе ядро падает в Go-коде ещё до start().
      */
     private fun startNativeEngine(config: String): Any {
-        val boxServiceClass = Class.forName("io.nekohasekai.libbox.BoxService")
-
-        // Вариант 1: конструктор BoxService(String) + start()
-        runCatching {
-            val ctor = boxServiceClass.getConstructor(String::class.java)
-            val svc = ctor.newInstance(config)
-            boxServiceClass.getMethod("start").invoke(svc)
-            Timber.d("$TAG: engine via BoxService(config).start()")
-            return svc
-        }
-        // Вариант 1b: пустой конструктор + start(String)
-        runCatching {
-            val svc = boxServiceClass.getDeclaredConstructor().newInstance()
-            boxServiceClass.getMethod("start", String::class.java).invoke(svc, config)
-            Timber.d("$TAG: engine via BoxService().start(config)")
-            return svc
-        }
-        // Вариант 2: Libbox.newService(config, PlatformInterface) + start()
         val libboxClass = Class.forName("io.nekohasekai.libbox.Libbox")
         val platformIface = Class.forName("io.nekohasekai.libbox.PlatformInterface")
         val platformStub = java.lang.reflect.Proxy.newProxyInstance(
             platformIface.classLoader,
             arrayOf(platformIface),
-            NoopPlatformHandler
+            EmptyPlatformHandler
         )
         val svc = libboxClass
             .getMethod("newService", String::class.java, platformIface)
             .invoke(null, config, platformStub)
             ?: error("Libbox.newService вернул null")
         svc.javaClass.getMethod("start").invoke(svc)
-        Timber.d("$TAG: engine via Libbox.newService(config, stub).start()")
+        Timber.d("$TAG: engine started via Libbox.newService(config, EmptyPlatformHandler)")
         return svc
     }
 
@@ -252,20 +239,75 @@ class SingBoxTransport @Inject constructor(
 }
 
 /**
- * No-op реализация libbox PlatformInterface через reflection-прокси.
- * В режиме mixed/SOCKS5 (без tun-inbound) ядро sing-box не вызывает методы
- * туннелирования, поэтому безопасно вернуть нейтральные значения по типу возврата.
- * Используется только когда .aar требует Libbox.newService(config, platform).
+ * Полноценная реализация PlatformInterface через reflection-прокси.
+ * В режиме mixed/SOCKS5 (без tun-inbound) ядро sing-box не вызывает TUN-методы,
+ * но ТРЕБУЕТ не-null возврат для systemCertificates(), getInterfaces(), readWIFIState(),
+ * localDNSTransport(). Без этого Go-код паникует ещё до start().
+ *
+ * Для каждого метода возвращаем минимально-валидный объект:
+ * - StringIterator / NetworkInterfaceIterator → прокси с hasNext()=false
+ * - LocalDNSTransport → прокси с raw()=false, exchange/lookup = no-op
+ * - WIFIState → new WIFIState("", "") через reflection
+ * - int → 0 (openTun, findConnectionOwner, uidByPackageName)
+ * - boolean → false
+ * - String → ""
+ * - void → null
  */
-private object NoopPlatformHandler : java.lang.reflect.InvocationHandler {
+private object EmptyPlatformHandler : java.lang.reflect.InvocationHandler {
     override fun invoke(proxy: Any?, method: java.lang.reflect.Method, args: Array<out Any?>?): Any? {
-        return when (method.returnType) {
+        val name = method.name
+        val ret = method.returnType
+
+        // Методы, возвращающие итераторы — создаём пустой прокси
+        if (name == "systemCertificates" || name == "getInterfaces") {
+            return emptyIteratorProxy(ret)
+        }
+        // localDNSTransport — прокси с raw()=false
+        if (name == "localDNSTransport") {
+            return java.lang.reflect.Proxy.newProxyInstance(
+                ret.classLoader, arrayOf(ret)
+            ) { _, m, _ ->
+                when (m.returnType) {
+                    Boolean::class.javaPrimitiveType -> false
+                    else -> null
+                }
+            }
+        }
+        // readWIFIState — new WIFIState("", "")
+        if (name == "readWIFIState") {
+            return runCatching {
+                ret.getConstructor(String::class.java, String::class.java)
+                    .newInstance("", "")
+            }.getOrNull()
+        }
+        // writeLog — просто логируем
+        if (name == "writeLog") {
+            val msg = args?.firstOrNull() as? String
+            if (msg != null) Timber.d("libbox: $msg")
+            return null
+        }
+
+        // Дефолты по типу возврата
+        return when (ret) {
             Boolean::class.javaPrimitiveType -> false
             Int::class.javaPrimitiveType -> 0
             Long::class.javaPrimitiveType -> 0L
             java.lang.String::class.java -> ""
             Void.TYPE -> null
             else -> null
+        }
+    }
+
+    private fun emptyIteratorProxy(iface: Class<*>): Any {
+        return java.lang.reflect.Proxy.newProxyInstance(
+            iface.classLoader, arrayOf(iface)
+        ) { _, m, _ ->
+            when (m.name) {
+                "hasNext" -> false
+                "len" -> 0
+                "next" -> null
+                else -> null
+            }
         }
     }
 }
