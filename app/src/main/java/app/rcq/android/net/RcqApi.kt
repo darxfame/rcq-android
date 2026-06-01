@@ -505,6 +505,19 @@ class RcqApi(private val baseUrl: String = DEFAULT_BASE_URL) {
         get("/users/$uin/info", authed = true, MeProfile::class.java)
     }
 
+    /** Short-lived TURN credentials for WebRTC calls (TURN REST API pattern).
+     *  Empty `urls` means TURN isn't configured server-side → STUN-only. */
+    data class TurnCreds(
+        val urls: List<String> = emptyList(),
+        val username: String = "",
+        val credential: String = "",
+        val ttl: Int = 0,
+    )
+
+    suspend fun turnCredentials(): TurnCreds = withContext(Dispatchers.IO) {
+        get("/users/me/turn-credentials", authed = true, TurnCreds::class.java)
+    }
+
     /** Partial profile/privacy update (PUT /me). Gson omits null fields,
      *  so only what the caller sets is changed. */
     data class UpdateMeBody(

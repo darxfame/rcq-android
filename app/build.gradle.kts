@@ -124,6 +124,10 @@ dependencies {
     implementation(libs.androidx.biometric)
     implementation(libs.androidx.fragment)
 
+    // WebRTC (libwebrtc, org.webrtc.*) for 1:1 audio/video calls — same engine
+    // the iOS client uses, signalling rides the existing WS dumb-relay.
+    implementation(libs.stream.webrtc.android)
+
     debugImplementation(libs.androidx.compose.ui.tooling)
 
     testImplementation(libs.junit)

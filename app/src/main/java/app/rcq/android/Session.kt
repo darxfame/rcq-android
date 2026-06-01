@@ -84,6 +84,19 @@ class Session(context: Context) {
     private val gson = com.google.gson.Gson()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
+    /** 1:1 audio/video calls. Signalling rides the WS (call_* events routed
+     *  in [handleEvent]); reads store/socket/api lazily so it follows account
+     *  switches. */
+    val calls = app.rcq.android.call.CallController(
+        appContext = appCtx,
+        scope = scope,
+        ownUin = { store.uin },
+        send = { obj -> socket.send(obj.toString()) },
+        turn = { api.turnCredentials() },
+        nameFor = { contactName(it) },
+        appendHistory = { peer, fromMe, text -> logCallHistory(peer, fromMe, text) },
+    )
+
     private val _contacts = MutableStateFlow<List<Contact>>(emptyList())
     val contacts: StateFlow<List<Contact>> = _contacts.asStateFlow()
 
@@ -239,6 +252,7 @@ class Session(context: Context) {
     /** Tear the in-memory session state down and re-point every per-account
      *  store at [accountId]; [start] then loads its history + connects. */
     private fun rebindTo(accountId: String) {
+        calls.teardown()   // drop any in-flight call before the identity swaps
         store = SecureStore(appCtx, accountId)
         // db is (re)opened by bindDb() in start(), with the current dataKey.
         if (::db.isInitialized) db.close()
@@ -376,6 +390,7 @@ class Session(context: Context) {
      *  leave this process's memory. [start] reopens everything after unlock.
      *  Driven by the [PanicPinService.locked] flow (observed in init). */
     private fun tearDownForLock() {
+        calls.teardown()
         socket.disconnect()
         _connected.value = false
         _messages.value = emptyMap()
@@ -441,6 +456,7 @@ class Session(context: Context) {
      *  server-side accounts survive (recoverable later from another device if
      *  the keys were backed up); this is about the seized device. */
     suspend fun wipeEverything() = withContext(Dispatchers.IO) {
+        runCatching { calls.teardown() }
         runCatching { socket.disconnect() }
         started = false
         everConnected = false
@@ -1568,6 +1584,24 @@ class Session(context: Context) {
     fun contactName(uin: Int): String =
         _contacts.value.firstOrNull { it.uin == uin }?.nickname ?: "#$uin"
 
+    /** Append a call-summary line to the 1:1 thread (kind="call"), so a
+     *  finished/missed call shows in the chat history. Called by
+     *  [CallController] on every call end. */
+    private fun logCallHistory(peerUin: Int, fromMe: Boolean, text: String) {
+        if (!::db.isInitialized) return
+        store(
+            ChatMessage(
+                id = java.util.UUID.randomUUID().toString(),
+                peerUin = peerUin,
+                fromMe = fromMe,
+                body = text,
+                sentAt = System.currentTimeMillis(),
+                state = DeliveryState.DELIVERED,
+                kind = "call",
+            ),
+        )
+    }
+
     fun contact(uin: Int): Contact? = _contacts.value.firstOrNull { it.uin == uin }
 
     /** Parse a server ISO-8601 timestamp (with or without timezone) to
@@ -1618,6 +1652,9 @@ class Session(context: Context) {
                     _typingFrom.value = null
                 }
             }
+            "call_offer", "call_answer", "call_ice", "call_end",
+            "call_renegotiate", "call_renegotiate_answer", "call_renegotiate_decline" ->
+                calls.onSignal(type, obj)
             "presence" -> scope.launch { runCatching { refreshContacts() } }
             "story_posted", "story_deleted" -> scope.launch { runCatching { refreshStories() } }
             "random_match" -> {

@@ -54,7 +54,9 @@ import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PushPin
+import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -197,6 +199,27 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
         if (ok) doShareLocation() else locPermission.launch(Manifest.permission.ACCESS_FINE_LOCATION)
     }
 
+    // ── calls ─────────────────────────────────────────────────────────
+    var pendingCallMedia by remember { mutableStateOf<app.rcq.android.call.CallController.Media?>(null) }
+    val callPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { _ ->
+        val media = pendingCallMedia ?: return@rememberLauncherForActivityResult
+        pendingCallMedia = null
+        val audioOk = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+        val camOk = media != app.rcq.android.call.CallController.Media.VIDEO ||
+            ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+        if (audioOk && camOk) peer?.let { session.calls.start(it, media) }
+        else android.widget.Toast.makeText(context, context.getString(R.string.call_perm_needed), android.widget.Toast.LENGTH_LONG).show()
+    }
+    fun placeCall(media: app.rcq.android.call.CallController.Media) {
+        val p = peer ?: return
+        val needed = if (media == app.rcq.android.call.CallController.Media.VIDEO)
+            arrayOf(Manifest.permission.RECORD_AUDIO, Manifest.permission.CAMERA)
+        else arrayOf(Manifest.permission.RECORD_AUDIO)
+        val missing = needed.filter { ContextCompat.checkSelfPermission(context, it) != PackageManager.PERMISSION_GRANTED }
+        if (missing.isEmpty()) session.calls.start(p, media)
+        else { pendingCallMedia = media; callPermission.launch(missing.toTypedArray()) }
+    }
+
     // ── voice recording ──────────────────────────────────────────────
     val recorder = remember { VoiceRecorder(context.cacheDir) }
     var recording by remember { mutableStateOf(false) }
@@ -284,6 +307,20 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
                 }
                 Text(sub, color = if (isTyping) c.accent else c.textSecondary, fontSize = 12.sp)
             }
+            // 1:1 call buttons (own clicks consume the tap so the header's
+            // open-info click doesn't also fire).
+            if (!isGroup && !isSelf && peer != null) {
+                Icon(
+                    Icons.Filled.Call, stringResource(R.string.call_voice_cd), tint = c.accent,
+                    modifier = Modifier.size(24.dp).clip(CircleShape).clickable { placeCall(app.rcq.android.call.CallController.Media.AUDIO) },
+                )
+                Spacer(Modifier.width(16.dp))
+                Icon(
+                    Icons.Filled.Videocam, stringResource(R.string.call_video_cd), tint = c.accent,
+                    modifier = Modifier.size(24.dp).clip(CircleShape).clickable { placeCall(app.rcq.android.call.CallController.Media.VIDEO) },
+                )
+                Spacer(Modifier.width(16.dp))
+            }
             // Search within this thread (own click consumes the tap so the
             // header's open-info click doesn't also fire).
             Icon(
@@ -302,12 +339,16 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
 
         LazyColumn(state = listState, modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             items(messages, key = { it.id }) { m ->
-                MessageBubble(
-                    session, m,
-                    senderName = if (isGroup && !m.fromMe) authorName(m) else null,
-                    onRetry = { scope.launch { runCatching { session.resend(m) } } },
-                    onLongPress = { actionMsg = m },
-                )
+                if (m.kind == "call") {
+                    CallHistoryRow(m)
+                } else {
+                    MessageBubble(
+                        session, m,
+                        senderName = if (isGroup && !m.fromMe) authorName(m) else null,
+                        onRetry = { scope.launch { runCatching { session.resend(m) } } },
+                        onLongPress = { actionMsg = m },
+                    )
+                }
             }
         }
 
@@ -574,6 +615,22 @@ private fun previewOf(m: ChatMessage, context: android.content.Context): String 
     "poll" -> app.rcq.android.model.PollContent.fromJson(m.body)?.question?.take(100)
         ?: context.getString(R.string.poll_create)
     else -> m.body.take(100)
+}
+
+/** Centered call-summary line (kind == "call"): a phone glyph + the localized
+ *  "Voice call · 1:23" / "Missed call" text logged by [CallController]. */
+@Composable
+private fun CallHistoryRow(m: ChatMessage) {
+    val c = RcqTheme.colors
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = 2.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.Filled.Call, null, tint = c.textSecondary, modifier = Modifier.size(13.dp))
+        Spacer(Modifier.width(6.dp))
+        Text(m.body, color = c.textSecondary, fontSize = 12.sp)
+    }
 }
 
 @OptIn(ExperimentalFoundationApi::class)

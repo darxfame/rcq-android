@@ -233,6 +233,14 @@ private fun RcqApp(session: Session) {
             s is UiState.Registering -> Registering()
             s is UiState.Failed -> Failed(s.message, onRetry = { register(null) })
         }
+
+        // Active 1:1 call overlay, drawn above everything while registered +
+        // unlocked. Incoming calls only ring here while the app is alive (no
+        // FCM/VoIP push yet).
+        val callState by session.calls.state.collectAsState()
+        if (s is UiState.Registered && !locked && callState !is app.rcq.android.call.CallController.State.Idle) {
+            app.rcq.android.ui.CallScreen(session.calls)
+        }
     }
 }
 
