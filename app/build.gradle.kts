@@ -118,6 +118,12 @@ dependencies {
     // ProcessLifecycleOwner — re-lock the app when it goes to background.
     implementation(libs.androidx.lifecycle.process)
 
+    // BiometricPrompt for the panic-PIN fingerprint/face unlock (phase 4).
+    // Brings androidx.fragment in, so MainActivity is a FragmentActivity;
+    // the explicit fragment pin overrides biometric-1.1.0's stale 1.2.5.
+    implementation(libs.androidx.biometric)
+    implementation(libs.androidx.fragment)
+
     debugImplementation(libs.androidx.compose.ui.tooling)
 
     testImplementation(libs.junit)

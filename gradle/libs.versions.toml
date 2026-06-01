@@ -30,6 +30,13 @@ junit = "4.13.2"
 junitVersion = "1.1.5"
 espressoCore = "3.5.1"
 zxing = "3.5.3"
+# androidx.biometric: BiometricPrompt + BiometricManager for the panic-PIN
+# fingerprint/face unlock (phase 4). Pulls in androidx.fragment, which is why
+# MainActivity is a FragmentActivity.
+biometric = "1.1.0"
+# Pin a modern fragment over biometric-1.1.0's transitive 1.2.5 so FragmentActivity
+# stays binary-compatible with activity 1.8.0 / lifecycle 2.6.1.
+fragment = "1.6.2"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -49,6 +56,8 @@ zxing-core = { group = "com.google.zxing", name = "core", version.ref = "zxing" 
 androidx-datastore = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastore" }
 androidx-security-crypto = { group = "androidx.security", name = "security-crypto", version.ref = "security" }
 androidx-lifecycle-process = { group = "androidx.lifecycle", name = "lifecycle-process", version.ref = "lifecycleRuntimeKtx" }
+androidx-biometric = { group = "androidx.biometric", name = "biometric", version.ref = "biometric" }
+androidx-fragment = { group = "androidx.fragment", name = "fragment", version.ref = "fragment" }
 sqlcipher-android = { group = "net.zetetic", name = "sqlcipher-android", version.ref = "sqlcipher" }
 androidx-sqlite = { group = "androidx.sqlite", name = "sqlite", version.ref = "androidxSqlite" }
 okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }

@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Autorenew
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Password
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.NetworkCheck
@@ -80,6 +81,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.stringResource
 import app.rcq.android.R
 import app.rcq.android.Session
+import app.rcq.android.security.BiometricGate
 import app.rcq.android.data.LanguageManager
 import app.rcq.android.data.LocalStores
 import app.rcq.android.net.RcqApi
@@ -871,6 +873,11 @@ private fun PinCodesScreen(session: Session, onBack: () -> Unit) {
     var dconfirm by remember { mutableStateOf("") }
     var derror by remember { mutableStateOf<String?>(null) }
     var decoyAccount by remember { mutableStateOf<String?>(null) }
+    // Biometric unlock (panic-PIN phase 4): mutually exclusive with the duress
+    // PINs, since a fingerprint/face reveals the real account.
+    val activity = remember(context) { context.findFragmentActivity() }
+    val bioHardware = remember { activity != null && session.biometricHardwareAvailable() }
+    var bioEnabled by remember { mutableStateOf(session.biometricEnabled) }
 
     fun onlyDigits(s: String) = s.length <= 12 && s.all { it.isDigit() }
 
@@ -1025,7 +1032,38 @@ private fun PinCodesScreen(session: Session, onBack: () -> Unit) {
                         if (!busy) scope.launch {
                             busy = true
                             withContext(Dispatchers.Default) { session.removePin() }
-                            busy = false; configured = false
+                            busy = false; configured = false; bioEnabled = false
+                        }
+                    }
+                }
+                if (bioHardware) {
+                    Spacer(Modifier.height(8.dp))
+                    SectionLabel(stringResource(R.string.pin_biometric_label))
+                    SettingsGroup {
+                        when {
+                            bioEnabled -> SettingsRow(Icons.Filled.Fingerprint, stringResource(R.string.pin_biometric_disable), destructive = true) {
+                                session.disableBiometric(); bioEnabled = false
+                            }
+                            // Biometric reveals the real account, so it can't coexist
+                            // with a decoy/wipe duress PIN (parity with iOS).
+                            wipeConfigured || decoyConfigured -> SettingsRow(
+                                Icons.Filled.Fingerprint, stringResource(R.string.pin_biometric_enable),
+                                value = stringResource(R.string.pin_biometric_unavailable_duress),
+                            ) {}
+                            else -> SettingsRow(Icons.Filled.Fingerprint, stringResource(R.string.pin_biometric_enable)) {
+                                val act = activity ?: return@SettingsRow
+                                val blob = session.realPinPayloadBlob() ?: return@SettingsRow
+                                BiometricGate.enable(
+                                    act,
+                                    context.getString(R.string.pin_biometric_enroll_title),
+                                    context.getString(R.string.pin_biometric_enroll_subtitle),
+                                    context.getString(R.string.common_cancel),
+                                    blob,
+                                ) { ok ->
+                                    if (ok) bioEnabled = true
+                                    else android.widget.Toast.makeText(context, context.getString(R.string.pin_biometric_failed), android.widget.Toast.LENGTH_LONG).show()
+                                }
+                            }
                         }
                     }
                 }
@@ -1033,7 +1071,12 @@ private fun PinCodesScreen(session: Session, onBack: () -> Unit) {
                 SectionLabel(stringResource(R.string.pin_duress_label))
                 SettingsGroup {
                     if (!wipeConfigured) {
-                        SettingsRow(Icons.Filled.DeleteForever, stringResource(R.string.pin_wipe_set)) {
+                        if (bioEnabled) {
+                            SettingsRow(
+                                Icons.Filled.DeleteForever, stringResource(R.string.pin_wipe_set),
+                                value = stringResource(R.string.pin_duress_unavailable_bio),
+                            ) {}
+                        } else SettingsRow(Icons.Filled.DeleteForever, stringResource(R.string.pin_wipe_set)) {
                             wipeEditing = true; wpin = ""; wconfirm = ""; werror = null
                         }
                     } else {
@@ -1047,7 +1090,9 @@ private fun PinCodesScreen(session: Session, onBack: () -> Unit) {
                     }
                     Divider()
                     if (!decoyConfigured) {
-                        if (roster.size >= 2) {
+                        if (bioEnabled) {
+                            SettingsRow(Icons.Filled.Lock, stringResource(R.string.pin_decoy_set), value = stringResource(R.string.pin_duress_unavailable_bio)) {}
+                        } else if (roster.size >= 2) {
                             SettingsRow(Icons.Filled.Lock, stringResource(R.string.pin_decoy_set)) {
                                 decoyEditing = true; dpin = ""; dconfirm = ""; derror = null
                                 decoyAccount = roster.firstOrNull()?.id

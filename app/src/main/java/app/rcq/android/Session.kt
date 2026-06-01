@@ -473,6 +473,19 @@ class Session(context: Context) {
 
     suspend fun removeDecoyPin(): Boolean = withContext(Dispatchers.IO) { PanicPinService.removeDecoyPin(appCtx) }
 
+    // ── biometric unlock (panic-PIN phase 4) ─────────────────────────
+
+    /** Can biometric unlock be offered now (hardware present, no duress PIN)? */
+    fun biometricCanEnable(): Boolean = PanicPinService.canEnableBiometric(appCtx)
+    fun biometricHardwareAvailable(): Boolean = PanicPinService.biometricHardwareAvailable(appCtx)
+    val biometricEnabled: Boolean get() = PanicPinService.biometricEnabled(appCtx)
+
+    /** The real-slot blob to seal behind the biometric key (only while
+     *  unlocked-real). The UI hands it to [BiometricGate.enable]. */
+    fun realPinPayloadBlob(): ByteArray? = PanicPinService.realPayloadBlob()
+
+    fun disableBiometric() = PanicPinService.disableBiometric(appCtx)
+
     /** After a DECOY submit at the lock screen: switch the active account to the
      *  decoy + filter the roster down to it, so the real accounts stay hidden.
      *  The dataKey is already set (the decoy slot carries the real one). */

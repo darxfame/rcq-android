@@ -1,8 +1,10 @@
 package app.rcq.android.security
 
 import android.content.Context
+import app.rcq.android.crypto.BiometricVault
 import app.rcq.android.crypto.PinVault
 import app.rcq.android.data.SecureStore
+import com.google.gson.Gson
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -44,6 +46,8 @@ object PanicPinService {
     // re-deriving from the PIN.
     @Volatile
     private var realSlotKey: ByteArray? = null
+
+    private val gson = Gson()
 
     fun isConfigured(context: Context): Boolean = PinVault.isConfigured(context)
 
@@ -121,6 +125,7 @@ object PanicPinService {
      *  [pin] must differ from the real/decoy PINs and a slot must be free. */
     fun setWipePin(context: Context, pin: String): Boolean {
         if (pin.length < PinVault.MIN_PIN_LENGTH) return false
+        if (BiometricVault.isEnabled(context)) return false // mutually exclusive
         val real = realPayload ?: return false
         val key = realSlotKey ?: return false
         val layout = real.layout ?: return false
@@ -153,6 +158,7 @@ object PanicPinService {
      *  unlocked real session with a free slot. */
     fun setDecoyPin(context: Context, pin: String, decoyAccountId: String): Boolean {
         if (pin.length < PinVault.MIN_PIN_LENGTH) return false
+        if (BiometricVault.isEnabled(context)) return false // mutually exclusive
         val real = realPayload ?: return false
         val key = realSlotKey ?: return false
         val dk = dataKey ?: return false
@@ -193,6 +199,46 @@ object PanicPinService {
      *  flashes the real accounts. */
     fun completeUnlock() { _locked.value = false }
 
+    // ── biometric unlock (phase 4) ───────────────────────────────────
+
+    /** Can biometric unlock be enabled right now? Hardware present and no
+     *  duress PIN configured (biometric reveals the real account, so it's
+     *  mutually exclusive with the decoy/wipe duress modes — same as iOS). */
+    fun canEnableBiometric(context: Context): Boolean =
+        BiometricVault.isHardwareAvailable(context) && !hasDecoyPin() && !hasWipePin()
+
+    fun biometricEnabled(context: Context): Boolean = BiometricVault.isEnabled(context)
+
+    /** Pure hardware/enrollment check (ignores duress-PIN exclusivity), so the
+     *  Settings UI can show a biometric row even while a duress PIN is set. */
+    fun biometricHardwareAvailable(context: Context): Boolean =
+        BiometricVault.isHardwareAvailable(context)
+
+    /** The real-slot payload (dataKey + layout) as a JSON blob, for sealing
+     *  behind the biometric Keystore key. Only meaningful while unlocked-real. */
+    fun realPayloadBlob(): ByteArray? =
+        realPayload?.let { gson.toJson(it).toByteArray(Charsets.UTF_8) }
+
+    fun disableBiometric(context: Context) = BiometricVault.disable(context)
+
+    /** Unlock from a biometric-decrypted real-slot [blob] (no PIN entered).
+     *  Mirrors iOS `unlockWithBiometrics`: restores the dataKey + real session
+     *  and clears the lock. [realSlotKey] stays null — adding a decoy/wipe PIN
+     *  needs a PIN entry, but those are blocked while biometric is on anyway. */
+    fun applyBiometricUnlock(context: Context, blob: ByteArray): Boolean {
+        val payload = runCatching {
+            gson.fromJson(String(blob, Charsets.UTF_8), PinVault.SlotPayload::class.java)
+        }.getOrNull() ?: return false
+        if (payload.mode != PinVault.MODE_REAL) return false
+        val key = PinVault.dataKeyBytes(payload) ?: return false
+        realPayload = payload
+        realSlotKey = null
+        dataKey = key
+        PinVault.clearAttempts(context)
+        _locked.value = false
+        return true
+    }
+
     /** Re-seal the real slot under [newPin]; the dataKey (and the DB) are
      *  unchanged. Requires an unlocked real session. */
     fun changeRealPin(context: Context, newPin: String): Boolean {
@@ -203,9 +249,11 @@ object PanicPinService {
     }
 
     /** Remove the PIN entirely. Returns the device key the message DBs revert
-     *  to (the caller rekeys them back). */
+     *  to (the caller rekeys them back). Also drops any biometric unlock — its
+     *  sealed blob is meaningless once the vault is gone. */
     fun removePin(context: Context): ByteArray {
         PinVault.destroy(context)
+        BiometricVault.disable(context)
         dataKey = null
         realPayload = null
         realSlotKey = null

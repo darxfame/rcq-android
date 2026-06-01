@@ -1,7 +1,6 @@
 package app.rcq.android
 
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.Image
@@ -54,7 +53,10 @@ import androidx.compose.ui.platform.LocalContext
 import android.widget.Toast
 import kotlinx.coroutines.launch
 
-class MainActivity : ComponentActivity() {
+// FragmentActivity (not the bare ComponentActivity) so BiometricPrompt can host
+// its dialog for the panic-PIN biometric unlock. FragmentActivity is itself a
+// ComponentActivity, so setContent / enableEdgeToEdge still apply.
+class MainActivity : androidx.fragment.app.FragmentActivity() {
     override fun attachBaseContext(newBase: android.content.Context) {
         // Apply the user's chosen app language before any resources resolve.
         super.attachBaseContext(app.rcq.android.data.LanguageManager.wrap(newBase))
