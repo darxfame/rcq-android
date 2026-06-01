@@ -111,6 +111,16 @@ class Session(context: Context) {
     /** People Nearby (geohash check-in). REST-polled; no WS routing. */
     val nearby = app.rcq.android.nearby.NearbyController(appCtx, scope) { api }
 
+    /** Hood Chat (district chat) + Hood Banners — bucket-scoped, server-backed.
+     *  Borrows the Nearby display-name/anonymous for the sender label. */
+    val hood = app.rcq.android.nearby.HoodController(
+        scope = scope,
+        api = { api },
+        send = { obj -> socket.send(obj.toString()) },
+        nick = { if (nearby.anonymous.value) nearby.displayName.value else (store.nickname ?: store.uin?.toString() ?: "?") },
+        isAnonymous = { nearby.anonymous.value },
+    )
+
     private val _contacts = MutableStateFlow<List<Contact>>(emptyList())
     val contacts: StateFlow<List<Contact>> = _contacts.asStateFlow()
 
@@ -269,6 +279,7 @@ class Session(context: Context) {
         calls.teardown()   // drop any in-flight call before the identity swaps
         audioRooms.teardown()
         nearby.teardown()
+        hood.teardown()
         store = SecureStore(appCtx, accountId)
         // db is (re)opened by bindDb() in start(), with the current dataKey.
         if (::db.isInitialized) db.close()
@@ -409,6 +420,7 @@ class Session(context: Context) {
         calls.teardown()
         audioRooms.teardown()
         nearby.teardown()
+        hood.teardown()
         socket.disconnect()
         _connected.value = false
         _messages.value = emptyMap()
@@ -477,6 +489,7 @@ class Session(context: Context) {
         runCatching { calls.teardown() }
         runCatching { audioRooms.teardown() }
         runCatching { nearby.teardown() }
+        runCatching { hood.teardown() }
         runCatching { socket.disconnect() }
         started = false
         everConnected = false
@@ -1678,6 +1691,8 @@ class Session(context: Context) {
             "room_roster", "room_member_entered", "room_member_left", "room_offer",
             "room_answer", "room_ice", "room_speaking", "room_enter_rejected", "room_deleted" ->
                 audioRooms.onSignal(type, obj)
+            "hood_message", "hood_count", "hood_delete", "hood_reaction" ->
+                hood.onSignal(type, obj)
             "presence" -> scope.launch { runCatching { refreshContacts() } }
             "story_posted", "story_deleted" -> scope.launch { runCatching { refreshStories() } }
             "random_match" -> {

@@ -206,6 +206,20 @@
     <string name="nearby_stranger">Незнакомец рядом</string>
     <string name="nearby_add">Добавить</string>
     <string name="nearby_request_sent">Запрос в контакты отправлен</string>
+    <!-- Hood Chat + Banners (district) -->
+    <string name="hood_title">Чат района</string>
+    <string name="hood_here">%1$d рядом</string>
+    <string name="hood_unencrypted">Публичный, без шифрования</string>
+    <string name="hood_deleted">Сообщение удалено</string>
+    <string name="hood_hint">Написать в район…</string>
+    <string name="hood_send">Отправить</string>
+    <string name="banners_title">Объявления</string>
+    <string name="banners_post">Разместить</string>
+    <string name="banners_empty">Пока нет объявлений.</string>
+    <string name="banners_anon">Аноним</string>
+    <string name="banners_text_hint">Текст объявления…</string>
+    <string name="banners_anon_post">Анонимно</string>
+    <string name="banners_mock_note">Оплата в этой сборке имитируется.</string>
     <string name="settings_sec_history">История</string>
     <string name="settings_sec_about">О приложении</string>
     <string name="settings_sec_account">Аккаунт</string>

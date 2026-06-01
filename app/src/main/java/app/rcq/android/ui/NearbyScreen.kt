@@ -34,6 +34,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -65,6 +66,13 @@ fun NearbyScreen(session: Session, onBack: () -> Unit) {
     val displayName by controller.displayName.collectAsState()
 
     val active = state is NearbyController.State.Active
+    val activeBucket = (state as? NearbyController.State.Active)?.bucketId
+
+    // Nested nav into the bucket-scoped district screens.
+    var hoodChatBucket by remember { mutableStateOf<String?>(null) }
+    var bannersBucket by remember { mutableStateOf<String?>(null) }
+    hoodChatBucket?.let { return HoodChatScreen(session, it) { hoodChatBucket = null } }
+    bannersBucket?.let { return HoodBannersScreen(session, it) { bannersBucket = null } }
 
     val locPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
         val granted = result.values.any { it }
@@ -110,6 +118,10 @@ fun NearbyScreen(session: Session, onBack: () -> Unit) {
                 is NearbyController.State.Active -> {
                     val exp = (state as NearbyController.State.Active).expiresAtMs
                     CountdownLabel(exp)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        CapsuleButton(stringResource(R.string.hood_title), modifier = Modifier.weight(1f)) { hoodChatBucket = activeBucket }
+                        CapsuleButton(stringResource(R.string.banners_title), modifier = Modifier.weight(1f)) { bannersBucket = activeBucket }
+                    }
                     CapsuleButton(stringResource(R.string.nearby_stop), modifier = Modifier.fillMaxWidth()) { controller.stop() }
                 }
                 is NearbyController.State.Pending -> {
