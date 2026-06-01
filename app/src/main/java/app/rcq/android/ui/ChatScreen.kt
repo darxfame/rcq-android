@@ -153,9 +153,11 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) scope.launch {
-            val jpeg = withContext(Dispatchers.IO) { compressImage(context, uri) }
-            if (jpeg != null) runCatching {
-                if (isGroup) session.sendGroupPhoto(groupId!!, jpeg, null) else session.sendPhoto(peer!!, jpeg, null)
+            // GIFs ship as RAW bytes (re-compressing to JPEG would kill the
+            // animation); everything else downscales to JPEG as before.
+            val data = withContext(Dispatchers.IO) { readImageForSend(context, uri) }
+            if (data != null) runCatching {
+                if (isGroup) session.sendGroupPhoto(groupId!!, data, null) else session.sendPhoto(peer!!, data, null)
             }
         }
     }
@@ -719,14 +721,19 @@ private fun PhotoBubble(session: Session, m: ChatMessage) {
     val bytes by produceState<ByteArray?>(initialValue = null, m.mediaId) {
         value = if (m.mediaId != null && m.mediaKey != null) session.fetchImage(m.mediaId, m.mediaKey) else null
     }
-    val image = remember(bytes) {
-        bytes?.let { runCatching { BitmapFactory.decodeByteArray(it, 0, it.size)?.asImageBitmap() }.getOrNull() }
-    }
+    val b = bytes
     Box(Modifier.size(220.dp).clip(RoundedCornerShape(14.dp)).background(c.bgSecondary), contentAlignment = Alignment.Center) {
-        if (image != null) {
-            Image(bitmap = image, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-        } else {
-            CircularProgressIndicator(color = c.accent, modifier = Modifier.size(22.dp))
+        when {
+            b == null -> CircularProgressIndicator(color = c.accent, modifier = Modifier.size(22.dp))
+            // Animated GIF (same "photo" media path iOS uses, gated by magic
+            // bytes) — render it animated instead of a frozen first frame.
+            b.isGif() && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P ->
+                AnimatedGif(b, Modifier.fillMaxSize())
+            else -> {
+                val image = remember(b) { runCatching { BitmapFactory.decodeByteArray(b, 0, b.size)?.asImageBitmap() }.getOrNull() }
+                if (image != null) Image(bitmap = image, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                else CircularProgressIndicator(color = c.accent, modifier = Modifier.size(22.dp))
+            }
         }
     }
 }
@@ -996,6 +1003,18 @@ private fun formatFileSize(bytes: Long): String = when {
     bytes >= 1_000_000 -> "%.1f MB".format(bytes / 1_000_000.0)
     bytes >= 1_000 -> "%.0f KB".format(bytes / 1000.0)
     else -> "$bytes B"
+}
+
+/** Bytes to upload for a picked image: a picked GIF ships RAW (preserving the
+ *  animation, capped at 8MB; larger falls back to a static JPEG frame), every
+ *  other image downscales to JPEG. The recipient's PhotoBubble animates a GIF
+ *  via its magic bytes. */
+private fun readImageForSend(context: Context, uri: Uri): ByteArray? {
+    if (context.contentResolver.getType(uri) == "image/gif") {
+        val raw = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+        if (raw != null && raw.size <= 8 * 1024 * 1024) return raw
+    }
+    return compressImage(context, uri)
 }
 
 private fun compressImage(context: Context, uri: Uri): ByteArray? {
