@@ -356,8 +356,20 @@ internal fun HomeScreen(
         CreateGroupDialog(
             contacts = contacts,
             onCreate = { name, members ->
-                scope.launch { runCatching { session.createGroup(name, members) }.onSuccess { onOpenGroup(it.id) } }
                 showCreateGroup = false
+                scope.launch {
+                    runCatching { session.createGroup(name, members) }
+                        .onSuccess { onOpenGroup(it.id) }
+                        .onFailure { e ->
+                            // Previously swallowed — a 403 (an invitee's group-invite
+                            // policy blocks you) or a transient error just closed the
+                            // dialog with no feedback ("group not created"). Surface it.
+                            val msg = if ((e.message ?: "").contains("403"))
+                                context.getString(R.string.group_create_blocked)
+                            else context.getString(R.string.group_create_failed)
+                            android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_LONG).show()
+                        }
+                }
             },
             onDismiss = { showCreateGroup = false },
         )

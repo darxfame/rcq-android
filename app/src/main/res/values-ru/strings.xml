@@ -525,6 +525,8 @@
     <string name="home_group_name">Название группы</string>
     <string name="home_add_members">Добавить участников</string>
     <string name="home_create">Создать</string>
+    <string name="group_create_blocked">Некоторые участники не принимают от вас приглашения в группы.</string>
+    <string name="group_create_failed">Не удалось создать группу. Попробуйте снова.</string>
     <string name="home_add_contact_title">Добавить контакт</string>
     <string name="home_send_request">Отправить запрос</string>
     <string name="home_report_title">Пожаловаться на %1$s</string>

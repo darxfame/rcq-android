@@ -526,6 +526,8 @@
     <string name="home_group_name">Group name</string>
     <string name="home_add_members">Add members</string>
     <string name="home_create">Create</string>
+    <string name="group_create_blocked">Some members don\'t accept group invites from you.</string>
+    <string name="group_create_failed">Couldn\'t create the group. Try again.</string>
     <string name="home_add_contact_title">Add contact</string>
     <string name="home_send_request">Send request</string>
     <string name="home_report_title">Report %1$s</string>
