@@ -108,6 +108,9 @@ class Session(context: Context) {
         isInCall = { calls.state.value.active },
     )
 
+    /** People Nearby (geohash check-in). REST-polled; no WS routing. */
+    val nearby = app.rcq.android.nearby.NearbyController(appCtx, scope) { api }
+
     private val _contacts = MutableStateFlow<List<Contact>>(emptyList())
     val contacts: StateFlow<List<Contact>> = _contacts.asStateFlow()
 
@@ -265,6 +268,7 @@ class Session(context: Context) {
     private fun rebindTo(accountId: String) {
         calls.teardown()   // drop any in-flight call before the identity swaps
         audioRooms.teardown()
+        nearby.teardown()
         store = SecureStore(appCtx, accountId)
         // db is (re)opened by bindDb() in start(), with the current dataKey.
         if (::db.isInitialized) db.close()
@@ -404,6 +408,7 @@ class Session(context: Context) {
     private fun tearDownForLock() {
         calls.teardown()
         audioRooms.teardown()
+        nearby.teardown()
         socket.disconnect()
         _connected.value = false
         _messages.value = emptyMap()
@@ -471,6 +476,7 @@ class Session(context: Context) {
     suspend fun wipeEverything() = withContext(Dispatchers.IO) {
         runCatching { calls.teardown() }
         runCatching { audioRooms.teardown() }
+        runCatching { nearby.teardown() }
         runCatching { socket.disconnect() }
         started = false
         everConnected = false

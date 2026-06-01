@@ -131,6 +131,7 @@ internal fun HomeScreen(
     onOpenSaved: () -> Unit = {},
     onOpenAudioRooms: () -> Unit = {},
     onOpenRandom: () -> Unit = {},
+    onOpenNearby: () -> Unit = {},
     onSwitchAccount: (String) -> Unit = {},
     onAddAccount: (String?) -> Unit = {},
     onManageAccounts: () -> Unit = {},
@@ -299,7 +300,7 @@ internal fun HomeScreen(
                 onAdd = { showAdd = true },
                 onQr = { showQr = true },
                 onRandom = onOpenRandom,
-                onNearby = { comingSoon = "Nearby" },
+                onNearby = onOpenNearby,
                 onSettings = onOpenSettings,
                 // Hide Random on org islands / self-host; keep it on the public server.
                 showRandom = session.currentServer == app.rcq.android.net.RcqApi.DEFAULT_HOST,

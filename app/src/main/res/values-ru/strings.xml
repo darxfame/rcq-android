@@ -190,6 +190,22 @@
     <string name="rooms_err_not_member">Вы не участник этой комнаты.</string>
     <string name="rooms_err_no_room">Комната не найдена.</string>
     <string name="rooms_err_generic">Не удалось войти в комнату.</string>
+    <!-- People Nearby -->
+    <string name="nearby_title">Люди рядом</string>
+    <string name="nearby_anon">Анонимно</string>
+    <string name="nearby_real_name">Другие увидят ваш ник</string>
+    <string name="nearby_regenerate">Новое имя</string>
+    <string name="nearby_start">Найти людей рядом</string>
+    <string name="nearby_stop">Перестать делиться</string>
+    <string name="nearby_finding">Определяем местоположение…</string>
+    <string name="nearby_denied">Чтобы находить людей рядом, нужен доступ к геолокации.</string>
+    <string name="nearby_error">Не удалось определить местоположение. Попробуйте снова.</string>
+    <string name="nearby_empty">Рядом пока никого нет.</string>
+    <string name="nearby_visible_for">Видимы для других ещё %1$d:%2$02d</string>
+    <string name="nearby_privacy">Передаётся только примерный район около 1 км, не точное место. Вы видны только пока делитесь.</string>
+    <string name="nearby_stranger">Незнакомец рядом</string>
+    <string name="nearby_add">Добавить</string>
+    <string name="nearby_request_sent">Запрос в контакты отправлен</string>
     <string name="settings_sec_history">История</string>
     <string name="settings_sec_about">О приложении</string>
     <string name="settings_sec_account">Аккаунт</string>

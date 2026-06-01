@@ -191,6 +191,22 @@
     <string name="rooms_err_not_member">You\'re not a member of this room.</string>
     <string name="rooms_err_no_room">Room not found.</string>
     <string name="rooms_err_generic">Couldn\'t join the room.</string>
+    <!-- People Nearby -->
+    <string name="nearby_title">People nearby</string>
+    <string name="nearby_anon">Appear anonymously</string>
+    <string name="nearby_real_name">Others will see your nickname</string>
+    <string name="nearby_regenerate">New name</string>
+    <string name="nearby_start">Find people nearby</string>
+    <string name="nearby_stop">Stop sharing</string>
+    <string name="nearby_finding">Finding your location…</string>
+    <string name="nearby_denied">Location permission is needed to discover people nearby.</string>
+    <string name="nearby_error">Couldn\'t get your location. Try again.</string>
+    <string name="nearby_empty">No one nearby yet.</string>
+    <string name="nearby_visible_for">Visible to others for %1$d:%2$02d</string>
+    <string name="nearby_privacy">Only a coarse ~1km area is shared, never your exact location. You appear only while sharing.</string>
+    <string name="nearby_stranger">Stranger nearby</string>
+    <string name="nearby_add">Add</string>
+    <string name="nearby_request_sent">Contact request sent</string>
     <string name="settings_sec_history">History</string>
     <string name="settings_sec_about">About</string>
     <string name="settings_sec_account">Account</string>

@@ -549,6 +549,41 @@ class RcqApi(private val baseUrl: String = DEFAULT_BASE_URL) {
         sendNoResult("DELETE", "/audio_rooms/$roomId", null, authed = true)
     }
 
+    // ── People Nearby (geohash check-in) ──────────────────────────────
+    data class NearbyUser(
+        val uin: Int,
+        val nickname: String,
+        val anonymous: Boolean = false,
+        val status: String = "online",
+        val gender: String? = null,
+        val bucket_id: String = "",
+        val expires_at: String? = null,
+    )
+
+    data class CheckinResult(val expires_at: String? = null)
+
+    /** Register the caller in [bucketId] for [ttlSeconds]. [displayName] non-null
+     *  = anonymous mode (server surfaces it instead of the real nickname). */
+    suspend fun nearbyCheckin(bucketId: String, ttlSeconds: Int, displayName: String?): CheckinResult =
+        withContext(Dispatchers.IO) {
+            val body = HashMap<String, Any?>()
+            body["bucket_id"] = bucketId
+            body["ttl_seconds"] = ttlSeconds
+            if (displayName != null) body["display_name"] = displayName
+            request("POST", "/nearby/checkin", gson.toJson(body), authed = true, CheckinResult::class.java)
+        }
+
+    /** Others checked in to any of [buckets] (self + 8 neighbours). Requires the
+     *  caller to be checked in (403 otherwise). */
+    suspend fun nearbyList(buckets: List<String>): List<NearbyUser> = withContext(Dispatchers.IO) {
+        val q = java.net.URLEncoder.encode(buckets.joinToString(","), "UTF-8")
+        get("/nearby/list?bucket=$q", authed = true, Array<NearbyUser>::class.java).toList()
+    }
+
+    suspend fun nearbyEndCheckin() = withContext(Dispatchers.IO) {
+        sendNoResult("DELETE", "/nearby/checkin", null, authed = true)
+    }
+
     /** Partial profile/privacy update (PUT /me). Gson omits null fields,
      *  so only what the caller sets is changed. */
     data class UpdateMeBody(
