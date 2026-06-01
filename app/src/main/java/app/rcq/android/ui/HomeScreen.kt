@@ -36,6 +36,7 @@ import androidx.compose.material.icons.filled.AddAPhoto
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Flag
@@ -128,6 +129,7 @@ internal fun HomeScreen(
     onOpenProfile: () -> Unit = {},
     onOpenNews: () -> Unit = {},
     onOpenSaved: () -> Unit = {},
+    onOpenAudioRooms: () -> Unit = {},
     onOpenRandom: () -> Unit = {},
     onSwitchAccount: (String) -> Unit = {},
     onAddAccount: (String?) -> Unit = {},
@@ -229,6 +231,7 @@ internal fun HomeScreen(
                 onOpenProfile = onOpenProfile,
                 onOpenNews = onOpenNews,
                 onOpenSaved = onOpenSaved,
+                onOpenAudioRooms = onOpenAudioRooms,
                 onPostStory = { storyPicker.launch("image/*") },
                 onComingSoon = { comingSoon = it },
                 onSwitchAccount = onSwitchAccount,
@@ -536,6 +539,7 @@ private fun HomeHeader(
     onOpenProfile: () -> Unit,
     onOpenNews: () -> Unit,
     onOpenSaved: () -> Unit,
+    onOpenAudioRooms: () -> Unit,
     onPostStory: () -> Unit,
     onComingSoon: (String) -> Unit,
     onSwitchAccount: (String) -> Unit,
@@ -645,6 +649,11 @@ private fun HomeHeader(
                     text = { Text(stringResource(R.string.home_menu_saved), color = c.textPrimary) },
                     leadingIcon = { Icon(Icons.Filled.Bookmark, null, tint = c.accent) },
                     onClick = { overflowMenu = false; onOpenSaved() },
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.home_menu_audio_rooms), color = c.textPrimary) },
+                    leadingIcon = { Icon(Icons.Filled.GraphicEq, null, tint = c.accent) },
+                    onClick = { overflowMenu = false; onOpenAudioRooms() },
                 )
             }
         }

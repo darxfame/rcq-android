@@ -379,5 +379,12 @@ class WebRtcClient(private val appContext: Context) {
         }
 
         fun sharedEglContext(): EglBase.Context = eglBase().eglBaseContext
+
+        /** Shared factory for reuse by the audio-room mesh (after
+         *  [ensureInitialised]). */
+        fun peerConnectionFactory(): PeerConnectionFactory = factory()
+
+        /** Google STUN set, shared with the mesh. */
+        fun stunServers(): List<PeerConnection.IceServer> = STUN
     }
 }

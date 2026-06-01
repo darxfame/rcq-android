@@ -97,6 +97,17 @@ class Session(context: Context) {
         appendHistory = { peer, fromMe, text -> logCallHistory(peer, fromMe, text) },
     )
 
+    /** Audio rooms (mesh voice). Single-busy vs 1:1 calls; signalling routed
+     *  in [handleEvent]; lazy store/api so it follows account switches. */
+    val audioRooms = app.rcq.android.call.AudioRoomController(
+        appContext = appCtx,
+        scope = scope,
+        send = { obj -> socket.send(obj.toString()) },
+        turn = { api.turnCredentials() },
+        api = { api },
+        isInCall = { calls.state.value.active },
+    )
+
     private val _contacts = MutableStateFlow<List<Contact>>(emptyList())
     val contacts: StateFlow<List<Contact>> = _contacts.asStateFlow()
 
@@ -253,6 +264,7 @@ class Session(context: Context) {
      *  store at [accountId]; [start] then loads its history + connects. */
     private fun rebindTo(accountId: String) {
         calls.teardown()   // drop any in-flight call before the identity swaps
+        audioRooms.teardown()
         store = SecureStore(appCtx, accountId)
         // db is (re)opened by bindDb() in start(), with the current dataKey.
         if (::db.isInitialized) db.close()
@@ -391,6 +403,7 @@ class Session(context: Context) {
      *  Driven by the [PanicPinService.locked] flow (observed in init). */
     private fun tearDownForLock() {
         calls.teardown()
+        audioRooms.teardown()
         socket.disconnect()
         _connected.value = false
         _messages.value = emptyMap()
@@ -457,6 +470,7 @@ class Session(context: Context) {
      *  the keys were backed up); this is about the seized device. */
     suspend fun wipeEverything() = withContext(Dispatchers.IO) {
         runCatching { calls.teardown() }
+        runCatching { audioRooms.teardown() }
         runCatching { socket.disconnect() }
         started = false
         everConnected = false
@@ -1655,6 +1669,9 @@ class Session(context: Context) {
             "call_offer", "call_answer", "call_ice", "call_end",
             "call_renegotiate", "call_renegotiate_answer", "call_renegotiate_decline" ->
                 calls.onSignal(type, obj)
+            "room_roster", "room_member_entered", "room_member_left", "room_offer",
+            "room_answer", "room_ice", "room_speaking", "room_enter_rejected", "room_deleted" ->
+                audioRooms.onSignal(type, obj)
             "presence" -> scope.launch { runCatching { refreshContacts() } }
             "story_posted", "story_deleted" -> scope.launch { runCatching { refreshStories() } }
             "random_match" -> {

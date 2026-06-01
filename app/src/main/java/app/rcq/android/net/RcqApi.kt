@@ -518,6 +518,37 @@ class RcqApi(private val baseUrl: String = DEFAULT_BASE_URL) {
         get("/users/me/turn-credentials", authed = true, TurnCreds::class.java)
     }
 
+    // ── audio rooms ──────────────────────────────────────────────────
+    data class AudioRoomOut(
+        val id: Int,
+        val name: String,
+        val owner_uin: Int,
+        val join_key: String,
+        val owner_only_speaking: Boolean = false,
+        val active_count: Int = 0,
+    )
+
+    suspend fun audioRooms(): List<AudioRoomOut> = withContext(Dispatchers.IO) {
+        val arr = get("/audio_rooms", authed = true, Array<AudioRoomOut>::class.java)
+        arr.toList()
+    }
+
+    suspend fun createAudioRoom(name: String): AudioRoomOut = withContext(Dispatchers.IO) {
+        request("POST", "/audio_rooms", gson.toJson(mapOf("name" to name)), authed = true, AudioRoomOut::class.java)
+    }
+
+    suspend fun joinAudioRoom(joinKey: String): AudioRoomOut = withContext(Dispatchers.IO) {
+        request("POST", "/audio_rooms/join", gson.toJson(mapOf("join_key" to joinKey)), authed = true, AudioRoomOut::class.java)
+    }
+
+    suspend fun leaveAudioRoomList(roomId: Int) = withContext(Dispatchers.IO) {
+        sendNoResult("DELETE", "/audio_rooms/$roomId/membership", null, authed = true)
+    }
+
+    suspend fun deleteAudioRoom(roomId: Int) = withContext(Dispatchers.IO) {
+        sendNoResult("DELETE", "/audio_rooms/$roomId", null, authed = true)
+    }
+
     /** Partial profile/privacy update (PUT /me). Gson omits null fields,
      *  so only what the caller sets is changed. */
     data class UpdateMeBody(

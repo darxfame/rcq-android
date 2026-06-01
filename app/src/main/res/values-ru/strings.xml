@@ -170,6 +170,26 @@
     <string name="call_out_failed">Сбой соединения</string>
     <string name="call_out_disconnected">Связь прервалась</string>
     <string name="call_out_ended">Завершён</string>
+    <!-- Audio rooms -->
+    <string name="home_menu_audio_rooms">Аудиокомнаты</string>
+    <string name="rooms_title">Аудиокомнаты</string>
+    <string name="rooms_create">Создать комнату</string>
+    <string name="rooms_name">Название комнаты</string>
+    <string name="rooms_join">Войти</string>
+    <string name="rooms_join_key">Ключ</string>
+    <string name="rooms_empty">Пока нет комнат. Создайте новую или войдите по ключу.</string>
+    <string name="rooms_in_room">%1$d в комнате</string>
+    <string name="rooms_key_fmt">Ключ: %1$s</string>
+    <string name="rooms_delete">Удалить</string>
+    <string name="rooms_joining">Подключение…</string>
+    <string name="rooms_you">Вы</string>
+    <string name="rooms_leave">Выйти</string>
+    <string name="rooms_err_in_call">Сначала завершите звонок.</string>
+    <string name="rooms_err_busy">Вы заняты в другой сессии.</string>
+    <string name="rooms_err_full">Комната заполнена.</string>
+    <string name="rooms_err_not_member">Вы не участник этой комнаты.</string>
+    <string name="rooms_err_no_room">Комната не найдена.</string>
+    <string name="rooms_err_generic">Не удалось войти в комнату.</string>
     <string name="settings_sec_history">История</string>
     <string name="settings_sec_about">О приложении</string>
     <string name="settings_sec_account">Аккаунт</string>

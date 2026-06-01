@@ -171,6 +171,26 @@
     <string name="call_out_failed">Call failed</string>
     <string name="call_out_disconnected">Disconnected</string>
     <string name="call_out_ended">Ended</string>
+    <!-- Audio rooms -->
+    <string name="home_menu_audio_rooms">Audio rooms</string>
+    <string name="rooms_title">Audio rooms</string>
+    <string name="rooms_create">Create room</string>
+    <string name="rooms_name">Room name</string>
+    <string name="rooms_join">Join</string>
+    <string name="rooms_join_key">Join key</string>
+    <string name="rooms_empty">No rooms yet. Create one or join with a key.</string>
+    <string name="rooms_in_room">%1$d in room</string>
+    <string name="rooms_key_fmt">Key: %1$s</string>
+    <string name="rooms_delete">Delete</string>
+    <string name="rooms_joining">Joining…</string>
+    <string name="rooms_you">You</string>
+    <string name="rooms_leave">Leave</string>
+    <string name="rooms_err_in_call">Finish your call first.</string>
+    <string name="rooms_err_busy">You\'re busy in another session.</string>
+    <string name="rooms_err_full">The room is full.</string>
+    <string name="rooms_err_not_member">You\'re not a member of this room.</string>
+    <string name="rooms_err_no_room">Room not found.</string>
+    <string name="rooms_err_generic">Couldn\'t join the room.</string>
     <string name="settings_sec_history">History</string>
     <string name="settings_sec_about">About</string>
     <string name="settings_sec_account">Account</string>
