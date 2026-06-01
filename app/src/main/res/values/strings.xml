@@ -491,6 +491,14 @@
     <string name="chat_attach_video">Video</string>
     <string name="chat_attach_file">File</string>
     <string name="chat_attach_location">Location</string>
+    <string name="chat_attach_group">Group invite</string>
+    <string name="group_invite_loading">Group</string>
+    <string name="group_invite_closed">Closed group</string>
+    <string name="group_invite_tap_join">Tap to join</string>
+    <string name="group_invite_link">Group invite</string>
+    <string name="group_invite_title">Group invite</string>
+    <string name="group_invite_join">Join</string>
+    <string name="group_invite_none">You have no groups to share.</string>
     <string name="chat_recording">Recording  %1$s</string>
     <string name="chat_send">Send</string>
     <string name="chat_media_preview_title">Send media</string>

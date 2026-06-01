@@ -36,6 +36,8 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -50,6 +52,7 @@ import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Pause
@@ -112,7 +115,7 @@ sealed interface ChatTarget {
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit, onOpenGroupInfo: (Int) -> Unit = {}, onOpenPeerInfo: (Int) -> Unit = {}) {
+internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit, onOpenGroupInfo: (Int) -> Unit = {}, onOpenPeerInfo: (Int) -> Unit = {}, onOpenGroup: (Int) -> Unit = {}) {
     val c = RcqTheme.colors
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -148,6 +151,7 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
     var showSearch by remember { mutableStateOf(false) }
     // A picked photo/video waiting in the pre-send preview (tap to blur).
     var pendingSend by remember { mutableStateOf<PendingSend?>(null) }
+    var showGroupPicker by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
 
     fun authorName(m: ChatMessage): String = when {
@@ -350,6 +354,7 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
                         senderName = if (isGroup && !m.fromMe) authorName(m) else null,
                         onRetry = { scope.launch { runCatching { session.resend(m) } } },
                         onLongPress = { actionMsg = m },
+                        onOpenGroup = onOpenGroup,
                     )
                 }
             }
@@ -485,6 +490,7 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
                     MessageAction(stringResource(R.string.chat_attach_video)) { attachMenu = false; videoPicker.launch("video/*") }
                     MessageAction(stringResource(R.string.chat_attach_file)) { attachMenu = false; filePicker.launch("*/*") }
                     MessageAction(stringResource(R.string.chat_attach_location)) { attachMenu = false; shareLocation() }
+                    MessageAction(stringResource(R.string.chat_attach_group)) { attachMenu = false; showGroupPicker = true }
                     if (isGroup) MessageAction(stringResource(R.string.poll_create)) { attachMenu = false; showPollComposer = true }
                 }
             },
@@ -513,6 +519,37 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
                     }
                 }
             },
+        )
+    }
+
+    // Share a group invite into this chat: pick one of your groups, send its
+    // canonical link as a text message (renders as a join card on both ends).
+    if (showGroupPicker) {
+        AlertDialog(
+            onDismissRequest = { showGroupPicker = false },
+            containerColor = c.bgSecondary,
+            title = { Text(stringResource(R.string.chat_attach_group), color = c.textPrimary) },
+            text = {
+                if (groups.isEmpty()) {
+                    Text(stringResource(R.string.group_invite_none), color = c.textSecondary)
+                } else {
+                    Column(Modifier.verticalScroll(rememberScrollState())) {
+                        groups.forEach { g ->
+                            MessageAction(g.name) {
+                                showGroupPicker = false
+                                val url = GroupLinkParser.canonicalUrl(g.id)
+                                scope.launch {
+                                    runCatching {
+                                        if (isGroup) session.sendGroupText(groupId!!, url) else session.sendText(peer!!, url)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = { TextButton(onClick = { showGroupPicker = false }) { Text(stringResource(R.string.common_cancel), color = c.textSecondary) } },
         )
     }
 
@@ -659,6 +696,108 @@ private fun CallHistoryRow(m: ChatMessage) {
     }
 }
 
+/** Parse a chat text body that is exactly a group-invite URL into a group id.
+ *  Matches iOS GroupLinkParser: `rcq://group/<id>` (in-app tap) or
+ *  `https://rcq.app/g/<id>` (the shareable / paste form). */
+internal object GroupLinkParser {
+    fun parse(body: String): Int? {
+        val t = body.trim()
+        if (t.isEmpty() || t.contains(' ') || t.contains('\n')) return null
+        val uri = runCatching { android.net.Uri.parse(t) }.getOrNull() ?: return null
+        if (uri.scheme == "rcq" && uri.host == "group") {
+            return uri.lastPathSegment?.toIntOrNull()?.takeIf { it > 0 }
+        }
+        if ((uri.scheme == "https" || uri.scheme == "http") && uri.host == "rcq.app") {
+            val segs = uri.pathSegments
+            if (segs.size >= 2 && segs[0] == "g") return segs[1].toIntOrNull()?.takeIf { it > 0 }
+        }
+        return null
+    }
+
+    fun canonicalUrl(id: Int): String = "https://rcq.app/g/$id"
+}
+
+/** A shared group-invite link rendered as a join card (iOS GroupLinkBubble
+ *  parity): avatar + name + member count + closed badge; tap opens a join
+ *  dialog, and joining jumps into the group chat. */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun GroupLinkBubble(session: Session, groupId: Int, onOpenGroup: (Int) -> Unit, onLongPress: () -> Unit) {
+    val c = RcqTheme.colors
+    val scope = rememberCoroutineScope()
+    var showJoin by remember { mutableStateOf(false) }
+    var joining by remember { mutableStateOf(false) }
+    val preview by produceState<app.rcq.android.net.RcqApi.GroupPreviewOut?>(initialValue = null, groupId) {
+        value = session.previewGroup(groupId)
+    }
+    val p = preview
+    // Minimal RcqGroup so the shared GroupAvatar can render the real avatar
+    // (or fall back to the generic glyph for groups without one).
+    val avatarGroup = remember(p) {
+        p?.let {
+            app.rcq.android.model.RcqGroup(
+                id = it.id, name = it.name ?: "", ownerUin = it.owner_uin,
+                isClosed = it.is_closed, avatarMediaId = it.avatar_media_id, avatarMediaKey = it.avatar_media_key,
+            )
+        }
+    }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        modifier = Modifier
+            .width(260.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(c.bubbleOther)
+            .combinedClickable(onClick = { if (p != null) showJoin = true }, onLongClick = onLongPress)
+            .padding(10.dp),
+    ) {
+        Box(contentAlignment = Alignment.BottomEnd) {
+            GroupAvatar(avatarGroup, session, 52.dp)
+            if (p?.is_closed == true) {
+                Box(Modifier.clip(CircleShape).background(Color.Black.copy(alpha = 0.55f)).padding(3.dp)) {
+                    Icon(Icons.Filled.Lock, null, tint = Color.White, modifier = Modifier.size(11.dp))
+                }
+            }
+        }
+        Column(Modifier.weight(1f)) {
+            Text(
+                p?.name ?: stringResource(R.string.group_invite_loading),
+                color = c.textPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+            if (p != null) {
+                Text(pluralStringResource(R.plurals.members, p.member_count, p.member_count), color = c.textSecondary, fontSize = 12.sp)
+                Text(
+                    stringResource(if (p.is_closed) R.string.group_invite_closed else R.string.group_invite_tap_join),
+                    color = if (p.is_closed) Color(0xFFE5484D) else c.accent, fontSize = 12.sp, fontWeight = FontWeight.Medium,
+                )
+            } else {
+                Text(stringResource(R.string.group_invite_link), color = c.textSecondary, fontSize = 12.sp)
+            }
+        }
+    }
+    if (showJoin && p != null) {
+        AlertDialog(
+            onDismissRequest = { if (!joining) showJoin = false },
+            containerColor = c.bgSecondary,
+            title = { Text(p.name ?: stringResource(R.string.group_invite_title), color = c.textPrimary) },
+            text = { Text(pluralStringResource(R.plurals.members, p.member_count, p.member_count), color = c.textSecondary) },
+            confirmButton = {
+                TextButton(enabled = !joining, onClick = {
+                    joining = true
+                    scope.launch {
+                        val g = session.joinGroup(groupId)
+                        joining = false
+                        showJoin = false
+                        if (g != null) onOpenGroup(groupId)
+                    }
+                }) { Text(stringResource(R.string.group_invite_join), color = c.accent) }
+            },
+            dismissButton = { TextButton(enabled = !joining, onClick = { showJoin = false }) { Text(stringResource(R.string.common_cancel), color = c.textSecondary) } },
+        )
+    }
+}
+
 /** A picked photo or video waiting in the pre-send preview. */
 private sealed interface PendingSend {
     data class Photo(val bytes: ByteArray) : PendingSend
@@ -725,14 +864,18 @@ private fun MediaPreviewDialog(pending: PendingSend, onCancel: () -> Unit, onSen
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun MessageBubble(session: Session, m: ChatMessage, senderName: String?, onRetry: () -> Unit, onLongPress: () -> Unit) {
+private fun MessageBubble(session: Session, m: ChatMessage, senderName: String?, onRetry: () -> Unit, onLongPress: () -> Unit, onOpenGroup: (Int) -> Unit = {}) {
     val c = RcqTheme.colors
     val failed = m.state == DeliveryState.FAILED
+    // A text body that is just a group-invite URL renders as a join card.
+    val groupLinkId = if (m.kind == "text") GroupLinkParser.parse(m.body) else null
     Column(Modifier.fillMaxWidth(), horizontalAlignment = if (m.fromMe) Alignment.End else Alignment.Start) {
         if (senderName != null) {
             Text(senderName, color = c.accent, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 4.dp, bottom = 1.dp))
         }
-        if (m.kind == "photo") {
+        if (groupLinkId != null) {
+            GroupLinkBubble(session, groupLinkId, onOpenGroup, onLongPress)
+        } else if (m.kind == "photo") {
             PhotoBubble(session, m, onLongPress)
             if (m.body.isNotEmpty()) {
                 Text(

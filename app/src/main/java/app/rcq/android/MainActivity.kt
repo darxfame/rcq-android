@@ -195,6 +195,7 @@ private fun RcqApp(session: Session) {
                 onBack = { chatTarget = null },
                 onOpenGroupInfo = { groupInfoId = it },
                 onOpenPeerInfo = { peerInfoUin = it },
+                onOpenGroup = { chatTarget = ChatTarget.Group(it) },
             )
             s is UiState.Registered && showManageAccounts -> ManageAccountsScreen(
                 session,

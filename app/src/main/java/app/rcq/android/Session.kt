@@ -847,6 +847,18 @@ class Session(context: Context) {
         runCatching { upsertGroup(mapGroup(api.addGroupMember(id, uin))) }
     }
 
+    /** Fetch a group invite-card snapshot (no membership needed). */
+    suspend fun previewGroup(id: Int): RcqApi.GroupPreviewOut? =
+        runCatching { api.previewGroup(id) }.getOrNull()
+
+    /** Join a group from a shared invite. Already-member is a no-op that just
+     *  returns the existing group (the caller jumps into the chat). Returns
+     *  null on failure (e.g. a closed group). */
+    suspend fun joinGroup(id: Int): RcqGroup? {
+        group(id)?.let { return it }
+        return runCatching { mapGroup(api.joinGroup(id)).also { upsertGroup(it) } }.getOrNull()
+    }
+
     suspend fun leaveGroup(id: Int) {
         val me = store.uin ?: return
         runCatching { api.leaveGroup(id, me) }

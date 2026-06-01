@@ -405,6 +405,24 @@ class RcqApi(private val baseUrl: String = DEFAULT_BASE_URL) {
         post("/groups/$id/join", "{}", authed = true, GroupOut::class.java)
     }
 
+    /** Public-ish group snapshot for the invite card (no membership needed),
+     *  mirrors backend GroupPreviewOut. */
+    data class GroupPreviewOut(
+        val id: Int,
+        val name: String? = null,
+        val description: String? = null,
+        val member_count: Int = 0,
+        val is_closed: Boolean = false,
+        val owner_uin: Int = 0,
+        val owner_nickname: String? = null,
+        val avatar_media_id: String? = null,
+        val avatar_media_key: String? = null,
+    )
+
+    suspend fun previewGroup(id: Int): GroupPreviewOut = withContext(Dispatchers.IO) {
+        get("/groups/$id/preview", authed = true, GroupPreviewOut::class.java)
+    }
+
     data class AddMemberBody(val uin: Int)
 
     suspend fun addGroupMember(id: Int, uin: Int): GroupOut = withContext(Dispatchers.IO) {

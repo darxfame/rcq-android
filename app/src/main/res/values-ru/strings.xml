@@ -490,6 +490,14 @@
     <string name="chat_attach_video">Видео</string>
     <string name="chat_attach_file">Файл</string>
     <string name="chat_attach_location">Геопозиция</string>
+    <string name="chat_attach_group">Приглашение в группу</string>
+    <string name="group_invite_loading">Группа</string>
+    <string name="group_invite_closed">Закрытая группа</string>
+    <string name="group_invite_tap_join">Нажмите, чтобы вступить</string>
+    <string name="group_invite_link">Приглашение в группу</string>
+    <string name="group_invite_title">Приглашение в группу</string>
+    <string name="group_invite_join">Вступить</string>
+    <string name="group_invite_none">У вас нет групп, чтобы поделиться.</string>
     <string name="chat_recording">Запись  %1$s</string>
     <string name="chat_send">Отправить</string>
     <string name="chat_media_preview_title">Отправить медиа</string>
