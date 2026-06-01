@@ -24,6 +24,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Casino
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -33,6 +35,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -180,6 +183,8 @@ private fun MatchedChat(session: Session, matched: RandomState.Matched) {
     val messages by session.randomMessages.collectAsState()
     var draft by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
+    val context = LocalContext.current
+    var added by remember(matched.peerUin) { mutableStateOf(false) }
 
     // Live countdown to expiry.
     var remaining by remember(matched.expiresAtMs) { mutableStateOf(matched.expiresAtMs - System.currentTimeMillis()) }
@@ -208,6 +213,20 @@ private fun MatchedChat(session: Session, matched: RandomState.Matched) {
                 Text(matched.peerNickname, color = c.textPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(stringResource(R.string.random_stranger), color = c.textSecondary, fontSize = 12.sp)
             }
+            // Add the stranger as a contact (a random peer is NOT a contact by default).
+            Icon(
+                if (added) Icons.Filled.Check else Icons.Filled.PersonAdd,
+                stringResource(R.string.random_add_contact),
+                tint = if (added) c.textSecondary else c.accent,
+                modifier = Modifier.size(24.dp).clip(CircleShape).clickable(enabled = !added) {
+                    added = true
+                    scope.launch {
+                        runCatching { session.addContact(matched.peerUin) }
+                        android.widget.Toast.makeText(context, context.getString(R.string.random_add_sent), android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                },
+            )
+            Spacer(Modifier.width(12.dp))
             Text(formatRemaining(remaining), color = if (remaining < 60_000) Color(0xFFE5484D) else c.accent, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
         }
 

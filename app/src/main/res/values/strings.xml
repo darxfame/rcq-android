@@ -458,6 +458,8 @@
     <string name="random_searching">Looking for someone…</string>
     <string name="random_stranger">Anonymous stranger</string>
     <string name="random_skip">Skip</string>
+    <string name="random_add_contact">Add to contacts</string>
+    <string name="random_add_sent">Contact request sent</string>
     <string name="random_ended">Chat ended</string>
     <string name="random_again">Find another</string>
     <string name="random_end_expired">Time\'s up.</string>

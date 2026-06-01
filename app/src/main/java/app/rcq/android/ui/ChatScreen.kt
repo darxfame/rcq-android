@@ -337,7 +337,7 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
             }
         }
 
-        LazyColumn(state = listState, modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        LazyColumn(state = listState, modifier = Modifier.weight(1f).fillMaxWidth(), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             items(messages, key = { it.id }) { m ->
                 if (m.kind == "call") {
                     CallHistoryRow(m)
