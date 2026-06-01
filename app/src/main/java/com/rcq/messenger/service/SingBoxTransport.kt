@@ -124,29 +124,49 @@ class SingBoxTransport @Inject constructor(
      * чтобы модуль компилировался и без .aar.
      *
      * Реальное API libbox.aar (проверено `javap` против classes.jar):
-     *   - `BoxService()` — пустой конструктор (НЕ принимает config!)
-     *   - `Libbox.newService(String config, PlatformInterface platform)` → возвращает BoxService
+     *   - `Libbox.setup(SetupOptions)` — ОБЯЗАТЕЛЬНО до newService(); задаёт writable пути
+     *     (basePath/workingPath/tempPath) и fixAndroidStack=true. Без этого ядро пишет
+     *     `cache.db` в CWD ("/" на Android — read-only) и падает.
+     *   - `SetupOptions()` — пустой конструктор + сеттеры
+     *   - `Libbox.newService(String config, PlatformInterface platform)` → BoxService
      *   - `boxService.start()` — без аргументов
-     *
-     * Конструктор `BoxService(String)` НЕ существует — раньше мы пытались его дёрнуть и
-     * молча падали в catch. Единственный рабочий путь — `Libbox.newService(config, platform)`,
-     * причём `PlatformInterface` требует не-null возврат для систем-сертификатов и
-     * сетевых интерфейсов, иначе ядро падает в Go-коде ещё до start().
      */
     private fun startNativeEngine(config: String): Any {
         val libboxClass = Class.forName("io.nekohasekai.libbox.Libbox")
+        val setupOptsClass = Class.forName("io.nekohasekai.libbox.SetupOptions")
         val platformIface = Class.forName("io.nekohasekai.libbox.PlatformInterface")
+
+        // 1) Writable директории для Go-runtime
+        val baseDir = context.filesDir.absolutePath
+        val tempDir = context.cacheDir.absolutePath
+
+        // 2) Libbox.setup(SetupOptions) — фиксирует basePath/workingPath до старта Go-runtime,
+        //    чтобы cache.db писался в filesDir, а не в "/" (read-only на Android)
+        val opts = setupOptsClass.getConstructor().newInstance()
+        setupOptsClass.getMethod("setBasePath", String::class.java).invoke(opts, baseDir)
+        setupOptsClass.getMethod("setWorkingPath", String::class.java).invoke(opts, baseDir)
+        setupOptsClass.getMethod("setTempPath", String::class.java).invoke(opts, tempDir)
+        runCatching {
+            setupOptsClass.getMethod("setFixAndroidStack", Boolean::class.javaPrimitiveType)
+                .invoke(opts, true)
+        }
+        libboxClass.getMethod("setup", setupOptsClass).invoke(null, opts)
+        Timber.d("$TAG: Libbox.setup() basePath=$baseDir tempPath=$tempDir")
+
+        // 3) PlatformInterface stub
         val platformStub = java.lang.reflect.Proxy.newProxyInstance(
             platformIface.classLoader,
             arrayOf(platformIface),
             EmptyPlatformHandler
         )
+
+        // 4) newService → start
         val svc = libboxClass
             .getMethod("newService", String::class.java, platformIface)
             .invoke(null, config, platformStub)
             ?: error("Libbox.newService вернул null")
         svc.javaClass.getMethod("start").invoke(svc)
-        Timber.d("$TAG: engine started via Libbox.newService(config, EmptyPlatformHandler)")
+        Timber.d("$TAG: engine started via Libbox.newService + EmptyPlatformHandler")
         return svc
     }
 
@@ -173,14 +193,22 @@ class SingBoxTransport @Inject constructor(
         if (relays.isEmpty()) { Timber.w("$TAG: no relays available"); return null }
         val ordered = orderedRelays(relays)
         val outbounds = JSONArray().apply {
+            // selector вместо urltest: не требует cache.db для хранения истории проб.
+            // Выбор быстрейшего relay делаем сами через probeRelaysInBackground() →
+            // PREF_LAST_RELAY → orderedRelays() ставит победителя первым при следующем старте.
             put(JSONObject().apply {
-                put("type", "urltest"); put("tag", "out")
+                put("type", "selector"); put("tag", "out")
                 put("outbounds", JSONArray(ordered.map { it.tag }))
-                put("url", "https://api.rcq.app/health")
-                put("interval", "5m"); put("tolerance", 50)
+                put("default", ordered.first().tag)
             })
             for (r in ordered) put(if (r.proto == "vless") vlessOutbound(r) else hysteria2Outbound(r))
         }
+        // Sing-box по дефолту пишет cache.db в CWD ("/" на Android — read-only).
+        // Защита в два слоя:
+        //   1) Libbox.setup() в startNativeEngine() переключает CWD на filesDir
+        //   2) selector вместо urltest — даже без cache.db работает корректно
+        //   3) experimental.cache_file.enabled=false — на случай если ядро всё-таки
+        //      попытается открыть cache.db, оно его пропустит
         return JSONObject().apply {
             put("log", JSONObject().put("level", "warn"))
             put("inbounds", JSONArray().put(JSONObject().apply {
@@ -188,6 +216,7 @@ class SingBoxTransport @Inject constructor(
                 put("listen", "127.0.0.1"); put("listen_port", LOCAL_PORT)
             }))
             put("outbounds", outbounds)
+            put("experimental", JSONObject().put("cache_file", JSONObject().put("enabled", false)))
         }.toString()
     }
 
