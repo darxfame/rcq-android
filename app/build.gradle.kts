@@ -21,8 +21,14 @@ android {
         vectorDrawables {
             useSupportLibrary = true
         }
+    }
 
-        buildConfigField("String", "API_BASE_URL", "\"https://api.rcq.app/\"")
+    flavorDimensions += "env"
+    productFlavors {
+        create("production") {
+            dimension = "env"
+            buildConfigField("String", "API_BASE_URL", "\"https://api.rcq.app/\"")
+        }
     }
 
     buildTypes {
