@@ -26,7 +26,7 @@ sealed interface Envelope {
     /** Photo. `mediaId`/`mediaKey` point at the out-of-band encrypted
      *  blob (rcq-spec 9). caption may be empty. [spoiler] = sent blurred,
      *  the recipient taps to reveal (Android-only flag; iOS ignores it). */
-    data class Photo(val id: String, val mediaId: String, val mediaKey: String, val caption: String?, val spoiler: Boolean = false) : Envelope
+    data class Photo(val id: String, val mediaId: String, val mediaKey: String, val caption: String?, val spoiler: Boolean = false, val albumId: String? = null) : Envelope
     /** A reaction to another message (iOS kind "reaction"). Carries no own
      *  message id; [targetId] is the reacted message's UUID, [asset] the
      *  emoji (null clears, currently treated as a no-op on receipt). */
@@ -72,6 +72,7 @@ sealed interface Envelope {
         val durationSec: Double,
         val caption: String?,
         val spoiler: Boolean = false,
+        val albumId: String? = null,
     ) : Envelope
     /** Shared location (iOS kind "location"). */
     data class Location(val id: String, val lat: Double, val lng: Double, val caption: String?) : Envelope
@@ -118,6 +119,7 @@ sealed interface Envelope {
             addProperty("mediaKey", mediaKey)
             if (!caption.isNullOrEmpty()) addProperty("caption", caption)
             if (spoiler) addProperty("spoiler", true)
+            albumId?.let { addProperty("album", it) }
         }.toString().toByteArray(Charsets.UTF_8)
         is Reaction -> JsonObject().apply {
             addProperty("kind", "reaction")
@@ -163,6 +165,7 @@ sealed interface Envelope {
             addProperty("durationSec", durationSec)
             if (!caption.isNullOrEmpty()) addProperty("caption", caption)
             if (spoiler) addProperty("spoiler", true)
+            albumId?.let { addProperty("album", it) }
         }.toString().toByteArray(Charsets.UTF_8)
         is Location -> JsonObject().apply {
             addProperty("kind", "location")
@@ -200,8 +203,8 @@ sealed interface Envelope {
         fun text(body: String, replyTo: Reply? = null): Text =
             Text(id = UUID.randomUUID().toString().uppercase(), text = body, replyTo = replyTo)
 
-        fun photo(mediaId: String, mediaKey: String, caption: String?, spoiler: Boolean = false): Photo =
-            Photo(UUID.randomUUID().toString().uppercase(), mediaId, mediaKey, caption, spoiler)
+        fun photo(mediaId: String, mediaKey: String, caption: String?, spoiler: Boolean = false, albumId: String? = null): Photo =
+            Photo(UUID.randomUUID().toString().uppercase(), mediaId, mediaKey, caption, spoiler, albumId)
 
         fun reaction(targetId: String, asset: String?): Reaction = Reaction(targetId, asset)
 
@@ -217,8 +220,8 @@ sealed interface Envelope {
         fun voice(mediaId: String, mediaKey: String, durationSec: Double): Voice =
             Voice(UUID.randomUUID().toString().uppercase(), mediaId, mediaKey, durationSec)
 
-        fun video(mediaId: String, mediaKey: String, thumbnailB64: String, durationSec: Double, caption: String?, spoiler: Boolean = false): Video =
-            Video(UUID.randomUUID().toString().uppercase(), mediaId, mediaKey, thumbnailB64, durationSec, caption, spoiler)
+        fun video(mediaId: String, mediaKey: String, thumbnailB64: String, durationSec: Double, caption: String?, spoiler: Boolean = false, albumId: String? = null): Video =
+            Video(UUID.randomUUID().toString().uppercase(), mediaId, mediaKey, thumbnailB64, durationSec, caption, spoiler, albumId)
 
         fun location(lat: Double, lng: Double, caption: String?): Location =
             Location(UUID.randomUUID().toString().uppercase(), lat, lng, caption)
@@ -241,6 +244,7 @@ sealed interface Envelope {
                     mediaKey = obj.get("mediaKey")?.asString.orEmpty(),
                     caption = obj.get("caption")?.asString,
                     spoiler = obj.get("spoiler")?.asBoolean ?: false,
+                    albumId = obj.get("album")?.asString,
                 )
                 "reaction" -> Reaction(
                     targetId = obj.get("targetID")?.asString.orEmpty(),
@@ -277,6 +281,7 @@ sealed interface Envelope {
                     durationSec = obj.get("durationSec")?.asDouble ?: 0.0,
                     caption = obj.get("caption")?.asString,
                     spoiler = obj.get("spoiler")?.asBoolean ?: false,
+                    albumId = obj.get("album")?.asString,
                 )
                 "location" -> Location(
                     id = id,

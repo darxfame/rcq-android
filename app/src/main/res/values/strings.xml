@@ -490,6 +490,7 @@
     <string name="chat_emoticons">Emoticons</string>
     <string name="chat_attach_photo">Photo</string>
     <string name="chat_attach_video">Video</string>
+    <string name="chat_attach_album">Album</string>
     <string name="chat_attach_file">File</string>
     <string name="chat_attach_location">Location</string>
     <string name="chat_attach_group">Group invite</string>

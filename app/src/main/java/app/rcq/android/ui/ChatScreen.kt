@@ -17,6 +17,7 @@ import kotlin.coroutines.resume
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
@@ -93,6 +94,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.pluralStringResource
@@ -187,6 +189,34 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
         if (uri != null) scope.launch {
             val v = withContext(Dispatchers.IO) { readPickedVideo(context, uri) }
             if (v != null) pendingSend = PendingSend.Video(v)
+        }
+    }
+
+    // Multi-pick photos/videos → one media album (shared album id). A single
+    // pick still sends fine (renders as a normal single, not a grid).
+    val albumPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickMultipleVisualMedia(10),
+    ) { uris ->
+        if (uris.isNotEmpty()) scope.launch {
+            val albumId = if (uris.size > 1) java.util.UUID.randomUUID().toString().uppercase() else null
+            for (uri in uris) {
+                val mime = withContext(Dispatchers.IO) { context.contentResolver.getType(uri) } ?: ""
+                runCatching {
+                    if (mime.startsWith("video/")) {
+                        val v = withContext(Dispatchers.IO) { readPickedVideo(context, uri) }
+                        if (v != null) {
+                            if (isGroup) session.sendGroupVideo(groupId!!, v.bytes, v.thumbB64, v.durationSec, null, albumId = albumId)
+                            else session.sendVideo(peer!!, v.bytes, v.thumbB64, v.durationSec, null, albumId = albumId)
+                        }
+                    } else {
+                        val data = withContext(Dispatchers.IO) { readImageForSend(context, uri) }
+                        if (data != null) {
+                            if (isGroup) session.sendGroupPhoto(groupId!!, data, null, albumId = albumId)
+                            else session.sendPhoto(peer!!, data, null, albumId = albumId)
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -347,17 +377,28 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
             }
         }
 
+        val albumRows = remember(messages) { groupAlbumRows(messages) }
         LazyColumn(state = listState, modifier = Modifier.weight(1f).fillMaxWidth(), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            items(messages, key = { it.id }) { m ->
-                if (m.kind == "call") {
-                    CallHistoryRow(m)
-                } else {
-                    MessageBubble(
-                        session, m,
-                        senderName = if (isGroup && !m.fromMe) authorName(m) else null,
-                        onRetry = { scope.launch { runCatching { session.resend(m) } } },
-                        onLongPress = { actionMsg = m },
-                        onOpenGroup = onOpenGroup,
+            items(albumRows, key = { row -> when (row) { is ChatRow.Single -> row.m.id; is ChatRow.Album -> "alb-${row.items.first().id}" } }) { row ->
+                when (row) {
+                    is ChatRow.Single -> {
+                        val m = row.m
+                        if (m.kind == "call") {
+                            CallHistoryRow(m)
+                        } else {
+                            MessageBubble(
+                                session, m,
+                                senderName = if (isGroup && !m.fromMe) authorName(m) else null,
+                                onRetry = { scope.launch { runCatching { session.resend(m) } } },
+                                onLongPress = { actionMsg = m },
+                                onOpenGroup = onOpenGroup,
+                            )
+                        }
+                    }
+                    is ChatRow.Album -> AlbumBubble(
+                        session, row.items,
+                        senderName = if (isGroup && !row.items.first().fromMe) authorName(row.items.first()) else null,
+                        onLongPress = { actionMsg = row.items.first() },
                     )
                 }
             }
@@ -490,6 +531,10 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
                 Column {
                     MessageAction(stringResource(R.string.chat_attach_photo)) { attachMenu = false; picker.launch("image/*") }
                     MessageAction(stringResource(R.string.chat_attach_video)) { attachMenu = false; videoPicker.launch("video/*") }
+                    MessageAction(stringResource(R.string.chat_attach_album)) {
+                        attachMenu = false
+                        albumPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo))
+                    }
                     MessageAction(stringResource(R.string.chat_attach_file)) { attachMenu = false; filePicker.launch("*/*") }
                     MessageAction(stringResource(R.string.chat_attach_location)) { attachMenu = false; shareLocation() }
                     MessageAction(stringResource(R.string.chat_attach_group)) { attachMenu = false; showGroupPicker = true }
@@ -874,6 +919,153 @@ private fun MediaPreviewDialog(pending: PendingSend, onCancel: () -> Unit, onSen
         confirmButton = { TextButton(onClick = { onSend(spoiler) }) { Text(stringResource(R.string.chat_send), color = c.accent) } },
         dismissButton = { TextButton(onClick = onCancel) { Text(stringResource(R.string.common_cancel), color = c.textSecondary) } },
     )
+}
+
+/** A chat-list render unit: a normal single message, or a collapsed media
+ *  album (2+ consecutive photo/video messages that shared an albumId at send). */
+private sealed interface ChatRow {
+    data class Single(val m: ChatMessage) : ChatRow
+    data class Album(val id: String, val items: List<ChatMessage>) : ChatRow
+}
+
+/** Collapse runs of consecutive same-album, same-sender photo/video messages
+ *  into one Album row (iOS ChatViewModel album-collapse parity). A lone
+ *  album-tagged message stays Single (renders as a normal bubble). */
+private fun groupAlbumRows(msgs: List<ChatMessage>): List<ChatRow> {
+    val out = ArrayList<ChatRow>(msgs.size)
+    var i = 0
+    while (i < msgs.size) {
+        val m = msgs[i]
+        val alb = m.albumId
+        if (alb != null && (m.kind == "photo" || m.kind == "video")) {
+            var j = i
+            val group = ArrayList<ChatMessage>()
+            while (j < msgs.size) {
+                val n = msgs[j]
+                if (n.albumId == alb && (n.kind == "photo" || n.kind == "video") && n.fromMe == m.fromMe && n.senderUin == m.senderUin) {
+                    group.add(n); j++
+                } else break
+            }
+            if (group.size >= 2) { out.add(ChatRow.Album(alb, group)); i = j; continue }
+        }
+        out.add(ChatRow.Single(m)); i++
+    }
+    return out
+}
+
+/** A collapsed media album: the tile grid + count pill, an optional caption,
+ *  and a time/state footer. Long-press acts on the album's first message. */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun AlbumBubble(session: Session, items: List<ChatMessage>, senderName: String?, onLongPress: () -> Unit) {
+    val c = RcqTheme.colors
+    val first = items.first()
+    val last = items.last()
+    Column(Modifier.fillMaxWidth(), horizontalAlignment = if (first.fromMe) Alignment.End else Alignment.Start) {
+        if (senderName != null) {
+            Text(senderName, color = c.accent, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 4.dp, bottom = 1.dp))
+        }
+        AlbumGrid(session, items, onLongPress)
+        items.firstOrNull { it.body.isNotEmpty() }?.let { cap ->
+            EmoticonText(
+                cap.body, color = c.textPrimary, fontSize = 14.sp,
+                modifier = Modifier.padding(top = 2.dp).clip(RoundedCornerShape(10.dp)).background(if (first.fromMe) c.bubbleSelf else c.bubbleOther).padding(horizontal = 10.dp, vertical = 6.dp),
+            )
+        }
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+        ) {
+            Text(formatTime(last.sentAt), color = c.textSecondary, fontSize = 10.sp)
+            if (first.fromMe) Text(stateGlyph(last.state), color = if (last.state == DeliveryState.READ) c.accent else c.textSecondary, fontSize = 10.sp)
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun AlbumGrid(session: Session, items: List<ChatMessage>, onLongPress: () -> Unit) {
+    val maxW = 240.dp
+    val sp = 3.dp
+    val half = (maxW - sp) / 2f
+    val count = minOf(items.size, 4)
+    Box {
+        val gridMod = Modifier.clip(RoundedCornerShape(12.dp))
+        when (count) {
+            2 -> Row(gridMod, horizontalArrangement = Arrangement.spacedBy(sp)) {
+                AlbumTile(session, items[0], half, maxW * 0.5f, onLongPress)
+                AlbumTile(session, items[1], half, maxW * 0.5f, onLongPress)
+            }
+            3 -> Column(gridMod, verticalArrangement = Arrangement.spacedBy(sp)) {
+                AlbumTile(session, items[0], maxW, maxW * 0.55f, onLongPress)
+                Row(horizontalArrangement = Arrangement.spacedBy(sp)) {
+                    AlbumTile(session, items[1], half, maxW * 0.385f, onLongPress)
+                    AlbumTile(session, items[2], half, maxW * 0.385f, onLongPress)
+                }
+            }
+            else -> Column(gridMod, verticalArrangement = Arrangement.spacedBy(sp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(sp)) {
+                    AlbumTile(session, items[0], half, maxW * 0.5f, onLongPress)
+                    AlbumTile(session, items[1], half, maxW * 0.5f, onLongPress)
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(sp)) {
+                    AlbumTile(session, items[2], half, maxW * 0.5f, onLongPress)
+                    Box(contentAlignment = Alignment.Center) {
+                        AlbumTile(session, items[3], half, maxW * 0.5f, onLongPress)
+                        if (items.size > 4) {
+                            Box(
+                                Modifier.size(half, maxW * 0.5f).background(Color.Black.copy(alpha = 0.5f)),
+                                contentAlignment = Alignment.Center,
+                            ) { Text("+${items.size - 4}", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold) }
+                        }
+                    }
+                }
+            }
+        }
+        Box(
+            Modifier.align(Alignment.TopEnd).padding(6.dp).clip(RoundedCornerShape(8.dp)).background(Color.Black.copy(alpha = 0.5f)).padding(horizontal = 6.dp, vertical = 1.dp),
+        ) { Text("${items.size}", color = Color.White, fontSize = 11.sp) }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun AlbumTile(session: Session, m: ChatMessage, w: Dp, h: Dp, onLongPress: () -> Unit) {
+    val c = RcqTheme.colors
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val isVideo = m.kind == "video"
+    val photo by produceState<ByteArray?>(initialValue = null, m.id) {
+        value = if (!isVideo && m.mediaId != null && m.mediaKey != null) session.fetchImage(m.mediaId, m.mediaKey) else null
+    }
+    val bmp = remember(photo, m.id) {
+        if (isVideo) {
+            m.thumbB64?.takeIf { it.isNotEmpty() }?.let { runCatching { val b = android.util.Base64.decode(it, android.util.Base64.NO_WRAP); BitmapFactory.decodeByteArray(b, 0, b.size)?.asImageBitmap() }.getOrNull() }
+        } else {
+            photo?.let { runCatching { BitmapFactory.decodeByteArray(it, 0, it.size)?.asImageBitmap() }.getOrNull() }
+        }
+    }
+    Box(
+        Modifier.size(w, h).background(c.bgSecondary).combinedClickable(
+            onClick = {
+                val mid = m.mediaId; val key = m.mediaKey
+                if (mid != null && key != null) scope.launch {
+                    val bytes = session.fetchImage(mid, key)
+                    if (bytes != null) {
+                        if (isVideo) openFile(context, bytes, "video-${m.id}.mp4", "video/mp4")
+                        else openFile(context, bytes, "photo-${m.id}.jpg", "image/jpeg")
+                    }
+                }
+            },
+            onLongClick = onLongPress,
+        ),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (bmp != null) Image(bitmap = bmp, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+        else CircularProgressIndicator(color = c.accent, modifier = Modifier.size(16.dp))
+        if (isVideo) Icon(Icons.Filled.PlayArrow, null, tint = Color.White, modifier = Modifier.size(26.dp))
+    }
 }
 
 @OptIn(ExperimentalFoundationApi::class)

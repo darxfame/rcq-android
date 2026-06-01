@@ -489,6 +489,7 @@
     <string name="chat_emoticons">Смайлы</string>
     <string name="chat_attach_photo">Фото</string>
     <string name="chat_attach_video">Видео</string>
+    <string name="chat_attach_album">Альбом</string>
     <string name="chat_attach_file">Файл</string>
     <string name="chat_attach_location">Геопозиция</string>
     <string name="chat_attach_group">Приглашение в группу</string>
