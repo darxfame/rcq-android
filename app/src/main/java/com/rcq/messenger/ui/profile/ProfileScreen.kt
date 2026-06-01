@@ -1,5 +1,6 @@
 package com.rcq.messenger.ui.profile
 
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -54,8 +55,13 @@ class ProfileViewModel @Inject constructor(
 
     fun openChat(targetId: Long) {
         viewModelScope.launch {
-            chatRepository.createChat(targetId).onSuccess { chat ->
-                _createdChatId.value = chat.id
+            Log.d("ProfileViewModel", "openChat requested targetId=$targetId")
+            // Use openOrCreateChat to guarantee we get a direct_<uin> chatId for private chats
+            chatRepository.openOrCreateChat(targetId).onSuccess { chatId ->
+                Log.d("ProfileViewModel", "openChat resolved chatId=$chatId")
+                _createdChatId.value = chatId
+            }.onFailure { e ->
+                Log.e("ProfileViewModel", "openChat failed for targetId=$targetId: ${e.message}")
             }
         }
     }
