@@ -53,6 +53,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Mood
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Pause
@@ -84,6 +85,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -617,40 +620,52 @@ private fun Composer(
         }
         return
     }
-    Row(
-        Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.Bottom,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Icon(
-            Icons.Filled.AddPhotoAlternate, stringResource(R.string.chat_attach), tint = c.textSecondary,
-            modifier = Modifier.size(40.dp).clip(CircleShape).clickable(onClick = onAttach).padding(8.dp),
-        )
-        Box(
-            Modifier.weight(1f).heightIn(min = 40.dp).clip(RoundedCornerShape(20.dp)).background(c.bgSecondary).padding(horizontal = 14.dp, vertical = 10.dp),
-            contentAlignment = Alignment.CenterStart,
-        ) {
-            if (draft.isEmpty()) Text(stringResource(R.string.chat_input_hint), color = c.textSecondary, fontSize = 15.sp)
-            BasicTextField(
-                value = draft,
-                onValueChange = onDraftChange,
-                textStyle = TextStyle(color = c.textPrimary, fontSize = 15.sp),
-                cursorBrush = SolidColor(accentColor),
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
-        val canSend = draft.isNotBlank()
-        Box(
-            Modifier.size(40.dp).clip(CircleShape).background(if (canSend) c.accent else c.bgSecondary)
-                .clickable(onClick = { if (canSend) onSend() else onMic() }),
-            contentAlignment = Alignment.Center,
+    val keyboard = LocalSoftwareKeyboardController.current
+    var showEmoji by remember { mutableStateOf(false) }
+    Column(Modifier.fillMaxWidth()) {
+        if (showEmoji) EmoticonPanel(onPick = { onDraftChange(draft + it) })
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.Bottom,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Icon(
-                if (canSend) Icons.AutoMirrored.Filled.Send else Icons.Filled.Mic,
-                stringResource(if (canSend) R.string.chat_send else R.string.chat_record_voice),
-                tint = if (canSend) Color.White else c.textSecondary,
-                modifier = Modifier.size(20.dp),
+                Icons.Filled.AddPhotoAlternate, stringResource(R.string.chat_attach), tint = c.textSecondary,
+                modifier = Modifier.size(40.dp).clip(CircleShape).clickable(onClick = onAttach).padding(8.dp),
             )
+            Icon(
+                Icons.Filled.Mood, stringResource(R.string.chat_emoticons), tint = if (showEmoji) c.accent else c.textSecondary,
+                modifier = Modifier.size(40.dp).clip(CircleShape).clickable {
+                    showEmoji = !showEmoji
+                    if (showEmoji) keyboard?.hide()
+                }.padding(8.dp),
+            )
+            Box(
+                Modifier.weight(1f).heightIn(min = 40.dp).clip(RoundedCornerShape(20.dp)).background(c.bgSecondary).padding(horizontal = 14.dp, vertical = 10.dp),
+                contentAlignment = Alignment.CenterStart,
+            ) {
+                if (draft.isEmpty()) Text(stringResource(R.string.chat_input_hint), color = c.textSecondary, fontSize = 15.sp)
+                BasicTextField(
+                    value = draft,
+                    onValueChange = onDraftChange,
+                    textStyle = TextStyle(color = c.textPrimary, fontSize = 15.sp),
+                    cursorBrush = SolidColor(accentColor),
+                    modifier = Modifier.fillMaxWidth().onFocusChanged { if (it.isFocused) showEmoji = false },
+                )
+            }
+            val canSend = draft.isNotBlank()
+            Box(
+                Modifier.size(40.dp).clip(CircleShape).background(if (canSend) c.accent else c.bgSecondary)
+                    .clickable(onClick = { if (canSend) onSend() else onMic() }),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    if (canSend) Icons.AutoMirrored.Filled.Send else Icons.Filled.Mic,
+                    stringResource(if (canSend) R.string.chat_send else R.string.chat_record_voice),
+                    tint = if (canSend) Color.White else c.textSecondary,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
         }
     }
 }
@@ -877,7 +892,7 @@ private fun MessageBubble(session: Session, m: ChatMessage, senderName: String?,
         } else if (m.kind == "photo") {
             PhotoBubble(session, m, onLongPress)
             if (m.body.isNotEmpty()) {
-                Text(
+                EmoticonText(
                     m.body, color = c.textPrimary, fontSize = 14.sp,
                     modifier = Modifier.padding(top = 2.dp).clip(RoundedCornerShape(10.dp)).background(if (m.fromMe) c.bubbleSelf else c.bubbleOther).padding(horizontal = 10.dp, vertical = 6.dp),
                 )
@@ -889,7 +904,7 @@ private fun MessageBubble(session: Session, m: ChatMessage, senderName: String?,
         } else if (m.kind == "video") {
             VideoBubble(session, m, onLongPress)
             if (m.body.isNotEmpty()) {
-                Text(
+                EmoticonText(
                     m.body, color = c.textPrimary, fontSize = 14.sp,
                     modifier = Modifier.padding(top = 2.dp).clip(RoundedCornerShape(10.dp)).background(if (m.fromMe) c.bubbleSelf else c.bubbleOther).padding(horizontal = 10.dp, vertical = 6.dp),
                 )
@@ -914,7 +929,7 @@ private fun MessageBubble(session: Session, m: ChatMessage, senderName: String?,
                         Text(m.replyToSnippet, color = c.textSecondary, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
-                Text(m.body, color = c.textPrimary, fontSize = 15.sp)
+                EmoticonText(m.body, color = c.textPrimary, fontSize = 15.sp)
             }
         }
         if (m.reactions.isNotEmpty()) {

@@ -487,6 +487,7 @@
     <string name="chat_delete_me">Delete for me</string>
     <string name="chat_edit_title">Edit message</string>
     <string name="chat_attach">Attach</string>
+    <string name="chat_emoticons">Emoticons</string>
     <string name="chat_attach_photo">Photo</string>
     <string name="chat_attach_video">Video</string>
     <string name="chat_attach_file">File</string>

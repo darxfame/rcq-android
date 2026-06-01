@@ -486,6 +486,7 @@
     <string name="chat_delete_me">Удалить у меня</string>
     <string name="chat_edit_title">Изменить сообщение</string>
     <string name="chat_attach">Вложение</string>
+    <string name="chat_emoticons">Смайлы</string>
     <string name="chat_attach_photo">Фото</string>
     <string name="chat_attach_video">Видео</string>
     <string name="chat_attach_file">Файл</string>
