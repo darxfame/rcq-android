@@ -16,7 +16,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.layout.Row
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.res.stringResource
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -254,7 +258,49 @@ private fun RcqApp(session: Session) {
         if (s is UiState.Registered && !locked && callState !is app.rcq.android.call.CallController.State.Idle) {
             app.rcq.android.ui.CallScreen(session.calls)
         }
+
+        // In-app update prompt: the APK ships from the website, so we self-check
+        // a version manifest once per launch and offer a one-tap update.
+        var update by remember { mutableStateOf<app.rcq.android.net.UpdateChecker.Update?>(null) }
+        var updateBusy by remember { mutableStateOf(false) }
+        LaunchedEffect(s is UiState.Registered) {
+            if (s is UiState.Registered) update = app.rcq.android.net.UpdateChecker.check()
+        }
+        update?.let { up ->
+            if (s is UiState.Registered && !locked) UpdateDialog(
+                update = up,
+                busy = updateBusy,
+                onUpdate = {
+                    updateBusy = true
+                    scope.launch { app.rcq.android.net.UpdateChecker.downloadAndInstall(context, up); updateBusy = false }
+                },
+                onDismiss = { update = null },
+            )
+        }
     }
+}
+
+@Composable
+private fun UpdateDialog(update: app.rcq.android.net.UpdateChecker.Update, busy: Boolean, onUpdate: () -> Unit, onDismiss: () -> Unit) {
+    val c = RcqTheme.colors
+    AlertDialog(
+        onDismissRequest = { if (!busy) onDismiss() },
+        containerColor = c.bgSecondary,
+        title = { Text(stringResource(R.string.update_title, update.versionName), color = c.textPrimary) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (update.notes.isNotBlank()) Text(update.notes, color = c.textSecondary, fontSize = 14.sp)
+                if (busy) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        CircularProgressIndicator(color = c.accent, modifier = Modifier.size(18.dp))
+                        Text(stringResource(R.string.update_downloading), color = c.textSecondary, fontSize = 13.sp)
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(enabled = !busy, onClick = onUpdate) { Text(stringResource(R.string.update_now), color = c.accent) } },
+        dismissButton = { TextButton(enabled = !busy, onClick = onDismiss) { Text(stringResource(R.string.update_later), color = c.textSecondary) } },
+    )
 }
 
 

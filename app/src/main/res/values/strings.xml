@@ -89,6 +89,10 @@
 
     <!-- Common -->
     <string name="common_cancel">Cancel</string>
+    <string name="update_title">Update available · %1$s</string>
+    <string name="update_now">Update</string>
+    <string name="update_later">Later</string>
+    <string name="update_downloading">Downloading…</string>
     <string name="common_close">Close</string>
     <string name="common_done">Done</string>
     <string name="common_save">Save</string>

@@ -1,6 +1,17 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+}
+
+// Release signing creds live in keystore.properties (gitignored) → the keystore
+// itself sits outside the repo (~/.rcq/android-release). On a machine without
+// it the config stays empty and only debug builds work.
+val keystorePropsFile = rootProject.file("keystore.properties")
+val keystoreProps = Properties().apply {
+    if (keystorePropsFile.exists()) FileInputStream(keystorePropsFile).use { load(it) }
 }
 
 android {
@@ -21,10 +32,27 @@ android {
         }
     }
 
+    signingConfigs {
+        create("release") {
+            if (keystoreProps.isNotEmpty()) {
+                storeFile = file(keystoreProps.getProperty("storeFile"))
+                storePassword = keystoreProps.getProperty("storePassword")
+                keyAlias = keystoreProps.getProperty("keyAlias")
+                keyPassword = keystoreProps.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
+            // R8/minify stays OFF for now: the app leans on reflection (Gson over
+            // the DTOs, libsignal/JNI) so enabling it needs a careful keep-rule
+            // pass, and the savings are small next to the ~80MB of native libs
+            // (libsignal + rcqbox) that R8 can't touch. Sign for release so the
+            // APK installs + can self-update.
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            signingConfig = if (keystoreProps.isNotEmpty()) signingConfigs.getByName("release") else signingConfigs.getByName("debug")
         }
     }
     compileOptions {
@@ -35,7 +63,7 @@ android {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
-    buildFeatures { compose = true }
+    buildFeatures { compose = true; buildConfig = true }
 
     // Split the APK by ABI so a device downloads only its own native libs.
     // libsignal + rcqbox (sing-box) each ship a ~40MB .so per ABI, so a

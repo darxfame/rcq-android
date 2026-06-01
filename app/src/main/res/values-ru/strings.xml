@@ -88,6 +88,10 @@
 
     <!-- Common -->
     <string name="common_cancel">Отмена</string>
+    <string name="update_title">Доступно обновление · %1$s</string>
+    <string name="update_now">Обновить</string>
+    <string name="update_later">Позже</string>
+    <string name="update_downloading">Загрузка…</string>
     <string name="common_close">Закрыть</string>
     <string name="common_done">Готово</string>
     <string name="common_save">Сохранить</string>
