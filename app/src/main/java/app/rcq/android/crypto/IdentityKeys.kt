@@ -1,10 +1,13 @@
 package app.rcq.android.crypto
 
+import org.bouncycastle.crypto.digests.SHA256Digest
 import org.bouncycastle.crypto.generators.Ed25519KeyPairGenerator
+import org.bouncycastle.crypto.generators.HKDFBytesGenerator
 import org.bouncycastle.crypto.generators.X25519KeyPairGenerator
 import org.bouncycastle.crypto.params.Ed25519KeyGenerationParameters
 import org.bouncycastle.crypto.params.Ed25519PrivateKeyParameters
 import org.bouncycastle.crypto.params.Ed25519PublicKeyParameters
+import org.bouncycastle.crypto.params.HKDFParameters
 import org.bouncycastle.crypto.params.X25519KeyGenerationParameters
 import org.bouncycastle.crypto.params.X25519PrivateKeyParameters
 import org.bouncycastle.crypto.params.X25519PublicKeyParameters
@@ -61,4 +64,35 @@ object IdentityKeys {
             signingPrivate = edPriv.encoded,
         )
     }
+
+    /**
+     * Deterministically derive the SAME identity every time from a 32-byte
+     * recovery seed — the basis of seed-phrase account recovery. Both private
+     * keys come from HKDF-SHA256 over the seed with distinct info strings, so a
+     * backed-up seed reproduces the exact keypairs (and therefore the same
+     * server-side UIN). The derivation is fixed + platform-agnostic (iOS must
+     * match byte-for-byte), so DO NOT change the info strings.
+     */
+    fun fromSeed(seed: ByteArray): GeneratedIdentity {
+        val xPriv = X25519PrivateKeyParameters(hkdf(seed, INFO_X25519, 32), 0)
+        val edPriv = Ed25519PrivateKeyParameters(hkdf(seed, INFO_ED25519, 32), 0)
+        return GeneratedIdentity(
+            identityPublic = xPriv.generatePublicKey().encoded,
+            identityPrivate = xPriv.encoded,
+            signingPublic = edPriv.generatePublicKey().encoded,
+            signingPrivate = edPriv.encoded,
+        )
+    }
+
+    /** A fresh 32-byte recovery seed (256 bits → a 24-word BIP39 phrase). */
+    fun newSeed(): ByteArray = ByteArray(32).also { SecureRandom().nextBytes(it) }
+
+    private fun hkdf(ikm: ByteArray, info: String, len: Int): ByteArray {
+        val gen = HKDFBytesGenerator(SHA256Digest())
+        gen.init(HKDFParameters(ikm, null, info.toByteArray(Charsets.UTF_8)))
+        return ByteArray(len).also { gen.generateBytes(it, 0, len) }
+    }
+
+    private const val INFO_X25519 = "rcq-recovery-x25519-v1"
+    private const val INFO_ED25519 = "rcq-recovery-ed25519-v1"
 }

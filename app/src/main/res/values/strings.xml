@@ -107,6 +107,26 @@
     <string name="settings_sec_appearance">Appearance</string>
     <string name="settings_sec_privacy">Privacy</string>
     <string name="settings_row_pin_codes">PIN codes</string>
+    <string name="settings_row_recovery">Recovery phrase</string>
+
+    <!-- Account recovery (seed phrase) -->
+    <string name="recovery_title">Recovery phrase</string>
+    <string name="recovery_warn">Write these 24 words down and keep them somewhere safe and offline. Anyone with this phrase can take over your account. We can\'t recover it for you.</string>
+    <string name="recovery_copy">Copy phrase</string>
+    <string name="recovery_copied">Copied to clipboard</string>
+    <string name="recovery_note">To restore later: reinstall RCQ, tap \"Restore from phrase\" and enter these words.</string>
+    <string name="recovery_legacy">This account was created before recovery phrases existed, so there is no phrase for it. New accounts get one automatically.</string>
+    <string name="restore_title">Restore account</string>
+    <string name="restore_hint">Enter your 24-word recovery phrase to restore your account on this device.</string>
+    <string name="restore_phrase_ph">word word word …</string>
+    <string name="restore_wordcount">%1$d / 24 words</string>
+    <string name="restore_server_ph">Server (leave blank for the default)</string>
+    <string name="restore_button">Restore</string>
+    <string name="restore_restoring">Restoring…</string>
+    <string name="restore_err_invalid">That doesn\'t look like a valid 24-word recovery phrase.</string>
+    <string name="restore_err_notfound">No account on this server matches that phrase.</string>
+    <string name="restore_err_generic">Couldn\'t restore. Check your connection and the phrase.</string>
+    <string name="onboard_cta_restore">Restore from phrase</string>
     <string name="pin_on">On</string>
     <string name="pin_codes_title">PIN codes</string>
     <string name="pin_codes_footer">A PIN encrypts your message history on this device and is required every time you open the app. Keep it safe: there is no recovery if you forget it.</string>

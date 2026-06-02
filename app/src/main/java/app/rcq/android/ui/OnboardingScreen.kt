@@ -83,7 +83,7 @@ private data class OnbPage(val kicker: Int, val title: Int, val body: Int, val h
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-internal fun OnboardingScreen(onStart: (String?) -> Unit) {
+internal fun OnboardingScreen(onStart: (String?) -> Unit, onRestore: () -> Unit = {}) {
     val c = RcqTheme.colors
     val activity = LocalContext.current as? Activity
     val currentLang by LanguageManager.current.collectAsState()
@@ -156,7 +156,15 @@ internal fun OnboardingScreen(onStart: (String?) -> Unit) {
             },
             modifier = Modifier.padding(horizontal = 32.dp).fillMaxWidth(),
         )
-        Spacer(Modifier.height(20.dp))
+        Spacer(Modifier.height(10.dp))
+        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            Text(
+                stringResource(R.string.onboard_cta_restore),
+                color = c.textSecondary, fontSize = 13.sp, fontWeight = FontWeight.Medium,
+                modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable { onRestore() }.padding(horizontal = 12.dp, vertical = 8.dp),
+            )
+        }
+        Spacer(Modifier.height(16.dp))
     }
 
     if (showServer) {

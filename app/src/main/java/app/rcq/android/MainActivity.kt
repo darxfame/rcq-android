@@ -147,6 +147,7 @@ private fun RcqApp(session: Session) {
     var showAudioRooms by remember { mutableStateOf(false) }
     var showNearby by remember { mutableStateOf(false) }
     var showRadio by remember { mutableStateOf(false) }
+    var showRestore by remember { mutableStateOf(false) }
 
     LaunchedEffect(state, locked) {
         // Only start (which opens the message DB) once unlocked.
@@ -156,7 +157,7 @@ private fun RcqApp(session: Session) {
     // Clear every secondary screen so a switch/add lands on a clean Home.
     fun resetNav() {
         chatTarget = null; groupInfoId = null; peerInfoUin = null
-        showSettings = false; showProfile = false; showManageAccounts = false; showNews = false; showRandom = false; showAudioRooms = false; showNearby = false; showRadio = false
+        showSettings = false; showProfile = false; showManageAccounts = false; showNews = false; showRandom = false; showAudioRooms = false; showNearby = false; showRadio = false; showRestore = false
     }
 
     fun register(server: String? = null, invite: String? = null) {
@@ -274,7 +275,12 @@ private fun RcqApp(session: Session) {
                 onAddAccount = ::addAccount,
                 onManageAccounts = { showManageAccounts = true },
             )
-            s is UiState.Onboarding -> OnboardingScreen(onStart = ::register)
+            s is UiState.Onboarding && showRestore -> app.rcq.android.ui.RestoreScreen(
+                session,
+                onBack = { showRestore = false },
+                onRestored = { uin -> showRestore = false; state = UiState.Registered(uin) },
+            )
+            s is UiState.Onboarding -> OnboardingScreen(onStart = ::register, onRestore = { showRestore = true })
             s is UiState.Registering -> Registering()
             s is UiState.Failed -> Failed(s.message, onRetry = { register(null) })
         }

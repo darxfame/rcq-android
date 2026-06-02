@@ -244,7 +244,10 @@ class Session(context: Context) {
         if (AccountManager.isAtLimit) throw IllegalStateException("Account limit reached")
         val host = normalizeHost(serverInput)
         val regApi = RcqApi("https://${host ?: RcqApi.DEFAULT_HOST}")
-        val identity = IdentityKeys.generate()
+        // Derive the identity from a fresh 32-byte recovery seed so the account
+        // is restorable from a BIP39 phrase (the seed is persisted below).
+        val seed = IdentityKeys.newSeed()
+        val identity = IdentityKeys.fromSeed(seed)
         val resp = regApi.register(
             RcqApi.RegisterRequest(
                 nickname = nickname,
@@ -264,6 +267,49 @@ class Session(context: Context) {
             identityPrivate = identity.identityPrivate,
             signingPrivate = identity.signingPrivate,
             serverHost = host,
+            seed = seed,
+        )
+        socket.disconnect()
+        rebindTo(acct.id)
+        start()
+        return resp.uin
+    }
+
+    /** The active account's 24-word recovery phrase, or null for a legacy
+     *  account whose keys predate seed-derivation (no phrase to show). */
+    fun recoveryPhrase(): List<String>? =
+        store.recoverySeed?.let { app.rcq.android.crypto.RecoveryPhrase.encode(it, appCtx) }
+
+    /** Restore an account from its recovery phrase on a fresh device: derive the
+     *  keypair from the seed, prove ownership of the signing key to the server,
+     *  and rebind onto the recovered UIN. Throws IllegalArgumentException on a
+     *  bad phrase, or IllegalStateException("identity_not_found") if the server
+     *  has no account for these keys. */
+    suspend fun recoverAccount(words: List<String>, serverInput: String? = null): Int {
+        if (AccountManager.isAtLimit) throw IllegalStateException("Account limit reached")
+        val seed = app.rcq.android.crypto.RecoveryPhrase.decode(words, appCtx)
+            ?: throw IllegalArgumentException("invalid_phrase")
+        val identity = IdentityKeys.fromSeed(seed)
+        val host = normalizeHost(serverInput)
+        val regApi = RcqApi("https://${host ?: RcqApi.DEFAULT_HOST}")
+        val signingPubB64 = Base64.encodeToString(identity.signingPublic, Base64.NO_WRAP)
+        val challenge = regApi.recoverChallenge(signingPubB64).challenge
+        val signature = app.rcq.android.crypto.RecoveryPhrase.signChallenge(identity.signingPrivate, challenge)
+        val resp = regApi.recover(RcqApi.RecoverRequest(signingPubB64, challenge, signature))
+        // Fetch the real nickname back (the server kept the profile).
+        regApi.setToken(resp.token)
+        val nick = runCatching { regApi.userInfo(resp.uin).nickname }
+            .getOrNull()?.takeIf { it.isNotBlank() } ?: "user-${resp.uin}"
+        val acct = AccountManager.add(serverHost = host, displayLabel = null)
+            ?: throw IllegalStateException("Account limit reached")
+        SecureStore(appCtx, acct.id).saveIdentity(
+            uin = resp.uin,
+            token = resp.token,
+            nickname = nick,
+            identityPrivate = identity.identityPrivate,
+            signingPrivate = identity.signingPrivate,
+            serverHost = host,
+            seed = seed,
         )
         socket.disconnect()
         rebindTo(acct.id)

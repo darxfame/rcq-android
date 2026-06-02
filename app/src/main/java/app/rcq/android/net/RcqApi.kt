@@ -65,6 +65,12 @@ class RcqApi(private val baseUrl: String = DEFAULT_BASE_URL) {
 
     data class RegisterResponse(val uin: Int, val token: String)
 
+    // Account recovery (seed-phrase): prove possession of the signing key to
+    // rebind a fresh device to the same UIN. Reuses RegisterResponse {uin,token}.
+    data class RecoverChallengeRequest(val signing_key: String)
+    data class RecoverChallengeResponse(val challenge: String)
+    data class RecoverRequest(val signing_key: String, val challenge: String, val signature: String)
+
     // ── libsignal prekey bundle (v=2 forward secrecy) ─────────────────
     // JSON key is "public" (a Kotlin keyword) → @SerializedName.
     data class SignedPreKeyDto(val id: Int, @SerializedName("public") val publicKey: String, val signature: String)
@@ -113,6 +119,14 @@ class RcqApi(private val baseUrl: String = DEFAULT_BASE_URL) {
 
     suspend fun register(req: RegisterRequest): RegisterResponse = withContext(Dispatchers.IO) {
         post("/auth/register", gson.toJson(req), authed = false, RegisterResponse::class.java)
+    }
+
+    suspend fun recoverChallenge(signingKey: String): RecoverChallengeResponse = withContext(Dispatchers.IO) {
+        post("/auth/recover/challenge", gson.toJson(RecoverChallengeRequest(signingKey)), authed = false, RecoverChallengeResponse::class.java)
+    }
+
+    suspend fun recover(req: RecoverRequest): RegisterResponse = withContext(Dispatchers.IO) {
+        post("/auth/recover", gson.toJson(req), authed = false, RegisterResponse::class.java)
     }
 
     // ── peer lookup (rcq-spec 3.1) ───────────────────────────────────

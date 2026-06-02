@@ -42,6 +42,11 @@ class SecureStore(context: Context, accountId: String) {
     val signingPrivate: ByteArray?
         get() = prefs.getString(p + K_SIGN_PRIV, null)?.let { Base64.decode(it, Base64.NO_WRAP) }
 
+    /** 32-byte recovery seed the keys were derived from, or null for a legacy
+     *  account whose keys predate seed-derivation (no BIP39 phrase available). */
+    val recoverySeed: ByteArray?
+        get() = prefs.getString(p + K_SEED, null)?.let { Base64.decode(it, Base64.NO_WRAP) }
+
     /** Host this identity is registered on, or null for the default public
      *  server. Set at registration; the account + keys are bound to it. */
     val serverHost: String?
@@ -57,15 +62,17 @@ class SecureStore(context: Context, accountId: String) {
         identityPrivate: ByteArray,
         signingPrivate: ByteArray,
         serverHost: String? = null,
+        seed: ByteArray? = null,
     ) {
-        prefs.edit()
+        val e = prefs.edit()
             .putInt(p + K_UIN, uin)
             .putString(p + K_TOKEN, token)
             .putString(p + K_NICK, nickname)
             .putString(p + K_ID_PRIV, Base64.encodeToString(identityPrivate, Base64.NO_WRAP))
             .putString(p + K_SIGN_PRIV, Base64.encodeToString(signingPrivate, Base64.NO_WRAP))
             .putString(p + K_SERVER, serverHost)
-            .apply()
+        if (seed != null) e.putString(p + K_SEED, Base64.encodeToString(seed, Base64.NO_WRAP))
+        e.apply()
     }
 
     /** Update just the cached display nickname (after a profile edit). */
@@ -91,7 +98,8 @@ class SecureStore(context: Context, accountId: String) {
         private const val K_ID_PRIV = "identity_private"
         private const val K_SIGN_PRIV = "signing_private"
         private const val K_SERVER = "server_host"
-        private val STRING_KEYS = listOf(K_TOKEN, K_NICK, K_ID_PRIV, K_SIGN_PRIV, K_SERVER)
+        private const val K_SEED = "recovery_seed"
+        private val STRING_KEYS = listOf(K_TOKEN, K_NICK, K_ID_PRIV, K_SIGN_PRIV, K_SERVER, K_SEED)
 
         private fun openPrefs(context: Context): SharedPreferences {
             val masterKey = MasterKey.Builder(context.applicationContext)

@@ -106,6 +106,26 @@
     <string name="settings_sec_appearance">Оформление</string>
     <string name="settings_sec_privacy">Приватность</string>
     <string name="settings_row_pin_codes">PIN-коды</string>
+    <string name="settings_row_recovery">Фраза восстановления</string>
+
+    <!-- Восстановление аккаунта (seed-фраза) -->
+    <string name="recovery_title">Фраза восстановления</string>
+    <string name="recovery_warn">Запишите эти 24 слова и храните в надёжном месте офлайн. Любой, у кого есть эта фраза, получит доступ к вашему аккаунту. Мы не сможем восстановить её за вас.</string>
+    <string name="recovery_copy">Скопировать фразу</string>
+    <string name="recovery_copied">Скопировано в буфер обмена</string>
+    <string name="recovery_note">Чтобы восстановить позже: переустановите RCQ, нажмите «Восстановить по фразе» и введите эти слова.</string>
+    <string name="recovery_legacy">Этот аккаунт создан до появления фраз восстановления, поэтому фразы для него нет. Новые аккаунты получают её автоматически.</string>
+    <string name="restore_title">Восстановить аккаунт</string>
+    <string name="restore_hint">Введите фразу восстановления из 24 слов, чтобы восстановить аккаунт на этом устройстве.</string>
+    <string name="restore_phrase_ph">слово слово слово …</string>
+    <string name="restore_wordcount">%1$d / 24 слов</string>
+    <string name="restore_server_ph">Сервер (пусто — сервер по умолчанию)</string>
+    <string name="restore_button">Восстановить</string>
+    <string name="restore_restoring">Восстановление…</string>
+    <string name="restore_err_invalid">Это не похоже на корректную фразу из 24 слов.</string>
+    <string name="restore_err_notfound">На этом сервере нет аккаунта для этой фразы.</string>
+    <string name="restore_err_generic">Не удалось восстановить. Проверьте соединение и фразу.</string>
+    <string name="onboard_cta_restore">Восстановить по фразе</string>
     <string name="pin_on">Вкл</string>
     <string name="pin_codes_title">PIN-коды</string>
     <string name="pin_codes_footer">PIN шифрует историю сообщений на этом устройстве и запрашивается при каждом открытии приложения. Запомните его: восстановления нет.</string>
