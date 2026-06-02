@@ -1,9 +1,14 @@
 package com.rcq.messenger.data.repository
 
+import android.util.Log
 import com.rcq.messenger.data.api.*
 import com.rcq.messenger.data.db.*
 import com.rcq.messenger.domain.model.*
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import com.rcq.messenger.di.PreferencesKeys
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -11,22 +16,45 @@ import javax.inject.Singleton
 @Singleton
 class GroupRepository @Inject constructor(
     private val api: RCQApiService,
-    private val groupDao: GroupDao
+    private val groupDao: GroupDao,
+    private val dataStore: DataStore<Preferences>
 ) {
+    companion object { private const val TAG = "GroupRepository" }
+
+    // GET /groups returns only the user's groups — no client-side memberIds filter needed.
+    // memberIds may be empty if server omits the members array to save bandwidth.
     fun getGroups(): Flow<List<Group>> = groupDao.getGroups().map { entities ->
         entities.map { it.toDomain() }
     }
 
     suspend fun syncGroups(): Result<Unit> = runCatching {
-        api.getGroups().let { response ->
-            if (response.isSuccessful) {
-                groupDao.insertGroups(response.body()!!.map { it.toEntity() })
-            }
+        Log.d(TAG, "syncGroups: fetching from server...")
+        val response = api.getGroups()
+        Log.d(TAG, "syncGroups: HTTP ${response.code()}")
+        if (response.isSuccessful) {
+            val groups = response.body() ?: emptyList()
+            Log.d(TAG, "syncGroups: got ${groups.size} groups: ${groups.map { "${it.id}/${it.name}" }}")
+            groupDao.insertGroups(groups.map { it.toGroupEntity() })
+        } else {
+            val err = response.errorBody()?.string()
+            Log.e(TAG, "syncGroups: server error ${response.code()} — $err")
+            Unit
         }
-    }
+    }.onFailure { e -> Log.e(TAG, "syncGroups: exception — ${e.message}", e) }
+
+    /** Search public groups by name/description — server-side, not limited to user's groups */
+    suspend fun searchPublicGroups(query: String): Result<List<Group>> = runCatching {
+        val response = api.browsePublicGroups(query)
+        if (response.isSuccessful) {
+            response.body()?.map { it.toGroupEntity().toDomain() } ?: emptyList()
+        } else {
+            Log.e(TAG, "browsePublicGroups: HTTP ${response.code()} — ${response.errorBody()?.string()}")
+            emptyList()
+        }
+    }.onFailure { e -> Log.e(TAG, "browsePublicGroups: exception — ${e.message}", e) }
 
     suspend fun createGroup(name: String, memberIds: List<Long>): Result<Group> = runCatching {
-        api.createGroup(CreateGroupRequest(name, memberIds)).let { response ->
+        api.createGroup(CreateGroupRequest(name = name, memberUins = memberIds)).let { response ->
             if (response.isSuccessful) response.body()!!.also {
                 groupDao.insertGroup(it.toEntity())
             }
@@ -36,7 +64,7 @@ class GroupRepository @Inject constructor(
 
     suspend fun getGroup(groupId: String): Result<Group> = runCatching {
         api.getGroup(groupId).let { response ->
-            if (response.isSuccessful) response.body()!!
+            if (response.isSuccessful) response.body()!!.toGroupEntity().toDomain()
             else throw Exception("Group not found")
         }
     }
@@ -61,16 +89,27 @@ class GroupRepository @Inject constructor(
     }
 }
 
+private fun com.rcq.messenger.data.api.GroupApiResponse.toGroupEntity() = GroupEntity(
+    id = id.toString(),
+    name = name,
+    avatarUrl = null,
+    description = description,
+    creatorId = ownerUin.toLong(),
+    memberIds = members.map { it.uin.toLong() },
+    adminIds = members.filter { it.role == "admin" || it.role == "owner" }.map { it.uin.toLong() },
+    createdAt = System.currentTimeMillis()
+)
+
 private fun GroupEntity.toDomain() = Group(
-    id = id, name = name, avatarUrl = avatarUrl, description = description,
-    ownerId = ownerId, adminIds = emptyList(), memberIds = emptyList(),
-    memberCount = memberCount, createdAt = createdAt, settings = GroupSettings()
+    id = id, name = name, avatarUrl = avatarUrl, description = description ?: "",
+    ownerId = creatorId, adminIds = adminIds, memberIds = memberIds,
+    memberCount = memberIds.size, createdAt = createdAt, settings = GroupSettings()
 )
 
 private fun Group.toEntity() = GroupEntity(
     id = id, name = name, avatarUrl = avatarUrl, description = description,
-    ownerId = ownerId, memberCount = memberCount, createdAt = createdAt,
-    isPinned = isPinned, isMuted = isMuted
+    creatorId = ownerId, memberIds = memberIds, adminIds = adminIds,
+    createdAt = createdAt
 )
 
 @Singleton
@@ -133,8 +172,8 @@ class CallRepository @Inject constructor(
         entities.map { it.toDomain() }
     }
 
-    fun getMissedCalls(): Flow<List<Call>> = callDao.getMissedCalls().map { entities ->
-        entities.map { it.toDomain() }
+    fun getMissedCalls(): Flow<List<Call>> = callDao.getMissedCalls().map { entity ->
+        entity.map { it.toDomain() }
     }
 
     suspend fun syncCallHistory(): Result<Unit> = runCatching {
@@ -175,17 +214,23 @@ class CallRepository @Inject constructor(
 }
 
 private fun CallEntity.toDomain() = Call(
-    id = id, type = CallType.valueOf(type), targetId = targetId,
-    targetNickname = targetNickname, targetAvatar = targetAvatar,
+    id = id, type = CallType.valueOf(type),
+    targetId = participantIds.firstOrNull() ?: 0L,
+    targetNickname = "", targetAvatar = null,
     initiatorId = initiatorId, status = CallStatus.valueOf(status),
-    startedAt = startedAt, endedAt = endedAt, duration = duration
+    startedAt = startTime, endedAt = endTime, duration = duration
 )
 
 private fun Call.toEntity() = CallEntity(
-    id = id, type = type.name, targetId = targetId,
-    targetNickname = targetNickname, targetAvatar = targetAvatar,
-    initiatorId = initiatorId, status = status.name,
-    startedAt = startedAt, endedAt = endedAt, duration = duration
+    id = id,
+    type = type.name,
+    status = status.name,
+    participantIds = listOf(initiatorId), // Convert single target to list
+    initiatorId = initiatorId,
+    startTime = startedAt ?: 0L,
+    endTime = endedAt,
+    duration = duration,
+    isGroupCall = false
 )
 
 @Singleton
@@ -217,7 +262,7 @@ class StoryRepository @Inject constructor(
 
     suspend fun deleteStory(storyId: String): Result<Unit> = runCatching {
         api.deleteStory(storyId).let { response ->
-            if (response.isSuccessful) storyDao.deleteStory(storyId)
+            if (response.isSuccessful) storyDao.deleteStoryById(storyId)
             else throw Exception("Failed to delete story")
         }
     }
@@ -236,7 +281,7 @@ class StoryRepository @Inject constructor(
 }
 
 private fun StoryEntity.toDomain() = Story(
-    id = id, userId = userId, nickname = nickname,
+    id = id, userId = userId, nickname = nickname ?: "",
     avatarUrl = avatarUrl, items = emptyList(),
     viewerCount = viewerCount, createdAt = createdAt,
     expiresAt = expiresAt, isActive = isActive
@@ -252,5 +297,5 @@ private fun StoryItem.toEntity(storyId: String) = StoryItemEntity(
     id = id, storyId = storyId, type = type.name,
     mediaUrl = mediaUrl, thumbnailUrl = thumbnailUrl,
     caption = caption, backgroundColor = backgroundColor,
-    duration = duration, createdAt = createdAt
+    duration = duration.toLong(), timestamp = createdAt
 )

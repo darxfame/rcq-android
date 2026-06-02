@@ -12,8 +12,10 @@ import androidx.room.RoomSQLiteQuery;
 import androidx.room.util.CursorUtil;
 import androidx.room.util.DBUtil;
 import androidx.sqlite.db.SupportSQLiteStatement;
+import com.rcq.messenger.domain.model.GroupEntity;
 import java.lang.Class;
 import java.lang.Exception;
+import java.lang.Long;
 import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
@@ -34,6 +36,8 @@ public final class GroupDao_Impl implements GroupDao {
 
   private final EntityInsertionAdapter<GroupEntity> __insertionAdapterOfGroupEntity;
 
+  private final RoomTypeConverters __roomTypeConverters = new RoomTypeConverters();
+
   private final EntityDeletionOrUpdateAdapter<GroupEntity> __deletionAdapterOfGroupEntity;
 
   public GroupDao_Impl(@NonNull final RoomDatabase __db) {
@@ -42,7 +46,7 @@ public final class GroupDao_Impl implements GroupDao {
       @Override
       @NonNull
       protected String createQuery() {
-        return "INSERT OR REPLACE INTO `groups` (`id`,`name`,`avatarUrl`,`description`,`ownerId`,`memberCount`,`createdAt`,`isPinned`,`isMuted`) VALUES (?,?,?,?,?,?,?,?,?)";
+        return "INSERT OR REPLACE INTO `groups` (`id`,`name`,`description`,`avatarUrl`,`creatorId`,`memberIds`,`adminIds`,`isPublic`,`inviteLink`,`createdAt`,`updatedAt`) VALUES (?,?,?,?,?,?,?,?,?,?,?)";
       }
 
       @Override
@@ -50,19 +54,30 @@ public final class GroupDao_Impl implements GroupDao {
           @NonNull final GroupEntity entity) {
         statement.bindString(1, entity.getId());
         statement.bindString(2, entity.getName());
-        if (entity.getAvatarUrl() == null) {
+        if (entity.getDescription() == null) {
           statement.bindNull(3);
         } else {
-          statement.bindString(3, entity.getAvatarUrl());
+          statement.bindString(3, entity.getDescription());
         }
-        statement.bindString(4, entity.getDescription());
-        statement.bindLong(5, entity.getOwnerId());
-        statement.bindLong(6, entity.getMemberCount());
-        statement.bindLong(7, entity.getCreatedAt());
-        final int _tmp = entity.isPinned() ? 1 : 0;
-        statement.bindLong(8, _tmp);
-        final int _tmp_1 = entity.isMuted() ? 1 : 0;
-        statement.bindLong(9, _tmp_1);
+        if (entity.getAvatarUrl() == null) {
+          statement.bindNull(4);
+        } else {
+          statement.bindString(4, entity.getAvatarUrl());
+        }
+        statement.bindLong(5, entity.getCreatorId());
+        final String _tmp = __roomTypeConverters.fromListLong(entity.getMemberIds());
+        statement.bindString(6, _tmp);
+        final String _tmp_1 = __roomTypeConverters.fromListLong(entity.getAdminIds());
+        statement.bindString(7, _tmp_1);
+        final int _tmp_2 = entity.isPublic() ? 1 : 0;
+        statement.bindLong(8, _tmp_2);
+        if (entity.getInviteLink() == null) {
+          statement.bindNull(9);
+        } else {
+          statement.bindString(9, entity.getInviteLink());
+        }
+        statement.bindLong(10, entity.getCreatedAt());
+        statement.bindLong(11, entity.getUpdatedAt());
       }
     };
     this.__deletionAdapterOfGroupEntity = new EntityDeletionOrUpdateAdapter<GroupEntity>(__db) {
@@ -147,13 +162,15 @@ public final class GroupDao_Impl implements GroupDao {
         try {
           final int _cursorIndexOfId = CursorUtil.getColumnIndexOrThrow(_cursor, "id");
           final int _cursorIndexOfName = CursorUtil.getColumnIndexOrThrow(_cursor, "name");
-          final int _cursorIndexOfAvatarUrl = CursorUtil.getColumnIndexOrThrow(_cursor, "avatarUrl");
           final int _cursorIndexOfDescription = CursorUtil.getColumnIndexOrThrow(_cursor, "description");
-          final int _cursorIndexOfOwnerId = CursorUtil.getColumnIndexOrThrow(_cursor, "ownerId");
-          final int _cursorIndexOfMemberCount = CursorUtil.getColumnIndexOrThrow(_cursor, "memberCount");
+          final int _cursorIndexOfAvatarUrl = CursorUtil.getColumnIndexOrThrow(_cursor, "avatarUrl");
+          final int _cursorIndexOfCreatorId = CursorUtil.getColumnIndexOrThrow(_cursor, "creatorId");
+          final int _cursorIndexOfMemberIds = CursorUtil.getColumnIndexOrThrow(_cursor, "memberIds");
+          final int _cursorIndexOfAdminIds = CursorUtil.getColumnIndexOrThrow(_cursor, "adminIds");
+          final int _cursorIndexOfIsPublic = CursorUtil.getColumnIndexOrThrow(_cursor, "isPublic");
+          final int _cursorIndexOfInviteLink = CursorUtil.getColumnIndexOrThrow(_cursor, "inviteLink");
           final int _cursorIndexOfCreatedAt = CursorUtil.getColumnIndexOrThrow(_cursor, "createdAt");
-          final int _cursorIndexOfIsPinned = CursorUtil.getColumnIndexOrThrow(_cursor, "isPinned");
-          final int _cursorIndexOfIsMuted = CursorUtil.getColumnIndexOrThrow(_cursor, "isMuted");
+          final int _cursorIndexOfUpdatedAt = CursorUtil.getColumnIndexOrThrow(_cursor, "updatedAt");
           final List<GroupEntity> _result = new ArrayList<GroupEntity>(_cursor.getCount());
           while (_cursor.moveToNext()) {
             final GroupEntity _item;
@@ -161,29 +178,43 @@ public final class GroupDao_Impl implements GroupDao {
             _tmpId = _cursor.getString(_cursorIndexOfId);
             final String _tmpName;
             _tmpName = _cursor.getString(_cursorIndexOfName);
+            final String _tmpDescription;
+            if (_cursor.isNull(_cursorIndexOfDescription)) {
+              _tmpDescription = null;
+            } else {
+              _tmpDescription = _cursor.getString(_cursorIndexOfDescription);
+            }
             final String _tmpAvatarUrl;
             if (_cursor.isNull(_cursorIndexOfAvatarUrl)) {
               _tmpAvatarUrl = null;
             } else {
               _tmpAvatarUrl = _cursor.getString(_cursorIndexOfAvatarUrl);
             }
-            final String _tmpDescription;
-            _tmpDescription = _cursor.getString(_cursorIndexOfDescription);
-            final long _tmpOwnerId;
-            _tmpOwnerId = _cursor.getLong(_cursorIndexOfOwnerId);
-            final int _tmpMemberCount;
-            _tmpMemberCount = _cursor.getInt(_cursorIndexOfMemberCount);
+            final long _tmpCreatorId;
+            _tmpCreatorId = _cursor.getLong(_cursorIndexOfCreatorId);
+            final List<Long> _tmpMemberIds;
+            final String _tmp;
+            _tmp = _cursor.getString(_cursorIndexOfMemberIds);
+            _tmpMemberIds = __roomTypeConverters.toListLong(_tmp);
+            final List<Long> _tmpAdminIds;
+            final String _tmp_1;
+            _tmp_1 = _cursor.getString(_cursorIndexOfAdminIds);
+            _tmpAdminIds = __roomTypeConverters.toListLong(_tmp_1);
+            final boolean _tmpIsPublic;
+            final int _tmp_2;
+            _tmp_2 = _cursor.getInt(_cursorIndexOfIsPublic);
+            _tmpIsPublic = _tmp_2 != 0;
+            final String _tmpInviteLink;
+            if (_cursor.isNull(_cursorIndexOfInviteLink)) {
+              _tmpInviteLink = null;
+            } else {
+              _tmpInviteLink = _cursor.getString(_cursorIndexOfInviteLink);
+            }
             final long _tmpCreatedAt;
             _tmpCreatedAt = _cursor.getLong(_cursorIndexOfCreatedAt);
-            final boolean _tmpIsPinned;
-            final int _tmp;
-            _tmp = _cursor.getInt(_cursorIndexOfIsPinned);
-            _tmpIsPinned = _tmp != 0;
-            final boolean _tmpIsMuted;
-            final int _tmp_1;
-            _tmp_1 = _cursor.getInt(_cursorIndexOfIsMuted);
-            _tmpIsMuted = _tmp_1 != 0;
-            _item = new GroupEntity(_tmpId,_tmpName,_tmpAvatarUrl,_tmpDescription,_tmpOwnerId,_tmpMemberCount,_tmpCreatedAt,_tmpIsPinned,_tmpIsMuted);
+            final long _tmpUpdatedAt;
+            _tmpUpdatedAt = _cursor.getLong(_cursorIndexOfUpdatedAt);
+            _item = new GroupEntity(_tmpId,_tmpName,_tmpDescription,_tmpAvatarUrl,_tmpCreatorId,_tmpMemberIds,_tmpAdminIds,_tmpIsPublic,_tmpInviteLink,_tmpCreatedAt,_tmpUpdatedAt);
             _result.add(_item);
           }
           return _result;
@@ -214,42 +245,58 @@ public final class GroupDao_Impl implements GroupDao {
         try {
           final int _cursorIndexOfId = CursorUtil.getColumnIndexOrThrow(_cursor, "id");
           final int _cursorIndexOfName = CursorUtil.getColumnIndexOrThrow(_cursor, "name");
-          final int _cursorIndexOfAvatarUrl = CursorUtil.getColumnIndexOrThrow(_cursor, "avatarUrl");
           final int _cursorIndexOfDescription = CursorUtil.getColumnIndexOrThrow(_cursor, "description");
-          final int _cursorIndexOfOwnerId = CursorUtil.getColumnIndexOrThrow(_cursor, "ownerId");
-          final int _cursorIndexOfMemberCount = CursorUtil.getColumnIndexOrThrow(_cursor, "memberCount");
+          final int _cursorIndexOfAvatarUrl = CursorUtil.getColumnIndexOrThrow(_cursor, "avatarUrl");
+          final int _cursorIndexOfCreatorId = CursorUtil.getColumnIndexOrThrow(_cursor, "creatorId");
+          final int _cursorIndexOfMemberIds = CursorUtil.getColumnIndexOrThrow(_cursor, "memberIds");
+          final int _cursorIndexOfAdminIds = CursorUtil.getColumnIndexOrThrow(_cursor, "adminIds");
+          final int _cursorIndexOfIsPublic = CursorUtil.getColumnIndexOrThrow(_cursor, "isPublic");
+          final int _cursorIndexOfInviteLink = CursorUtil.getColumnIndexOrThrow(_cursor, "inviteLink");
           final int _cursorIndexOfCreatedAt = CursorUtil.getColumnIndexOrThrow(_cursor, "createdAt");
-          final int _cursorIndexOfIsPinned = CursorUtil.getColumnIndexOrThrow(_cursor, "isPinned");
-          final int _cursorIndexOfIsMuted = CursorUtil.getColumnIndexOrThrow(_cursor, "isMuted");
+          final int _cursorIndexOfUpdatedAt = CursorUtil.getColumnIndexOrThrow(_cursor, "updatedAt");
           final GroupEntity _result;
           if (_cursor.moveToFirst()) {
             final String _tmpId;
             _tmpId = _cursor.getString(_cursorIndexOfId);
             final String _tmpName;
             _tmpName = _cursor.getString(_cursorIndexOfName);
+            final String _tmpDescription;
+            if (_cursor.isNull(_cursorIndexOfDescription)) {
+              _tmpDescription = null;
+            } else {
+              _tmpDescription = _cursor.getString(_cursorIndexOfDescription);
+            }
             final String _tmpAvatarUrl;
             if (_cursor.isNull(_cursorIndexOfAvatarUrl)) {
               _tmpAvatarUrl = null;
             } else {
               _tmpAvatarUrl = _cursor.getString(_cursorIndexOfAvatarUrl);
             }
-            final String _tmpDescription;
-            _tmpDescription = _cursor.getString(_cursorIndexOfDescription);
-            final long _tmpOwnerId;
-            _tmpOwnerId = _cursor.getLong(_cursorIndexOfOwnerId);
-            final int _tmpMemberCount;
-            _tmpMemberCount = _cursor.getInt(_cursorIndexOfMemberCount);
+            final long _tmpCreatorId;
+            _tmpCreatorId = _cursor.getLong(_cursorIndexOfCreatorId);
+            final List<Long> _tmpMemberIds;
+            final String _tmp;
+            _tmp = _cursor.getString(_cursorIndexOfMemberIds);
+            _tmpMemberIds = __roomTypeConverters.toListLong(_tmp);
+            final List<Long> _tmpAdminIds;
+            final String _tmp_1;
+            _tmp_1 = _cursor.getString(_cursorIndexOfAdminIds);
+            _tmpAdminIds = __roomTypeConverters.toListLong(_tmp_1);
+            final boolean _tmpIsPublic;
+            final int _tmp_2;
+            _tmp_2 = _cursor.getInt(_cursorIndexOfIsPublic);
+            _tmpIsPublic = _tmp_2 != 0;
+            final String _tmpInviteLink;
+            if (_cursor.isNull(_cursorIndexOfInviteLink)) {
+              _tmpInviteLink = null;
+            } else {
+              _tmpInviteLink = _cursor.getString(_cursorIndexOfInviteLink);
+            }
             final long _tmpCreatedAt;
             _tmpCreatedAt = _cursor.getLong(_cursorIndexOfCreatedAt);
-            final boolean _tmpIsPinned;
-            final int _tmp;
-            _tmp = _cursor.getInt(_cursorIndexOfIsPinned);
-            _tmpIsPinned = _tmp != 0;
-            final boolean _tmpIsMuted;
-            final int _tmp_1;
-            _tmp_1 = _cursor.getInt(_cursorIndexOfIsMuted);
-            _tmpIsMuted = _tmp_1 != 0;
-            _result = new GroupEntity(_tmpId,_tmpName,_tmpAvatarUrl,_tmpDescription,_tmpOwnerId,_tmpMemberCount,_tmpCreatedAt,_tmpIsPinned,_tmpIsMuted);
+            final long _tmpUpdatedAt;
+            _tmpUpdatedAt = _cursor.getLong(_cursorIndexOfUpdatedAt);
+            _result = new GroupEntity(_tmpId,_tmpName,_tmpDescription,_tmpAvatarUrl,_tmpCreatorId,_tmpMemberIds,_tmpAdminIds,_tmpIsPublic,_tmpInviteLink,_tmpCreatedAt,_tmpUpdatedAt);
           } else {
             _result = null;
           }

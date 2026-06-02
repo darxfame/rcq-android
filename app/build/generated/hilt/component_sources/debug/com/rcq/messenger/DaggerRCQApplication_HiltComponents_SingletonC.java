@@ -8,12 +8,19 @@ import androidx.datastore.preferences.core.Preferences;
 import androidx.fragment.app.Fragment;
 import androidx.lifecycle.SavedStateHandle;
 import androidx.lifecycle.ViewModel;
+import com.rcq.messenger.call.CallManager;
+import com.rcq.messenger.crypto.CryptoService;
+import com.rcq.messenger.crypto.PersistentSignalProtocolStore;
+import com.rcq.messenger.crypto.SessionManager;
+import com.rcq.messenger.crypto.SignalKeyStore;
 import com.rcq.messenger.data.api.RCQApiService;
 import com.rcq.messenger.data.db.CallDao;
 import com.rcq.messenger.data.db.ChatDao;
 import com.rcq.messenger.data.db.ContactDao;
+import com.rcq.messenger.data.db.GroupDao;
 import com.rcq.messenger.data.db.MessageDao;
 import com.rcq.messenger.data.db.RCQDatabase;
+import com.rcq.messenger.data.db.SignalKeyDao;
 import com.rcq.messenger.data.db.StoryDao;
 import com.rcq.messenger.data.db.UserDao;
 import com.rcq.messenger.data.repository.AudioRoomRepository;
@@ -21,29 +28,41 @@ import com.rcq.messenger.data.repository.CallRepository;
 import com.rcq.messenger.data.repository.ChatRepository;
 import com.rcq.messenger.data.repository.ContactRepository;
 import com.rcq.messenger.data.repository.GameRepository;
+import com.rcq.messenger.data.repository.GroupRepository;
 import com.rcq.messenger.data.repository.MarketplaceRepository;
 import com.rcq.messenger.data.repository.StoryRepository;
 import com.rcq.messenger.data.repository.UserRepository;
+import com.rcq.messenger.data.websocket.WebSocketService;
+import com.rcq.messenger.data.ws.WebSocketManager;
 import com.rcq.messenger.di.AppModule_ProvideApiServiceFactory;
+import com.rcq.messenger.di.AppModule_ProvideAuthInterceptorFactory;
 import com.rcq.messenger.di.AppModule_ProvideCallDaoFactory;
 import com.rcq.messenger.di.AppModule_ProvideChatDaoFactory;
 import com.rcq.messenger.di.AppModule_ProvideContactDaoFactory;
 import com.rcq.messenger.di.AppModule_ProvideDataStoreFactory;
 import com.rcq.messenger.di.AppModule_ProvideDatabaseFactory;
+import com.rcq.messenger.di.AppModule_ProvideGroupDaoFactory;
 import com.rcq.messenger.di.AppModule_ProvideJsonFactory;
 import com.rcq.messenger.di.AppModule_ProvideMessageDaoFactory;
 import com.rcq.messenger.di.AppModule_ProvideOkHttpClientFactory;
 import com.rcq.messenger.di.AppModule_ProvideRetrofitFactory;
+import com.rcq.messenger.di.AppModule_ProvideSignalKeyDaoFactory;
 import com.rcq.messenger.di.AppModule_ProvideStoryDaoFactory;
 import com.rcq.messenger.di.AppModule_ProvideUserDaoFactory;
+import com.rcq.messenger.di.AppModule_ProvideWebSocketManagerFactory;
 import com.rcq.messenger.di.AuthInterceptor;
-import com.rcq.messenger.di.OkHttpModule_ProvideAuthInterceptorFactory;
+import com.rcq.messenger.media.MediaService;
+import com.rcq.messenger.media.VoiceRecorder;
 import com.rcq.messenger.service.AudioRoomService;
 import com.rcq.messenger.service.CallService;
-import com.rcq.messenger.service.WebSocketService;
+import com.rcq.messenger.service.CallService_MembersInjector;
+import com.rcq.messenger.service.NotificationHelper;
+import com.rcq.messenger.service.SoundManager;
 import com.rcq.messenger.ui.MainActivity;
 import com.rcq.messenger.ui.audio.AudioRoomsViewModel;
 import com.rcq.messenger.ui.audio.AudioRoomsViewModel_HiltModules_KeyModule_ProvideFactory;
+import com.rcq.messenger.ui.auth.AccountRecoveryViewModel;
+import com.rcq.messenger.ui.auth.AccountRecoveryViewModel_HiltModules_KeyModule_ProvideFactory;
 import com.rcq.messenger.ui.auth.AuthViewModel;
 import com.rcq.messenger.ui.auth.AuthViewModel_HiltModules_KeyModule_ProvideFactory;
 import com.rcq.messenger.ui.calls.CallViewModel;
@@ -58,6 +77,10 @@ import com.rcq.messenger.ui.contacts.AddContactViewModel;
 import com.rcq.messenger.ui.contacts.AddContactViewModel_HiltModules_KeyModule_ProvideFactory;
 import com.rcq.messenger.ui.contacts.ContactsViewModel;
 import com.rcq.messenger.ui.contacts.ContactsViewModel_HiltModules_KeyModule_ProvideFactory;
+import com.rcq.messenger.ui.contacts.CreateGroupViewModel;
+import com.rcq.messenger.ui.contacts.CreateGroupViewModel_HiltModules_KeyModule_ProvideFactory;
+import com.rcq.messenger.ui.contacts.GroupBrowseViewModel;
+import com.rcq.messenger.ui.contacts.GroupBrowseViewModel_HiltModules_KeyModule_ProvideFactory;
 import com.rcq.messenger.ui.contacts.PendingRequestsViewModel;
 import com.rcq.messenger.ui.contacts.PendingRequestsViewModel_HiltModules_KeyModule_ProvideFactory;
 import com.rcq.messenger.ui.games.GamesViewModel;
@@ -66,8 +89,12 @@ import com.rcq.messenger.ui.market.MarketplaceViewModel;
 import com.rcq.messenger.ui.market.MarketplaceViewModel_HiltModules_KeyModule_ProvideFactory;
 import com.rcq.messenger.ui.profile.ProfileViewModel;
 import com.rcq.messenger.ui.profile.ProfileViewModel_HiltModules_KeyModule_ProvideFactory;
+import com.rcq.messenger.ui.settings.SettingsViewModel;
+import com.rcq.messenger.ui.settings.SettingsViewModel_HiltModules_KeyModule_ProvideFactory;
 import com.rcq.messenger.ui.stories.StoriesViewModel;
 import com.rcq.messenger.ui.stories.StoriesViewModel_HiltModules_KeyModule_ProvideFactory;
+import com.rcq.messenger.ui.stories.StoryViewerViewModel;
+import com.rcq.messenger.ui.stories.StoryViewerViewModel_HiltModules_KeyModule_ProvideFactory;
 import dagger.hilt.android.ActivityRetainedLifecycle;
 import dagger.hilt.android.ViewModelLifecycle;
 import dagger.hilt.android.internal.builders.ActivityComponentBuilder;
@@ -428,7 +455,7 @@ public final class DaggerRCQApplication_HiltComponents_SingletonC {
 
     @Override
     public Set<String> getViewModelKeys() {
-      return SetBuilder.<String>newSetBuilder(13).add(AddContactViewModel_HiltModules_KeyModule_ProvideFactory.provide()).add(AudioRoomsViewModel_HiltModules_KeyModule_ProvideFactory.provide()).add(AuthViewModel_HiltModules_KeyModule_ProvideFactory.provide()).add(CallViewModel_HiltModules_KeyModule_ProvideFactory.provide()).add(CallsViewModel_HiltModules_KeyModule_ProvideFactory.provide()).add(ChatViewModel_HiltModules_KeyModule_ProvideFactory.provide()).add(ChatsViewModel_HiltModules_KeyModule_ProvideFactory.provide()).add(ContactsViewModel_HiltModules_KeyModule_ProvideFactory.provide()).add(GamesViewModel_HiltModules_KeyModule_ProvideFactory.provide()).add(MarketplaceViewModel_HiltModules_KeyModule_ProvideFactory.provide()).add(PendingRequestsViewModel_HiltModules_KeyModule_ProvideFactory.provide()).add(ProfileViewModel_HiltModules_KeyModule_ProvideFactory.provide()).add(StoriesViewModel_HiltModules_KeyModule_ProvideFactory.provide()).build();
+      return SetBuilder.<String>newSetBuilder(18).add(AccountRecoveryViewModel_HiltModules_KeyModule_ProvideFactory.provide()).add(AddContactViewModel_HiltModules_KeyModule_ProvideFactory.provide()).add(AudioRoomsViewModel_HiltModules_KeyModule_ProvideFactory.provide()).add(AuthViewModel_HiltModules_KeyModule_ProvideFactory.provide()).add(CallViewModel_HiltModules_KeyModule_ProvideFactory.provide()).add(CallsViewModel_HiltModules_KeyModule_ProvideFactory.provide()).add(ChatViewModel_HiltModules_KeyModule_ProvideFactory.provide()).add(ChatsViewModel_HiltModules_KeyModule_ProvideFactory.provide()).add(ContactsViewModel_HiltModules_KeyModule_ProvideFactory.provide()).add(CreateGroupViewModel_HiltModules_KeyModule_ProvideFactory.provide()).add(GamesViewModel_HiltModules_KeyModule_ProvideFactory.provide()).add(GroupBrowseViewModel_HiltModules_KeyModule_ProvideFactory.provide()).add(MarketplaceViewModel_HiltModules_KeyModule_ProvideFactory.provide()).add(PendingRequestsViewModel_HiltModules_KeyModule_ProvideFactory.provide()).add(ProfileViewModel_HiltModules_KeyModule_ProvideFactory.provide()).add(SettingsViewModel_HiltModules_KeyModule_ProvideFactory.provide()).add(StoriesViewModel_HiltModules_KeyModule_ProvideFactory.provide()).add(StoryViewerViewModel_HiltModules_KeyModule_ProvideFactory.provide()).build();
     }
 
     @Override
@@ -454,6 +481,8 @@ public final class DaggerRCQApplication_HiltComponents_SingletonC {
 
     private final ViewModelCImpl viewModelCImpl = this;
 
+    private Provider<AccountRecoveryViewModel> accountRecoveryViewModelProvider;
+
     private Provider<AddContactViewModel> addContactViewModelProvider;
 
     private Provider<AudioRoomsViewModel> audioRoomsViewModelProvider;
@@ -470,7 +499,11 @@ public final class DaggerRCQApplication_HiltComponents_SingletonC {
 
     private Provider<ContactsViewModel> contactsViewModelProvider;
 
+    private Provider<CreateGroupViewModel> createGroupViewModelProvider;
+
     private Provider<GamesViewModel> gamesViewModelProvider;
+
+    private Provider<GroupBrowseViewModel> groupBrowseViewModelProvider;
 
     private Provider<MarketplaceViewModel> marketplaceViewModelProvider;
 
@@ -478,7 +511,11 @@ public final class DaggerRCQApplication_HiltComponents_SingletonC {
 
     private Provider<ProfileViewModel> profileViewModelProvider;
 
+    private Provider<SettingsViewModel> settingsViewModelProvider;
+
     private Provider<StoriesViewModel> storiesViewModelProvider;
+
+    private Provider<StoryViewerViewModel> storyViewerViewModelProvider;
 
     private ViewModelCImpl(SingletonCImpl singletonCImpl,
         ActivityRetainedCImpl activityRetainedCImpl, SavedStateHandle savedStateHandleParam,
@@ -493,24 +530,29 @@ public final class DaggerRCQApplication_HiltComponents_SingletonC {
     @SuppressWarnings("unchecked")
     private void initialize(final SavedStateHandle savedStateHandleParam,
         final ViewModelLifecycle viewModelLifecycleParam) {
-      this.addContactViewModelProvider = new SwitchingProvider<>(singletonCImpl, activityRetainedCImpl, viewModelCImpl, 0);
-      this.audioRoomsViewModelProvider = new SwitchingProvider<>(singletonCImpl, activityRetainedCImpl, viewModelCImpl, 1);
-      this.authViewModelProvider = new SwitchingProvider<>(singletonCImpl, activityRetainedCImpl, viewModelCImpl, 2);
-      this.callViewModelProvider = new SwitchingProvider<>(singletonCImpl, activityRetainedCImpl, viewModelCImpl, 3);
-      this.callsViewModelProvider = new SwitchingProvider<>(singletonCImpl, activityRetainedCImpl, viewModelCImpl, 4);
-      this.chatViewModelProvider = new SwitchingProvider<>(singletonCImpl, activityRetainedCImpl, viewModelCImpl, 5);
-      this.chatsViewModelProvider = new SwitchingProvider<>(singletonCImpl, activityRetainedCImpl, viewModelCImpl, 6);
-      this.contactsViewModelProvider = new SwitchingProvider<>(singletonCImpl, activityRetainedCImpl, viewModelCImpl, 7);
-      this.gamesViewModelProvider = new SwitchingProvider<>(singletonCImpl, activityRetainedCImpl, viewModelCImpl, 8);
-      this.marketplaceViewModelProvider = new SwitchingProvider<>(singletonCImpl, activityRetainedCImpl, viewModelCImpl, 9);
-      this.pendingRequestsViewModelProvider = new SwitchingProvider<>(singletonCImpl, activityRetainedCImpl, viewModelCImpl, 10);
-      this.profileViewModelProvider = new SwitchingProvider<>(singletonCImpl, activityRetainedCImpl, viewModelCImpl, 11);
-      this.storiesViewModelProvider = new SwitchingProvider<>(singletonCImpl, activityRetainedCImpl, viewModelCImpl, 12);
+      this.accountRecoveryViewModelProvider = new SwitchingProvider<>(singletonCImpl, activityRetainedCImpl, viewModelCImpl, 0);
+      this.addContactViewModelProvider = new SwitchingProvider<>(singletonCImpl, activityRetainedCImpl, viewModelCImpl, 1);
+      this.audioRoomsViewModelProvider = new SwitchingProvider<>(singletonCImpl, activityRetainedCImpl, viewModelCImpl, 2);
+      this.authViewModelProvider = new SwitchingProvider<>(singletonCImpl, activityRetainedCImpl, viewModelCImpl, 3);
+      this.callViewModelProvider = new SwitchingProvider<>(singletonCImpl, activityRetainedCImpl, viewModelCImpl, 4);
+      this.callsViewModelProvider = new SwitchingProvider<>(singletonCImpl, activityRetainedCImpl, viewModelCImpl, 5);
+      this.chatViewModelProvider = new SwitchingProvider<>(singletonCImpl, activityRetainedCImpl, viewModelCImpl, 6);
+      this.chatsViewModelProvider = new SwitchingProvider<>(singletonCImpl, activityRetainedCImpl, viewModelCImpl, 7);
+      this.contactsViewModelProvider = new SwitchingProvider<>(singletonCImpl, activityRetainedCImpl, viewModelCImpl, 8);
+      this.createGroupViewModelProvider = new SwitchingProvider<>(singletonCImpl, activityRetainedCImpl, viewModelCImpl, 9);
+      this.gamesViewModelProvider = new SwitchingProvider<>(singletonCImpl, activityRetainedCImpl, viewModelCImpl, 10);
+      this.groupBrowseViewModelProvider = new SwitchingProvider<>(singletonCImpl, activityRetainedCImpl, viewModelCImpl, 11);
+      this.marketplaceViewModelProvider = new SwitchingProvider<>(singletonCImpl, activityRetainedCImpl, viewModelCImpl, 12);
+      this.pendingRequestsViewModelProvider = new SwitchingProvider<>(singletonCImpl, activityRetainedCImpl, viewModelCImpl, 13);
+      this.profileViewModelProvider = new SwitchingProvider<>(singletonCImpl, activityRetainedCImpl, viewModelCImpl, 14);
+      this.settingsViewModelProvider = new SwitchingProvider<>(singletonCImpl, activityRetainedCImpl, viewModelCImpl, 15);
+      this.storiesViewModelProvider = new SwitchingProvider<>(singletonCImpl, activityRetainedCImpl, viewModelCImpl, 16);
+      this.storyViewerViewModelProvider = new SwitchingProvider<>(singletonCImpl, activityRetainedCImpl, viewModelCImpl, 17);
     }
 
     @Override
     public Map<String, javax.inject.Provider<ViewModel>> getHiltViewModelMap() {
-      return MapBuilder.<String, javax.inject.Provider<ViewModel>>newMapBuilder(13).put("com.rcq.messenger.ui.contacts.AddContactViewModel", ((Provider) addContactViewModelProvider)).put("com.rcq.messenger.ui.audio.AudioRoomsViewModel", ((Provider) audioRoomsViewModelProvider)).put("com.rcq.messenger.ui.auth.AuthViewModel", ((Provider) authViewModelProvider)).put("com.rcq.messenger.ui.calls.CallViewModel", ((Provider) callViewModelProvider)).put("com.rcq.messenger.ui.calls.CallsViewModel", ((Provider) callsViewModelProvider)).put("com.rcq.messenger.ui.chat.ChatViewModel", ((Provider) chatViewModelProvider)).put("com.rcq.messenger.ui.chat.ChatsViewModel", ((Provider) chatsViewModelProvider)).put("com.rcq.messenger.ui.contacts.ContactsViewModel", ((Provider) contactsViewModelProvider)).put("com.rcq.messenger.ui.games.GamesViewModel", ((Provider) gamesViewModelProvider)).put("com.rcq.messenger.ui.market.MarketplaceViewModel", ((Provider) marketplaceViewModelProvider)).put("com.rcq.messenger.ui.contacts.PendingRequestsViewModel", ((Provider) pendingRequestsViewModelProvider)).put("com.rcq.messenger.ui.profile.ProfileViewModel", ((Provider) profileViewModelProvider)).put("com.rcq.messenger.ui.stories.StoriesViewModel", ((Provider) storiesViewModelProvider)).build();
+      return MapBuilder.<String, javax.inject.Provider<ViewModel>>newMapBuilder(18).put("com.rcq.messenger.ui.auth.AccountRecoveryViewModel", ((Provider) accountRecoveryViewModelProvider)).put("com.rcq.messenger.ui.contacts.AddContactViewModel", ((Provider) addContactViewModelProvider)).put("com.rcq.messenger.ui.audio.AudioRoomsViewModel", ((Provider) audioRoomsViewModelProvider)).put("com.rcq.messenger.ui.auth.AuthViewModel", ((Provider) authViewModelProvider)).put("com.rcq.messenger.ui.calls.CallViewModel", ((Provider) callViewModelProvider)).put("com.rcq.messenger.ui.calls.CallsViewModel", ((Provider) callsViewModelProvider)).put("com.rcq.messenger.ui.chat.ChatViewModel", ((Provider) chatViewModelProvider)).put("com.rcq.messenger.ui.chat.ChatsViewModel", ((Provider) chatsViewModelProvider)).put("com.rcq.messenger.ui.contacts.ContactsViewModel", ((Provider) contactsViewModelProvider)).put("com.rcq.messenger.ui.contacts.CreateGroupViewModel", ((Provider) createGroupViewModelProvider)).put("com.rcq.messenger.ui.games.GamesViewModel", ((Provider) gamesViewModelProvider)).put("com.rcq.messenger.ui.contacts.GroupBrowseViewModel", ((Provider) groupBrowseViewModelProvider)).put("com.rcq.messenger.ui.market.MarketplaceViewModel", ((Provider) marketplaceViewModelProvider)).put("com.rcq.messenger.ui.contacts.PendingRequestsViewModel", ((Provider) pendingRequestsViewModelProvider)).put("com.rcq.messenger.ui.profile.ProfileViewModel", ((Provider) profileViewModelProvider)).put("com.rcq.messenger.ui.settings.SettingsViewModel", ((Provider) settingsViewModelProvider)).put("com.rcq.messenger.ui.stories.StoriesViewModel", ((Provider) storiesViewModelProvider)).put("com.rcq.messenger.ui.stories.StoryViewerViewModel", ((Provider) storyViewerViewModelProvider)).build();
     }
 
     @Override
@@ -539,44 +581,59 @@ public final class DaggerRCQApplication_HiltComponents_SingletonC {
       @Override
       public T get() {
         switch (id) {
-          case 0: // com.rcq.messenger.ui.contacts.AddContactViewModel 
+          case 0: // com.rcq.messenger.ui.auth.AccountRecoveryViewModel 
+          return (T) new AccountRecoveryViewModel(singletonCImpl.userRepositoryProvider.get(), singletonCImpl.provideDataStoreProvider.get(), ApplicationContextModule_ProvideContextFactory.provideContext(singletonCImpl.applicationContextModule));
+
+          case 1: // com.rcq.messenger.ui.contacts.AddContactViewModel 
           return (T) new AddContactViewModel(singletonCImpl.userRepositoryProvider.get(), singletonCImpl.contactRepositoryProvider.get());
 
-          case 1: // com.rcq.messenger.ui.audio.AudioRoomsViewModel 
+          case 2: // com.rcq.messenger.ui.audio.AudioRoomsViewModel 
           return (T) new AudioRoomsViewModel(singletonCImpl.audioRoomRepositoryProvider.get());
 
-          case 2: // com.rcq.messenger.ui.auth.AuthViewModel 
-          return (T) new AuthViewModel(singletonCImpl.provideApiServiceProvider.get(), singletonCImpl.provideDataStoreProvider.get(), ApplicationContextModule_ProvideContextFactory.provideContext(singletonCImpl.applicationContextModule));
+          case 3: // com.rcq.messenger.ui.auth.AuthViewModel 
+          return (T) new AuthViewModel(singletonCImpl.provideApiServiceProvider.get(), singletonCImpl.provideDataStoreProvider.get(), ApplicationContextModule_ProvideContextFactory.provideContext(singletonCImpl.applicationContextModule), singletonCImpl.webSocketServiceProvider.get(), singletonCImpl.cryptoServiceProvider.get());
 
-          case 3: // com.rcq.messenger.ui.calls.CallViewModel 
-          return (T) new CallViewModel(singletonCImpl.chatRepositoryProvider.get());
+          case 4: // com.rcq.messenger.ui.calls.CallViewModel 
+          return (T) new CallViewModel(singletonCImpl.chatRepositoryProvider.get(), singletonCImpl.callManagerProvider.get());
 
-          case 4: // com.rcq.messenger.ui.calls.CallsViewModel 
+          case 5: // com.rcq.messenger.ui.calls.CallsViewModel 
           return (T) new CallsViewModel(singletonCImpl.callRepositoryProvider.get());
 
-          case 5: // com.rcq.messenger.ui.chat.ChatViewModel 
-          return (T) new ChatViewModel(singletonCImpl.chatRepositoryProvider.get(), singletonCImpl.userRepositoryProvider.get());
+          case 6: // com.rcq.messenger.ui.chat.ChatViewModel 
+          return (T) new ChatViewModel(singletonCImpl.chatRepositoryProvider.get(), singletonCImpl.userRepositoryProvider.get(), singletonCImpl.mediaServiceProvider.get(), singletonCImpl.voiceRecorderProvider.get());
 
-          case 6: // com.rcq.messenger.ui.chat.ChatsViewModel 
+          case 7: // com.rcq.messenger.ui.chat.ChatsViewModel 
           return (T) new ChatsViewModel(singletonCImpl.chatRepositoryProvider.get());
 
-          case 7: // com.rcq.messenger.ui.contacts.ContactsViewModel 
-          return (T) new ContactsViewModel(singletonCImpl.contactRepositoryProvider.get(), singletonCImpl.userRepositoryProvider.get());
+          case 8: // com.rcq.messenger.ui.contacts.ContactsViewModel 
+          return (T) new ContactsViewModel(singletonCImpl.contactRepositoryProvider.get(), singletonCImpl.chatRepositoryProvider.get(), singletonCImpl.userRepositoryProvider.get(), singletonCImpl.contactDao());
 
-          case 8: // com.rcq.messenger.ui.games.GamesViewModel 
+          case 9: // com.rcq.messenger.ui.contacts.CreateGroupViewModel 
+          return (T) new CreateGroupViewModel(singletonCImpl.groupRepositoryProvider.get());
+
+          case 10: // com.rcq.messenger.ui.games.GamesViewModel 
           return (T) new GamesViewModel(singletonCImpl.gameRepositoryProvider.get());
 
-          case 9: // com.rcq.messenger.ui.market.MarketplaceViewModel 
+          case 11: // com.rcq.messenger.ui.contacts.GroupBrowseViewModel 
+          return (T) new GroupBrowseViewModel(singletonCImpl.groupRepositoryProvider.get());
+
+          case 12: // com.rcq.messenger.ui.market.MarketplaceViewModel 
           return (T) new MarketplaceViewModel(singletonCImpl.marketplaceRepositoryProvider.get());
 
-          case 10: // com.rcq.messenger.ui.contacts.PendingRequestsViewModel 
+          case 13: // com.rcq.messenger.ui.contacts.PendingRequestsViewModel 
           return (T) new PendingRequestsViewModel(singletonCImpl.contactRepositoryProvider.get(), singletonCImpl.webSocketServiceProvider.get());
 
-          case 11: // com.rcq.messenger.ui.profile.ProfileViewModel 
-          return (T) new ProfileViewModel(singletonCImpl.userRepositoryProvider.get());
+          case 14: // com.rcq.messenger.ui.profile.ProfileViewModel 
+          return (T) new ProfileViewModel(singletonCImpl.userRepositoryProvider.get(), singletonCImpl.chatRepositoryProvider.get());
 
-          case 12: // com.rcq.messenger.ui.stories.StoriesViewModel 
+          case 15: // com.rcq.messenger.ui.settings.SettingsViewModel 
+          return (T) new SettingsViewModel(singletonCImpl.userRepositoryProvider.get(), singletonCImpl.provideDataStoreProvider.get());
+
+          case 16: // com.rcq.messenger.ui.stories.StoriesViewModel 
           return (T) new StoriesViewModel(singletonCImpl.storyRepositoryProvider.get());
+
+          case 17: // com.rcq.messenger.ui.stories.StoryViewerViewModel 
+          return (T) new StoryViewerViewModel(singletonCImpl.storyRepositoryProvider.get());
 
           default: throw new AssertionError(id);
         }
@@ -658,10 +715,12 @@ public final class DaggerRCQApplication_HiltComponents_SingletonC {
 
     @Override
     public void injectCallService(CallService callService) {
+      injectCallService2(callService);
     }
 
-    @Override
-    public void injectWebSocketService(WebSocketService webSocketService) {
+    private CallService injectCallService2(CallService instance) {
+      CallService_MembersInjector.injectCallManager(instance, singletonCImpl.callManagerProvider.get());
+      return instance;
     }
   }
 
@@ -690,11 +749,33 @@ public final class DaggerRCQApplication_HiltComponents_SingletonC {
 
     private Provider<AudioRoomRepository> audioRoomRepositoryProvider;
 
-    private Provider<com.rcq.messenger.data.websocket.WebSocketService> webSocketServiceProvider;
+    private Provider<WebSocketService> webSocketServiceProvider;
+
+    private Provider<PersistentSignalProtocolStore> persistentSignalProtocolStoreProvider;
+
+    private Provider<SignalKeyStore> signalKeyStoreProvider;
+
+    private Provider<SessionManager> sessionManagerProvider;
+
+    private Provider<CryptoService> cryptoServiceProvider;
+
+    private Provider<SoundManager> soundManagerProvider;
+
+    private Provider<NotificationHelper> notificationHelperProvider;
 
     private Provider<ChatRepository> chatRepositoryProvider;
 
+    private Provider<WebSocketManager> provideWebSocketManagerProvider;
+
+    private Provider<CallManager> callManagerProvider;
+
     private Provider<CallRepository> callRepositoryProvider;
+
+    private Provider<MediaService> mediaServiceProvider;
+
+    private Provider<VoiceRecorder> voiceRecorderProvider;
+
+    private Provider<GroupRepository> groupRepositoryProvider;
 
     private Provider<GameRepository> gameRepositoryProvider;
 
@@ -716,6 +797,10 @@ public final class DaggerRCQApplication_HiltComponents_SingletonC {
       return AppModule_ProvideContactDaoFactory.provideContactDao(provideDatabaseProvider.get());
     }
 
+    private SignalKeyDao signalKeyDao() {
+      return AppModule_ProvideSignalKeyDaoFactory.provideSignalKeyDao(provideDatabaseProvider.get());
+    }
+
     private ChatDao chatDao() {
       return AppModule_ProvideChatDaoFactory.provideChatDao(provideDatabaseProvider.get());
     }
@@ -726,6 +811,10 @@ public final class DaggerRCQApplication_HiltComponents_SingletonC {
 
     private CallDao callDao() {
       return AppModule_ProvideCallDaoFactory.provideCallDao(provideDatabaseProvider.get());
+    }
+
+    private GroupDao groupDao() {
+      return AppModule_ProvideGroupDaoFactory.provideGroupDao(provideDatabaseProvider.get());
     }
 
     private StoryDao storyDao() {
@@ -744,12 +833,23 @@ public final class DaggerRCQApplication_HiltComponents_SingletonC {
       this.userRepositoryProvider = DoubleCheck.provider(new SwitchingProvider<UserRepository>(singletonCImpl, 0));
       this.contactRepositoryProvider = DoubleCheck.provider(new SwitchingProvider<ContactRepository>(singletonCImpl, 8));
       this.audioRoomRepositoryProvider = DoubleCheck.provider(new SwitchingProvider<AudioRoomRepository>(singletonCImpl, 9));
-      this.webSocketServiceProvider = DoubleCheck.provider(new SwitchingProvider<com.rcq.messenger.data.websocket.WebSocketService>(singletonCImpl, 11));
-      this.chatRepositoryProvider = DoubleCheck.provider(new SwitchingProvider<ChatRepository>(singletonCImpl, 10));
-      this.callRepositoryProvider = DoubleCheck.provider(new SwitchingProvider<CallRepository>(singletonCImpl, 12));
-      this.gameRepositoryProvider = DoubleCheck.provider(new SwitchingProvider<GameRepository>(singletonCImpl, 13));
-      this.marketplaceRepositoryProvider = DoubleCheck.provider(new SwitchingProvider<MarketplaceRepository>(singletonCImpl, 14));
-      this.storyRepositoryProvider = DoubleCheck.provider(new SwitchingProvider<StoryRepository>(singletonCImpl, 15));
+      this.webSocketServiceProvider = DoubleCheck.provider(new SwitchingProvider<WebSocketService>(singletonCImpl, 10));
+      this.persistentSignalProtocolStoreProvider = DoubleCheck.provider(new SwitchingProvider<PersistentSignalProtocolStore>(singletonCImpl, 14));
+      this.signalKeyStoreProvider = DoubleCheck.provider(new SwitchingProvider<SignalKeyStore>(singletonCImpl, 13));
+      this.sessionManagerProvider = DoubleCheck.provider(new SwitchingProvider<SessionManager>(singletonCImpl, 12));
+      this.cryptoServiceProvider = DoubleCheck.provider(new SwitchingProvider<CryptoService>(singletonCImpl, 11));
+      this.soundManagerProvider = DoubleCheck.provider(new SwitchingProvider<SoundManager>(singletonCImpl, 17));
+      this.notificationHelperProvider = DoubleCheck.provider(new SwitchingProvider<NotificationHelper>(singletonCImpl, 16));
+      this.chatRepositoryProvider = DoubleCheck.provider(new SwitchingProvider<ChatRepository>(singletonCImpl, 15));
+      this.provideWebSocketManagerProvider = DoubleCheck.provider(new SwitchingProvider<WebSocketManager>(singletonCImpl, 19));
+      this.callManagerProvider = DoubleCheck.provider(new SwitchingProvider<CallManager>(singletonCImpl, 18));
+      this.callRepositoryProvider = DoubleCheck.provider(new SwitchingProvider<CallRepository>(singletonCImpl, 20));
+      this.mediaServiceProvider = DoubleCheck.provider(new SwitchingProvider<MediaService>(singletonCImpl, 21));
+      this.voiceRecorderProvider = DoubleCheck.provider(new SwitchingProvider<VoiceRecorder>(singletonCImpl, 22));
+      this.groupRepositoryProvider = DoubleCheck.provider(new SwitchingProvider<GroupRepository>(singletonCImpl, 23));
+      this.gameRepositoryProvider = DoubleCheck.provider(new SwitchingProvider<GameRepository>(singletonCImpl, 24));
+      this.marketplaceRepositoryProvider = DoubleCheck.provider(new SwitchingProvider<MarketplaceRepository>(singletonCImpl, 25));
+      this.storyRepositoryProvider = DoubleCheck.provider(new SwitchingProvider<StoryRepository>(singletonCImpl, 26));
     }
 
     @Override
@@ -798,7 +898,7 @@ public final class DaggerRCQApplication_HiltComponents_SingletonC {
           return (T) AppModule_ProvideOkHttpClientFactory.provideOkHttpClient(singletonCImpl.provideAuthInterceptorProvider.get());
 
           case 4: // com.rcq.messenger.di.AuthInterceptor 
-          return (T) OkHttpModule_ProvideAuthInterceptorFactory.provideAuthInterceptor(singletonCImpl.provideDataStoreProvider.get());
+          return (T) AppModule_ProvideAuthInterceptorFactory.provideAuthInterceptor(singletonCImpl.provideDataStoreProvider.get());
 
           case 5: // androidx.datastore.core.DataStore<androidx.datastore.preferences.core.Preferences> 
           return (T) AppModule_ProvideDataStoreFactory.provideDataStore(ApplicationContextModule_ProvideContextFactory.provideContext(singletonCImpl.applicationContextModule));
@@ -815,22 +915,55 @@ public final class DaggerRCQApplication_HiltComponents_SingletonC {
           case 9: // com.rcq.messenger.data.repository.AudioRoomRepository 
           return (T) new AudioRoomRepository(singletonCImpl.provideApiServiceProvider.get());
 
-          case 10: // com.rcq.messenger.data.repository.ChatRepository 
-          return (T) new ChatRepository(singletonCImpl.provideApiServiceProvider.get(), singletonCImpl.chatDao(), singletonCImpl.messageDao(), singletonCImpl.webSocketServiceProvider.get());
+          case 10: // com.rcq.messenger.data.websocket.WebSocketService 
+          return (T) new WebSocketService(singletonCImpl.provideDataStoreProvider.get());
 
-          case 11: // com.rcq.messenger.data.websocket.WebSocketService 
-          return (T) new com.rcq.messenger.data.websocket.WebSocketService(singletonCImpl.provideDataStoreProvider.get());
+          case 11: // com.rcq.messenger.crypto.CryptoService 
+          return (T) new CryptoService(singletonCImpl.sessionManagerProvider.get(), singletonCImpl.signalKeyStoreProvider.get());
 
-          case 12: // com.rcq.messenger.data.repository.CallRepository 
+          case 12: // com.rcq.messenger.crypto.SessionManager 
+          return (T) new SessionManager(singletonCImpl.signalKeyStoreProvider.get());
+
+          case 13: // com.rcq.messenger.crypto.SignalKeyStore 
+          return (T) new SignalKeyStore(singletonCImpl.persistentSignalProtocolStoreProvider.get());
+
+          case 14: // com.rcq.messenger.crypto.PersistentSignalProtocolStore 
+          return (T) new PersistentSignalProtocolStore(singletonCImpl.signalKeyDao());
+
+          case 15: // com.rcq.messenger.data.repository.ChatRepository 
+          return (T) new ChatRepository(singletonCImpl.provideApiServiceProvider.get(), singletonCImpl.chatDao(), singletonCImpl.contactDao(), singletonCImpl.messageDao(), singletonCImpl.webSocketServiceProvider.get(), singletonCImpl.cryptoServiceProvider.get(), singletonCImpl.notificationHelperProvider.get());
+
+          case 16: // com.rcq.messenger.service.NotificationHelper 
+          return (T) new NotificationHelper(ApplicationContextModule_ProvideContextFactory.provideContext(singletonCImpl.applicationContextModule), singletonCImpl.soundManagerProvider.get());
+
+          case 17: // com.rcq.messenger.service.SoundManager 
+          return (T) new SoundManager(ApplicationContextModule_ProvideContextFactory.provideContext(singletonCImpl.applicationContextModule));
+
+          case 18: // com.rcq.messenger.call.CallManager 
+          return (T) new CallManager(ApplicationContextModule_ProvideContextFactory.provideContext(singletonCImpl.applicationContextModule), singletonCImpl.provideWebSocketManagerProvider.get(), singletonCImpl.provideJsonProvider.get());
+
+          case 19: // com.rcq.messenger.data.ws.WebSocketManager 
+          return (T) AppModule_ProvideWebSocketManagerFactory.provideWebSocketManager(singletonCImpl.provideOkHttpClientProvider.get(), singletonCImpl.provideJsonProvider.get());
+
+          case 20: // com.rcq.messenger.data.repository.CallRepository 
           return (T) new CallRepository(singletonCImpl.provideApiServiceProvider.get(), singletonCImpl.callDao());
 
-          case 13: // com.rcq.messenger.data.repository.GameRepository 
+          case 21: // com.rcq.messenger.media.MediaService 
+          return (T) new MediaService(ApplicationContextModule_ProvideContextFactory.provideContext(singletonCImpl.applicationContextModule), singletonCImpl.provideApiServiceProvider.get(), singletonCImpl.cryptoServiceProvider.get());
+
+          case 22: // com.rcq.messenger.media.VoiceRecorder 
+          return (T) new VoiceRecorder(ApplicationContextModule_ProvideContextFactory.provideContext(singletonCImpl.applicationContextModule));
+
+          case 23: // com.rcq.messenger.data.repository.GroupRepository 
+          return (T) new GroupRepository(singletonCImpl.provideApiServiceProvider.get(), singletonCImpl.groupDao());
+
+          case 24: // com.rcq.messenger.data.repository.GameRepository 
           return (T) new GameRepository(singletonCImpl.provideApiServiceProvider.get());
 
-          case 14: // com.rcq.messenger.data.repository.MarketplaceRepository 
+          case 25: // com.rcq.messenger.data.repository.MarketplaceRepository 
           return (T) new MarketplaceRepository(singletonCImpl.provideApiServiceProvider.get());
 
-          case 15: // com.rcq.messenger.data.repository.StoryRepository 
+          case 26: // com.rcq.messenger.data.repository.StoryRepository 
           return (T) new StoryRepository(singletonCImpl.provideApiServiceProvider.get(), singletonCImpl.storyDao());
 
           default: throw new AssertionError(id);

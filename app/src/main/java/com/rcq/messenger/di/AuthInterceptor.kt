@@ -3,6 +3,7 @@ package com.rcq.messenger.di
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import dagger.Module
@@ -20,6 +21,18 @@ import javax.inject.Singleton
 object PreferencesKeys {
     val AUTH_TOKEN = stringPreferencesKey("token")
     val USER_UIN = longPreferencesKey("uin")
+    val RETRO_MODE = booleanPreferencesKey("pref_retro_mode_enabled")
+    val DARK_THEME = booleanPreferencesKey("pref_dark_theme")
+    val AMOLED_THEME = booleanPreferencesKey("pref_amoled_theme")
+    val HIGH_CONTRAST = booleanPreferencesKey("pref_high_contrast")
+    val COMPACT_MODE = booleanPreferencesKey("pref_compact_mode")
+    val NOTIFICATIONS_ENABLED = booleanPreferencesKey("pref_notifications_enabled")
+    val MESSAGE_PREVIEW = booleanPreferencesKey("pref_message_preview")
+    val SOUND_ENABLED = booleanPreferencesKey("pref_sound_enabled")
+    val VIBRATION_ENABLED = booleanPreferencesKey("pref_vibration_enabled")
+    val READ_RECEIPTS = booleanPreferencesKey("pref_read_receipts")
+    val LAST_SEEN_VISIBLE = booleanPreferencesKey("pref_last_seen_visible")
+    val ONLINE_VISIBLE = booleanPreferencesKey("pref_online_visible")
 }
 
 @Singleton
@@ -47,13 +60,3 @@ class AuthInterceptor @Inject constructor(
     }
 }
 
-@Module
-@InstallIn(SingletonComponent::class)
-object OkHttpModule {
-
-    @Provides
-    @Singleton
-    fun provideAuthInterceptor(dataStore: DataStore<Preferences>): AuthInterceptor {
-        return AuthInterceptor(dataStore)
-    }
-}

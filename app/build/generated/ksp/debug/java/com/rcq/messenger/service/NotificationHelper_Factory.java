@@ -24,20 +24,25 @@ import javax.inject.Provider;
 public final class NotificationHelper_Factory implements Factory<NotificationHelper> {
   private final Provider<Context> contextProvider;
 
-  public NotificationHelper_Factory(Provider<Context> contextProvider) {
+  private final Provider<SoundManager> soundManagerProvider;
+
+  public NotificationHelper_Factory(Provider<Context> contextProvider,
+      Provider<SoundManager> soundManagerProvider) {
     this.contextProvider = contextProvider;
+    this.soundManagerProvider = soundManagerProvider;
   }
 
   @Override
   public NotificationHelper get() {
-    return newInstance(contextProvider.get());
+    return newInstance(contextProvider.get(), soundManagerProvider.get());
   }
 
-  public static NotificationHelper_Factory create(Provider<Context> contextProvider) {
-    return new NotificationHelper_Factory(contextProvider);
+  public static NotificationHelper_Factory create(Provider<Context> contextProvider,
+      Provider<SoundManager> soundManagerProvider) {
+    return new NotificationHelper_Factory(contextProvider, soundManagerProvider);
   }
 
-  public static NotificationHelper newInstance(Context context) {
-    return new NotificationHelper(context);
+  public static NotificationHelper newInstance(Context context, SoundManager soundManager) {
+    return new NotificationHelper(context, soundManager);
   }
 }

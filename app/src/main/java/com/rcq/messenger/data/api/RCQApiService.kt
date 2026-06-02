@@ -3,6 +3,8 @@ package com.rcq.messenger.data.api
 import com.rcq.messenger.domain.model.*
 import retrofit2.Response
 import retrofit2.http.*
+import okhttp3.MultipartBody
+import okhttp3.ResponseBody
 
 interface RCQApiService {
 
@@ -10,8 +12,8 @@ interface RCQApiService {
     @POST("auth/register")
     suspend fun register(@Body request: RegisterRequest): Response<AuthResponse>
 
-    // User
-    @GET("users/me")
+    // User — server exposes current-user data at /users/me/info (GET /users/me is PUT-only → 405)
+    @GET("users/me/info")
     suspend fun getCurrentUser(): Response<User>
 
     @PUT("users/me")
@@ -59,6 +61,16 @@ interface RCQApiService {
     @POST("chats")
     suspend fun createChat(@Body request: CreateChatRequest): Response<Chat>
 
+    @GET("messages/queue")
+    suspend fun getMessageQueue(@Query("ack") ack: String = "1"): Response<List<QueuedMessage>>
+
+    @POST("messages/queue/ack")
+    suspend fun ackMessageQueue(@Body body: QueueAckBody): Response<QueueAckResult>
+
+    @POST("messages/sealed")
+    suspend fun sendSealedMessage(@Body request: SealedMessageRequest): Response<SealedMessageResponse>
+
+    // Kept for compile compat; server has no GET /chats endpoint
     @GET("chats/{id}/messages")
     suspend fun getMessages(
         @Path("id") chatId: String,
@@ -92,15 +104,21 @@ interface RCQApiService {
         @Body reaction: Reaction
     ): Response<Message>
 
-    // Groups
     @GET("groups")
-    suspend fun getGroups(): Response<List<Group>>
+    suspend fun getGroups(): Response<List<GroupApiResponse>>
+
+    /** Search public groups by name substring — mirrors iOS GET /groups/search?q=&limit= */
+    @GET("groups/search")
+    suspend fun browsePublicGroups(
+        @retrofit2.http.Query("q") query: String,
+        @retrofit2.http.Query("limit") limit: Int = 20
+    ): Response<List<GroupApiResponse>>
 
     @POST("groups")
     suspend fun createGroup(@Body request: CreateGroupRequest): Response<Group>
 
     @GET("groups/{id}")
-    suspend fun getGroup(@Path("id") groupId: String): Response<Group>
+    suspend fun getGroup(@Path("id") groupId: String): Response<GroupApiResponse>
 
     @PUT("groups/{id}")
     suspend fun updateGroup(@Path("id") groupId: String, @Body group: Group): Response<Group>
@@ -174,49 +192,6 @@ interface RCQApiService {
         @Body reply: StoryReply
     ): Response<Unit>
 
-    // Marketplace
-    @GET("marketplace")
-    suspend fun getMarketplaceItems(
-        @Query("category") category: MarketplaceCategory? = null
-    ): Response<List<MarketplaceItem>>
-
-    @POST("marketplace")
-    suspend fun createListing(@Body item: MarketplaceItem): Response<MarketplaceItem>
-
-    @GET("marketplace/{id}")
-    suspend fun getItem(@Path("id") itemId: String): Response<MarketplaceItem>
-
-    @POST("marketplace/{id}/buy")
-    suspend fun buyItem(@Path("id") itemId: String): Response<Unit>
-
-    @POST("marketplace/{id}/bid")
-    suspend fun placeBid(
-        @Path("id") itemId: String,
-        @Body bid: Bid
-    ): Response<Bid>
-
-    // Games
-    @GET("games/{type}/state")
-    suspend fun getGameState(@Path("type") gameType: GameType): Response<GameState>
-
-    @POST("games/{type}/bet")
-    suspend fun placeBet(
-        @Path("type") gameType: GameType,
-        @Body bet: Bet
-    ): Response<Bet>
-
-    @POST("games/{type}/cashout")
-    suspend fun cashout(@Path("type") gameType: GameType): Response<Bet>
-
-    // Pets
-    @GET("pets")
-    suspend fun getUserPets(): Response<List<Pet>>
-
-    @POST("pets/{id}/equip")
-    suspend fun equipPet(@Path("id") petId: String): Response<Unit>
-
-    @POST("pets/{id}/unequip")
-    suspend fun unequipPet(@Path("id") petId: String): Response<Unit>
 
     // Nearby
     @GET("nearby")
@@ -236,6 +211,34 @@ interface RCQApiService {
     // Presence
     @POST("presence/status")
     suspend fun updatePresence(@Body request: PresenceUpdateRequest): Response<Unit>
+
+    // Signal Protocol E2EE - Pre-Key Management
+    @POST("keys/bundle")
+    suspend fun uploadBundle(@Body request: RegisterBundleRequest): Response<Unit>
+
+    @GET("keys/{uin}/bundle")
+    suspend fun fetchPreKeyBundle(@Path("uin") uin: Long): Response<PreKeyBundleResponse>
+
+    @POST("keys/prekeys")
+    suspend fun replenishPreKeys(@Body request: ReplenishPreKeysRequest): Response<Unit>
+
+    // Group sealed-sender fan-out
+    @POST("messages/group-sealed")
+    suspend fun sendGroupSealedMessage(@Body request: GroupSealedMessageRequest): Response<SealedMessageResponse>
+
+    // Media Upload/Download
+    @Multipart
+    @POST("media/upload")
+    suspend fun uploadMedia(@Part file: MultipartBody.Part): Response<MediaUploadResponse>
+
+    @GET("media/{mediaId}")
+    suspend fun downloadMedia(@Path("mediaId") mediaId: String): Response<ResponseBody>
+
+    @GET("media/usage")
+    suspend fun getMediaUsage(): Response<MediaUsageResponse>
+
+    @DELETE("media/{mediaId}")
+    suspend fun deleteMedia(@Path("mediaId") mediaId: String): Response<Unit>
 }
 
 // Request/Response classes
@@ -266,8 +269,7 @@ data class CreateChatRequest(
 @kotlinx.serialization.Serializable
 data class CreateGroupRequest(
     val name: String,
-    val memberIds: List<Long>,
-    val avatarUrl: String? = null
+    @kotlinx.serialization.SerialName("member_uins") val memberUins: List<Long>
 )
 
 @kotlinx.serialization.Serializable
@@ -362,4 +364,146 @@ data class ContactRequest(
     val nickname: String,
     @kotlinx.serialization.SerialName("avatar_url") val avatarUrl: String? = null,
     @kotlinx.serialization.SerialName("state") val status: String = "pending"
+)
+
+// Signal Protocol E2EE Data Classes — field names match server keys.py exactly
+
+@kotlinx.serialization.Serializable
+data class PreKeyData(
+    val id: Int,
+    @kotlinx.serialization.SerialName("public") val key: String
+)
+
+@kotlinx.serialization.Serializable
+data class SignedPreKeyData(
+    val id: Int,
+    @kotlinx.serialization.SerialName("public") val key: String,
+    val signature: String
+)
+
+@kotlinx.serialization.Serializable
+data class KyberPreKeyData(
+    val id: Int,
+    @kotlinx.serialization.SerialName("public") val key: String,
+    val signature: String
+)
+
+// POST /keys/bundle — BundleIn on the server
+@kotlinx.serialization.Serializable
+data class RegisterBundleRequest(
+    @kotlinx.serialization.SerialName("signal_identity_key") val signalIdentityKey: String,
+    @kotlinx.serialization.SerialName("registration_id") val registrationId: Int,
+    @kotlinx.serialization.SerialName("signed_prekey") val signedPreKey: SignedPreKeyData,
+    @kotlinx.serialization.SerialName("kyber_prekey") val kyberPreKey: KyberPreKeyData,
+    @kotlinx.serialization.SerialName("one_time_prekeys") val oneTimePreKeys: List<PreKeyData> = emptyList()
+)
+
+// POST /keys/prekeys — replenish OPK pool
+@kotlinx.serialization.Serializable
+data class ReplenishPreKeysRequest(
+    @kotlinx.serialization.SerialName("one_time_prekeys") val oneTimePreKeys: List<PreKeyData>
+)
+
+// GET /keys/{uin}/bundle — BundleOut on the server
+@kotlinx.serialization.Serializable
+data class PreKeyBundleResponse(
+    val uin: Long,
+    @kotlinx.serialization.SerialName("registration_id") val registrationId: Int,
+    @kotlinx.serialization.SerialName("signal_identity_key") val identityKey: String,
+    @kotlinx.serialization.SerialName("signed_prekey") val signedPreKey: SignedPreKeyData,
+    @kotlinx.serialization.SerialName("kyber_prekey") val kyberPreKey: KyberPreKeyData,
+    @kotlinx.serialization.SerialName("one_time_prekey") val preKey: PreKeyData? = null
+)
+
+// Group sealed-sender fan-out
+@kotlinx.serialization.Serializable
+data class GroupSealedRecipient(
+    @kotlinx.serialization.SerialName("to_uin") val toUin: Long,
+    val payload: String
+)
+
+@kotlinx.serialization.Serializable
+data class GroupSealedMessageRequest(
+    @kotlinx.serialization.SerialName("group_id") val groupId: Int,
+    @kotlinx.serialization.SerialName("envelope_type") val envelopeType: String = "message",
+    val payloads: List<GroupSealedRecipient>
+)
+
+// Media API Data Classes
+@kotlinx.serialization.Serializable
+data class MediaUploadResponse(
+    val mediaId: String,
+    val url: String,
+    val size: Long,
+    val mimeType: String? = null
+)
+
+@kotlinx.serialization.Serializable
+data class MediaUsageResponse(
+    val usedBytes: Long,
+    val totalBytes: Long,
+    val fileCount: Int
+)
+
+// Matches iOS RCQGroup exactly (confirmed from rcq-ios/Models/Group.swift)
+@kotlinx.serialization.Serializable
+data class GroupApiResponse(
+    val id: Int,
+    val name: String,
+    val description: String? = null,
+    @kotlinx.serialization.SerialName("owner_uin") val ownerUin: Int,
+    @kotlinx.serialization.SerialName("avatar_seed") val avatarSeed: Int = 0,
+    @kotlinx.serialization.SerialName("post_policy") val postPolicy: String = "all",
+    @kotlinx.serialization.SerialName("is_closed") val isClosed: Boolean = false,
+    @kotlinx.serialization.SerialName("members_hidden") val membersHidden: Boolean = false,
+    @kotlinx.serialization.SerialName("pinned_text") val pinnedText: String? = null,
+    @kotlinx.serialization.SerialName("created_at") val createdAt: String = "",
+    val members: List<GroupMemberApi> = emptyList()
+)
+
+@kotlinx.serialization.Serializable
+data class GroupMemberApi(
+    val uin: Int,
+    val nickname: String,
+    val role: String = "member",
+    @kotlinx.serialization.SerialName("identity_key") val identityKey: String = "",
+    @kotlinx.serialization.SerialName("signing_key") val signingKey: String = "",
+    @kotlinx.serialization.SerialName("signal_identity_key") val signalIdentityKey: String? = null
+)
+
+// Matches iOS POST /messages/sealed body (rcq-ios/Services/MessageService.swift:655)
+// { to_uin, envelope_type, payload } — payload is the encrypted envelope blob
+@kotlinx.serialization.Serializable
+data class SealedMessageRequest(
+    @kotlinx.serialization.SerialName("to_uin") val toUin: Long,
+    @kotlinx.serialization.SerialName("envelope_type") val envelopeType: String = "message",
+    val payload: String  // AES/Signal-encrypted envelope — no plaintext
+)
+
+@kotlinx.serialization.Serializable
+data class SealedMessageResponse(
+    val delivered: Boolean = false,
+    val queued: Boolean = false,
+    val id: String = ""
+)
+
+// Offline queue — matches server OfflineMessage / OfflineGroupMessage schemas
+@kotlinx.serialization.Serializable
+data class QueuedMessage(
+    val id: Int,
+    @kotlinx.serialization.SerialName("envelope_type") val envelopeType: String,
+    val payload: String,
+    @kotlinx.serialization.SerialName("received_at") val receivedAt: String,
+    @kotlinx.serialization.SerialName("group_id") val groupId: Int? = null
+)
+
+@kotlinx.serialization.Serializable
+data class QueueAckBody(
+    @kotlinx.serialization.SerialName("direct_ids") val directIds: List<Int>,
+    @kotlinx.serialization.SerialName("group_ids") val groupIds: List<Int>
+)
+
+@kotlinx.serialization.Serializable
+data class QueueAckResult(
+    val deleted: Int = 0
 )

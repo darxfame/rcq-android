@@ -1,0 +1,52 @@
+name: Android CI
+
+on:
+  push:
+    branches: [ main, phase-1-core-messaging ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Grant execute permission
+        run: chmod +x gradlew
+
+      - name: Build (production debug)
+        run: ./gradlew assembleProductionDebug
+
+      - name: Unit tests
+        run: ./gradlew testProductionDebugUnitTest
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: rcq-debug-apk
+          path: app/build/outputs/apk/production/debug/*.apk
+          retention-days: 7
+
+      - name: Release latest-debug
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65  # v2
+        if: success() && github.event_name == 'push'
+        with:
+          tag_name: latest-debug
+          name: Latest Debug Build
+          prerelease: true
+          make_latest: false
+          files: app/build/outputs/apk/production/debug/*.apk
+          body: |
+            Автоматическая отладочная сборка из ветки `${{ github.ref_name }}`
+            Коммит: `${{ github.sha }}`

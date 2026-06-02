@@ -18,6 +18,8 @@ data class Contact(
     val isFavorite: Boolean = false,
     val notificationSound: String? = null,
     val customNickname: String? = null,
+    @SerialName("status_message")
+    val statusMessage: String? = null,
     val chatId: String? = null,
     val unreadCount: Int = 0,
     val lastMessage: Message? = null

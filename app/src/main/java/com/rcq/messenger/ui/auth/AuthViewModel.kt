@@ -10,10 +10,12 @@ import androidx.datastore.preferences.preferencesDataStore
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rcq.messenger.crypto.CryptoService
-import com.rcq.messenger.crypto.RegistrationBundle
+import com.rcq.messenger.crypto.CryptoService.RegistrationBundle
+import com.rcq.messenger.crypto.EciesKeyStore
 import com.rcq.messenger.data.api.RCQApiService
 import com.rcq.messenger.data.api.RegisterRequest
 import com.rcq.messenger.di.PreferencesKeys
+import com.rcq.messenger.service.ProxyManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.*
@@ -27,11 +29,18 @@ class AuthViewModel @Inject constructor(
     private val api: RCQApiService,
     private val dataStore: DataStore<Preferences>,
     @ApplicationContext private val context: Context,
-    private val webSocketService: com.rcq.messenger.data.websocket.WebSocketService
+    private val webSocketService: com.rcq.messenger.data.websocket.WebSocketService,
+    private val cryptoService: CryptoService,
+    private val eciesKeyStore: EciesKeyStore,
+    private val chatRepository: com.rcq.messenger.data.repository.ChatRepository,
+    private val proxyManager: ProxyManager,
 ) : ViewModel() {
 
     private val _authState = MutableStateFlow<AuthState>(AuthState.Loading)
     val authState: StateFlow<AuthState> = _authState.asStateFlow()
+
+    private val _connectionStatus = MutableStateFlow("Запуск…")
+    val connectionStatus: StateFlow<String> = _connectionStatus.asStateFlow()
 
     private val _isAuthenticated = MutableStateFlow(false)
     val isAuthenticated: StateFlow<Boolean> = _isAuthenticated.asStateFlow()
@@ -79,17 +88,28 @@ class AuthViewModel @Inject constructor(
                 val identityKey = prefs[KEY_IDENTITY_KEY]
 
                 if (uin != null && token != null && identityKey != null) {
+                    // Probe connection before entering app — auto-enable bypass if needed
+                    proxyManager.probeAndAutoEnable { _connectionStatus.value = it }
+
                     _nickname.value = savedNickname
                     _currentUin.value = uin
                     _isAuthenticated.value = true
                     _authState.value = AuthState.Authenticated
-                    // Connect WebSocket after successful authentication
+                    eciesKeyStore.loadOrGenerate(cryptoService.ecies)
+                    cryptoService.ecies.ownUin = uin
+                    chatRepository.setCurrentUserUin(uin)
                     webSocketService.connect()
                 } else {
+                    // First launch: probe connection for onboarding too
+                    proxyManager.probeAndAutoEnable { _connectionStatus.value = it }
                     _authState.value = AuthState.Onboarding
                 }
             }
         }
+    }
+
+    fun recheckAuth() {
+        checkExistingAuth()
     }
 
     fun startRegistration(nickname: String) {
@@ -99,16 +119,20 @@ class AuthViewModel @Inject constructor(
             _nickname.value = nickname
 
             try {
-                // Generate registration bundle (identity + signing keys)
-                val bundle = CryptoService.generateRegistrationBundle()
+                // Load/generate ECIES key pairs (raw Curve25519 — iOS-compatible)
+                eciesKeyStore.loadOrGenerate(cryptoService.ecies)
+                val identityKeyB64 = eciesKeyStore.identityPubB64(cryptoService.ecies)
+                val signingKeyB64 = eciesKeyStore.signingPubB64(cryptoService.ecies)
+
+                val bundle = cryptoService.generateRegistrationBundle()
                 _pendingBundle.value = bundle
 
-                // Register with server
+                // Register with server using raw 32-byte ECIES keys (iOS format)
                 val response = api.register(
                     RegisterRequest(
                         nickname = nickname,
-                        identity_key = bundle.identityKey,
-                        signing_key = bundle.signingKey
+                        identity_key = identityKeyB64,
+                        signing_key = signingKeyB64
                     )
                 )
 
@@ -117,8 +141,8 @@ class AuthViewModel @Inject constructor(
                     val uin = body.uin
                     val token = body.token
 
-                    // Generate recovery phrase from keys
-                    val recoveryPhrase = generateRecoveryPhrase(bundle.identityKey, bundle.signingKey)
+                    // Generate recovery phrase from ECIES keys
+                    val recoveryPhrase = generateRecoveryPhrase(identityKeyB64, signingKeyB64)
                     _recoveryPhrase.value = recoveryPhrase
                     _showRecoveryPhrase.value = true
 
@@ -127,8 +151,8 @@ class AuthViewModel @Inject constructor(
                         prefs[KEY_UIN] = uin
                         prefs[KEY_TOKEN] = token
                         prefs[KEY_NICKNAME] = nickname
-                        prefs[KEY_IDENTITY_KEY] = bundle.identityKey
-                        prefs[KEY_SIGNING_KEY] = bundle.signingKey
+                        prefs[KEY_IDENTITY_KEY] = identityKeyB64
+                        prefs[KEY_SIGNING_KEY] = signingKeyB64
                         prefs[KEY_RECOVERY_PHRASE] = recoveryPhrase.joinToString(" ")
                     }
                     // Also save to main DataStore for AuthInterceptor and WebSocketService
@@ -138,6 +162,13 @@ class AuthViewModel @Inject constructor(
                     }
 
                     _currentUin.value = uin
+                    cryptoService.ecies.ownUin = uin
+                    chatRepository.setCurrentUserUin(uin)
+                    // Upload Signal key bundle so peers can start encrypted sessions with us
+                    runCatching {
+                        val signalBundle = cryptoService.generateSignalBundle()
+                        api.uploadBundle(signalBundle)
+                    }
                     _authState.value = AuthState.ShowRecoveryPhrase
                 } else {
                     _error.value = "Registration failed (${response.code()}): ${response.message()}"
@@ -166,13 +197,9 @@ class AuthViewModel @Inject constructor(
 
     fun logout() {
         viewModelScope.launch {
-            // Clear both DataStores
-            context.dataStore.edit { prefs ->
-                prefs.clear()
-            }
-            dataStore.edit { prefs ->
-                prefs.clear()
-            }
+            chatRepository.clearAllData()
+            context.dataStore.edit { prefs -> prefs.clear() }
+            dataStore.edit { prefs -> prefs.clear() }
             _isAuthenticated.value = false
             _authState.value = AuthState.Onboarding
             _currentUin.value = null

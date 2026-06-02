@@ -16,7 +16,146 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
+import com.rcq.messenger.di.PreferencesKeys
+import kotlinx.coroutines.flow.map
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.rcq.messenger.data.repository.UserRepository
+import com.rcq.messenger.domain.model.User
 import com.rcq.messenger.ui.theme.*
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+import javax.inject.Inject
+
+@HiltViewModel
+class SettingsViewModel @Inject constructor(
+    private val userRepository: UserRepository,
+    private val dataStore: DataStore<Preferences>
+) : ViewModel() {
+
+    private val KEY_NICKNAME = stringPreferencesKey("nickname")
+
+    val editNickname = MutableStateFlow("")
+    val editBio = MutableStateFlow("")
+    val showEditDialog = MutableStateFlow(false)
+    val isLoading = MutableStateFlow(false)
+    val error: MutableStateFlow<String?> = MutableStateFlow(null)
+
+    val notificationsEnabled: StateFlow<Boolean> = dataStore.data
+        .map { it[PreferencesKeys.NOTIFICATIONS_ENABLED] ?: true }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+    val messagePreview: StateFlow<Boolean> = dataStore.data
+        .map { it[PreferencesKeys.MESSAGE_PREVIEW] ?: true }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+    val soundEnabled: StateFlow<Boolean> = dataStore.data
+        .map { it[PreferencesKeys.SOUND_ENABLED] ?: true }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+    val vibrationEnabled: StateFlow<Boolean> = dataStore.data
+        .map { it[PreferencesKeys.VIBRATION_ENABLED] ?: true }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+    val readReceipts: StateFlow<Boolean> = dataStore.data
+        .map { it[PreferencesKeys.READ_RECEIPTS] ?: true }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+    val lastSeenVisible: StateFlow<Boolean> = dataStore.data
+        .map { it[PreferencesKeys.LAST_SEEN_VISIBLE] ?: true }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+    val onlineVisible: StateFlow<Boolean> = dataStore.data
+        .map { it[PreferencesKeys.ONLINE_VISIBLE] ?: true }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
+    fun setNotificationsEnabled(v: Boolean) { viewModelScope.launch { dataStore.edit { it[PreferencesKeys.NOTIFICATIONS_ENABLED] = v } } }
+    fun setMessagePreview(v: Boolean) { viewModelScope.launch { dataStore.edit { it[PreferencesKeys.MESSAGE_PREVIEW] = v } } }
+    fun setSoundEnabled(v: Boolean) { viewModelScope.launch { dataStore.edit { it[PreferencesKeys.SOUND_ENABLED] = v } } }
+    fun setVibrationEnabled(v: Boolean) { viewModelScope.launch { dataStore.edit { it[PreferencesKeys.VIBRATION_ENABLED] = v } } }
+    fun setReadReceipts(v: Boolean) { viewModelScope.launch { dataStore.edit { it[PreferencesKeys.READ_RECEIPTS] = v } } }
+    fun setLastSeenVisible(v: Boolean) { viewModelScope.launch { dataStore.edit { it[PreferencesKeys.LAST_SEEN_VISIBLE] = v } } }
+    fun setOnlineVisible(v: Boolean) { viewModelScope.launch { dataStore.edit { it[PreferencesKeys.ONLINE_VISIBLE] = v } } }
+
+    val darkTheme: StateFlow<Boolean> = dataStore.data
+        .map { it[PreferencesKeys.DARK_THEME] ?: true }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
+    val retroMode: StateFlow<Boolean> = dataStore.data
+        .map { it[PreferencesKeys.RETRO_MODE] ?: false }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    val amoledTheme: StateFlow<Boolean> = dataStore.data
+        .map { it[PreferencesKeys.AMOLED_THEME] ?: false }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    val highContrast: StateFlow<Boolean> = dataStore.data
+        .map { it[PreferencesKeys.HIGH_CONTRAST] ?: false }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    val compactMode: StateFlow<Boolean> = dataStore.data
+        .map { it[PreferencesKeys.COMPACT_MODE] ?: false }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    fun setDarkTheme(enabled: Boolean) {
+        viewModelScope.launch { dataStore.edit { it[PreferencesKeys.DARK_THEME] = enabled } }
+    }
+
+    fun setRetroMode(enabled: Boolean) {
+        viewModelScope.launch { dataStore.edit { it[PreferencesKeys.RETRO_MODE] = enabled } }
+    }
+
+    fun setCompactMode(enabled: Boolean) {
+        viewModelScope.launch { dataStore.edit { it[PreferencesKeys.COMPACT_MODE] = enabled } }
+    }
+
+    fun setAmoledTheme(enabled: Boolean) {
+        viewModelScope.launch { dataStore.edit { it[PreferencesKeys.AMOLED_THEME] = enabled } }
+    }
+
+    fun setHighContrast(enabled: Boolean) {
+        viewModelScope.launch { dataStore.edit { it[PreferencesKeys.HIGH_CONTRAST] = enabled } }
+    }
+
+    private var currentUser: User? = null
+
+    fun loadCurrentUser() {
+        viewModelScope.launch {
+            userRepository.getCurrentUser().onSuccess { user ->
+                currentUser = user
+            }
+        }
+    }
+
+    fun openEditDialog(currentNickname: String, currentBio: String) {
+        editNickname.value = currentNickname
+        editBio.value = currentBio
+        error.value = null
+        showEditDialog.value = true
+    }
+
+    fun saveProfile() {
+        val user = currentUser ?: return
+        viewModelScope.launch {
+            isLoading.value = true
+            error.value = null
+            userRepository.updateProfile(
+                user.copy(nickname = editNickname.value, bio = editBio.value)
+            ).onSuccess { updated ->
+                dataStore.edit { prefs ->
+                    prefs[KEY_NICKNAME] = updated.nickname
+                }
+                showEditDialog.value = false
+            }.onFailure { e ->
+                error.value = e.message ?: "Failed to update profile"
+            }
+            isLoading.value = false
+        }
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -24,10 +163,88 @@ fun SettingsScreen(
     currentUin: Long?,
     nickname: String,
     recoveryPhrase: List<String>,
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    onNavigateToStealth: () -> Unit = {},
+    onNavigateToPin: () -> Unit = {},
+    onNavigateToDiagnostics: () -> Unit = {},
+    viewModel: SettingsViewModel = hiltViewModel()
 ) {
     var showLogoutDialog by remember { mutableStateOf(false) }
     var showRecoveryPhrase by remember { mutableStateOf(false) }
+
+    val showEditDialog by viewModel.showEditDialog.collectAsState()
+    val editNickname by viewModel.editNickname.collectAsState()
+    val editBio by viewModel.editBio.collectAsState()
+    val isLoading by viewModel.isLoading.collectAsState()
+    val error by viewModel.error.collectAsState()
+
+    val notificationsEnabled by viewModel.notificationsEnabled.collectAsState()
+    val messagePreview by viewModel.messagePreview.collectAsState()
+    val soundEnabled by viewModel.soundEnabled.collectAsState()
+    val vibrationEnabled by viewModel.vibrationEnabled.collectAsState()
+    val readReceipts by viewModel.readReceipts.collectAsState()
+    val lastSeenVisible by viewModel.lastSeenVisible.collectAsState()
+    val onlineVisible by viewModel.onlineVisible.collectAsState()
+    val darkTheme by viewModel.darkTheme.collectAsState()
+    val retroMode by viewModel.retroMode.collectAsState()
+    val amoledTheme by viewModel.amoledTheme.collectAsState()
+    val highContrast by viewModel.highContrast.collectAsState()
+    val compactMode by viewModel.compactMode.collectAsState()
+
+    LaunchedEffect(Unit) {
+        viewModel.loadCurrentUser()
+    }
+
+    if (showEditDialog) {
+        AlertDialog(
+            onDismissRequest = { viewModel.showEditDialog.value = false },
+            title = { Text("Edit Profile") },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = editNickname,
+                        onValueChange = { viewModel.editNickname.value = it },
+                        label = { Text("Nickname") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = editBio,
+                        onValueChange = { viewModel.editBio.value = it },
+                        label = { Text("Bio") },
+                        maxLines = 4,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    if (error != null) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = error!!,
+                            color = Error,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = { viewModel.saveProfile() },
+                    enabled = !isLoading
+                ) {
+                    if (isLoading) {
+                        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                    } else {
+                        Text("Save")
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.showEditDialog.value = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 
     if (showRecoveryPhrase && recoveryPhrase.isNotEmpty()) {
         AlertDialog(
@@ -79,6 +296,7 @@ fun SettingsScreen(
         )
     }
 
+    val rcq = LocalRCQColors.current
     Scaffold(
         topBar = {
             TopAppBar(
@@ -90,12 +308,12 @@ fun SettingsScreen(
                     )
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Background,
-                    titleContentColor = TextPrimary
+                    containerColor = rcq.bgPrimary,
+                    titleContentColor = rcq.textPrimary
                 )
             )
         },
-        containerColor = Background
+        containerColor = rcq.bgPrimary
     ) { paddingValues ->
         LazyColumn(
             modifier = Modifier
@@ -108,6 +326,12 @@ fun SettingsScreen(
 
             item {
                 SettingsSection(title = "Account") {
+                    SettingsItem(
+                        icon = Icons.Default.Edit,
+                        title = "Edit Profile",
+                        subtitle = "Change nickname and bio",
+                        onClick = { viewModel.openEditDialog(nickname, "") }
+                    )
                     SettingsItem(
                         icon = Icons.Default.Person,
                         title = "Profile",
@@ -130,24 +354,110 @@ fun SettingsScreen(
             }
 
             item {
-                SettingsSection(title = "Preferences") {
-                    SettingsItem(
+                SettingsSection(title = "Notifications") {
+                    SettingsToggleItem(
                         icon = Icons.Default.Notifications,
                         title = "Notifications",
-                        subtitle = "Message, call, group sounds",
-                        onClick = { }
+                        checked = notificationsEnabled,
+                        onCheckedChange = { viewModel.setNotificationsEnabled(it) }
                     )
-                    SettingsItem(
-                        icon = Icons.Default.Palette,
-                        title = "Appearance",
-                        subtitle = "Theme, colors",
-                        onClick = { }
+                    SettingsToggleItem(
+                        icon = Icons.Default.Preview,
+                        title = "Message preview",
+                        checked = messagePreview,
+                        onCheckedChange = { viewModel.setMessagePreview(it) },
+                        enabled = notificationsEnabled
                     )
+                    SettingsToggleItem(
+                        icon = Icons.Default.VolumeUp,
+                        title = "Sound",
+                        checked = soundEnabled,
+                        onCheckedChange = { viewModel.setSoundEnabled(it) }
+                    )
+                    SettingsToggleItem(
+                        icon = Icons.Default.Vibration,
+                        title = "Vibration",
+                        checked = vibrationEnabled,
+                        onCheckedChange = { viewModel.setVibrationEnabled(it) }
+                    )
+                }
+            }
+
+            item {
+                SettingsSection(title = "Privacy") {
+                    SettingsToggleItem(
+                        icon = Icons.Default.DoneAll,
+                        title = "Read receipts",
+                        checked = readReceipts,
+                        onCheckedChange = { viewModel.setReadReceipts(it) }
+                    )
+                    SettingsToggleItem(
+                        icon = Icons.Default.AccessTime,
+                        title = "Show last seen",
+                        checked = lastSeenVisible,
+                        onCheckedChange = { viewModel.setLastSeenVisible(it) }
+                    )
+                    SettingsToggleItem(
+                        icon = Icons.Default.Circle,
+                        title = "Show online status",
+                        checked = onlineVisible,
+                        onCheckedChange = { viewModel.setOnlineVisible(it) }
+                    )
+                }
+            }
+
+            item {
+                SettingsSection(title = "Appearance") {
+                    SettingsToggleItem(
+                        icon = Icons.Default.DarkMode,
+                        title = "Dark theme",
+                        checked = darkTheme,
+                        onCheckedChange = { viewModel.setDarkTheme(it) }
+                    )
+                    SettingsToggleItem(
+                        icon = Icons.Default.History,
+                        title = "JIMM Retro Mode",
+                        subtitle = "ICQ-style contact groups & layout",
+                        checked = retroMode,
+                        onCheckedChange = { viewModel.setRetroMode(it) }
+                    )
+                    SettingsToggleItem(
+                        icon = Icons.Default.BrightnessLow,
+                        title = "AMOLED Black",
+                        subtitle = "Pure black background (OLED screens)",
+                        checked = amoledTheme,
+                        onCheckedChange = { viewModel.setAmoledTheme(it) }
+                    )
+                    SettingsToggleItem(
+                        icon = Icons.Default.Contrast,
+                        title = "High Contrast",
+                        subtitle = "WCAG AAA — maximum readability",
+                        checked = highContrast,
+                        onCheckedChange = { viewModel.setHighContrast(it) }
+                    )
+                    SettingsToggleItem(
+                        icon = Icons.Default.ViewCompact,
+                        title = "Compact Mode",
+                        subtitle = "Уменьшенные отступы и строки",
+                        checked = compactMode,
+                        onCheckedChange = { viewModel.setCompactMode(it) }
+                    )
+                }
+            }
+
+            item {
+                SettingsSection(title = "Storage") {
                     SettingsItem(
                         icon = Icons.Default.Storage,
-                        title = "Storage",
-                        subtitle = "Auto-download, data usage",
-                        onClick = { }
+                        title = "Cache",
+                        subtitle = "Calculating...",
+                        onClick = {}
+                    )
+                    SettingsItem(
+                        icon = Icons.Default.Delete,
+                        title = "Clear cache",
+                        subtitle = "Free up storage space",
+                        onClick = {}
                     )
                 }
             }
@@ -165,6 +475,29 @@ fun SettingsScreen(
                         title = "Help",
                         subtitle = "FAQ, contact support",
                         onClick = { }
+                    )
+                }
+            }
+
+            item {
+                SettingsSection(title = "Stealth Mode") {
+                    SettingsItem(
+                        icon = Icons.Default.VpnKey,
+                        title = "Proxy & SingBox",
+                        subtitle = "Configure stealth transport",
+                        onClick = onNavigateToStealth
+                    )
+                    SettingsItem(
+                        icon = Icons.Default.Lock,
+                        title = "Panic PIN",
+                        subtitle = "Decoy and wipe PIN codes",
+                        onClick = onNavigateToPin
+                    )
+                    SettingsItem(
+                        icon = Icons.Default.NetworkCheck,
+                        title = "Connection Diagnostics",
+                        subtitle = "Check proxy and relay status",
+                        onClick = onNavigateToDiagnostics
                     )
                 }
             }
@@ -188,6 +521,7 @@ fun SettingsScreen(
 
 @Composable
 fun SettingsHeader(currentUin: Long?, nickname: String) {
+    val rcq = LocalRCQColors.current
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -198,13 +532,13 @@ fun SettingsHeader(currentUin: Long?, nickname: String) {
             modifier = Modifier
                 .size(80.dp)
                 .clip(CircleShape)
-                .background(SurfaceVariant),
+                .background(rcq.bgSecondary),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 text = nickname.take(1).uppercase().ifEmpty { "?" },
                 style = MaterialTheme.typography.displaySmall,
-                color = Primary
+                color = rcq.accent
             )
         }
 
@@ -247,31 +581,28 @@ fun SettingsHeader(currentUin: Long?, nickname: String) {
     }
 }
 
+/** Flat QIP-style section — no card, just label + divider-separated rows */
 @Composable
 fun SettingsSection(
     title: String,
     content: @Composable ColumnScope.() -> Unit
 ) {
+    val rcq = LocalRCQColors.current
     Column(modifier = Modifier.fillMaxWidth()) {
+        HorizontalDivider(thickness = RCQMetrics.dividerThick, color = rcq.divider)
         Text(
-            text = title,
-            style = MaterialTheme.typography.labelLarge,
-            color = TextSecondary,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+            text = title.uppercase(),
+            fontSize = RCQFontSize.sectionLabel,
+            fontWeight = FontWeight.SemiBold,
+            color = rcq.accent,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp)
         )
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            colors = CardDefaults.cardColors(containerColor = Surface),
-            shape = RoundedCornerShape(16.dp)
-        ) {
-            Column {
-                content()
-            }
+        HorizontalDivider(thickness = RCQMetrics.dividerThick, color = rcq.divider)
+        Column(modifier = Modifier.fillMaxWidth().background(rcq.bgSecondary)) {
+            content()
         }
     }
-    Spacer(modifier = Modifier.height(16.dp))
+    Spacer(modifier = Modifier.height(8.dp))
 }
 
 @Composable
@@ -289,29 +620,48 @@ fun SettingsItem(
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = tint,
-            modifier = Modifier.size(24.dp)
-        )
-        Spacer(modifier = Modifier.width(16.dp))
+        Icon(imageVector = icon, contentDescription = null, tint = tint, modifier = Modifier.size(18.dp))
+        Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium,
-                color = TextPrimary
-            )
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = TextSecondary
+            Text(title, fontSize = RCQFontSize.nickname, color = TextPrimary)
+            Text(subtitle, fontSize = RCQFontSize.caption, color = TextSecondary)
+        }
+        Icon(Icons.Default.ChevronRight, contentDescription = null, tint = TextTertiary, modifier = Modifier.size(16.dp))
+    }
+    HorizontalDivider(thickness = RCQMetrics.dividerThick, color = SurfaceVariant.copy(alpha = 0.4f))
+}
+
+@Composable
+fun SettingsToggleItem(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    subtitle: String? = null,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    enabled: Boolean = true
+) {
+    val rcq = LocalRCQColors.current
+    Column {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(enabled = enabled, onClick = { onCheckedChange(!checked) })
+                .padding(horizontal = 12.dp, vertical = 9.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(imageVector = icon, contentDescription = null, tint = if (enabled) rcq.accent else rcq.textSecondary, modifier = Modifier.size(18.dp))
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(title, fontSize = RCQFontSize.nickname, color = if (enabled) rcq.textPrimary else rcq.textSecondary)
+                if (subtitle != null) Text(subtitle, fontSize = RCQFontSize.caption, color = rcq.textSecondary)
+            }
+            Switch(
+                checked = checked,
+                onCheckedChange = onCheckedChange,
+                enabled = enabled,
+                colors = SwitchDefaults.colors(checkedThumbColor = rcq.accent, checkedTrackColor = rcq.accent.copy(alpha = 0.3f))
             )
         }
-        Icon(
-            Icons.Default.ChevronRight,
-            contentDescription = null,
-            tint = TextTertiary
-        )
+        HorizontalDivider(thickness = RCQMetrics.dividerThick, color = rcq.divider)
     }
 }

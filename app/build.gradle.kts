@@ -21,8 +21,14 @@ android {
         vectorDrawables {
             useSupportLibrary = true
         }
+    }
 
-        buildConfigField("String", "API_BASE_URL", "\"https://api.rcq.app/\"")
+    flavorDimensions += "env"
+    productFlavors {
+        create("production") {
+            dimension = "env"
+            buildConfigField("String", "API_BASE_URL", "\"https://api.rcq.app/\"")
+        }
     }
 
     buildTypes {
@@ -60,10 +66,25 @@ android {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
+        jniLibs {
+            // Equivalent to android:extractNativeLibs="true" — makes Samsung's
+            // package installer extract .so files to disk instead of loading from
+            // inside the APK, avoiding page-alignment crashes on Galaxy devices.
+            useLegacyPackaging = true
+        }
     }
 }
 
 dependencies {
+    // sing-box нативное ядро (libbox.aar).
+    // Положите собранный libbox.aar в app/libs/ — Gradle подхватит автоматически.
+    // Сборка ядра из форка Lantern: см. docs/SINGBOX_INTEGRATION.md
+    // Пустой каталог libs/ не ломает сборку (fileTree вернёт пустой набор).
+    implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.aar", "*.jar"))))
+
+    // Logging
+    implementation("com.jakewharton.timber:timber:5.0.1")
+
     // Core Android
     implementation("androidx.core:core-ktx:1.12.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
@@ -106,12 +127,20 @@ dependencies {
     // DataStore
     implementation("androidx.datastore:datastore-preferences:1.0.0")
 
-    // Coil for images
+    // Coil for images + GIF animated emoticons
     implementation("io.coil-kt:coil-compose:2.5.0")
+    implementation("io.coil-kt:coil-gif:2.5.0")
 
     // Security
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
     implementation("androidx.biometric:biometric:1.1.0")
+
+    // Signal Protocol E2EE
+    implementation("org.signal:libsignal-android:0.31.0")
+
+    // BouncyCastle — ChaCha20-Poly1305 + Ed25519Signer for iOS-compatible ECIES v=1.
+    // Android's built-in BC is cut-down (no ChaCha); we need the full provider.
+    implementation("org.bouncycastle:bcprov-jdk18on:1.78.1")
 
     // WebRTC
     implementation("io.getstream:stream-webrtc-android:1.1.1")

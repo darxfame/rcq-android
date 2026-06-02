@@ -1,7 +1,10 @@
 package com.rcq.messenger.ui.chat
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -18,17 +21,29 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.isGranted
+import com.google.accompanist.permissions.rememberPermissionState
 import com.rcq.messenger.domain.model.Message
+import com.rcq.messenger.media.RecordingState
 import com.rcq.messenger.domain.model.MessageStatus
 import com.rcq.messenger.domain.model.MessageKind
+import com.rcq.messenger.ui.chat.components.ReplyPreview
 import com.rcq.messenger.ui.theme.*
 import java.text.SimpleDateFormat
 import java.util.*
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
 fun ChatScreen(
     chatId: String,
@@ -40,7 +55,37 @@ fun ChatScreen(
     val replyTo by viewModel.replyTo.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val currentUserId by viewModel.currentUserId.collectAsState()
+    val chatTitle by viewModel.chatTitle.collectAsState()
+    val isTyping by viewModel.isTyping.collectAsState()
+    val recordingState by viewModel.recordingState.collectAsState()
+    val playbackState by viewModel.playbackState.collectAsState()
+    val activeVoiceId by viewModel.activeVoiceId.collectAsState()
     val listState = rememberLazyListState()
+    LaunchedEffect(messages.size) {
+        if (messages.isNotEmpty()) listState.animateScrollToItem(messages.size - 1)
+    }
+    var showAttachMenu by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val locationPermissionState = rememberPermissionState(android.Manifest.permission.ACCESS_FINE_LOCATION)
+    val requestLocationAndSend = {
+        if (locationPermissionState.status.isGranted) {
+            viewModel.sendLocationMessage(context)
+        } else {
+            locationPermissionState.launchPermissionRequest()
+        }
+    }
+
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri -> uri?.let { viewModel.sendPhotoMessage(it) } }
+
+    val videoPickerLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri -> uri?.let { viewModel.sendVideoMessage(it) } }
+
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri -> uri?.let { viewModel.sendFileMessage(it) } }
 
     LaunchedEffect(chatId) {
         viewModel.loadChat(chatId)
@@ -50,29 +95,23 @@ fun ChatScreen(
         topBar = {
             TopAppBar(
                 title = {
+                    val rcqTitle = LocalRCQColors.current
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(
                             modifier = Modifier
                                 .size(40.dp)
-                                .clip(CircleShape)
-                                .background(SurfaceVariant),
+                                .clip(RoundedCornerShape(3.dp))
+                                .background(rcqTitle.bgSecondary),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text("U", color = Primary)
+                            Text(chatTitle.firstOrNull()?.uppercase() ?: "?", color = rcqTitle.accent)
                         }
                         Spacer(modifier = Modifier.width(12.dp))
-                        Column {
-                            Text(
-                                text = "User",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Text(
-                                text = "Online",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Online
-                            )
-                        }
+                        Text(
+                            text = chatTitle,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
                     }
                 },
                 navigationIcon = {
@@ -89,17 +128,18 @@ fun ChatScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Surface,
-                    titleContentColor = TextPrimary
+                    containerColor = LocalRCQColors.current.bgPrimary,
+                    titleContentColor = LocalRCQColors.current.textPrimary
                 )
             )
         },
-        containerColor = Background
+        containerColor = LocalRCQColors.current.bgPrimary
     ) { paddingValues ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
+                .imePadding()
         ) {
             LazyColumn(
                 state = listState,
@@ -109,211 +149,332 @@ fun ChatScreen(
                 reverseLayout = false
             ) {
                 items(messages, key = { it.id }) { message ->
-                    MessageBubble(
-                        message = message,
-                        isOwnMessage = message.senderId == currentUserId,
-                        onReply = { viewModel.setReplyTo(message) }
-                    )
+                    if (message.kind == MessageKind.SYSTEM_NOTICE) {
+                        RetroSystemMessage(text = message.content)
+                    } else {
+                        MessageBubble(
+                            message = message,
+                            isOwnMessage = message.senderId == currentUserId,
+                            onReply = { viewModel.setReplyTo(message) },
+                            onForward = { viewModel.forwardMessage(message) },
+                            onEdit = { viewModel.editMessage(message, message.content) },
+                            onDelete = { viewModel.deleteMessage(message.id) },
+                            onReact = { viewModel.addReaction(message.id, "👍") },
+                            onVoicePlay = { _ -> viewModel.playVoice(message) },
+                            onVoicePause = { viewModel.pauseVoice() },
+                            isVoicePlaying = activeVoiceId == message.mediaId,
+                            playbackState = playbackState
+                        )
+                    }
                 }
             }
 
+            TypingIndicator(isVisible = isTyping)
+
             replyTo?.let { reply ->
                 ReplyPreview(
-                    message = reply,
-                    onCancel = { viewModel.setReplyTo(null) }
+                    originalMessage = reply.content,
+                    originalSender = "User", // TODO: Get actual sender name
+                    onDismiss = { viewModel.setReplyTo(null) }
                 )
             }
 
-            MessageInput(
-                text = messageText,
-                onTextChange = viewModel::updateMessageText,
-                onSend = viewModel::sendMessage,
-                onAttach = { /* Attach media */ },
-                onVoice = { /* Voice message */ }
-            )
+            Box {
+                MessageInput(
+                    text = messageText,
+                    onTextChange = viewModel::updateMessageText,
+                    onSend = viewModel::sendMessage,
+                    onAttach = { showAttachMenu = true },
+                    onVoice = {
+                        if (recordingState == RecordingState.RECORDING) {
+                            viewModel.stopAndSendVoiceMessage()
+                        } else {
+                            viewModel.startVoiceRecording()
+                        }
+                    },
+                    isRecording = recordingState == RecordingState.RECORDING
+                )
+                DropdownMenu(
+                    expanded = showAttachMenu,
+                    onDismissRequest = { showAttachMenu = false }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("Photo") },
+                        leadingIcon = { Icon(Icons.Default.Image, null) },
+                        onClick = { showAttachMenu = false; photoPickerLauncher.launch("image/*") }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Video") },
+                        leadingIcon = { Icon(Icons.Default.VideoLibrary, null) },
+                        onClick = { showAttachMenu = false; videoPickerLauncher.launch("video/*") }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("File") },
+                        leadingIcon = { Icon(Icons.Default.AttachFile, null) },
+                        onClick = { showAttachMenu = false; filePickerLauncher.launch("*/*") }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Location") },
+                        leadingIcon = { Icon(Icons.Default.LocationOn, null) },
+                        onClick = { showAttachMenu = false; requestLocationAndSend() }
+                    )
+                }
+            }
         }
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun MessageBubble(
     message: Message,
     isOwnMessage: Boolean,
-    onReply: () -> Unit
+    onReply: () -> Unit,
+    onForward: () -> Unit = {},
+    onEdit: () -> Unit = {},
+    onDelete: () -> Unit = {},
+    onReact: () -> Unit = {},
+    onVoicePlay: (String) -> Unit = {},
+    onVoicePause: () -> Unit = {},
+    isVoicePlaying: Boolean = false,
+    playbackState: com.rcq.messenger.media.PlaybackState = com.rcq.messenger.media.PlaybackState.IDLE
 ) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp)
-            .clickable(onClick = onReply),
-        horizontalAlignment = if (isOwnMessage) Alignment.End else Alignment.Start
-    ) {
-        if (message.replyToId != null) {
-            Row(
-                modifier = Modifier
-                    .background(SurfaceVariant, RoundedCornerShape(8.dp))
-                    .padding(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
+    val rcq = LocalRCQColors.current
+    val bubbleColor = if (isOwnMessage) rcq.bubbleSelf else rcq.bubbleOther
+    val bubbleShape = RoundedCornerShape(
+        topStart = RCQMetrics.bubbleRadius,
+        topEnd = RCQMetrics.bubbleRadius,
+        bottomStart = if (isOwnMessage) RCQMetrics.bubbleRadius else 2.dp,
+        bottomEnd = if (isOwnMessage) 2.dp else RCQMetrics.bubbleRadius
+    )
+    var showMenu by remember { mutableStateOf(false) }
+
+    Box {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = RCQMetrics.screenHPad, vertical = 3.dp)
+                .combinedClickable(onClick = {}, onLongClick = { showMenu = true }),
+            horizontalAlignment = if (isOwnMessage) Alignment.End else Alignment.Start
+        ) {
+            if (message.replyToId != null) {
+                Row(
                     modifier = Modifier
-                        .width(2.dp)
-                        .height(32.dp)
-                        .background(Primary)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = message.replyToContent ?: "",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = TextSecondary,
-                    maxLines = 1
-                )
+                        .background(rcq.bgSecondary, RoundedCornerShape(4.dp))
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(modifier = Modifier.width(2.dp).height(28.dp).background(rcq.accent))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = message.replyToContent ?: "",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = rcq.textSecondary,
+                        maxLines = 1
+                    )
+                }
+                Spacer(modifier = Modifier.height(3.dp))
             }
-            Spacer(modifier = Modifier.height(4.dp))
+
+            Row(
+                verticalAlignment = Alignment.Bottom,
+                horizontalArrangement = if (isOwnMessage) Arrangement.End else Arrangement.Start
+            ) {
+                if (!isOwnMessage) {
+                    Box(
+                        modifier = Modifier
+                            .size(RCQMetrics.avatarSm)
+                            .clip(CircleShape)
+                            .background(rcq.bgSecondary),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("?", color = rcq.accent, style = MaterialTheme.typography.labelSmall)
+                    }
+                    Spacer(modifier = Modifier.width(6.dp))
+                }
+
+                Column(
+                    horizontalAlignment = if (isOwnMessage) Alignment.End else Alignment.Start
+                ) {
+                    val isMedia = message.kind in listOf(
+                        MessageKind.PHOTO, MessageKind.VIDEO, MessageKind.VOICE,
+                        MessageKind.FILE, MessageKind.PREMIUM_PHOTO, MessageKind.PREMIUM_VIDEO
+                    )
+                    if (isMedia) {
+                        com.rcq.messenger.ui.chat.components.MediaMessageBubble(
+                            message = message,
+                            isOwnMessage = isOwnMessage,
+                            onMediaClick = {},
+                            onVoicePlay = onVoicePlay,
+                            onVoicePause = onVoicePause,
+                            playbackState = if (isVoicePlaying) playbackState else com.rcq.messenger.media.PlaybackState.IDLE,
+                            modifier = Modifier
+                        )
+                    } else if (message.kind == MessageKind.LOCATION && message.latitude != null && message.longitude != null) {
+                        Column(
+                            modifier = Modifier
+                                .background(bubbleColor, bubbleShape)
+                                .padding(RCQMetrics.bubbleHPad, RCQMetrics.bubbleVPad)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.LocationOn, null, tint = rcq.accent, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Location", fontWeight = FontWeight.Medium, color = rcq.textPrimary)
+                            }
+                            Text(
+                                "${String.format("%.4f", message.latitude)}, ${String.format("%.4f", message.longitude)}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = rcq.textSecondary
+                            )
+                        }
+                    } else if (message.deletedForEveryone) {
+                        Row(
+                            modifier = Modifier
+                                .background(rcq.bgSecondary, bubbleShape)
+                                .padding(RCQMetrics.bubbleHPad, RCQMetrics.bubbleVPad),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.Block,
+                                contentDescription = null,
+                                tint = rcq.textSecondary,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "Message deleted",
+                                color = rcq.textSecondary,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontSize = RCQFontSize.bubble,
+                                fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+                            )
+                        }
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .background(bubbleColor, bubbleShape)
+                                .padding(RCQMetrics.bubbleHPad, RCQMetrics.bubbleVPad)
+                        ) {
+                            Text(
+                                text = message.content,
+                                color = rcq.textPrimary,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontSize = RCQFontSize.bubble
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(2.dp))
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = if (isOwnMessage) Arrangement.End else Arrangement.Start
+                    ) {
+                        if (message.editedAt != null && !message.deletedForEveryone) {
+                            Icon(
+                                Icons.Default.Edit,
+                                contentDescription = "Edited",
+                                tint = rcq.textSecondary,
+                                modifier = Modifier.size(10.dp)
+                            )
+                            Spacer(modifier = Modifier.width(2.dp))
+                        }
+                        Text(
+                            text = formatTimestamp(message.timestamp),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontSize = RCQFontSize.timestamp,
+                            color = rcq.textSecondary
+                        )
+                        if (isOwnMessage) {
+                            Spacer(modifier = Modifier.width(3.dp))
+                            MessageStatusIcon(status = message.status)
+                        }
+                    }
+                }
+            }
         }
 
-        Row(
-            verticalAlignment = Alignment.Bottom,
-            horizontalArrangement = if (isOwnMessage) Arrangement.End else Arrangement.Start
-        ) {
-            if (!isOwnMessage) {
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clip(CircleShape)
-                        .background(SurfaceVariant),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("U", color = Primary, style = MaterialTheme.typography.labelMedium)
-                }
-                Spacer(modifier = Modifier.width(8.dp))
+        DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+            DropdownMenuItem(
+                text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.AutoMirrored.Filled.Reply, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("Reply") } },
+                onClick = { showMenu = false; onReply() }
+            )
+            if (isOwnMessage) {
+                DropdownMenuItem(
+                    text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.Edit, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("Edit") } },
+                    onClick = { showMenu = false; onEdit() }
+                )
+                DropdownMenuItem(
+                    text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.Delete, null, Modifier.size(18.dp), tint = ColorError); Spacer(Modifier.width(8.dp)); Text("Delete", color = ColorError) } },
+                    onClick = { showMenu = false; onDelete() }
+                )
             }
-
-            Column(
-                horizontalAlignment = if (isOwnMessage) Alignment.End else Alignment.Start
-            ) {
-                Box(
-                    modifier = Modifier
-                        .background(
-                            if (isOwnMessage) MessageSent else MessageReceived,
-                            RoundedCornerShape(
-                                topStart = 16.dp,
-                                topEnd = 16.dp,
-                                bottomStart = if (isOwnMessage) 16.dp else 4.dp,
-                                bottomEnd = if (isOwnMessage) 4.dp else 16.dp
-                            )
-                        )
-                        .padding(12.dp)
-                ) {
-                    when (message.kind) {
-                        MessageKind.TEXT -> {
-                            Text(
-                                text = message.content,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = if (isOwnMessage) OnPrimary else TextPrimary
-                            )
-                        }
-                        MessageKind.PHOTO -> {
-                            Box(
-                                modifier = Modifier
-                                    .size(200.dp)
-                                    .background(SurfaceVariant, RoundedCornerShape(8.dp)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(Icons.Default.Image, null, tint = TextSecondary)
-                            }
-                        }
-                        MessageKind.VOICE -> {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    Icons.Default.PlayArrow,
-                                    null,
-                                    tint = if (isOwnMessage) OnPrimary else TextPrimary
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = "0:00",
-                                    color = if (isOwnMessage) OnPrimary else TextPrimary
-                                )
-                            }
-                        }
-                        else -> {
-                            Text(
-                                text = message.content,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = if (isOwnMessage) OnPrimary else TextPrimary
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(2.dp))
-
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(message.timestamp)),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = TextTertiary
-                    )
-                    if (isOwnMessage) {
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Icon(
-                            imageVector = when (message.status) {
-                                MessageStatus.SENDING -> Icons.Default.AccessTime
-                                MessageStatus.SENT -> Icons.Default.Check
-                                MessageStatus.DELIVERED -> Icons.Default.DoneAll
-                                MessageStatus.READ -> Icons.Default.DoneAll
-                                MessageStatus.FAILED -> Icons.Default.Error
-                            },
-                            contentDescription = null,
-                            modifier = Modifier.size(14.dp),
-                            tint = when (message.status) {
-                                MessageStatus.READ -> Primary
-                                MessageStatus.FAILED -> Error
-                                else -> TextTertiary
-                            }
-                        )
-                    }
-                }
-            }
+            DropdownMenuItem(
+                text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.Forward, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("Forward") } },
+                onClick = { showMenu = false; onForward() }
+            )
+            DropdownMenuItem(
+                text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.AddReaction, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("React") } },
+                onClick = { showMenu = false; onReact() }
+            )
         }
     }
 }
 
+private fun formatTimestamp(timestamp: Long): String =
+    SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(timestamp))
+
 @Composable
-fun ReplyPreview(
-    message: Message,
-    onCancel: () -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Surface)
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
+fun MessageStatusIcon(status: MessageStatus) {
+    val rcq = LocalRCQColors.current
+    val (icon, tint) = when (status) {
+        MessageStatus.SENDING -> Icons.Default.Schedule to rcq.textSecondary
+        MessageStatus.SENT -> Icons.Default.Check to rcq.textSecondary
+        MessageStatus.DELIVERED -> Icons.Default.DoneAll to rcq.textSecondary
+        MessageStatus.READ -> Icons.Default.DoneAll to rcq.accent
+        MessageStatus.FAILED -> Icons.Default.Error to ColorError
+    }
+    Icon(imageVector = icon, contentDescription = status.name, tint = tint, modifier = Modifier.size(12.dp))
+}
+
+@Composable
+fun TypingIndicator(isVisible: Boolean, userName: String = "User") {
+    val rcq = LocalRCQColors.current
+    if (isVisible) {
+        Row(
             modifier = Modifier
-                .width(3.dp)
-                .height(40.dp)
-                .background(Primary)
-        )
-        Spacer(modifier = Modifier.width(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = "Replying to",
-                style = MaterialTheme.typography.labelSmall,
-                color = Primary
-            )
-            Text(
-                text = message.content,
-                style = MaterialTheme.typography.bodySmall,
-                color = TextSecondary,
-                maxLines = 1
-            )
-        }
-        IconButton(onClick = onCancel) {
-            Icon(Icons.Default.Close, "Cancel reply", tint = TextSecondary)
+                .fillMaxWidth()
+                .padding(horizontal = RCQMetrics.screenHPad, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier.size(RCQMetrics.avatarSm).clip(CircleShape).background(rcq.bgSecondary),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("?", color = rcq.accent, style = MaterialTheme.typography.labelSmall)
+            }
+            Spacer(modifier = Modifier.width(6.dp))
+            Box(
+                modifier = Modifier
+                    .background(rcq.bubbleOther, RoundedCornerShape(RCQMetrics.bubbleRadius))
+                    .padding(RCQMetrics.bubbleHPad, RCQMetrics.bubbleVPad)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(text = "$userName печатает", style = MaterialTheme.typography.bodySmall, color = rcq.textSecondary)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Row {
+                        repeat(3) { index ->
+                            val alpha by animateFloatAsState(
+                                targetValue = if ((System.currentTimeMillis() / 500) % 3 == index.toLong()) 1f else 0.3f,
+                                animationSpec = tween(500),
+                                label = "typing_dot_$index"
+                            )
+                            Box(modifier = Modifier.size(4.dp).background(rcq.textSecondary.copy(alpha = alpha), CircleShape))
+                            if (index < 2) Spacer(modifier = Modifier.width(2.dp))
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -324,51 +485,86 @@ fun MessageInput(
     onTextChange: (String) -> Unit,
     onSend: () -> Unit,
     onAttach: () -> Unit,
-    onVoice: () -> Unit
+    onVoice: () -> Unit,
+    isRecording: Boolean = false
 ) {
+    val rcq = LocalRCQColors.current
+    val haptic = LocalHapticFeedback.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Surface)
-            .padding(8.dp),
+            .background(if (isRecording) ColorError.copy(alpha = 0.08f) else rcq.bgSecondary)
+            .padding(horizontal = 8.dp, vertical = 6.dp),
         verticalAlignment = Alignment.Bottom
     ) {
-        IconButton(onClick = onAttach) {
-            Icon(Icons.Default.Add, "Attach", tint = TextSecondary)
+        if (!isRecording) {
+            IconButton(onClick = onAttach) {
+                Icon(Icons.Default.Add, "Attach", tint = rcq.textSecondary)
+            }
         }
 
         TextField(
-            value = text,
-            onValueChange = onTextChange,
+            value = if (isRecording) "Recording..." else text,
+            onValueChange = if (isRecording) { _ -> } else onTextChange,
             modifier = Modifier.weight(1f),
-            placeholder = { Text("Message...", color = TextTertiary) },
+            enabled = !isRecording,
+            placeholder = { Text("Message...", color = rcq.textSecondary) },
             colors = TextFieldDefaults.colors(
-                focusedContainerColor = SurfaceVariant,
-                unfocusedContainerColor = SurfaceVariant,
+                focusedContainerColor = rcq.inputBg,
+                unfocusedContainerColor = rcq.inputBg,
+                disabledContainerColor = rcq.inputBg,
                 focusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
                 unfocusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
-                focusedTextColor = TextPrimary,
-                unfocusedTextColor = TextPrimary
+                disabledIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
+                focusedTextColor = rcq.textPrimary,
+                unfocusedTextColor = rcq.textPrimary,
+                disabledTextColor = rcq.textSecondary
             ),
             shape = RoundedCornerShape(24.dp),
             maxLines = 4
         )
 
-        Spacer(modifier = Modifier.width(8.dp))
+        Spacer(modifier = Modifier.width(6.dp))
 
-        if (text.isNotBlank()) {
+        if (text.isNotBlank() && !isRecording) {
             IconButton(
-                onClick = onSend,
-                modifier = Modifier
-                    .size(48.dp)
-                    .background(Primary, CircleShape)
+                onClick = { haptic.performHapticFeedback(HapticFeedbackType.LongPress); onSend() },
+                modifier = Modifier.size(44.dp).background(rcq.accent, CircleShape)
             ) {
-                Icon(Icons.AutoMirrored.Filled.Send, "Send", tint = OnPrimary)
+                Icon(Icons.AutoMirrored.Filled.Send, "Send", tint = androidx.compose.ui.graphics.Color.White)
             }
         } else {
-            IconButton(onClick = onVoice) {
-                Icon(Icons.Default.Mic, "Voice", tint = TextSecondary)
+            IconButton(
+                onClick = onVoice,
+                modifier = Modifier.size(44.dp).background(
+                    if (isRecording) ColorError else androidx.compose.ui.graphics.Color.Transparent, CircleShape
+                )
+            ) {
+                Icon(
+                    if (isRecording) Icons.Default.Stop else Icons.Default.Mic,
+                    if (isRecording) "Stop recording" else "Voice",
+                    tint = if (isRecording) androidx.compose.ui.graphics.Color.White else rcq.textSecondary
+                )
             }
         }
     }
 }
+
+@Composable
+fun RetroSystemMessage(text: String) {
+    val rcq = LocalRCQColors.current
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 32.dp, vertical = 4.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodySmall,
+            color = rcq.textSecondary,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+        )
+    }
+}
+

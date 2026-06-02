@@ -12,8 +12,10 @@ import androidx.room.SharedSQLiteStatement;
 import androidx.room.util.CursorUtil;
 import androidx.room.util.DBUtil;
 import androidx.sqlite.db.SupportSQLiteStatement;
+import com.rcq.messenger.domain.model.ChatEntity;
 import java.lang.Class;
 import java.lang.Exception;
+import java.lang.Long;
 import java.lang.Object;
 import java.lang.Override;
 import java.lang.String;
@@ -46,7 +48,7 @@ public final class ChatDao_Impl implements ChatDao {
       @Override
       @NonNull
       protected String createQuery() {
-        return "INSERT OR REPLACE INTO `chats` (`id`,`targetId`,`targetNickname`,`targetAvatar`,`unreadCount`,`isPinned`,`isMuted`,`isArchived`,`createdAt`,`updatedAt`) VALUES (?,?,?,?,?,?,?,?,?,?)";
+        return "INSERT OR REPLACE INTO `chats` (`id`,`targetId`,`targetNickname`,`targetAvatar`,`unreadCount`,`isPinned`,`isMuted`,`isArchived`,`createdAt`,`updatedAt`,`lastMessageContent`,`lastMessageTimestamp`,`lastMessageKind`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)";
       }
 
       @Override
@@ -69,6 +71,21 @@ public final class ChatDao_Impl implements ChatDao {
         statement.bindLong(8, _tmp_2);
         statement.bindLong(9, entity.getCreatedAt());
         statement.bindLong(10, entity.getUpdatedAt());
+        if (entity.getLastMessageContent() == null) {
+          statement.bindNull(11);
+        } else {
+          statement.bindString(11, entity.getLastMessageContent());
+        }
+        if (entity.getLastMessageTimestamp() == null) {
+          statement.bindNull(12);
+        } else {
+          statement.bindLong(12, entity.getLastMessageTimestamp());
+        }
+        if (entity.getLastMessageKind() == null) {
+          statement.bindNull(13);
+        } else {
+          statement.bindString(13, entity.getLastMessageKind());
+        }
       }
     };
     this.__preparedStmtOfDeleteChat = new SharedSQLiteStatement(__db) {
@@ -235,6 +252,9 @@ public final class ChatDao_Impl implements ChatDao {
           final int _cursorIndexOfIsArchived = CursorUtil.getColumnIndexOrThrow(_cursor, "isArchived");
           final int _cursorIndexOfCreatedAt = CursorUtil.getColumnIndexOrThrow(_cursor, "createdAt");
           final int _cursorIndexOfUpdatedAt = CursorUtil.getColumnIndexOrThrow(_cursor, "updatedAt");
+          final int _cursorIndexOfLastMessageContent = CursorUtil.getColumnIndexOrThrow(_cursor, "lastMessageContent");
+          final int _cursorIndexOfLastMessageTimestamp = CursorUtil.getColumnIndexOrThrow(_cursor, "lastMessageTimestamp");
+          final int _cursorIndexOfLastMessageKind = CursorUtil.getColumnIndexOrThrow(_cursor, "lastMessageKind");
           final List<ChatEntity> _result = new ArrayList<ChatEntity>(_cursor.getCount());
           while (_cursor.moveToNext()) {
             final ChatEntity _item;
@@ -268,7 +288,25 @@ public final class ChatDao_Impl implements ChatDao {
             _tmpCreatedAt = _cursor.getLong(_cursorIndexOfCreatedAt);
             final long _tmpUpdatedAt;
             _tmpUpdatedAt = _cursor.getLong(_cursorIndexOfUpdatedAt);
-            _item = new ChatEntity(_tmpId,_tmpTargetId,_tmpTargetNickname,_tmpTargetAvatar,_tmpUnreadCount,_tmpIsPinned,_tmpIsMuted,_tmpIsArchived,_tmpCreatedAt,_tmpUpdatedAt);
+            final String _tmpLastMessageContent;
+            if (_cursor.isNull(_cursorIndexOfLastMessageContent)) {
+              _tmpLastMessageContent = null;
+            } else {
+              _tmpLastMessageContent = _cursor.getString(_cursorIndexOfLastMessageContent);
+            }
+            final Long _tmpLastMessageTimestamp;
+            if (_cursor.isNull(_cursorIndexOfLastMessageTimestamp)) {
+              _tmpLastMessageTimestamp = null;
+            } else {
+              _tmpLastMessageTimestamp = _cursor.getLong(_cursorIndexOfLastMessageTimestamp);
+            }
+            final String _tmpLastMessageKind;
+            if (_cursor.isNull(_cursorIndexOfLastMessageKind)) {
+              _tmpLastMessageKind = null;
+            } else {
+              _tmpLastMessageKind = _cursor.getString(_cursorIndexOfLastMessageKind);
+            }
+            _item = new ChatEntity(_tmpId,_tmpTargetId,_tmpTargetNickname,_tmpTargetAvatar,_tmpUnreadCount,_tmpIsPinned,_tmpIsMuted,_tmpIsArchived,_tmpCreatedAt,_tmpUpdatedAt,_tmpLastMessageContent,_tmpLastMessageTimestamp,_tmpLastMessageKind);
             _result.add(_item);
           }
           return _result;
@@ -304,6 +342,9 @@ public final class ChatDao_Impl implements ChatDao {
           final int _cursorIndexOfIsArchived = CursorUtil.getColumnIndexOrThrow(_cursor, "isArchived");
           final int _cursorIndexOfCreatedAt = CursorUtil.getColumnIndexOrThrow(_cursor, "createdAt");
           final int _cursorIndexOfUpdatedAt = CursorUtil.getColumnIndexOrThrow(_cursor, "updatedAt");
+          final int _cursorIndexOfLastMessageContent = CursorUtil.getColumnIndexOrThrow(_cursor, "lastMessageContent");
+          final int _cursorIndexOfLastMessageTimestamp = CursorUtil.getColumnIndexOrThrow(_cursor, "lastMessageTimestamp");
+          final int _cursorIndexOfLastMessageKind = CursorUtil.getColumnIndexOrThrow(_cursor, "lastMessageKind");
           final List<ChatEntity> _result = new ArrayList<ChatEntity>(_cursor.getCount());
           while (_cursor.moveToNext()) {
             final ChatEntity _item;
@@ -337,7 +378,25 @@ public final class ChatDao_Impl implements ChatDao {
             _tmpCreatedAt = _cursor.getLong(_cursorIndexOfCreatedAt);
             final long _tmpUpdatedAt;
             _tmpUpdatedAt = _cursor.getLong(_cursorIndexOfUpdatedAt);
-            _item = new ChatEntity(_tmpId,_tmpTargetId,_tmpTargetNickname,_tmpTargetAvatar,_tmpUnreadCount,_tmpIsPinned,_tmpIsMuted,_tmpIsArchived,_tmpCreatedAt,_tmpUpdatedAt);
+            final String _tmpLastMessageContent;
+            if (_cursor.isNull(_cursorIndexOfLastMessageContent)) {
+              _tmpLastMessageContent = null;
+            } else {
+              _tmpLastMessageContent = _cursor.getString(_cursorIndexOfLastMessageContent);
+            }
+            final Long _tmpLastMessageTimestamp;
+            if (_cursor.isNull(_cursorIndexOfLastMessageTimestamp)) {
+              _tmpLastMessageTimestamp = null;
+            } else {
+              _tmpLastMessageTimestamp = _cursor.getLong(_cursorIndexOfLastMessageTimestamp);
+            }
+            final String _tmpLastMessageKind;
+            if (_cursor.isNull(_cursorIndexOfLastMessageKind)) {
+              _tmpLastMessageKind = null;
+            } else {
+              _tmpLastMessageKind = _cursor.getString(_cursorIndexOfLastMessageKind);
+            }
+            _item = new ChatEntity(_tmpId,_tmpTargetId,_tmpTargetNickname,_tmpTargetAvatar,_tmpUnreadCount,_tmpIsPinned,_tmpIsMuted,_tmpIsArchived,_tmpCreatedAt,_tmpUpdatedAt,_tmpLastMessageContent,_tmpLastMessageTimestamp,_tmpLastMessageKind);
             _result.add(_item);
           }
           return _result;
@@ -376,6 +435,9 @@ public final class ChatDao_Impl implements ChatDao {
           final int _cursorIndexOfIsArchived = CursorUtil.getColumnIndexOrThrow(_cursor, "isArchived");
           final int _cursorIndexOfCreatedAt = CursorUtil.getColumnIndexOrThrow(_cursor, "createdAt");
           final int _cursorIndexOfUpdatedAt = CursorUtil.getColumnIndexOrThrow(_cursor, "updatedAt");
+          final int _cursorIndexOfLastMessageContent = CursorUtil.getColumnIndexOrThrow(_cursor, "lastMessageContent");
+          final int _cursorIndexOfLastMessageTimestamp = CursorUtil.getColumnIndexOrThrow(_cursor, "lastMessageTimestamp");
+          final int _cursorIndexOfLastMessageKind = CursorUtil.getColumnIndexOrThrow(_cursor, "lastMessageKind");
           final ChatEntity _result;
           if (_cursor.moveToFirst()) {
             final String _tmpId;
@@ -408,7 +470,115 @@ public final class ChatDao_Impl implements ChatDao {
             _tmpCreatedAt = _cursor.getLong(_cursorIndexOfCreatedAt);
             final long _tmpUpdatedAt;
             _tmpUpdatedAt = _cursor.getLong(_cursorIndexOfUpdatedAt);
-            _result = new ChatEntity(_tmpId,_tmpTargetId,_tmpTargetNickname,_tmpTargetAvatar,_tmpUnreadCount,_tmpIsPinned,_tmpIsMuted,_tmpIsArchived,_tmpCreatedAt,_tmpUpdatedAt);
+            final String _tmpLastMessageContent;
+            if (_cursor.isNull(_cursorIndexOfLastMessageContent)) {
+              _tmpLastMessageContent = null;
+            } else {
+              _tmpLastMessageContent = _cursor.getString(_cursorIndexOfLastMessageContent);
+            }
+            final Long _tmpLastMessageTimestamp;
+            if (_cursor.isNull(_cursorIndexOfLastMessageTimestamp)) {
+              _tmpLastMessageTimestamp = null;
+            } else {
+              _tmpLastMessageTimestamp = _cursor.getLong(_cursorIndexOfLastMessageTimestamp);
+            }
+            final String _tmpLastMessageKind;
+            if (_cursor.isNull(_cursorIndexOfLastMessageKind)) {
+              _tmpLastMessageKind = null;
+            } else {
+              _tmpLastMessageKind = _cursor.getString(_cursorIndexOfLastMessageKind);
+            }
+            _result = new ChatEntity(_tmpId,_tmpTargetId,_tmpTargetNickname,_tmpTargetAvatar,_tmpUnreadCount,_tmpIsPinned,_tmpIsMuted,_tmpIsArchived,_tmpCreatedAt,_tmpUpdatedAt,_tmpLastMessageContent,_tmpLastMessageTimestamp,_tmpLastMessageKind);
+          } else {
+            _result = null;
+          }
+          return _result;
+        } finally {
+          _cursor.close();
+          _statement.release();
+        }
+      }
+    }, $completion);
+  }
+
+  @Override
+  public Object getChatByTargetId(final long targetId,
+      final Continuation<? super ChatEntity> $completion) {
+    final String _sql = "SELECT * FROM chats WHERE targetId = ? LIMIT 1";
+    final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 1);
+    int _argIndex = 1;
+    _statement.bindLong(_argIndex, targetId);
+    final CancellationSignal _cancellationSignal = DBUtil.createCancellationSignal();
+    return CoroutinesRoom.execute(__db, false, _cancellationSignal, new Callable<ChatEntity>() {
+      @Override
+      @Nullable
+      public ChatEntity call() throws Exception {
+        final Cursor _cursor = DBUtil.query(__db, _statement, false, null);
+        try {
+          final int _cursorIndexOfId = CursorUtil.getColumnIndexOrThrow(_cursor, "id");
+          final int _cursorIndexOfTargetId = CursorUtil.getColumnIndexOrThrow(_cursor, "targetId");
+          final int _cursorIndexOfTargetNickname = CursorUtil.getColumnIndexOrThrow(_cursor, "targetNickname");
+          final int _cursorIndexOfTargetAvatar = CursorUtil.getColumnIndexOrThrow(_cursor, "targetAvatar");
+          final int _cursorIndexOfUnreadCount = CursorUtil.getColumnIndexOrThrow(_cursor, "unreadCount");
+          final int _cursorIndexOfIsPinned = CursorUtil.getColumnIndexOrThrow(_cursor, "isPinned");
+          final int _cursorIndexOfIsMuted = CursorUtil.getColumnIndexOrThrow(_cursor, "isMuted");
+          final int _cursorIndexOfIsArchived = CursorUtil.getColumnIndexOrThrow(_cursor, "isArchived");
+          final int _cursorIndexOfCreatedAt = CursorUtil.getColumnIndexOrThrow(_cursor, "createdAt");
+          final int _cursorIndexOfUpdatedAt = CursorUtil.getColumnIndexOrThrow(_cursor, "updatedAt");
+          final int _cursorIndexOfLastMessageContent = CursorUtil.getColumnIndexOrThrow(_cursor, "lastMessageContent");
+          final int _cursorIndexOfLastMessageTimestamp = CursorUtil.getColumnIndexOrThrow(_cursor, "lastMessageTimestamp");
+          final int _cursorIndexOfLastMessageKind = CursorUtil.getColumnIndexOrThrow(_cursor, "lastMessageKind");
+          final ChatEntity _result;
+          if (_cursor.moveToFirst()) {
+            final String _tmpId;
+            _tmpId = _cursor.getString(_cursorIndexOfId);
+            final long _tmpTargetId;
+            _tmpTargetId = _cursor.getLong(_cursorIndexOfTargetId);
+            final String _tmpTargetNickname;
+            _tmpTargetNickname = _cursor.getString(_cursorIndexOfTargetNickname);
+            final String _tmpTargetAvatar;
+            if (_cursor.isNull(_cursorIndexOfTargetAvatar)) {
+              _tmpTargetAvatar = null;
+            } else {
+              _tmpTargetAvatar = _cursor.getString(_cursorIndexOfTargetAvatar);
+            }
+            final int _tmpUnreadCount;
+            _tmpUnreadCount = _cursor.getInt(_cursorIndexOfUnreadCount);
+            final boolean _tmpIsPinned;
+            final int _tmp;
+            _tmp = _cursor.getInt(_cursorIndexOfIsPinned);
+            _tmpIsPinned = _tmp != 0;
+            final boolean _tmpIsMuted;
+            final int _tmp_1;
+            _tmp_1 = _cursor.getInt(_cursorIndexOfIsMuted);
+            _tmpIsMuted = _tmp_1 != 0;
+            final boolean _tmpIsArchived;
+            final int _tmp_2;
+            _tmp_2 = _cursor.getInt(_cursorIndexOfIsArchived);
+            _tmpIsArchived = _tmp_2 != 0;
+            final long _tmpCreatedAt;
+            _tmpCreatedAt = _cursor.getLong(_cursorIndexOfCreatedAt);
+            final long _tmpUpdatedAt;
+            _tmpUpdatedAt = _cursor.getLong(_cursorIndexOfUpdatedAt);
+            final String _tmpLastMessageContent;
+            if (_cursor.isNull(_cursorIndexOfLastMessageContent)) {
+              _tmpLastMessageContent = null;
+            } else {
+              _tmpLastMessageContent = _cursor.getString(_cursorIndexOfLastMessageContent);
+            }
+            final Long _tmpLastMessageTimestamp;
+            if (_cursor.isNull(_cursorIndexOfLastMessageTimestamp)) {
+              _tmpLastMessageTimestamp = null;
+            } else {
+              _tmpLastMessageTimestamp = _cursor.getLong(_cursorIndexOfLastMessageTimestamp);
+            }
+            final String _tmpLastMessageKind;
+            if (_cursor.isNull(_cursorIndexOfLastMessageKind)) {
+              _tmpLastMessageKind = null;
+            } else {
+              _tmpLastMessageKind = _cursor.getString(_cursorIndexOfLastMessageKind);
+            }
+            _result = new ChatEntity(_tmpId,_tmpTargetId,_tmpTargetNickname,_tmpTargetAvatar,_tmpUnreadCount,_tmpIsPinned,_tmpIsMuted,_tmpIsArchived,_tmpCreatedAt,_tmpUpdatedAt,_tmpLastMessageContent,_tmpLastMessageTimestamp,_tmpLastMessageKind);
           } else {
             _result = null;
           }

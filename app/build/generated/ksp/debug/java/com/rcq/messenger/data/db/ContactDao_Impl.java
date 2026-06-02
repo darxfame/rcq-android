@@ -13,6 +13,7 @@ import androidx.room.SharedSQLiteStatement;
 import androidx.room.util.CursorUtil;
 import androidx.room.util.DBUtil;
 import androidx.sqlite.db.SupportSQLiteStatement;
+import com.rcq.messenger.domain.model.ContactEntity;
 import java.lang.Class;
 import java.lang.Exception;
 import java.lang.Object;
@@ -43,13 +44,17 @@ public final class ContactDao_Impl implements ContactDao {
 
   private final SharedSQLiteStatement __preparedStmtOfBlockContact;
 
+  private final SharedSQLiteStatement __preparedStmtOfUpdateCustomNickname;
+
+  private final SharedSQLiteStatement __preparedStmtOfSetFavorite;
+
   public ContactDao_Impl(@NonNull final RoomDatabase __db) {
     this.__db = __db;
     this.__insertionAdapterOfContactEntity = new EntityInsertionAdapter<ContactEntity>(__db) {
       @Override
       @NonNull
       protected String createQuery() {
-        return "INSERT OR REPLACE INTO `contacts` (`userId`,`nickname`,`avatarUrl`,`status`,`lastSeen`,`isBlocked`,`isFavorite`,`notificationSound`,`customNickname`,`lastMessagePreview`,`lastMessageTime`) VALUES (?,?,?,?,?,?,?,?,?,?,?)";
+        return "INSERT OR REPLACE INTO `contacts` (`userId`,`nickname`,`avatarUrl`,`status`,`lastSeen`,`isBlocked`,`isFavorite`,`notificationSound`,`customNickname`,`addedAt`) VALUES (?,?,?,?,?,?,?,?,?,?)";
       }
 
       @Override
@@ -82,12 +87,7 @@ public final class ContactDao_Impl implements ContactDao {
         } else {
           statement.bindString(9, entity.getCustomNickname());
         }
-        if (entity.getLastMessagePreview() == null) {
-          statement.bindNull(10);
-        } else {
-          statement.bindString(10, entity.getLastMessagePreview());
-        }
-        statement.bindLong(11, entity.getLastMessageTime());
+        statement.bindLong(10, entity.getAddedAt());
       }
     };
     this.__deletionAdapterOfContactEntity = new EntityDeletionOrUpdateAdapter<ContactEntity>(__db) {
@@ -124,6 +124,22 @@ public final class ContactDao_Impl implements ContactDao {
       @NonNull
       public String createQuery() {
         final String _query = "UPDATE contacts SET isBlocked = 1 WHERE userId = ?";
+        return _query;
+      }
+    };
+    this.__preparedStmtOfUpdateCustomNickname = new SharedSQLiteStatement(__db) {
+      @Override
+      @NonNull
+      public String createQuery() {
+        final String _query = "UPDATE contacts SET customNickname = ? WHERE userId = ?";
+        return _query;
+      }
+    };
+    this.__preparedStmtOfSetFavorite = new SharedSQLiteStatement(__db) {
+      @Override
+      @NonNull
+      public String createQuery() {
+        final String _query = "UPDATE contacts SET isFavorite = ? WHERE userId = ?";
         return _query;
       }
     };
@@ -260,6 +276,67 @@ public final class ContactDao_Impl implements ContactDao {
   }
 
   @Override
+  public Object updateCustomNickname(final long userId, final String nickname,
+      final Continuation<? super Unit> $completion) {
+    return CoroutinesRoom.execute(__db, true, new Callable<Unit>() {
+      @Override
+      @NonNull
+      public Unit call() throws Exception {
+        final SupportSQLiteStatement _stmt = __preparedStmtOfUpdateCustomNickname.acquire();
+        int _argIndex = 1;
+        if (nickname == null) {
+          _stmt.bindNull(_argIndex);
+        } else {
+          _stmt.bindString(_argIndex, nickname);
+        }
+        _argIndex = 2;
+        _stmt.bindLong(_argIndex, userId);
+        try {
+          __db.beginTransaction();
+          try {
+            _stmt.executeUpdateDelete();
+            __db.setTransactionSuccessful();
+            return Unit.INSTANCE;
+          } finally {
+            __db.endTransaction();
+          }
+        } finally {
+          __preparedStmtOfUpdateCustomNickname.release(_stmt);
+        }
+      }
+    }, $completion);
+  }
+
+  @Override
+  public Object setFavorite(final long userId, final boolean isFavorite,
+      final Continuation<? super Unit> $completion) {
+    return CoroutinesRoom.execute(__db, true, new Callable<Unit>() {
+      @Override
+      @NonNull
+      public Unit call() throws Exception {
+        final SupportSQLiteStatement _stmt = __preparedStmtOfSetFavorite.acquire();
+        int _argIndex = 1;
+        final int _tmp = isFavorite ? 1 : 0;
+        _stmt.bindLong(_argIndex, _tmp);
+        _argIndex = 2;
+        _stmt.bindLong(_argIndex, userId);
+        try {
+          __db.beginTransaction();
+          try {
+            _stmt.executeUpdateDelete();
+            __db.setTransactionSuccessful();
+            return Unit.INSTANCE;
+          } finally {
+            __db.endTransaction();
+          }
+        } finally {
+          __preparedStmtOfSetFavorite.release(_stmt);
+        }
+      }
+    }, $completion);
+  }
+
+  @Override
   public Flow<List<ContactEntity>> getContacts() {
     final String _sql = "SELECT * FROM contacts WHERE isBlocked = 0 ORDER BY nickname ASC";
     final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 0);
@@ -278,8 +355,7 @@ public final class ContactDao_Impl implements ContactDao {
           final int _cursorIndexOfIsFavorite = CursorUtil.getColumnIndexOrThrow(_cursor, "isFavorite");
           final int _cursorIndexOfNotificationSound = CursorUtil.getColumnIndexOrThrow(_cursor, "notificationSound");
           final int _cursorIndexOfCustomNickname = CursorUtil.getColumnIndexOrThrow(_cursor, "customNickname");
-          final int _cursorIndexOfLastMessagePreview = CursorUtil.getColumnIndexOrThrow(_cursor, "lastMessagePreview");
-          final int _cursorIndexOfLastMessageTime = CursorUtil.getColumnIndexOrThrow(_cursor, "lastMessageTime");
+          final int _cursorIndexOfAddedAt = CursorUtil.getColumnIndexOrThrow(_cursor, "addedAt");
           final List<ContactEntity> _result = new ArrayList<ContactEntity>(_cursor.getCount());
           while (_cursor.moveToNext()) {
             final ContactEntity _item;
@@ -321,15 +397,9 @@ public final class ContactDao_Impl implements ContactDao {
             } else {
               _tmpCustomNickname = _cursor.getString(_cursorIndexOfCustomNickname);
             }
-            final String _tmpLastMessagePreview;
-            if (_cursor.isNull(_cursorIndexOfLastMessagePreview)) {
-              _tmpLastMessagePreview = null;
-            } else {
-              _tmpLastMessagePreview = _cursor.getString(_cursorIndexOfLastMessagePreview);
-            }
-            final long _tmpLastMessageTime;
-            _tmpLastMessageTime = _cursor.getLong(_cursorIndexOfLastMessageTime);
-            _item = new ContactEntity(_tmpUserId,_tmpNickname,_tmpAvatarUrl,_tmpStatus,_tmpLastSeen,_tmpIsBlocked,_tmpIsFavorite,_tmpNotificationSound,_tmpCustomNickname,_tmpLastMessagePreview,_tmpLastMessageTime);
+            final long _tmpAddedAt;
+            _tmpAddedAt = _cursor.getLong(_cursorIndexOfAddedAt);
+            _item = new ContactEntity(_tmpUserId,_tmpNickname,_tmpAvatarUrl,_tmpStatus,_tmpLastSeen,_tmpIsBlocked,_tmpIsFavorite,_tmpNotificationSound,_tmpCustomNickname,_tmpAddedAt);
             _result.add(_item);
           }
           return _result;
@@ -364,8 +434,7 @@ public final class ContactDao_Impl implements ContactDao {
           final int _cursorIndexOfIsFavorite = CursorUtil.getColumnIndexOrThrow(_cursor, "isFavorite");
           final int _cursorIndexOfNotificationSound = CursorUtil.getColumnIndexOrThrow(_cursor, "notificationSound");
           final int _cursorIndexOfCustomNickname = CursorUtil.getColumnIndexOrThrow(_cursor, "customNickname");
-          final int _cursorIndexOfLastMessagePreview = CursorUtil.getColumnIndexOrThrow(_cursor, "lastMessagePreview");
-          final int _cursorIndexOfLastMessageTime = CursorUtil.getColumnIndexOrThrow(_cursor, "lastMessageTime");
+          final int _cursorIndexOfAddedAt = CursorUtil.getColumnIndexOrThrow(_cursor, "addedAt");
           final List<ContactEntity> _result = new ArrayList<ContactEntity>(_cursor.getCount());
           while (_cursor.moveToNext()) {
             final ContactEntity _item;
@@ -407,15 +476,9 @@ public final class ContactDao_Impl implements ContactDao {
             } else {
               _tmpCustomNickname = _cursor.getString(_cursorIndexOfCustomNickname);
             }
-            final String _tmpLastMessagePreview;
-            if (_cursor.isNull(_cursorIndexOfLastMessagePreview)) {
-              _tmpLastMessagePreview = null;
-            } else {
-              _tmpLastMessagePreview = _cursor.getString(_cursorIndexOfLastMessagePreview);
-            }
-            final long _tmpLastMessageTime;
-            _tmpLastMessageTime = _cursor.getLong(_cursorIndexOfLastMessageTime);
-            _item = new ContactEntity(_tmpUserId,_tmpNickname,_tmpAvatarUrl,_tmpStatus,_tmpLastSeen,_tmpIsBlocked,_tmpIsFavorite,_tmpNotificationSound,_tmpCustomNickname,_tmpLastMessagePreview,_tmpLastMessageTime);
+            final long _tmpAddedAt;
+            _tmpAddedAt = _cursor.getLong(_cursorIndexOfAddedAt);
+            _item = new ContactEntity(_tmpUserId,_tmpNickname,_tmpAvatarUrl,_tmpStatus,_tmpLastSeen,_tmpIsBlocked,_tmpIsFavorite,_tmpNotificationSound,_tmpCustomNickname,_tmpAddedAt);
             _result.add(_item);
           }
           return _result;
@@ -450,8 +513,7 @@ public final class ContactDao_Impl implements ContactDao {
           final int _cursorIndexOfIsFavorite = CursorUtil.getColumnIndexOrThrow(_cursor, "isFavorite");
           final int _cursorIndexOfNotificationSound = CursorUtil.getColumnIndexOrThrow(_cursor, "notificationSound");
           final int _cursorIndexOfCustomNickname = CursorUtil.getColumnIndexOrThrow(_cursor, "customNickname");
-          final int _cursorIndexOfLastMessagePreview = CursorUtil.getColumnIndexOrThrow(_cursor, "lastMessagePreview");
-          final int _cursorIndexOfLastMessageTime = CursorUtil.getColumnIndexOrThrow(_cursor, "lastMessageTime");
+          final int _cursorIndexOfAddedAt = CursorUtil.getColumnIndexOrThrow(_cursor, "addedAt");
           final List<ContactEntity> _result = new ArrayList<ContactEntity>(_cursor.getCount());
           while (_cursor.moveToNext()) {
             final ContactEntity _item;
@@ -493,15 +555,9 @@ public final class ContactDao_Impl implements ContactDao {
             } else {
               _tmpCustomNickname = _cursor.getString(_cursorIndexOfCustomNickname);
             }
-            final String _tmpLastMessagePreview;
-            if (_cursor.isNull(_cursorIndexOfLastMessagePreview)) {
-              _tmpLastMessagePreview = null;
-            } else {
-              _tmpLastMessagePreview = _cursor.getString(_cursorIndexOfLastMessagePreview);
-            }
-            final long _tmpLastMessageTime;
-            _tmpLastMessageTime = _cursor.getLong(_cursorIndexOfLastMessageTime);
-            _item = new ContactEntity(_tmpUserId,_tmpNickname,_tmpAvatarUrl,_tmpStatus,_tmpLastSeen,_tmpIsBlocked,_tmpIsFavorite,_tmpNotificationSound,_tmpCustomNickname,_tmpLastMessagePreview,_tmpLastMessageTime);
+            final long _tmpAddedAt;
+            _tmpAddedAt = _cursor.getLong(_cursorIndexOfAddedAt);
+            _item = new ContactEntity(_tmpUserId,_tmpNickname,_tmpAvatarUrl,_tmpStatus,_tmpLastSeen,_tmpIsBlocked,_tmpIsFavorite,_tmpNotificationSound,_tmpCustomNickname,_tmpAddedAt);
             _result.add(_item);
           }
           return _result;
@@ -540,8 +596,7 @@ public final class ContactDao_Impl implements ContactDao {
           final int _cursorIndexOfIsFavorite = CursorUtil.getColumnIndexOrThrow(_cursor, "isFavorite");
           final int _cursorIndexOfNotificationSound = CursorUtil.getColumnIndexOrThrow(_cursor, "notificationSound");
           final int _cursorIndexOfCustomNickname = CursorUtil.getColumnIndexOrThrow(_cursor, "customNickname");
-          final int _cursorIndexOfLastMessagePreview = CursorUtil.getColumnIndexOrThrow(_cursor, "lastMessagePreview");
-          final int _cursorIndexOfLastMessageTime = CursorUtil.getColumnIndexOrThrow(_cursor, "lastMessageTime");
+          final int _cursorIndexOfAddedAt = CursorUtil.getColumnIndexOrThrow(_cursor, "addedAt");
           final ContactEntity _result;
           if (_cursor.moveToFirst()) {
             final long _tmpUserId;
@@ -582,15 +637,9 @@ public final class ContactDao_Impl implements ContactDao {
             } else {
               _tmpCustomNickname = _cursor.getString(_cursorIndexOfCustomNickname);
             }
-            final String _tmpLastMessagePreview;
-            if (_cursor.isNull(_cursorIndexOfLastMessagePreview)) {
-              _tmpLastMessagePreview = null;
-            } else {
-              _tmpLastMessagePreview = _cursor.getString(_cursorIndexOfLastMessagePreview);
-            }
-            final long _tmpLastMessageTime;
-            _tmpLastMessageTime = _cursor.getLong(_cursorIndexOfLastMessageTime);
-            _result = new ContactEntity(_tmpUserId,_tmpNickname,_tmpAvatarUrl,_tmpStatus,_tmpLastSeen,_tmpIsBlocked,_tmpIsFavorite,_tmpNotificationSound,_tmpCustomNickname,_tmpLastMessagePreview,_tmpLastMessageTime);
+            final long _tmpAddedAt;
+            _tmpAddedAt = _cursor.getLong(_cursorIndexOfAddedAt);
+            _result = new ContactEntity(_tmpUserId,_tmpNickname,_tmpAvatarUrl,_tmpStatus,_tmpLastSeen,_tmpIsBlocked,_tmpIsFavorite,_tmpNotificationSound,_tmpCustomNickname,_tmpAddedAt);
           } else {
             _result = null;
           }

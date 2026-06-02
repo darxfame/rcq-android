@@ -1,80 +1,36 @@
-# RCQ Android App - Complete TODO List
+# TODO — phase-1-core-messaging
 
-## Authentication Flow
-- [x] Welcome screen with nickname input
-- [x] Registration with key generation
-- [x] Recovery phrase generation and display
-- [x] Recovery phrase auto-copy to clipboard
-- [x] Auth token storage in DataStore
-- [x] Auth interceptor for API requests
-- [x] Logout functionality
-- [ ] Account recovery flow (restore from phrase)
-- [ ] Biometric/PIN unlock
+> Обновлено: 2026-05-31 (аудит)
 
-## Navigation
-- [x] Bottom nav: Chats, Contacts, Settings
-- [x] Chat detail screen
-- [x] Profile screen
-- [x] Add contact screen
-- [ ] Create group screen
-- [ ] Audio rooms screen
-- [ ] Stories screen
-- [ ] Games screen
-- [ ] Marketplace screen
+## IMMEDIATE (pure code, no assets)
 
-## Contacts
-- [x] Display contacts list
-- [x] Search contacts locally
-- [x] Add contact by UIN (search on server)
-- [x] Contact requests - accept/decline
-- [x] Remove contact
-- [x] Block/unblock contact
-- [ ] Edit contact nickname
-- [ ] Favorite contacts
+### P4 — Chat UI
+- [ ] Retro двухрядный InputBar
+- [ ] Реакции под баблом (emoji row, tap = отправить)
 
-## Chats
-- [x] Display chats list
-- [x] Load messages from database
-- [x] Send message
-- [x] Edit message
-- [x] Delete message
-- [ ] Reply to message
-- [ ] Forward message
-- [ ] Real-time messaging (WebSocket)
-- [ ] Push notifications
+### P8 — Polish
+- [ ] Haptic feedback на получение входящего сообщения (на отправку уже есть)
+- [ ] JIMM mode на ChatsScreen и ChatScreen (читает LocalRetroMode)
 
-## Settings
-- [x] Display current user info (UIN, nickname)
-- [x] View recovery phrase
-- [x] Logout button
-- [ ] Profile editing
-- [ ] Privacy settings
-- [ ] Notification settings
-- [ ] Appearance/theme settings
-- [ ] Storage settings
-- [ ] About/help screens
+## LATER (requires binary assets)
 
-## API Integration
-- [x] Auth: register, login
-- [x] Users: get, search
-- [x] Contacts: list, add, remove, block, unblock
-- [x] Contact requests: list, accept, decline
-- [x] Chats: list, create
-- [x] Messages: send, edit, delete
-- [ ] Messages: real-time via WebSocket
+### P5 — Sounds
+- [ ] RetroSoundManager.kt skeleton + 9 OGG placeholders
+- [ ] Привязка к WS событиям
 
-## Database (Room)
-- [x] Users table
-- [x] Contacts table
-- [x] Chats table
-- [x] Messages table
-- [ ] Groups table
-- [ ] Stories table
-- [ ] Calls table
+### P7 — Retro Assets
+- [ ] RetroStatusFlower Canvas (drawPath, без SVG)
+- [ ] RetroEmoticonPicker (текстовые коды :) :D)
+- [ ] Text→emoji парсер
 
-## Core Features
-- [ ] Voice/video calls
-- [ ] Audio rooms
-- [ ] Stories
-- [ ] Games
-- [ ] Marketplace/Pets
+## BUGS
+- [ ] BUG-005 SingBox stub — нужен libbox.aar
+- [ ] BUG-006 входящие DM иногда 🔒
+
+## DONE
+- [x] Dev UIN auto-add (.Dev badge)
+- [x] WS proxy fix — WebSocket через RcqProxySelector
+- [x] Диагностика: 10 ручек + WS status
+- [x] Room migration 13→14 (statusMessage)
+- [x] Compact mode toggle (P6)
+- [x] RetroSystemMessage (P4)

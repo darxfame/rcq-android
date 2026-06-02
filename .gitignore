@@ -1,0 +1,29 @@
+# Build output
+build/
+app/build/
+*/build/
+
+# Gradle
+.gradle/
+local.properties
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.DS_Store
+
+# Keystore (never commit)
+*.jks
+*.keystore
+release.properties
+
+# Claude Code (local only)
+.claude/settings.local.json
+.openclaude/
+
+# NDK
+.externalNativeBuild/
+.cxx/
+reference/

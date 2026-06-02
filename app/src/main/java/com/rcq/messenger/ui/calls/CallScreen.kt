@@ -13,66 +13,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
-import com.rcq.messenger.data.repository.ChatRepository
 import com.rcq.messenger.service.CallState
 import com.rcq.messenger.ui.theme.*
-import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
-import javax.inject.Inject
-
-@HiltViewModel
-class CallViewModel @Inject constructor(
-    private val chatRepository: ChatRepository
-) : ViewModel() {
-
-    private val _callState = MutableStateFlow(CallState.IDLE)
-    val callState: StateFlow<CallState> = _callState.asStateFlow()
-
-    private val _isMuted = MutableStateFlow(false)
-    val isMuted: StateFlow<Boolean> = _isMuted.asStateFlow()
-
-    private val _isSpeakerOn = MutableStateFlow(false)
-    val isSpeakerOn: StateFlow<Boolean> = _isSpeakerOn.asStateFlow()
-
-    private val _callDuration = MutableStateFlow(0L)
-    val callDuration: StateFlow<Long> = _callDuration.asStateFlow()
-
-    private val _targetNickname = MutableStateFlow("User")
-    val targetNickname: StateFlow<String> = _targetNickname.asStateFlow()
-
-    fun startCall(chatId: String) {
-        _callState.value = CallState.CONNECTING
-        // TODO: Integrate with CallService for WebRTC
-    }
-
-    fun acceptIncomingCall() {
-        _callState.value = CallState.CONNECTING
-        // TODO: Accept incoming call via CallService
-    }
-
-    fun declineCall() {
-        _callState.value = CallState.ENDED
-    }
-
-    fun endCall() {
-        _callState.value = CallState.ENDED
-    }
-
-    fun toggleMute() {
-        _isMuted.value = !_isMuted.value
-        // TODO: Call service to mute/unmute
-    }
-
-    fun toggleSpeaker() {
-        _isSpeakerOn.value = !_isSpeakerOn.value
-        // TODO: Call service to toggle speaker
-    }
-}
 
 @Composable
 fun CallScreen(
@@ -86,7 +28,9 @@ fun CallScreen(
     val isSpeakerOn by viewModel.isSpeakerOn.collectAsState()
 
     LaunchedEffect(chatId) {
-        viewModel.startCall(chatId)
+        // TODO: Get target user ID from chat
+        val targetUin = 0L // Placeholder - should get from chat participants
+        viewModel.startCall(chatId, targetUin)
     }
 
     Box(

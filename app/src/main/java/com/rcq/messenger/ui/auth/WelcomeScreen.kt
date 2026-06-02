@@ -17,11 +17,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.Image
+import androidx.compose.ui.res.painterResource
+import com.rcq.messenger.R
 import com.rcq.messenger.ui.theme.*
 
 @Composable
 fun WelcomeScreen(
     onCreateAccount: (String) -> Unit,
+    onRestoreAccount: () -> Unit = {},
     isLoading: Boolean = false,
     error: String? = null
 ) {
@@ -45,6 +49,14 @@ fun WelcomeScreen(
             verticalArrangement = Arrangement.Center
         ) {
             Spacer(modifier = Modifier.weight(1f))
+
+            Image(
+                painter = painterResource(id = R.drawable.icq_logo),
+                contentDescription = "ICQ Logo",
+                modifier = Modifier.size(96.dp)
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
 
             Text(
                 text = "RCQ",
@@ -115,6 +127,19 @@ fun WelcomeScreen(
                         fontWeight = FontWeight.SemiBold
                     )
                 }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            TextButton(
+                onClick = onRestoreAccount,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = "Restore existing account",
+                    color = Primary,
+                    style = MaterialTheme.typography.bodyMedium
+                )
             }
 
             Spacer(modifier = Modifier.weight(1f))

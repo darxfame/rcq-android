@@ -7,6 +7,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
@@ -15,7 +17,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -29,48 +35,125 @@ import java.util.*
 fun ChatsScreen(
     viewModel: ChatsViewModel = hiltViewModel(),
     onChatClick: (String) -> Unit,
-    onCreateGroup: () -> Unit
+    onCreateGroup: () -> Unit,
+    onNewDirectMessage: () -> Unit = {},
+    onBrowseGroups: () -> Unit = {}
 ) {
     val chats by viewModel.chats.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
 
+    var searchActive by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
+    var menuExpanded by remember { mutableStateOf(false) }
+    val focusRequester = remember { FocusRequester() }
+    val focusManager = LocalFocusManager.current
+
+    val filteredChats by remember(chats, searchQuery) {
+        derivedStateOf {
+            if (searchQuery.isBlank()) chats
+            else chats.filter { chat ->
+                chat.targetNickname.contains(searchQuery, ignoreCase = true) ||
+                    (chat.lastMessage?.content?.contains(searchQuery, ignoreCase = true) == true)
+            }
+        }
+    }
+
+    LaunchedEffect(searchActive) {
+        if (searchActive) focusRequester.requestFocus()
+    }
+
+    val rcq = LocalRCQColors.current
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = "Chats",
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold
-                    )
-                },
-                actions = {
-                    IconButton(onClick = { /* Search */ }) {
-                        Icon(Icons.Default.Search, contentDescription = "Search")
-                    }
-                    IconButton(onClick = onCreateGroup) {
-                        Icon(Icons.Default.Edit, contentDescription = "New Chat")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Background,
-                    titleContentColor = TextPrimary,
-                    actionIconContentColor = Primary
+            if (searchActive) {
+                TopAppBar(
+                    title = {
+                        OutlinedTextField(
+                            value = searchQuery,
+                            onValueChange = { searchQuery = it },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .focusRequester(focusRequester),
+                            placeholder = { Text("Search chats…") },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                            keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                unfocusedBorderColor = androidx.compose.ui.graphics.Color.Transparent,
+                                focusedBorderColor = androidx.compose.ui.graphics.Color.Transparent
+                            )
+                        )
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = {
+                            searchActive = false
+                            searchQuery = ""
+                            focusManager.clearFocus()
+                        }) {
+                            Icon(Icons.Default.ArrowBack, contentDescription = "Close search")
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = rcq.bgPrimary)
                 )
-            )
+            } else {
+                TopAppBar(
+                    title = {
+                        Text(
+                            text = "Chats",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                    },
+                    actions = {
+                        IconButton(onClick = { searchActive = true }) {
+                            Icon(Icons.Default.Search, contentDescription = "Search")
+                        }
+                        Box {
+                            IconButton(onClick = { menuExpanded = true }) {
+                                Icon(Icons.Default.Edit, contentDescription = "New Chat")
+                            }
+                            DropdownMenu(
+                                expanded = menuExpanded,
+                                onDismissRequest = { menuExpanded = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("New Message") },
+                                    leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
+                                    onClick = { menuExpanded = false; onNewDirectMessage() }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("New Group") },
+                                    leadingIcon = { Icon(Icons.Default.Group, contentDescription = null) },
+                                    onClick = { menuExpanded = false; onCreateGroup() }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Browse Groups") },
+                                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                                    onClick = { menuExpanded = false; onBrowseGroups() }
+                                )
+                            }
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = rcq.bgPrimary,
+                        titleContentColor = rcq.textPrimary,
+                        actionIconContentColor = rcq.accent
+                    )
+                )
+            }
         },
-        containerColor = Background
+        containerColor = rcq.bgPrimary
     ) { paddingValues ->
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            if (chats.isEmpty() && !isLoading) {
+            if (filteredChats.isEmpty() && !isLoading) {
                 EmptyChatsState()
             } else {
                 LazyColumn {
-                    items(chats, key = { it.id }) { chat ->
+                    items(filteredChats, key = { it.id }) { chat ->
                         ChatItem(
                             chat = chat,
                             onClick = { onChatClick(chat.id) }
@@ -94,103 +177,88 @@ fun ChatItem(
     chat: Chat,
     onClick: () -> Unit
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box {
+    val rcq = LocalRCQColors.current
+    Column {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onClick)
+                .padding(horizontal = RCQMetrics.rowHPad, vertical = RCQMetrics.rowVPad),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // JIMM-style: status dot at left edge
             Box(
                 modifier = Modifier
-                    .size(56.dp)
+                    .size(RCQMetrics.statusDot)
                     .clip(CircleShape)
-                    .background(SurfaceVariant),
+                    .background(if (chat.isMuted) rcq.textSecondary else StatusOnline)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            // Square mini-avatar
+            Box(
+                modifier = Modifier
+                    .size(RCQMetrics.avatarLg)
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(rcq.bgSecondary),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = chat.targetNickname.firstOrNull()?.uppercase() ?: "?",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = Primary
+                    chat.targetNickname.firstOrNull()?.uppercase() ?: "?",
+                    fontSize = RCQFontSize.nickname,
+                    fontWeight = FontWeight.Bold,
+                    color = rcq.accent
                 )
             }
-            if (chat.lastMessage == null || true) {
-                Box(
-                    modifier = Modifier
-                        .size(12.dp)
-                        .clip(CircleShape)
-                        .background(Online)
-                        .align(Alignment.BottomEnd)
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.width(12.dp))
-
-        Column(modifier = Modifier.weight(1f)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = chat.targetNickname,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = TextPrimary
-                )
-                chat.lastMessage?.let {
+            Spacer(modifier = Modifier.width(8.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Text(
-                        text = formatTime(it.timestamp),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = TextTertiary
+                        chat.targetNickname,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = RCQFontSize.nickname,
+                        color = rcq.textPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
                     )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        chat.lastMessage?.let {
+                            Text(formatTime(it.timestamp), fontSize = RCQFontSize.timestamp, color = rcq.textSecondary)
+                        }
+                        if (chat.unreadCount > 0) {
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                "(${if (chat.unreadCount > 99) "99+" else chat.unreadCount})",
+                                fontSize = RCQFontSize.monoSmall,
+                                color = rcq.accent,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
                 }
-            }
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                chat.lastMessage?.let { message ->
-                    Icon(
-                        imageVector = when (message.kind) {
-                            com.rcq.messenger.domain.model.MessageKind.PHOTO -> Icons.Default.Image
-                            com.rcq.messenger.domain.model.MessageKind.VOICE -> Icons.Default.Mic
-                            else -> Icons.Default.ChatBubbleOutline
-                        },
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                        tint = TextTertiary
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
+                chat.lastMessage?.let { msg ->
                     Text(
-                        text = message.content,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = TextSecondary,
+                        msg.content.ifBlank {
+                            when (msg.kind) {
+                                com.rcq.messenger.domain.model.MessageKind.PHOTO -> "[Photo]"
+                                com.rcq.messenger.domain.model.MessageKind.VOICE -> "[Voice]"
+                                com.rcq.messenger.domain.model.MessageKind.VIDEO -> "[Video]"
+                                else -> ""
+                            }
+                        },
+                        fontSize = RCQFontSize.caption,
+                        color = rcq.textSecondary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
             }
         }
-
-        if (chat.unreadCount > 0) {
-            Spacer(modifier = Modifier.width(8.dp))
-            Box(
-                modifier = Modifier
-                    .size(24.dp)
-                    .clip(CircleShape)
-                    .background(Primary),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = if (chat.unreadCount > 99) "99+" else chat.unreadCount.toString(),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = OnPrimary
-                )
-            }
-        }
+        HorizontalDivider(thickness = RCQMetrics.dividerThick, color = rcq.divider, modifier = Modifier.padding(start = 28.dp))
     }
 }
 

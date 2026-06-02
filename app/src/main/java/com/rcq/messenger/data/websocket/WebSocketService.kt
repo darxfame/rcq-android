@@ -1,9 +1,17 @@
 package com.rcq.messenger.data.websocket
 
+import android.content.Context
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import android.util.Log
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import com.rcq.messenger.di.PreferencesKeys
+import com.rcq.messenger.service.ProxyManager
+import com.rcq.messenger.service.RcqProxySelector
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlinx.serialization.json.*
@@ -80,56 +88,7 @@ sealed class WsEvent {
     data class StoryExpired(val storyId: String) : WsEvent()
     data class StoryViewed(val storyId: String, val userId: Long) : WsEvent()
 
-    // Marketplace events
-    data class MarketplaceListingCreated(val itemId: String) : WsEvent()
-    data class MarketplaceListingSold(val itemId: String) : WsEvent()
-    data class MarketplaceListingCancelled(val itemId: String) : WsEvent()
-
-    // Game events
-    data class CrashStarted(val gameId: String) : WsEvent()
-    data class CrashBetPlaced(val gameId: String, val userId: Long) : WsEvent()
-    data class CrashTick(val gameId: String, val multiplier: Double) : WsEvent()
-    data class CrashEnded(val gameId: String, val crashPoint: Double) : WsEvent()
-    data class CrashCashedOut(val gameId: String, val userId: Long, val amount: Long) : WsEvent()
-    data class HiloCardRevealed(val gameId: String, val card: String) : WsEvent()
-    data class HiloRoundEnded(val gameId: String, val result: String) : WsEvent()
-    data class HiloCashedOut(val gameId: String, val amount: Long) : WsEvent()
-    data class LimboResult(val gameId: String, val multiplier: Double) : WsEvent()
-
-    // Auction events
-    data class UinAuctionStarted(val uin: Long) : WsEvent()
-    data class UinAuctionBid(val uin: Long, val bidder: Long, val amount: Long) : WsEvent()
-    data class UinAuctionEnded(val uin: Long, val winner: Long?, val amount: Long) : WsEvent()
-    data class UinAuctionOutbid(val uin: Long, val newBid: Long) : WsEvent()
-
-    // Trade events
-    data class TradeReceived(val tradeId: String, val fromUin: Long) : WsEvent()
-    data class TradeAccepted(val tradeId: String) : WsEvent()
-    data class TradeDeclined(val tradeId: String) : WsEvent()
-    data class TradeCancelled(val tradeId: String) : WsEvent()
-
-    // Pet events
-    data class HuntEvent(val petId: String, val result: String) : WsEvent()
-    data class PetLevelUp(val petId: String, val level: Int) : WsEvent()
-    data class PetHpChanged(val petId: String, val hp: Int) : WsEvent()
-
-    // Nearby events
-    data class NearbyPeerAppeared(val userId: Long) : WsEvent()
-    data class NearbyPeerDisappeared(val userId: Long) : WsEvent()
-    data class NearbyBucketChanged(val bucket: String) : WsEvent()
-
-    // Thread events
-    data class ThreadUpdated(val threadId: String) : WsEvent()
-    data class ThreadDeleted(val threadId: String) : WsEvent()
-
-    // Hood events
-    data class HoodMessage(val chatId: String, val raw: JsonObject) : WsEvent()
-    data class HoodCount(val chatId: String, val count: Int) : WsEvent()
-    data class HoodDelete(val chatId: String, val messageId: String) : WsEvent()
-    data class HoodReaction(val chatId: String, val messageId: String, val raw: JsonObject) : WsEvent()
-
     // System events
-    data class JetonReact(val amount: Long) : WsEvent()
     data class Ban(val reason: String) : WsEvent()
     data class Warning(val message: String) : WsEvent()
 
@@ -161,7 +120,9 @@ class ReconnectStrategy(
 
 @Singleton
 class WebSocketService @Inject constructor(
-    private val dataStore: DataStore<Preferences>
+    @ApplicationContext private val context: Context,
+    private val dataStore: DataStore<Preferences>,
+    private val proxyManager: ProxyManager
 ) {
     companion object {
         private const val TAG = "WebSocketService"
@@ -178,6 +139,39 @@ class WebSocketService @Inject constructor(
     @Volatile
     private var intentionalDisconnect = false
     private val reconnectStrategy = ReconnectStrategy()
+
+    // Shared OkHttpClient — reused across reconnects to avoid thread pool leaks
+    private val okHttpClient = OkHttpClient.Builder()
+        .readTimeout(0, TimeUnit.MILLISECONDS)
+        .pingInterval(PING_INTERVAL_SECONDS, TimeUnit.SECONDS)
+        .proxySelector(RcqProxySelector(proxyManager))
+        .build()
+
+    // Reconnect immediately when network becomes available
+    private val networkCallback = object : ConnectivityManager.NetworkCallback() {
+        override fun onAvailable(network: Network) {
+            Log.d(TAG, "Network available — triggering reconnect")
+            if (!intentionalDisconnect &&
+                _connectionState.value != ConnectionState.CONNECTED &&
+                _connectionState.value != ConnectionState.CONNECTING
+            ) {
+                reconnectJob?.cancel()
+                reconnectStrategy.reset()
+                scope.launch {
+                    _connectionState.value = ConnectionState.CONNECTING
+                    createWebSocket()
+                }
+            }
+        }
+    }
+
+    init {
+        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val req = NetworkRequest.Builder()
+            .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            .build()
+        cm.registerNetworkCallback(req, networkCallback)
+    }
 
     private val _connectionState = MutableStateFlow(ConnectionState.DISCONNECTED)
     val connectionState: StateFlow<ConnectionState> = _connectionState.asStateFlow()
@@ -244,20 +238,16 @@ class WebSocketService @Inject constructor(
         val wsUrl = "$WS_BASE_URL/$uin?token=$token"
         Log.d(TAG, "Connecting WebSocket: $wsUrl")
 
-        val client = OkHttpClient.Builder()
-            .readTimeout(0, TimeUnit.MILLISECONDS)
-            .pingInterval(PING_INTERVAL_SECONDS, TimeUnit.SECONDS)
-            .build()
-
         val request = Request.Builder()
             .url(wsUrl)
             .build()
 
-        webSocket = client.newWebSocket(request, object : WebSocketListener() {
+        webSocket = okHttpClient.newWebSocket(request, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
                 Log.d(TAG, "WebSocket connected")
                 _connectionState.value = ConnectionState.CONNECTED
                 reconnectStrategy.reset()
+                proxyManager.reportSuccess()
                 startWatchdog()
             }
 
@@ -283,6 +273,7 @@ class WebSocketService @Inject constructor(
                 Log.e(TAG, "WebSocket failure: ${t.message}")
                 _connectionState.value = ConnectionState.ERROR
                 watchdogJob?.cancel()
+                proxyManager.reportFailure()
                 scheduleReconnect()
             }
         })
@@ -359,7 +350,8 @@ class WebSocketService @Inject constructor(
                     peerUin = obj["peer_uin"]?.jsonPrimitive?.longOrNull ?: 0
                 )
 
-                // Message events
+                // Message events — server sends envelope_type directly as "type" (sealed sender)
+                "message", "prekey_message", "reaction", "delete", "edit", "read", "bounce",
                 "message_new", "new_message" -> WsEvent.MessageNew(
                     chatId = obj["chat_id"]?.jsonPrimitive?.contentOrNull ?: "",
                     raw = obj
@@ -396,14 +388,16 @@ class WebSocketService @Inject constructor(
                     messageId = obj["message_id"]?.jsonPrimitive?.contentOrNull ?: ""
                 )
 
-                // Typing events
+                // Typing events — server sends from_uin (not user_id)
                 "typing_started", "typing" -> WsEvent.TypingStarted(
                     chatId = obj["chat_id"]?.jsonPrimitive?.contentOrNull ?: "",
-                    userId = obj["user_id"]?.jsonPrimitive?.longOrNull ?: 0
+                    userId = obj["from_uin"]?.jsonPrimitive?.longOrNull
+                        ?: obj["user_id"]?.jsonPrimitive?.longOrNull ?: 0
                 )
                 "typing_stopped" -> WsEvent.TypingStopped(
                     chatId = obj["chat_id"]?.jsonPrimitive?.contentOrNull ?: "",
-                    userId = obj["user_id"]?.jsonPrimitive?.longOrNull ?: 0
+                    userId = obj["from_uin"]?.jsonPrimitive?.longOrNull
+                        ?: obj["user_id"]?.jsonPrimitive?.longOrNull ?: 0
                 )
 
                 // Presence events
@@ -428,9 +422,10 @@ class WebSocketService @Inject constructor(
                         ?: obj["user_id"]?.jsonPrimitive?.longOrNull ?: 0
                 )
 
-                // Group events
-                "group_updated" -> WsEvent.GroupUpdated(
-                    groupId = obj["group_id"]?.jsonPrimitive?.contentOrNull ?: ""
+                // Group events — server sends group_created/group_membership_changed/group_deleted
+                "group_created", "group_membership_changed", "group_updated" -> WsEvent.GroupUpdated(
+                    groupId = obj["group"]?.jsonObject?.get("id")?.jsonPrimitive?.contentOrNull
+                        ?: obj["group_id"]?.jsonPrimitive?.contentOrNull ?: ""
                 )
                 "group_member_joined", "group_member_added" -> WsEvent.GroupMemberJoined(
                     groupId = obj["group_id"]?.jsonPrimitive?.contentOrNull ?: "",
@@ -501,146 +496,7 @@ class WebSocketService @Inject constructor(
                     userId = obj["user_id"]?.jsonPrimitive?.longOrNull ?: 0
                 )
 
-                // Marketplace events
-                "marketplace_listing_created", "item_listed" -> WsEvent.MarketplaceListingCreated(
-                    itemId = obj["item_id"]?.jsonPrimitive?.contentOrNull
-                        ?: obj["id"]?.jsonPrimitive?.contentOrNull ?: ""
-                )
-                "marketplace_listing_sold", "item_sold" -> WsEvent.MarketplaceListingSold(
-                    itemId = obj["item_id"]?.jsonPrimitive?.contentOrNull ?: ""
-                )
-                "marketplace_listing_cancelled" -> WsEvent.MarketplaceListingCancelled(
-                    itemId = obj["item_id"]?.jsonPrimitive?.contentOrNull ?: ""
-                )
-
-                // Game events
-                "crash_started" -> WsEvent.CrashStarted(
-                    gameId = obj["game_id"]?.jsonPrimitive?.contentOrNull ?: ""
-                )
-                "crash_bet_placed" -> WsEvent.CrashBetPlaced(
-                    gameId = obj["game_id"]?.jsonPrimitive?.contentOrNull ?: "",
-                    userId = obj["user_id"]?.jsonPrimitive?.longOrNull ?: 0
-                )
-                "crash_tick" -> WsEvent.CrashTick(
-                    gameId = obj["game_id"]?.jsonPrimitive?.contentOrNull ?: "",
-                    multiplier = obj["multiplier"]?.jsonPrimitive?.doubleOrNull ?: 1.0
-                )
-                "crash_ended" -> WsEvent.CrashEnded(
-                    gameId = obj["game_id"]?.jsonPrimitive?.contentOrNull ?: "",
-                    crashPoint = obj["crash_point"]?.jsonPrimitive?.doubleOrNull ?: 0.0
-                )
-                "crash_cashed_out" -> WsEvent.CrashCashedOut(
-                    gameId = obj["game_id"]?.jsonPrimitive?.contentOrNull ?: "",
-                    userId = obj["user_id"]?.jsonPrimitive?.longOrNull ?: 0,
-                    amount = obj["amount"]?.jsonPrimitive?.longOrNull ?: 0
-                )
-                "hilo_card_revealed" -> WsEvent.HiloCardRevealed(
-                    gameId = obj["game_id"]?.jsonPrimitive?.contentOrNull ?: "",
-                    card = obj["card"]?.jsonPrimitive?.contentOrNull ?: ""
-                )
-                "hilo_round_ended" -> WsEvent.HiloRoundEnded(
-                    gameId = obj["game_id"]?.jsonPrimitive?.contentOrNull ?: "",
-                    result = obj["result"]?.jsonPrimitive?.contentOrNull ?: ""
-                )
-                "hilo_cashed_out" -> WsEvent.HiloCashedOut(
-                    gameId = obj["game_id"]?.jsonPrimitive?.contentOrNull ?: "",
-                    amount = obj["amount"]?.jsonPrimitive?.longOrNull ?: 0
-                )
-                "limbo_result" -> WsEvent.LimboResult(
-                    gameId = obj["game_id"]?.jsonPrimitive?.contentOrNull ?: "",
-                    multiplier = obj["multiplier"]?.jsonPrimitive?.doubleOrNull ?: 0.0
-                )
-
-                // Auction events
-                "uin_auction_started" -> WsEvent.UinAuctionStarted(
-                    uin = obj["uin"]?.jsonPrimitive?.longOrNull ?: 0
-                )
-                "uin_auction_bid" -> WsEvent.UinAuctionBid(
-                    uin = obj["uin"]?.jsonPrimitive?.longOrNull ?: 0,
-                    bidder = obj["bidder"]?.jsonPrimitive?.longOrNull ?: 0,
-                    amount = obj["amount"]?.jsonPrimitive?.longOrNull ?: 0
-                )
-                "uin_auction_ended" -> WsEvent.UinAuctionEnded(
-                    uin = obj["uin"]?.jsonPrimitive?.longOrNull ?: 0,
-                    winner = obj["winner"]?.jsonPrimitive?.longOrNull,
-                    amount = obj["amount"]?.jsonPrimitive?.longOrNull ?: 0
-                )
-                "uin_auction_outbid" -> WsEvent.UinAuctionOutbid(
-                    uin = obj["uin"]?.jsonPrimitive?.longOrNull ?: 0,
-                    newBid = obj["new_bid"]?.jsonPrimitive?.longOrNull ?: 0
-                )
-
-                // Trade events
-                "trade_received" -> WsEvent.TradeReceived(
-                    tradeId = obj["trade_id"]?.jsonPrimitive?.contentOrNull ?: "",
-                    fromUin = obj["from_uin"]?.jsonPrimitive?.longOrNull ?: 0
-                )
-                "trade_accepted" -> WsEvent.TradeAccepted(
-                    tradeId = obj["trade_id"]?.jsonPrimitive?.contentOrNull ?: ""
-                )
-                "trade_declined" -> WsEvent.TradeDeclined(
-                    tradeId = obj["trade_id"]?.jsonPrimitive?.contentOrNull ?: ""
-                )
-                "trade_cancelled" -> WsEvent.TradeCancelled(
-                    tradeId = obj["trade_id"]?.jsonPrimitive?.contentOrNull ?: ""
-                )
-
-                // Pet events
-                "hunt_event" -> WsEvent.HuntEvent(
-                    petId = obj["pet_id"]?.jsonPrimitive?.contentOrNull ?: "",
-                    result = obj["result"]?.jsonPrimitive?.contentOrNull ?: ""
-                )
-                "pet_level_up" -> WsEvent.PetLevelUp(
-                    petId = obj["pet_id"]?.jsonPrimitive?.contentOrNull ?: "",
-                    level = obj["level"]?.jsonPrimitive?.intOrNull ?: 1
-                )
-                "pet_hp_changed" -> WsEvent.PetHpChanged(
-                    petId = obj["pet_id"]?.jsonPrimitive?.contentOrNull ?: "",
-                    hp = obj["hp"]?.jsonPrimitive?.intOrNull ?: 0
-                )
-
-                // Nearby events
-                "nearby_peer_appeared" -> WsEvent.NearbyPeerAppeared(
-                    userId = obj["user_id"]?.jsonPrimitive?.longOrNull ?: 0
-                )
-                "nearby_peer_disappeared" -> WsEvent.NearbyPeerDisappeared(
-                    userId = obj["user_id"]?.jsonPrimitive?.longOrNull ?: 0
-                )
-                "nearby_bucket_changed" -> WsEvent.NearbyBucketChanged(
-                    bucket = obj["bucket"]?.jsonPrimitive?.contentOrNull ?: ""
-                )
-
-                // Thread events
-                "thread_updated" -> WsEvent.ThreadUpdated(
-                    threadId = obj["thread_id"]?.jsonPrimitive?.contentOrNull ?: ""
-                )
-                "thread_deleted" -> WsEvent.ThreadDeleted(
-                    threadId = obj["thread_id"]?.jsonPrimitive?.contentOrNull ?: ""
-                )
-
-                // Hood events
-                "hood_message" -> WsEvent.HoodMessage(
-                    chatId = obj["chat_id"]?.jsonPrimitive?.contentOrNull ?: "",
-                    raw = obj
-                )
-                "hood_count" -> WsEvent.HoodCount(
-                    chatId = obj["chat_id"]?.jsonPrimitive?.contentOrNull ?: "",
-                    count = obj["count"]?.jsonPrimitive?.intOrNull ?: 0
-                )
-                "hood_delete" -> WsEvent.HoodDelete(
-                    chatId = obj["chat_id"]?.jsonPrimitive?.contentOrNull ?: "",
-                    messageId = obj["message_id"]?.jsonPrimitive?.contentOrNull ?: ""
-                )
-                "hood_reaction" -> WsEvent.HoodReaction(
-                    chatId = obj["chat_id"]?.jsonPrimitive?.contentOrNull ?: "",
-                    messageId = obj["message_id"]?.jsonPrimitive?.contentOrNull ?: "",
-                    raw = obj
-                )
-
                 // System events
-                "jeton_react" -> WsEvent.JetonReact(
-                    amount = obj["amount"]?.jsonPrimitive?.longOrNull ?: 0
-                )
                 "ban" -> WsEvent.Ban(
                     reason = obj["reason"]?.jsonPrimitive?.contentOrNull ?: "Banned"
                 )
@@ -649,7 +505,7 @@ class WebSocketService @Inject constructor(
                 )
 
                 else -> {
-                    Log.w(TAG, "Unknown WebSocket event type: $type")
+                    Log.w(TAG, "Unknown WS event type: $type — raw: ${obj.toString().take(200)}")
                     WsEvent.Unknown(type, obj)
                 }
             }

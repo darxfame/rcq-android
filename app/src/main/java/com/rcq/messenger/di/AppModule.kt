@@ -8,7 +8,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import androidx.room.Room
 import com.rcq.messenger.data.api.RCQApiService
 import com.rcq.messenger.data.db.*
-import com.rcq.messenger.data.websocket.WebSocketService
+import com.rcq.messenger.domain.model.PendingOutboxEntity
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -16,6 +16,8 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
+import com.rcq.messenger.service.ProxyManager
+import com.rcq.messenger.service.RcqProxySelector
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
@@ -39,7 +41,13 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideOkHttpClient(authInterceptor: AuthInterceptor): OkHttpClient {
+    fun provideAuthInterceptor(dataStore: DataStore<Preferences>): AuthInterceptor {
+        return AuthInterceptor(dataStore)
+    }
+
+    @Provides
+    @Singleton
+    fun provideOkHttpClient(authInterceptor: AuthInterceptor, proxyManager: ProxyManager): OkHttpClient {
         val loggingInterceptor = HttpLoggingInterceptor().apply {
             level = HttpLoggingInterceptor.Level.BODY
         }
@@ -47,10 +55,11 @@ object AppModule {
         return OkHttpClient.Builder()
             .addInterceptor(loggingInterceptor)
             .addInterceptor(authInterceptor)
-            .connectTimeout(60, TimeUnit.SECONDS)
-            .readTimeout(60, TimeUnit.SECONDS)
-            .writeTimeout(60, TimeUnit.SECONDS)
-            .retryOnConnectionFailure(true)
+            .proxySelector(RcqProxySelector(proxyManager))
+            .connectTimeout(10, TimeUnit.SECONDS)
+            .readTimeout(15, TimeUnit.SECONDS)
+            .writeTimeout(15, TimeUnit.SECONDS)
+            .retryOnConnectionFailure(false)
             .build()
     }
 
@@ -77,7 +86,16 @@ object AppModule {
             context,
             RCQDatabase::class.java,
             "rcq_database"
-        ).fallbackToDestructiveMigration().build()
+        ).addMigrations(
+            RCQDatabase.MIGRATION_6_7,
+            RCQDatabase.MIGRATION_7_8,
+            RCQDatabase.MIGRATION_8_9,
+            RCQDatabase.MIGRATION_9_10,
+            RCQDatabase.MIGRATION_10_11,
+            RCQDatabase.MIGRATION_11_12,
+            RCQDatabase.MIGRATION_12_13,
+            RCQDatabase.MIGRATION_13_14
+        ).build()
     }
 
     @Provides
@@ -102,7 +120,11 @@ object AppModule {
     fun provideCallDao(database: RCQDatabase): CallDao = database.callDao()
 
     @Provides
-    fun providePetDao(database: RCQDatabase): PetDao = database.petDao()
+    fun providePendingOutboxDao(database: RCQDatabase): PendingOutboxDao = database.pendingOutboxDao()
+
+    @Provides
+    fun provideSignalKeyDao(database: RCQDatabase): com.rcq.messenger.data.db.SignalKeyDao = database.signalKeyDao()
+
 
     @Provides
     @Singleton
