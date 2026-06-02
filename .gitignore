@@ -27,3 +27,4 @@ release.properties
 .externalNativeBuild/
 .cxx/
 reference/
+*.apk
