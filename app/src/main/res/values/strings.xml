@@ -2,594 +2,139 @@
 <resources>
     <string name="app_name">RCQ</string>
 
-    <!-- Onboarding (iOS OnboardingView parity) -->
-    <string name="onboard_cta_next">Next</string>
-    <string name="onboard_cta_back">Back</string>
-    <string name="onboard_cta_start">Get started</string>
-    <string name="onboard_cta_skip">Skip</string>
+    <!-- Auth -->
+    <string name="welcome_title">RCQ Messenger</string>
+    <string name="welcome_subtitle">Privacy-first messaging</string>
+    <string name="generate_id">Generate New ID</string>
+    <string name="restore_id">Restore ID</string>
+    <string name="enter_id">Enter your ID</string>
+    <string name="your_id">Your RCQ ID</string>
+    <string name="save_id_warning">Save your Recovery Phrase securely. It\'s the only way to restore your account.</string>
+    <string name="id_verified">ID Verified</string>
+    <string name="continue_button">Continue</string>
 
-    <string name="onboard_welcome_kicker">RCQ</string>
-    <string name="onboard_welcome_title">Welcome</string>
-    <string name="onboard_welcome_body">A serious privacy messenger with real end-to-end encryption by default and built-in censorship bypass. No phone, no email, no ads.</string>
-
-    <string name="onboard_anon_kicker">ANONYMOUS</string>
-    <string name="onboard_anon_title">No phone, no email</string>
-    <string name="onboard_anon_body">Your identity is a numeric UIN and nothing else. The account isn\'t tied to you. Burn it and start over whenever you want.</string>
-
-    <string name="onboard_mesh_kicker">OFFLINE MESH</string>
-    <string name="onboard_mesh_title">Chat with no internet</string>
-    <string name="onboard_mesh_body">Radio Chat finds people near you over Bluetooth and Wi-Fi Direct. Messages hop device to device, with no servers and no cell signal needed.</string>
-
-    <string name="onboard_chat_kicker">CHAT</string>
-    <string name="onboard_chat_title">Sealed-sender chat</string>
-    <string name="onboard_chat_body">End-to-end encrypted on every message. The server doesn\'t see who\'s writing to whom: the sender\'s identity is sealed inside the envelope, not in the header.</string>
-
-    <string name="onboard_pin_kicker">SECURITY PIN</string>
-    <string name="onboard_pin_title">Locked on your device</string>
-    <string name="onboard_pin_body">A PIN locks the app and encrypts your message history on-device, with optional fingerprint, plus decoy and wipe PINs for when you\'re forced to unlock.</string>
-
-    <string name="onboard_status_kicker">STATUS</string>
-    <string name="onboard_status_title">Pick your status</string>
-    <string name="onboard_status_body">Online, Away, DND, Invisible, Offline. The classic five, and they actually mean something. Tap your status icon to switch.</string>
-
-    <string name="onboard_server_label">Server</string>
-    <string name="onboard_language">Language</string>
-
-    <!-- Status -->
-    <string name="status_online">Online</string>
-    <string name="status_away">Away</string>
-    <string name="status_dnd">Do Not Disturb</string>
-    <string name="status_invisible">Invisible</string>
-    <string name="status_offline">Offline</string>
-
-    <!-- Home: bottom bar -->
-    <string name="home_bar_add">Add</string>
-    <string name="home_bar_qr">QR</string>
-    <string name="home_bar_random">Random</string>
-    <string name="home_bar_nearby">Nearby</string>
-    <string name="home_bar_settings">Settings</string>
-
-    <!-- Home: sections -->
-    <string name="home_sec_requests">Requests</string>
-    <string name="home_sec_groups">Groups</string>
-    <string name="home_sec_favorites">Favorites</string>
-    <string name="home_sec_online">Online</string>
-    <string name="home_sec_offline">Offline</string>
-    <string name="home_sec_archive">Archive</string>
-
-    <!-- Home: overflow + account menu -->
-    <string name="home_menu_add_contact">Add contact</string>
-    <string name="home_menu_search">Search</string>
-    <string name="home_menu_post_story">Post story</string>
-    <string name="home_menu_news">News</string>
-    <string name="news_title">News</string>
-    <string name="news_empty">No news yet.</string>
-    <string name="news_has_media">Includes media</string>
-    <string name="home_menu_saved">Saved messages</string>
-    <string name="home_menu_add_account">Add account</string>
-    <string name="home_menu_manage_accounts">Manage accounts</string>
-
-    <!-- Multi-account: add + manage -->
-    <string name="add_account_body">Creates a new anonymous identity alongside your current one. Leave the server blank to use the public server.</string>
-    <string name="add_account_create">Create</string>
-    <string name="manage_accounts_intro">Accounts on this device. Switch between them from the account button on the home screen. Deleting an account here removes it from this device only — its identity stays on the server.</string>
-    <string name="manage_accounts_active">Active</string>
-    <string name="manage_accounts_delete">Delete</string>
-    <string name="manage_accounts_delete_title">Delete %1$s?</string>
-    <string name="manage_accounts_delete_body">Removes this account and its messages from this device. The account stays on the server and can be added again later.</string>
-
-    <!-- Home: misc -->
-    <string name="home_create_group">Create a group</string>
-    <string name="home_accept">Accept</string>
-    <string name="home_decline">Decline</string>
-    <string name="home_empty_title">No contacts yet</string>
-    <string name="home_empty_body">Add a friend by their UIN, or share your QR code to get started.</string>
-    <string name="home_empty_cta">Add a contact</string>
-    <string name="home_coming_soon_body">%1$s is coming to the Android app soon.</string>
-
-    <!-- Common -->
-    <string name="common_cancel">Cancel</string>
-    <string name="update_title">Update available · %1$s</string>
-    <string name="update_now">Update</string>
-    <string name="update_later">Later</string>
-    <string name="update_downloading">Downloading…</string>
-    <string name="join_server_title">Join server</string>
-    <string name="join_server_body">Create a new account on %1$s?</string>
-    <string name="join_server_invite">Using an invite link</string>
-    <string name="join_server_join">Join</string>
-    <string name="common_close">Close</string>
-    <string name="common_done">Done</string>
-    <string name="common_save">Save</string>
-    <string name="common_ok">OK</string>
-
-    <!-- Settings root -->
-    <string name="settings_title">Settings</string>
-    <string name="settings_sec_appearance">Appearance</string>
-    <string name="settings_sec_privacy">Privacy</string>
-    <string name="settings_row_pin_codes">PIN codes</string>
-    <string name="pin_on">On</string>
-    <string name="pin_codes_title">PIN codes</string>
-    <string name="pin_codes_footer">A PIN encrypts your message history on this device and is required every time you open the app. Keep it safe: there is no recovery if you forget it.</string>
-    <string name="pin_set">Set a PIN</string>
-    <string name="pin_change">Change PIN</string>
-    <string name="pin_remove">Remove PIN</string>
-    <string name="pin_new">New PIN (min 4 digits)</string>
-    <string name="pin_confirm">Confirm PIN</string>
-    <string name="pin_mismatch">PINs don\'t match</string>
-    <string name="pin_too_short">PIN must be at least 4 digits</string>
-    <string name="pin_busy">Working…</string>
-    <string name="pin_soon_label">More (coming soon)</string>
-    <string name="pin_decoy_soon">Decoy PIN (coming soon)</string>
-    <string name="pin_wipe_soon">Wipe PIN (coming soon)</string>
-    <string name="pin_duress_label">Duress</string>
-    <string name="pin_wipe_set">Set wipe PIN</string>
-    <string name="pin_wipe_remove">Remove wipe PIN</string>
-    <string name="pin_wipe_new">Wipe PIN</string>
-    <string name="pin_wipe_desc">Entering this PIN instead of your real one erases all RCQ data on this device and resets the app. There is no confirmation and no undo. Use it if you are forced to unlock.</string>
-    <string name="pin_wipe_taken">Pick a different PIN from your real one.</string>
-    <string name="pin_decoy_set">Set decoy PIN</string>
-    <string name="pin_decoy_remove">Remove decoy PIN</string>
-    <string name="pin_decoy_new">Decoy PIN</string>
-    <string name="pin_decoy_needs_two">Add a 2nd account first</string>
-    <string name="pin_decoy_desc">Entering this PIN instead of your real one opens the app showing only the account you pick below. Your other accounts stay hidden until you enter your real PIN.</string>
-    <string name="pin_decoy_pick">Account the decoy PIN shows</string>
-    <string name="pin_lock_title">Enter your PIN</string>
-    <string name="pin_lock_subtitle">Your messages are locked on this device.</string>
-    <string name="pin_unlock">Unlock</string>
-    <string name="pin_wrong">Wrong PIN</string>
-    <string name="pin_locked_out">Too many attempts. Try again in %1$d s.</string>
-    <string name="pin_biometric_label">Biometric unlock</string>
-    <string name="pin_biometric_enable">Unlock with biometrics</string>
-    <string name="pin_biometric_disable">Turn off biometric unlock</string>
-    <string name="pin_biometric_unavailable_duress">Off while a duress PIN is set</string>
-    <string name="pin_duress_unavailable_bio">Off while biometric unlock is on</string>
-    <string name="pin_biometric_failed">Couldn\'t turn on biometric unlock</string>
-    <string name="pin_biometric_lock_use">Use biometrics</string>
-    <string name="pin_biometric_prompt_title">Unlock RCQ</string>
-    <string name="pin_biometric_prompt_subtitle">Confirm it\'s you to open your messages.</string>
-    <string name="pin_biometric_cancel">Use PIN</string>
-    <string name="pin_biometric_enroll_title">Enable biometric unlock</string>
-    <string name="pin_biometric_enroll_subtitle">Confirm your fingerprint or face to turn it on.</string>
-    <!-- Calls -->
-    <string name="call_voice_cd">Voice call</string>
-    <string name="call_video_cd">Video call</string>
-    <string name="call_calling">Calling…</string>
-    <string name="call_incoming">Incoming call</string>
-    <string name="call_incoming_video">Incoming video call</string>
-    <string name="call_connecting">Connecting…</string>
-    <string name="call_accept">Accept</string>
-    <string name="call_decline">Decline</string>
-    <string name="call_mute">Mute</string>
-    <string name="call_speaker">Speaker</string>
-    <string name="call_camera">Camera</string>
-    <string name="call_video_on">Video</string>
-    <string name="call_flip">Flip</string>
-    <string name="call_hangup">End</string>
-    <string name="call_upgrade_prompt">%1$s wants to turn on video</string>
-    <string name="call_upgrade_accept">Turn on</string>
-    <string name="call_upgrade_decline">Not now</string>
-    <string name="call_perm_needed">Microphone access is needed for calls (and camera for video).</string>
-    <string name="call_hist_voice">Voice call</string>
-    <string name="call_hist_video">Video call</string>
-    <string name="call_out_declined">Declined</string>
-    <string name="call_out_cancelled">Cancelled</string>
-    <string name="call_out_missed">Missed call</string>
-    <string name="call_out_busy">Busy</string>
-    <string name="call_out_no_answer">No answer</string>
-    <string name="call_out_failed">Call failed</string>
-    <string name="call_out_disconnected">Disconnected</string>
-    <string name="call_out_ended">Ended</string>
-    <!-- Audio rooms -->
-    <string name="home_menu_audio_rooms">Audio rooms</string>
-    <string name="home_menu_radio">Radio</string>
-
-    <!-- Radio (offline BLE + Wi-Fi Direct) -->
-    <string name="radio_title">Radio</string>
-    <string name="radio_on_air">On air as</string>
-    <string name="radio_start">Go on air</string>
-    <string name="radio_stop">Go offline</string>
-    <string name="radio_create_room">Create room</string>
-    <string name="radio_privacy">Finds people nearby over Bluetooth and connects directly over Wi-Fi. No internet, no servers. Works between Android devices only.</string>
-    <string name="radio_searching">Looking for people nearby…</string>
-    <string name="radio_rooms">Rooms</string>
-    <string name="radio_people">People</string>
-    <string name="radio_room">Room</string>
-    <string name="radio_open_room">Open room</string>
-    <string name="radio_locked_room">Password protected</string>
-    <string name="radio_tap_to_chat">Tap to start chatting</string>
-    <string name="radio_connecting">Connecting…</string>
-    <string name="radio_here_count">%1$d here</string>
-    <string name="radio_unencrypted_hint">Encrypted, peer to peer</string>
-    <string name="radio_leave">Leave</string>
-    <string name="radio_talking">%1$s is talking</string>
-    <string name="radio_message_hint">Message</string>
-    <string name="radio_ptt">Hold to talk</string>
-    <string name="radio_send">Send</string>
-    <string name="radio_room_name">Room name</string>
-    <string name="radio_room_password_opt">Password (optional)</string>
-    <string name="radio_room_password">Password</string>
-    <string name="radio_create">Create</string>
-    <string name="radio_join">Join</string>
-    <string name="radio_perm_needed">Bluetooth and Wi-Fi permissions are needed for Radio</string>
-    <string name="radio_mic_needed">Microphone permission is needed to talk</string>
-    <string name="radio_err_ble_off">Turn on Bluetooth to use Radio</string>
-    <string name="radio_err_wrong_password">Wrong password</string>
-    <string name="radio_err_unsupported">This device doesn\'t support Wi-Fi Direct</string>
-    <string name="radio_err_peer_not_found">Couldn\'t reach that peer</string>
-    <string name="radio_err_voice">Couldn\'t start the microphone</string>
-    <string name="radio_err_generic">Radio error</string>
-    <string name="rooms_title">Audio rooms</string>
-    <string name="rooms_create">Create room</string>
-    <string name="rooms_name">Room name</string>
-    <string name="rooms_join">Join</string>
-    <string name="rooms_join_key">Join key</string>
-    <string name="rooms_empty">No rooms yet. Create one or join with a key.</string>
-    <string name="rooms_in_room">%1$d in room</string>
-    <string name="rooms_key_fmt">Key: %1$s</string>
-    <string name="rooms_delete">Delete</string>
-    <string name="rooms_joining">Joining…</string>
-    <string name="rooms_you">You</string>
-    <string name="rooms_leave">Leave</string>
-    <string name="rooms_err_in_call">Finish your call first.</string>
-    <string name="rooms_err_busy">You\'re busy in another session.</string>
-    <string name="rooms_err_full">The room is full.</string>
-    <string name="rooms_err_not_member">You\'re not a member of this room.</string>
-    <string name="rooms_err_no_room">Room not found.</string>
-    <string name="rooms_err_generic">Couldn\'t join the room.</string>
-    <!-- People Nearby -->
-    <string name="nearby_title">People nearby</string>
-    <string name="nearby_anon">Appear anonymously</string>
-    <string name="nearby_real_name">Others will see your nickname</string>
-    <string name="nearby_regenerate">New name</string>
-    <string name="nearby_start">Find people nearby</string>
-    <string name="nearby_stop">Stop sharing</string>
-    <string name="nearby_finding">Finding your location…</string>
-    <string name="nearby_denied">Location permission is needed to discover people nearby.</string>
-    <string name="nearby_error">Couldn\'t get your location. Try again.</string>
-    <string name="nearby_empty">No one nearby yet.</string>
-    <string name="nearby_visible_for">Visible to others for %1$d:%2$02d</string>
-    <string name="nearby_privacy">Only a coarse ~1km area is shared, never your exact location. You appear only while sharing.</string>
-    <string name="nearby_stranger">Stranger nearby</string>
-    <string name="nearby_add">Add</string>
-    <string name="nearby_request_sent">Contact request sent</string>
-    <!-- Hood Chat + Banners (district) -->
-    <string name="hood_title">District chat</string>
-    <string name="hood_here">%1$d here</string>
-    <string name="hood_unencrypted">Public, not encrypted</string>
-    <string name="hood_deleted">Message deleted</string>
-    <string name="hood_hint">Message the district…</string>
-    <string name="hood_send">Send</string>
-    <string name="banners_title">Announcements</string>
-    <string name="banners_post">Post</string>
-    <string name="banners_empty">No announcements yet.</string>
-    <string name="banners_anon">Anonymous</string>
-    <string name="banners_text_hint">Your announcement…</string>
-    <string name="banners_anon_post">Post anonymously</string>
-    <string name="banners_mock_note">Payment is mocked in this build.</string>
-    <string name="settings_sec_history">History</string>
-    <string name="settings_sec_about">About</string>
-    <string name="settings_sec_account">Account</string>
-    <string name="settings_row_privacy">Privacy &amp; Network</string>
-    <string name="settings_row_notifications">Notifications</string>
-    <string name="settings_row_sounds">Sounds</string>
-    <string name="settings_row_blocked">Blocked users</string>
-    <string name="settings_row_clear_history">Clear chat history</string>
-    <string name="settings_row_about">About RCQ</string>
-    <string name="settings_row_move_uin">Move to a new UIN</string>
-    <string name="settings_row_burn">Burn account</string>
-    <string name="settings_foot_appearance">Choose light, dark, or follow the system theme.</string>
-    <string name="settings_foot_privacy">Control who can see you, who can reach you, and which server you\'re on.</string>
-    <string name="settings_foot_history">Removes messages from this device only. Your account and contacts stay.</string>
-    <string name="theme_auto">Auto</string>
-    <string name="theme_light">Light</string>
-    <string name="theme_dark">Dark</string>
-
-    <!-- Common extras -->
-    <string name="common_back">Back</string>
-    <string name="common_remove">Remove</string>
-    <string name="common_delete">Delete</string>
-    <string name="common_clear">Clear</string>
-    <string name="common_move">Move</string>
-    <string name="common_switch">Switch</string>
-    <string name="common_reset">Reset</string>
-    <string name="common_male">Male</string>
-    <string name="common_female">Female</string>
-    <string name="common_other">Other</string>
-    <string name="common_gender">Gender</string>
-    <string name="common_city">City</string>
-    <string name="common_country">Country</string>
-    <string name="common_about">About</string>
-    <string name="common_copy_uin">Copy UIN</string>
-    <string name="common_uin_copied">UIN copied</string>
-    <plurals name="members"><item quantity="one">%1$d member</item><item quantity="other">%1$d members</item></plurals>
-
-    <!-- Last seen -->
-    <string name="last_seen_fmt">last seen %1$s</string>
-    <string name="last_seen_just_now">just now</string>
-    <string name="last_seen_min">%1$dm ago</string>
-    <string name="last_seen_hour">%1$dh ago</string>
-    <string name="last_seen_day">%1$dd ago</string>
-
-    <!-- Visibility options -->
-    <string name="vis_everyone">Everyone</string>
-    <string name="vis_contacts">Contacts</string>
-    <string name="vis_nobody">Nobody</string>
-
-    <!-- Settings: account / history / about dialogs + footers -->
-    <string name="cs_move_footer">Get a fresh UIN. Your contacts, groups, keys and chat history are all kept.</string>
-    <string name="cs_burn_footer">Wipes this account everywhere. Irreversible.</string>
-    <string name="cs_clear_title">Clear chat history?</string>
-    <string name="cs_clear_body">Removes all messages from this device. Your account and contacts stay.</string>
-    <string name="cs_history_cleared">History cleared</string>
-    <string name="cs_move_title">Move to a new UIN?</string>
-    <string name="cs_move_body">You get a freshly-allocated UIN. Your contacts, groups, keys and chat history on this device are all kept.</string>
-    <string name="cs_moved_toast">Moved to #%1$d</string>
-    <string name="cs_move_failed">Migration failed. Try again later.</string>
-    <string name="cs_burn_cta">Burn</string>
-    <string name="cs_burn_title">Burn account?</string>
-    <string name="cs_burn_body">This deletes your account and all local data. It cannot be undone.</string>
-    <string name="cs_about_tagline">Private messaging. No phone number.</string>
-    <string name="cs_about_version">Version %1$s</string>
-    <string name="cs_about_features">End-to-end encrypted. Sealed sender. Open source.</string>
-
-    <!-- Settings: profile editor -->
-    <string name="pe_title">Edit profile</string>
-    <string name="pe_saved">Profile saved</string>
-    <string name="pe_views_title">Profile views</string>
-    <string name="pe_views_desc">People who opened your profile in the last 7 days.</string>
-    <string name="pe_nickname">Nickname</string>
-    <string name="pe_status_message">Status message</string>
-    <string name="pe_first_name">First name</string>
-    <string name="pe_last_name">Last name</string>
-    <string name="pe_age">Age</string>
-    <string name="pe_interests">Interests</string>
-    <string name="pe_interests_hint">Comma-separated, e.g. music, hiking, retro tech.</string>
-    <string name="pe_website">Website</string>
-
-    <!-- Settings: privacy -->
-    <string name="pv_last_seen">Last seen</string>
-    <string name="pv_last_seen_desc">Who can see when you were last online.</string>
-    <string name="pv_stay_visible">Stay visible after you leave</string>
-    <string name="pv_stay_visible_desc">Keep showing as recently online for a while after the app closes.</string>
-    <string name="pv_profile_card">Profile card</string>
-    <string name="pv_profile_card_desc">Who can open your full profile (city, age, about).</string>
-    <string name="pv_gender_desc">Who can see your gender on your profile.</string>
-    <string name="pv_invite">Who can add me to groups</string>
-    <string name="pv_invite_desc">Who is allowed to add you to a group.</string>
-    <string name="pv_receipts">Read receipts</string>
-    <string name="pv_receipts_desc">Who sees your blue ticks. Turning this off hides theirs too.</string>
-    <string name="pv_screen_security">Block screenshots</string>
-    <string name="pv_screen_security_desc">Blocks screenshots and screen recording, and hides the app in the recent-apps switcher. A determined person can still photograph the screen with another device.</string>
-    <string name="pv_network">Network</string>
-    <string name="pv_obfuscated">Obfuscated connection</string>
-    <string name="pv_obfuscated_desc">Routes the connection through a relay when the network blocks RCQ directly. Improves reliability on restrictive networks. Takes effect on next launch.</string>
-    <!-- Polls -->
-    <string name="poll_create">Create poll</string>
-    <string name="poll_question">Question</string>
-    <string name="poll_option_hint">Option %1$d</string>
-    <string name="poll_add_option">Add option</string>
-    <string name="poll_single">Single choice</string>
-    <string name="poll_anonymous">Anonymous</string>
-    <string name="poll_post">Create</string>
-    <string name="poll_votes">%1$d votes</string>
-    <string name="poll_single_badge">Single choice</string>
-    <string name="poll_multi_badge">Multiple choice</string>
-    <string name="poll_anon_badge">Anonymous</string>
-    <string name="poll_close">Close poll</string>
-    <string name="poll_closed">Closed</string>
-    <!-- Connection diagnostics -->
-    <string name="diag_title">Connection diagnostics</string>
-    <string name="diag_transport">Route</string>
-    <string name="diag_mode_tunnel">Relay (obfuscated)</string>
-    <string name="diag_mode_direct">Direct</string>
-    <string name="diag_backend_direct">Server, direct</string>
-    <string name="diag_backend_route">Server, current route</string>
-    <string name="diag_ws">Real-time channel</string>
-    <string name="diag_relays">Relays</string>
-    <string name="diag_reachable">Reachable</string>
-    <string name="diag_blocked">Blocked</string>
-    <string name="diag_unreachable">Unreachable</string>
-    <string name="diag_connected">Connected</string>
-    <string name="diag_disconnected">Disconnected</string>
-    <string name="diag_relays_remote">%1$d relays · signed v%2$d</string>
-    <string name="diag_relays_bundled">%1$d relays · bundled</string>
-    <string name="diag_run_again">Run again</string>
-    <string name="diag_footer">If the server is blocked directly but reachable on the current route, the relay is doing its job. If both fail, your network is blocking everything we can reach.</string>
-    <string name="pv_custom_server">Custom server</string>
-    <string name="pv_default">Default</string>
-
-    <!-- Settings: sounds -->
-    <string name="snd_message_title">Message sounds</string>
-    <string name="snd_message_desc">Play a tone when a new message arrives in a chat you don\'t have open.</string>
-    <string name="snd_presence_title">Contact online / offline</string>
-    <string name="snd_presence_desc">Play a tone when one of your contacts comes online or goes offline.</string>
-    <string name="snd_footer">Per-chat mute (long-press a chat on the home screen) silences message sounds for that chat.</string>
-
-    <!-- Settings: language / notifications / blocked -->
-    <string name="lang_footer">Translations roll out gradually. Untranslated text falls back to English.</string>
-    <string name="notif_push">Push notifications</string>
-    <string name="notif_desc">Per-chat mute is available from a long-press on the home screen. System push delivery is configured in Android Settings.</string>
-    <string name="blocked_empty">No blocked users</string>
-    <string name="blocked_unblock">Unblock</string>
-
-    <!-- Settings: custom server -->
-    <string name="csrv_connected">Added an account on %1$s</string>
-    <string name="csrv_unreachable">Couldn\'t reach that server. Nothing changed.</string>
-    <string name="csrv_intro">Add an account on an organisation\'s island or your own self-hosted RCQ server. Your current account stays on this device.</string>
-    <string name="csrv_current">CURRENT SERVER</string>
-    <string name="csrv_host">Server host</string>
-    <string name="csrv_warning">This adds a new account on that server. Your current account stays on this device with all its chats and contacts; switch between them from the account menu.</string>
-    <string name="csrv_reset_btn">Add a public-server account</string>
-    <string name="csrv_switching">Adding…</string>
-    <string name="csrv_confirm_title">Add an account on %1$s?</string>
-    <string name="csrv_confirm_body">Adds a new account on %1$s. Your current account on %2$s stays on this device, and you can switch back anytime.</string>
-    <string name="csrv_reset_title">Add a public-server account?</string>
-    <string name="csrv_reset_body">Adds a new account on %1$s. Your current account on %2$s stays on this device.</string>
-
-    <!-- Group info -->
-    <string name="gi_title">Group info</string>
-    <string name="gi_rename">Rename</string>
-    <string name="gi_change_avatar">Change avatar</string>
-    <string name="gi_settings">GROUP SETTINGS</string>
-    <string name="gi_pinned">Pinned message</string>
-    <string name="gi_none">None</string>
-    <string name="gi_who_post">Who can post</string>
-    <string name="gi_post_owner">Owner only</string>
-    <string name="gi_closed">Closed group</string>
-    <string name="gi_closed_desc">New members can\'t self-join via search</string>
-    <string name="gi_hide">Hide member list</string>
-    <string name="gi_hide_desc">Only you see the full roster</string>
-    <string name="gi_members">MEMBERS</string>
-    <string name="gi_owner">owner</string>
-    <string name="gi_admin">admin</string>
-    <string name="gi_you"> (you)</string>
-    <string name="gi_delete">Delete group</string>
-    <string name="gi_leave">Leave group</string>
-    <string name="gi_delete_q">Delete group?</string>
-    <string name="gi_leave_q">Leave group?</string>
-    <string name="gi_delete_body">This deletes the group for everyone.</string>
-    <string name="gi_leave_body">You\'ll stop receiving messages from this group.</string>
-    <string name="gi_leave_cta">Leave</string>
-    <string name="gi_add_member">Add member</string>
-    <string name="gi_all_in">All your contacts are already in this group.</string>
-    <string name="gi_edit">Edit group</string>
-    <string name="gi_name">Name</string>
-    <string name="gi_description">Description</string>
-    <string name="gi_pin_placeholder">Pin a message for everyone</string>
-
-    <!-- Contact info -->
-    <string name="ci_title">Contact info</string>
-    <string name="ci_remove_fav">Remove from favorites</string>
-    <string name="ci_add_fav">Add to favorites</string>
-    <string name="ci_unmute">Unmute</string>
-    <string name="ci_mute">Mute</string>
-    <string name="ci_unblock">Unblock</string>
-    <string name="ci_block">Block</string>
-    <string name="ci_remove">Remove contact</string>
-    <string name="ci_remove_title">Remove %1$s?</string>
-    <string name="ci_remove_body">You\'ll both be removed from each other\'s contacts and future messages from this UIN are dropped.</string>
-    <string name="ci_safety">Safety number</string>
-    <string name="ci_safety_title">Safety number</string>
-    <string name="ci_safety_loading">Computing…</string>
-    <string name="ci_safety_unavailable">This contact hasn\'t published forward-secrecy keys yet, so there\'s nothing to verify.</string>
-    <string name="ci_safety_body">Compare this number with your contact over a channel you trust, in person or on a call. If it matches on both phones, no one is intercepting your messages.</string>
-    <string name="ci_identity_changed">This contact\'s safety number changed. It could be a new device, or someone intercepting. Open it to verify again.</string>
+    <!-- Navigation -->
+    <string name="chats">Chats</string>
+    <string name="contacts">Contacts</string>
+    <string name="calls">Calls</string>
+    <string name="stories">Stories</string>
+    <string name="settings">Settings</string>
 
     <!-- Chat -->
-    <string name="chat_group">Group</string>
-    <string name="chat_typing">typing…</string>
-    <string name="chat_saved_title">Saved messages</string>
-    <string name="chat_saved_subtitle">Notes to yourself</string>
+    <string name="new_message">New Message</string>
+    <string name="type_message">Type a message…</string>
+    <string name="send">Send</string>
+    <string name="attach">Attach</string>
+    <string name="voice_message">Voice message</string>
+    <string name="cancel">Cancel</string>
+    <string name="delete">Delete</string>
+    <string name="edit">Edit</string>
+    <string name="reply">Reply</string>
+    <string name="copy">Copy</string>
+    <string name="forward">Forward</string>
+    <string name="select_message">Select message</string>
+
+    <!-- Contacts -->
+    <string name="add_contact">Add Contact</string>
+    <string name="enter_rcq_id">Enter RCQ ID</string>
+    <string name="nickname">Nickname</string>
+    <string name="blocked_users">Blocked Users</string>
+    <string name="unblock">Unblock</string>
+    <string name="remove">Remove</string>
+
+    <!-- Groups -->
+    <string name="create_group">Create Group</string>
+    <string name="group_name">Group Name</string>
+    <string name="add_members">Add Members</string>
+    <string name="leave_group">Leave Group</string>
+    <string name="group_settings">Group Settings</string>
+
+    <!-- Audio Rooms -->
+    <string name="audio_rooms">Audio Rooms</string>
+    <string name="create_room">Create Room</string>
+    <string name="join_room">Join Room</string>
+    <string name="leave_room">Leave Room</string>
+    <string name="speakers">Speakers</string>
+    <string name="listeners">Listeners</string>
+    <string name="mute">Mute</string>
+    <string name="unmute">Unmute</string>
+    <string name="raise_hand">Raise Hand</string>
+
+    <!-- Calls -->
+    <string name="incoming_call">Incoming Call</string>
+    <string name="outgoing_call">Calling…</string>
+    <string name="call_ended">Call Ended</string>
+    <string name="accept">Accept</string>
+    <string name="decline">Decline</string>
+    <string name="end_call">End Call</string>
+    <string name="mute_call">Mute</string>
+    <string name="speaker">Speaker</string>
+
     <!-- Stories -->
-    <string name="story_you">You</string>
-    <string name="story_anonymous">Anonymous</string>
-    <string name="story_add">Add</string>
-    <string name="story_post_title">Post a story</string>
-    <string name="story_caption_hint">Add a caption (optional)</string>
-    <string name="story_anonymous_post">Post anonymously</string>
-    <string name="story_post">Post</string>
-    <string name="story_posted">Story posted</string>
-    <string name="story_post_failed">Couldn\'t post story</string>
-    <string name="story_pick_failed">Couldn\'t read that image</string>
-    <string name="story_viewers">Viewers</string>
-    <string name="story_no_viewers">No views yet</string>
-    <string name="story_delete">Delete</string>
-    <string name="story_delete_q">Delete this story?</string>
-    <!-- Random chat -->
-    <string name="random_title">Random chat</string>
-    <string name="random_intro_title">Talk to a stranger</string>
-    <string name="random_intro_body">You\'ll be paired with a random person for an anonymous 5-minute chat. Be kind. 18+ only.</string>
-    <string name="random_start">Find someone</string>
-    <string name="random_searching">Looking for someone…</string>
-    <string name="random_stranger">Anonymous stranger</string>
-    <string name="random_skip">Skip</string>
-    <string name="random_add_contact">Add to contacts</string>
-    <string name="random_add_sent">Contact request sent</string>
-    <string name="random_ended">Chat ended</string>
-    <string name="random_again">Find another</string>
-    <string name="random_end_expired">Time\'s up.</string>
-    <string name="random_end_skipped">They skipped to someone else.</string>
-    <string name="random_end_disconnected">They disconnected.</string>
-    <string name="random_end_left">The chat ended.</string>
-    <string name="random_cant_start">Can\'t start random chat</string>
-    <string name="random_err_age_required">Set your age in your profile first (18+ only).</string>
-    <string name="random_err_under_18">Random chat is for users 18 and older.</string>
-    <string name="random_err_limit">You\'ve reached today\'s random-chat limit.</string>
-    <string name="random_err_other">Something went wrong. Try again.</string>
-    <!-- In-chat message search -->
-    <string name="chat_search_hint">Search this chat</string>
-    <string name="chat_search_idle">Search messages in this chat.</string>
-    <string name="search_no_match">No matches</string>
-    <string name="chat_cancel_reply">Cancel reply</string>
-    <string name="chat_owner_only">Only the owner can post in this group.</string>
-    <string name="chat_a_photo">Photo</string>
-    <string name="chat_a_message">Message</string>
-    <string name="chat_reply">Reply</string>
-    <string name="chat_copy">Copy</string>
-    <string name="chat_edit">Edit</string>
-    <string name="chat_retry">Retry</string>
-    <string name="chat_delete_all">Delete for everyone</string>
-    <string name="chat_delete_me">Delete for me</string>
-    <string name="chat_edit_title">Edit message</string>
-    <string name="chat_attach">Attach</string>
-    <string name="chat_emoticons">Emoticons</string>
-    <string name="chat_attach_photo">Photo</string>
-    <string name="chat_attach_video">Video</string>
-    <string name="chat_attach_album">Album</string>
-    <string name="chat_attach_file">File</string>
-    <string name="chat_attach_location">Location</string>
-    <string name="chat_attach_group">Group invite</string>
-    <string name="group_invite_loading">Group</string>
-    <string name="group_invite_closed">Closed group</string>
-    <string name="group_invite_tap_join">Tap to join</string>
-    <string name="group_invite_link">Group invite</string>
-    <string name="group_invite_title">Group invite</string>
-    <string name="group_invite_join">Join</string>
-    <string name="group_invite_none">You have no groups to share.</string>
-    <string name="chat_recording">Recording  %1$s</string>
-    <string name="chat_send">Send</string>
-    <string name="chat_media_preview_title">Send media</string>
-    <string name="chat_spoiler_off_hint">Tap the preview to hide it as a spoiler.</string>
-    <string name="chat_spoiler_on_hint">Hidden. The recipient taps to reveal it.</string>
-    <string name="chat_spoiler_reveal">Tap to view</string>
-    <string name="chat_record_voice">Record voice</string>
-    <string name="chat_input_hint">Message</string>
-    <string name="chat_play_voice">Play voice</string>
-    <string name="chat_play_video">Play video</string>
-    <string name="chat_prev_photo">Photo</string>
-    <string name="chat_prev_file">File</string>
-    <string name="chat_prev_voice">Voice message</string>
-    <string name="chat_prev_video">Video</string>
-    <string name="chat_prev_location">Location</string>
+    <string name="add_to_story">Add to Story</string>
+    <string name="view_story">View Story</string>
+    <string name="story_seen_by">Seen by</string>
+    <string name="delete_story">Delete Story</string>
+    <string name="reply_to_story">Reply to Story</string>
 
-    <!-- QR -->
-    <string name="qr_title">My QR code</string>
-    <string name="qr_hint">Have a friend scan this to add you.</string>
+    <!-- Games -->
+    <string name="games">Games</string>
+    <string name="crash">Crash</string>
+    <string name="hi_lo">Hi-Lo</string>
+    <string name="roulette">Roulette</string>
+    <string name="pet_hunt">Pet Hunt</string>
+    <string name="play">Play</string>
+    <string name="bet">Bet</string>
+    <string name="cash_out">Cash Out</string>
 
-    <!-- Home: dialogs + context actions -->
-    <string name="home_send_message">Send message</string>
-    <string name="home_open_chat">Open chat</string>
-    <string name="home_remove_fav">Remove favorite</string>
-    <string name="home_add_fav">Add to favorites</string>
-    <string name="home_unmute">Unmute</string>
-    <string name="home_mute">Mute</string>
-    <string name="home_unarchive">Unarchive</string>
-    <string name="home_archive">Archive</string>
-    <string name="home_unblock">Unblock</string>
-    <string name="home_block">Block</string>
-    <string name="home_report">Report</string>
-    <string name="home_remove">Remove</string>
-    <string name="home_delete_group">Delete group</string>
-    <string name="home_leave_group">Leave group</string>
-    <string name="home_new_group">New group</string>
-    <string name="home_group_name">Group name</string>
-    <string name="home_add_members">Add members</string>
-    <string name="home_create">Create</string>
-    <string name="group_create_blocked">Some members don\'t accept group invites from you.</string>
-    <string name="group_create_failed">Couldn\'t create the group. Try again.</string>
-    <string name="home_add_contact_title">Add contact</string>
-    <string name="home_send_request">Send request</string>
-    <string name="home_report_title">Report %1$s</string>
-    <string name="home_report_reason">Reason</string>
-    <string name="home_report_submit">Submit</string>
+    <!-- Marketplace -->
+    <string name="marketplace">Marketplace</string>
+    <string name="sell">Sell</string>
+    <string name="buy">Buy</string>
+    <string name="price">Price</string>
+    <string name="place_bid">Place Bid</string>
+
+    <!-- Settings -->
+    <string name="profile">Profile</string>
+    <string name="privacy">Privacy</string>
+    <string name="notifications">Notifications</string>
+    <string name="appearance">Appearance</string>
+    <string name="storage">Storage</string>
+    <string name="data_usage">Data Usage</string>
+    <string name="about">About</string>
+    <string name="logout">Log Out</string>
+    <string name="delete_account">Delete Account</string>
+    <string name="language">Language</string>
+    <string name="theme">Theme</string>
+    <string name="dark_mode">Dark Mode</string>
+
+    <!-- Security -->
+    <string name="recovery_phrase">Recovery Phrase</string>
+    <string name="biometric_unlock">Biometric Unlock</string>
+    <string name="panic_pin">Panic PIN</string>
+    <string name="two_factor">Two-Factor Auth</string>
+
+    <!-- Errors -->
+    <string name="error_network">Network error. Please check your connection.</string>
+    <string name="error_generic">Something went wrong. Please try again.</string>
+    <string name="error_invalid_id">Invalid RCQ ID</string>
+    <string name="error_connection_failed">Connection failed</string>
+
+    <!-- Permissions -->
+    <string name="permission_camera">Camera access is required to take photos and videos.</string>
+    <string name="permission_microphone">Microphone access is required for voice messages and calls.</string>
+    <string name="permission_location">Location access is required to find nearby users.</string>
+    <string name="permission_storage">Storage access is required to send media.</string>
+    <string name="permission_denied">Permission denied</string>
+    <string name="grant_permission">Grant Permission</string>
+
+    <!-- General -->
+    <string name="ok">OK</string>
+    <string name="done">Done</string>
+    <string name="save">Save</string>
+    <string name="confirm">Confirm</string>
+    <string name="search">Search</string>
+    <string name="loading">Loading…</string>
+    <string name="empty">No items</string>
+    <string name="retry">Retry</string>
 </resources>

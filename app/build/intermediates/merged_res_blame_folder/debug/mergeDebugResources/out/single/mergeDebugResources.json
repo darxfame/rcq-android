@@ -1,0 +1,530 @@
+[
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_emo_22.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/emo_22.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/raw_contact_offline.ogg.flat",
+        "source": "com.rcq.messenger.app-main-72:/raw/contact_offline.ogg"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_emo_37.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/emo_37.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_clstatus_08.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/clstatus_08.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_emo_30.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/emo_30.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_emo_29.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/emo_29.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_clstatus_01.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/clstatus_01.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_clstatus_16.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/clstatus_16.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_emo_07.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/emo_07.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_emo_45.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/emo_45.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/raw_success.mp3.flat",
+        "source": "com.rcq.messenger.app-main-72:/raw/success.mp3"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/raw_nudge.ogg.flat",
+        "source": "com.rcq.messenger.app-main-72:/raw/nudge.ogg"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_status_12.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/status_12.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/mipmap-xhdpi_ic_launcher_round.xml.flat",
+        "source": "com.rcq.messenger.app-main-72:/mipmap-xhdpi/ic_launcher_round.xml"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_clstatus_24.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/clstatus_24.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_emo_00.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/emo_00.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_status_04.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/status_04.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_icq_logo.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/icq_logo.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_emo_21.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/emo_21.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/raw_thud.mp3.flat",
+        "source": "com.rcq.messenger.app-main-72:/raw/thud.mp3"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_status_18.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/status_18.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_status_05.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/status_05.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_emo_15.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/emo_15.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_emo_28.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/emo_28.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/raw_message_incoming.ogg.flat",
+        "source": "com.rcq.messenger.app-main-72:/raw/message_incoming.ogg"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_emo_31.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/emo_31.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_clstatus_02.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/clstatus_02.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_emo_44.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/emo_44.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_clstatus_15.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/clstatus_15.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/mipmap-xxhdpi_ic_launcher.xml.flat",
+        "source": "com.rcq.messenger.app-main-72:/mipmap-xxhdpi/ic_launcher.xml"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_clstatus_09.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/clstatus_09.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/raw_fail_tone.mp3.flat",
+        "source": "com.rcq.messenger.app-main-72:/raw/fail_tone.mp3"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_emo_38.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/emo_38.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_status_11.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/status_11.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_emo_06.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/emo_06.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/raw_contact_online.ogg.flat",
+        "source": "com.rcq.messenger.app-main-72:/raw/contact_online.ogg"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_icq_statuses.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/icq_statuses.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_emo_05.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/emo_05.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_clstatus_06.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/clstatus_06.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_status_06.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/status_06.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_emo_50.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/emo_50.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_emo_43.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/emo_43.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_emo_16.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/emo_16.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_clstatus_03.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/clstatus_03.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_emo_13.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/emo_13.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_emo_51.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/emo_51.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/raw_tense_beep.mp3.flat",
+        "source": "com.rcq.messenger.app-main-72:/raw/tense_beep.mp3"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_clstatus_18.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/clstatus_18.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/xml_data_extraction_rules.xml.flat",
+        "source": "com.rcq.messenger.app-main-72:/xml/data_extraction_rules.xml"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_status_10.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/status_10.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_emo_39.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/emo_39.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_status_09.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/status_09.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_emo_40.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/emo_40.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_status_03.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/status_03.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_emo_49.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/emo_49.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_clstatus_26.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/clstatus_26.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_clstatus_13.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/clstatus_13.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_clstatus_00.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/clstatus_00.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/mipmap-mdpi_ic_launcher.xml.flat",
+        "source": "com.rcq.messenger.app-main-72:/mipmap-mdpi/ic_launcher.xml"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_emo_10.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/emo_10.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_emo_23.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/emo_23.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_emo_36.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/emo_36.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_emo_08.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/emo_08.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_status_13.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/status_13.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_status_00.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/status_00.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/raw_join_all.mp3.flat",
+        "source": "com.rcq.messenger.app-main-72:/raw/join_all.mp3"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_clstatus_10.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/clstatus_10.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/mipmap-xxxhdpi_ic_launcher.xml.flat",
+        "source": "com.rcq.messenger.app-main-72:/mipmap-xxxhdpi/ic_launcher.xml"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_emo_20.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/emo_20.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/raw_open.wav.flat",
+        "source": "com.rcq.messenger.app-main-72:/raw/open.wav"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_clstatus_23.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/clstatus_23.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_emo_46.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/emo_46.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_status_16.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/status_16.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_emo_33.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/emo_33.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_clstatus_12.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/clstatus_12.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_emo_03.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/emo_03.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_emo_41.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/emo_41.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_emo_18.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/emo_18.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/mipmap-xxhdpi_ic_launcher_round.xml.flat",
+        "source": "com.rcq.messenger.app-main-72:/mipmap-xxhdpi/ic_launcher_round.xml"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_status_15.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/status_15.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_clstatus_19.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/clstatus_19.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_clstatus_20.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/clstatus_20.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_emo_11.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/emo_11.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_emo_48.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/emo_48.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/mipmap-hdpi_ic_launcher.xml.flat",
+        "source": "com.rcq.messenger.app-main-72:/mipmap-hdpi/ic_launcher.xml"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/raw_alert.mp3.flat",
+        "source": "com.rcq.messenger.app-main-72:/raw/alert.mp3"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/mipmap-xhdpi_ic_launcher.xml.flat",
+        "source": "com.rcq.messenger.app-main-72:/mipmap-xhdpi/ic_launcher.xml"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_status_07.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/status_07.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_clstatus_05.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/clstatus_05.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_emo_34.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/emo_34.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/raw_message_sent.ogg.flat",
+        "source": "com.rcq.messenger.app-main-72:/raw/message_sent.ogg"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_emo_26.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/emo_26.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_emo_02.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/emo_02.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_status_01.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/status_01.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/raw_fail.wav.flat",
+        "source": "com.rcq.messenger.app-main-72:/raw/fail.wav"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_status_14.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/status_14.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_clstatus_21.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/clstatus_21.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_emo_09.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/emo_09.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/raw_rolling.mp3.flat",
+        "source": "com.rcq.messenger.app-main-72:/raw/rolling.mp3"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_emo_25.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/emo_25.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_status_08.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/status_08.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_emo_12.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/emo_12.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_emo_19.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/emo_19.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/mipmap-mdpi_ic_launcher_round.xml.flat",
+        "source": "com.rcq.messenger.app-main-72:/mipmap-mdpi/ic_launcher_round.xml"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_icq_allicons.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/icq_allicons.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_emo_35.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/emo_35.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_status_17.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/status_17.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_status_02.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/status_02.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_clstatus_25.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/clstatus_25.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_emo_24.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/emo_24.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_clstatus_14.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/clstatus_14.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/raw_app_startup.ogg.flat",
+        "source": "com.rcq.messenger.app-main-72:/raw/app_startup.ogg"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/mipmap-xxxhdpi_ic_launcher_round.xml.flat",
+        "source": "com.rcq.messenger.app-main-72:/mipmap-xxxhdpi/ic_launcher_round.xml"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_emo_32.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/emo_32.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_clstatus_22.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/clstatus_22.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_emo_47.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/emo_47.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_icq_msgbg.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/icq_msgbg.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/raw_celebratory_chime.mp3.flat",
+        "source": "com.rcq.messenger.app-main-72:/raw/celebratory_chime.mp3"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_clstatus_11.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/clstatus_11.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/mipmap-hdpi_ic_launcher_round.xml.flat",
+        "source": "com.rcq.messenger.app-main-72:/mipmap-hdpi/ic_launcher_round.xml"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_emo_17.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/emo_17.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_clstatus_07.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/clstatus_07.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_emo_04.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/emo_04.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_ic_launcher_foreground.xml.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/ic_launcher_foreground.xml"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_emo_42.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/emo_42.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_icq_clbg.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/icq_clbg.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_clstatus_17.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/clstatus_17.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_emo_27.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/emo_27.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_emo_01.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/emo_01.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_emo_14.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/emo_14.png"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/raw_join_me.mp3.flat",
+        "source": "com.rcq.messenger.app-main-72:/raw/join_me.mp3"
+    },
+    {
+        "merged": "com.rcq.messenger.app-debug-70:/drawable_clstatus_04.png.flat",
+        "source": "com.rcq.messenger.app-main-72:/drawable/clstatus_04.png"
+    }
+]

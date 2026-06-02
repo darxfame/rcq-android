@@ -1,11 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Compose owns the actual UI; this XML theme only sets a no-action-bar
-         window with a dark background so launch doesn't flash white before
-         the Compose content draws. -->
     <style name="Theme.RCQ" parent="android:Theme.Material.NoActionBar">
-        <item name="android:windowBackground">@color/rcq_background</item>
-        <item name="android:statusBarColor">@android:color/transparent</item>
-        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:statusBarColor">@color/background</item>
+        <item name="android:navigationBarColor">@color/background</item>
+        <item name="android:windowBackground">@color/background</item>
+        <item name="android:windowLightStatusBar">false</item>
     </style>
 </resources>

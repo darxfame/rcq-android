@@ -1,167 +1,169 @@
-import java.io.FileInputStream
-import java.util.Properties
-
 plugins {
-    alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.compose)
-}
-
-// Release signing creds live in keystore.properties (gitignored) → the keystore
-// itself sits outside the repo (~/.rcq/android-release). On a machine without
-// it the config stays empty and only debug builds work.
-val keystorePropsFile = rootProject.file("keystore.properties")
-val keystoreProps = Properties().apply {
-    if (keystorePropsFile.exists()) FileInputStream(keystorePropsFile).use { load(it) }
+    id("com.android.application")
+    id("org.jetbrains.kotlin.android")
+    id("com.google.devtools.ksp")
+    id("org.jetbrains.kotlin.plugin.serialization")
+    id("com.google.dagger.hilt.android")
 }
 
 android {
-    namespace = "app.rcq.android"
-    compileSdk = 36
+    namespace = "com.rcq.messenger"
+    compileSdk = 34
 
     defaultConfig {
-        applicationId = "app.rcq.android"
+        applicationId = "com.rcq.messenger"
         minSdk = 26
-        targetSdk = 36
+        targetSdk = 34
         versionCode = 1
-        versionName = "0.1"
+        versionName = "1.0.0"
+
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        // libsignal ships native .so for 4 ABIs; keep the real-device ones
-        // (arm64-v8a, armeabi-v7a) + x86_64 for the emulator, drop 32-bit x86.
-        ndk {
-            abiFilters.addAll(listOf("arm64-v8a", "armeabi-v7a", "x86_64"))
+        vectorDrawables {
+            useSupportLibrary = true
         }
+
     }
 
-    signingConfigs {
-        create("release") {
-            if (keystoreProps.isNotEmpty()) {
-                storeFile = file(keystoreProps.getProperty("storeFile"))
-                storePassword = keystoreProps.getProperty("storePassword")
-                keyAlias = keystoreProps.getProperty("keyAlias")
-                keyPassword = keystoreProps.getProperty("keyPassword")
-            }
+    flavorDimensions += "env"
+    productFlavors {
+        create("production") {
+            dimension = "env"
+            buildConfigField("String", "API_BASE_URL", "\"https://api.rcq.app/\"")
+        }
+        create("staging") {
+            dimension = "env"
+            applicationIdSuffix = ".staging"
+            versionNameSuffix = "-staging"
+            buildConfigField("String", "API_BASE_URL", "\"https://api.staging.rcq.app/\"")
         }
     }
 
     buildTypes {
         release {
-            // R8/minify stays OFF for now: the app leans on reflection (Gson over
-            // the DTOs, libsignal/JNI) so enabling it needs a careful keep-rule
-            // pass, and the savings are small next to the ~80MB of native libs
-            // (libsignal + rcqbox) that R8 can't touch. Sign for release so the
-            // APK installs + can self-update.
-            isMinifyEnabled = false
-            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            signingConfig = if (keystoreProps.isNotEmpty()) signingConfigs.getByName("release") else signingConfigs.getByName("debug")
+            isMinifyEnabled = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
+        }
+        debug {
+            isDebuggable = true
         }
     }
-    compileOptions {
-        // Required by libsignal-android; with
-        // android.enableApiModelingAndGlobalSynthetics=true (gradle.properties)
-        // this gives D8 the global-synthetics path to desugar its Java records.
-        isCoreLibraryDesugaringEnabled = true
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
-    }
-    buildFeatures { compose = true; buildConfig = true }
 
-    // Split the APK by ABI so a device downloads only its own native libs.
-    // libsignal + rcqbox (sing-box) each ship a ~40MB .so per ABI, so a
-    // universal APK is ~3x heavier than any device needs — painful to
-    // sideload over a slow/censored network (exactly our RU-tester case).
-    // Per-ABI APKs land at app/build/outputs/apk/<type>/app-<abi>-<type>.apk.
-    // universalApk stays on as a single-file fallback (and for the emulator
-    // test flow). NB for a Play multi-APK upload each ABI needs a distinct
-    // versionCode (an offset) — add that when/if we ship via Play; for
-    // sideload it's irrelevant.
-    splits {
-        abi {
-            isEnable = true
-            reset()
-            include("arm64-v8a", "armeabi-v7a", "x86_64")
-            isUniversalApk = true
-        }
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+
+    buildFeatures {
+        compose = true
+        buildConfig = true
+    }
+
+    composeOptions {
+        kotlinCompilerExtensionVersion = "1.5.8"
     }
 
     packaging {
+        resources {
+            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        }
         jniLibs {
-            // libsignal_jni_testing.so is a ~80MB-per-ABI test-only native lib;
-            // never ship it. (Halves the APK.)
-            excludes += "**/libsignal_jni_testing.so"
+            // Equivalent to android:extractNativeLibs="true" — makes Samsung's
+            // package installer extract .so files to disk instead of loading from
+            // inside the APK, avoiding page-alignment crashes on Galaxy devices.
+            useLegacyPackaging = true
         }
     }
 }
 
 dependencies {
-    implementation(libs.androidx.core.ktx)
-    implementation(libs.androidx.lifecycle.runtime.ktx)
-    implementation(libs.androidx.activity.compose)
-    implementation(platform(libs.androidx.compose.bom))
-    implementation(libs.androidx.compose.ui)
-    implementation(libs.androidx.compose.ui.graphics)
-    implementation(libs.androidx.compose.ui.tooling.preview)
-    implementation(libs.androidx.compose.material3)
-    implementation(libs.androidx.compose.material.icons)
-    implementation(libs.androidx.navigation.compose)
+    // sing-box нативное ядро (libbox.aar).
+    // Положите собранный libbox.aar в app/libs/ — Gradle подхватит автоматически.
+    // Сборка ядра из форка Lantern: см. docs/SINGBOX_INTEGRATION.md
+    // Пустой каталог libs/ не ломает сборку (fileTree вернёт пустой набор).
+    implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.aar", "*.jar"))))
 
-    // QR generation for the "my code" sheet (rcq://add/<uin>). Pure-Java
-    // BitMatrix → Bitmap; no UI dependency.
-    implementation(libs.zxing.core)
+    // Logging
+    implementation("com.jakewharton.timber:timber:5.0.1")
 
-    // Networking (HTTP + WebSocket) and JSON — used by the API + WS
-    // layers added in the next milestones.
-    implementation(libs.okhttp)
-    implementation(libs.okhttp.logging)
-    implementation(libs.gson)
+    // Core Android
+    implementation("androidx.core:core-ktx:1.12.0")
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
+    implementation("androidx.activity:activity-compose:1.8.2")
 
-    // X25519 + Ed25519 keygen via the BouncyCastle lightweight API.
-    // JCA's "XDH"/"Ed25519" KeyPairGenerators only exist on API 33+,
-    // and minSdk is 26 — BC's generators work everywhere and give raw
-    // 32-byte key access, which is exactly the wire format the backend
-    // expects (base64 of raw public keys, per rcq-spec 2.2).
-    implementation(libs.bouncycastle)
+    // Compose BOM
+    implementation(platform("androidx.compose:compose-bom:2024.02.00"))
+    implementation("androidx.compose.ui:ui")
+    implementation("androidx.compose.ui:ui-graphics")
+    implementation("androidx.compose.ui:ui-tooling-preview")
+    implementation("androidx.compose.material3:material3")
+    implementation("androidx.compose.material:material-icons-extended")
 
-    // libsignal: Double Ratchet + PQXDH for v=2 forward secrecy (additive over
-    // the v=1 ECIES sealed sender). Ships native .so per ABI in the .aar.
-    implementation(libs.libsignal.android)
+    // Navigation
+    implementation("androidx.navigation:navigation-compose:2.7.7")
+    implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
 
-    // rcqbox: the embedded sing-box core (VLESS+Reality / Hysteria2) for the
-    // censorship-circumvention transport — a gomobile-bound Go wrapper, same
-    // Start/Stop API the iOS client uses. Built from ~/sing-box-src/rcqbox via
-    // `gomobile bind -target=android/arm64,android/arm,android/amd64
-    // -androidapi 26 -tags "with_utls,with_quic"`. Ships libgojni.so per ABI.
-    implementation(files("libs/rcqbox.aar"))
-    coreLibraryDesugaring(libs.desugar.jdk.libs)
+    // Hilt DI
+    implementation("com.google.dagger:hilt-android:2.50")
+    ksp("com.google.dagger:hilt-compiler:2.50")
 
-    // Encrypted-at-rest storage for the per-account identity (UIN, JWT,
-    // private keys) — the Android equivalent of the iOS Keychain.
-    implementation(libs.androidx.datastore)
-    implementation(libs.androidx.security.crypto)
+    // Room Database
+    implementation("androidx.room:room-runtime:2.6.1")
+    implementation("androidx.room:room-ktx:2.6.1")
+    ksp("androidx.room:room-compiler:2.6.1")
 
-    // SQLCipher: whole-DB encryption of the local message store under a
-    // PIN-derived (or device) key for the panic-PIN at-rest protection.
-    implementation(libs.sqlcipher.android)
-    implementation(libs.androidx.sqlite)
+    // Retrofit + OkHttp
+    implementation("com.squareup.retrofit2:retrofit:2.9.0")
+    implementation("com.jakewharton.retrofit:retrofit2-kotlinx-serialization-converter:1.0.0")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
 
-    // ProcessLifecycleOwner — re-lock the app when it goes to background.
-    implementation(libs.androidx.lifecycle.process)
+    // Kotlinx Serialization
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.2")
 
-    // BiometricPrompt for the panic-PIN fingerprint/face unlock (phase 4).
-    // Brings androidx.fragment in, so MainActivity is a FragmentActivity;
-    // the explicit fragment pin overrides biometric-1.1.0's stale 1.2.5.
-    implementation(libs.androidx.biometric)
-    implementation(libs.androidx.fragment)
+    // Coroutines
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
 
-    // WebRTC (libwebrtc, org.webrtc.*) for 1:1 audio/video calls — same engine
-    // the iOS client uses, signalling rides the existing WS dumb-relay.
-    implementation(libs.stream.webrtc.android)
+    // DataStore
+    implementation("androidx.datastore:datastore-preferences:1.0.0")
 
-    debugImplementation(libs.androidx.compose.ui.tooling)
+    // Coil for images + GIF animated emoticons
+    implementation("io.coil-kt:coil-compose:2.5.0")
+    implementation("io.coil-kt:coil-gif:2.5.0")
 
-    testImplementation(libs.junit)
-    androidTestImplementation(libs.androidx.junit)
-    androidTestImplementation(libs.androidx.espresso.core)
-    androidTestImplementation(platform(libs.androidx.compose.bom))
-    androidTestImplementation(libs.androidx.compose.ui.test.junit4)
-    debugImplementation(libs.androidx.compose.ui.test.manifest)
+    // Security
+    implementation("androidx.security:security-crypto:1.1.0-alpha06")
+    implementation("androidx.biometric:biometric:1.1.0")
+
+    // Signal Protocol E2EE
+    implementation("org.signal:libsignal-android:0.31.0")
+
+    // BouncyCastle — ChaCha20-Poly1305 + Ed25519Signer for iOS-compatible ECIES v=1.
+    // Android's built-in BC is cut-down (no ChaCha); we need the full provider.
+    implementation("org.bouncycastle:bcprov-jdk18on:1.78.1")
+
+    // WebRTC
+    implementation("io.getstream:stream-webrtc-android:1.1.1")
+
+    // Location
+    implementation("com.google.android.gms:play-services-location:21.1.0")
+
+    // Accompanist
+    implementation("com.google.accompanist:accompanist-permissions:0.34.0")
+
+    // Testing
+    testImplementation("junit:junit:4.13.2")
+    androidTestImplementation("androidx.test.ext:junit:1.1.5")
+    androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
+    androidTestImplementation(platform("androidx.compose:compose-bom:2024.02.00"))
+    androidTestImplementation("androidx.compose.ui:ui-test-junit4")
+    debugImplementation("androidx.compose.ui:ui-tooling")
+    debugImplementation("androidx.compose.ui:ui-test-manifest")
 }
