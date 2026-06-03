@@ -7,6 +7,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import java.net.Socket
 import timber.log.Timber
 import java.io.File
 import java.net.HttpURLConnection
@@ -134,7 +135,7 @@ class XrayTransport @Inject constructor(
             pb.environment()["xray.location.asset"] = workDir.absolutePath
             val started = pb.start()
             process = started
-            Thread.sleep(900)
+            delay(900) // non-blocking wait for Xray to init its SOCKS listener
             if (!validateProxyRoute()) {
                 Timber.w("$TAG: started ${relay.tag}, but health route check failed")
                 throw IllegalStateException("Health route check failed")

@@ -82,6 +82,13 @@ object RelaySelectionPolicy {
         orderForAndroid(base, lastGoodTag = null, supportsXhttp = supportsXhttp)
             .filter { it.isTcpRelay }
 
+    /** Returns ordered relays for a specific engine type (used by ProxyManager fallback). */
+    fun selectForEngine(engine: String, base: List<RelayEntry>, lastGoodTag: String?): EmbeddedRelaySelection {
+        val supportsXhttp = engine == "xray"
+        val ordered = orderForAndroid(base, lastGoodTag = lastGoodTag, supportsXhttp = supportsXhttp)
+        return EmbeddedRelaySelection(engine, ordered)
+    }
+
     fun selectForEmbeddedTransport(
         base: List<RelayEntry>,
         lastGoodTag: String?,
@@ -222,10 +229,14 @@ internal object SingBoxConfigJsonBuilder {
         putJsonObject("tls") {
             put("enabled", true); put("server_name", r.sni); put("insecure", true)
         }
-        r.obfs_password?.takeIf { it.isNotEmpty() }?.let {
+        // Support both sing-box obfs formats:
+        // v1.9+: {"obfs": {"type": "salamander", "password": "..."}}
+        // v1.6-1.8: {"obfs": "salamander", "obfs-password": "..."}
+        // We use the v1.9+ format; if it fails, the attempt loop tries next relay.
+        r.obfs_password?.takeIf { it.isNotEmpty() }?.let { obfsPwd ->
             putJsonObject("obfs") {
                 put("type", "salamander")
-                put("password", it)
+                put("password", obfsPwd)
             }
         }
     }
@@ -311,7 +322,7 @@ class SingBoxTransport @Inject constructor(
                 Timber.d("$TAG: trying relay $relayTag")
                 service = startNativeEngine(config)
                 if (!validateProxyRoute()) {
-                    Timber.w("$TAG: relay $relayTag started, but health route check failed; keeping transport active (iOS parity)")
+                    Timber.w("$TAG: relay $relayTag started, route check failed — keeping active (iOS parity)")
                 }
                 boxService = service
                 isActive = true
@@ -327,12 +338,20 @@ class SingBoxTransport @Inject constructor(
                 service?.let { stopService(it) }
                 boxService = null
                 isActive = false
-                Timber.w(e, "$TAG: relay $relayTag failed")
+                // Traverse cause chain — InvocationTargetException wraps the real Go panic
+                val causeChain = generateSequence(e) { it.cause }
+                    .joinToString(" ← ") { "${it.javaClass.simpleName}: ${it.message}" }
+                Timber.w("$TAG: relay $relayTag failed: $causeChain")
             }
         }
-        val msg = lastError?.message?.take(400) ?: "Ни один встроенный relay не прошел проверку"
-        prefs.edit().putString(PREF_LAST_ERROR, msg).apply()
-        Timber.e(lastError, "$TAG: start failed: $msg")
+        // Extract deepest non-null message so the real Go panic is surfaced in UI
+        val realMsg = lastError?.let {
+            generateSequence(it) { c -> c.cause }
+                .mapNotNull { c -> c.message?.takeIf { m -> m.isNotBlank() } }
+                .firstOrNull()?.take(400)
+        } ?: "Ни один встроенный relay не прошел проверку (${attempts.size} попыток)"
+        prefs.edit().putString(PREF_LAST_ERROR, realMsg).apply()
+        Timber.e(lastError, "$TAG: start failed: $realMsg")
         false
     }
 
@@ -443,8 +462,11 @@ class SingBoxTransport @Inject constructor(
             Timber.w("$TAG: no relays supported by bundled sing-box engine")
             return null
         }
-        return RelayStartPlan.attempts(ordered)
-            .map { attempt -> attempt.first().tag to SingBoxConfigJsonBuilder.build(attempt, LOCAL_PORT) }
+        // Each attempt uses ONE relay only — avoids a single bad relay breaking the whole config.
+        // urltest with all relays means a parse error in ANY outbound kills the entire attempt.
+        return ordered.map { relay ->
+            relay.tag to SingBoxConfigJsonBuilder.build(listOf(relay), LOCAL_PORT)
+        }
     }
 
     private fun orderedRelays(base: List<RelayEntry>): List<RelayEntry> {
