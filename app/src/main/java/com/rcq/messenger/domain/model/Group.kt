@@ -17,7 +17,8 @@ data class Group(
     val lastMessage: Message? = null,
     val unreadCount: Int = 0,
     val isPinned: Boolean = false,
-    val isMuted: Boolean = false
+    val isMuted: Boolean = false,
+    val pinnedText: String? = null
 )
 
 @Serializable

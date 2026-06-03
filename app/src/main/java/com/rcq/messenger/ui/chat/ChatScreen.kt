@@ -8,6 +8,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -35,6 +36,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
+import com.rcq.messenger.domain.model.Contact
+import com.rcq.messenger.domain.model.Group
 import com.rcq.messenger.domain.model.Message
 import com.rcq.messenger.media.RecordingState
 import com.rcq.messenger.domain.model.MessageStatus
@@ -44,12 +47,16 @@ import com.rcq.messenger.ui.common.EmoticonPicker
 import com.rcq.messenger.ui.theme.*
 import java.text.SimpleDateFormat
 import java.util.*
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.sp
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
 fun ChatScreen(
     chatId: String,
     onBack: () -> Unit,
+    onCall: () -> Unit = {},
+    onGroupInfo: () -> Unit = {},
     viewModel: ChatViewModel = hiltViewModel()
 ) {
     val messages by viewModel.messages.collectAsState()
@@ -62,12 +69,21 @@ fun ChatScreen(
     val recordingState by viewModel.recordingState.collectAsState()
     val playbackState by viewModel.playbackState.collectAsState()
     val activeVoiceId by viewModel.activeVoiceId.collectAsState()
+    val isMuted by viewModel.isMuted.collectAsState()
+    val pinnedText by viewModel.pinnedText.collectAsState()
+    val inChatSearchResults by viewModel.inChatSearchResults.collectAsState()
+    val contacts by viewModel.contacts.collectAsState()
+    val groups by viewModel.groups.collectAsState()
     val listState = rememberLazyListState()
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) listState.animateScrollToItem(messages.size - 1)
     }
     var showAttachMenu by remember { mutableStateOf(false) }
     var showEmojiPicker by remember { mutableStateOf(false) }
+    var showMoreMenu by remember { mutableStateOf(false) }
+    var showInChatSearch by remember { mutableStateOf(false) }
+    var showForwardPicker by remember { mutableStateOf<Message?>(null) }
+    var reactingMessage by remember { mutableStateOf<Message?>(null) }
     val context = LocalContext.current
     val isGroupChat = remember(chatId) { !chatId.startsWith("direct_") }
     val locationPermissionState = rememberPermissionState(android.Manifest.permission.ACCESS_FINE_LOCATION)
@@ -100,7 +116,10 @@ fun ChatScreen(
             TopAppBar(
                 title = {
                     val rcqTitle = LocalRCQColors.current
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = if (isGroupChat) Modifier.clickable { onGroupInfo() } else Modifier
+                    ) {
                         Box(
                             modifier = Modifier
                                 .size(40.dp)
@@ -124,11 +143,42 @@ fun ChatScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { /* Call */ }) {
+                    IconButton(onClick = onCall) {
                         Icon(Icons.Default.Call, contentDescription = "Call")
                     }
-                    IconButton(onClick = { /* More */ }) {
-                        Icon(Icons.Default.MoreVert, contentDescription = "More")
+                    Box {
+                        IconButton(onClick = { showMoreMenu = true }) {
+                            Icon(Icons.Default.MoreVert, contentDescription = "More")
+                        }
+                        DropdownMenu(expanded = showMoreMenu, onDismissRequest = { showMoreMenu = false }) {
+                            if (isGroupChat) {
+                                DropdownMenuItem(
+                                    text = { Text("Group info") },
+                                    leadingIcon = { Icon(Icons.Default.Info, null) },
+                                    onClick = { showMoreMenu = false; onGroupInfo() }
+                                )
+                            }
+                            DropdownMenuItem(
+                                text = { Text("Search in chat") },
+                                leadingIcon = { Icon(Icons.Default.Search, null) },
+                                onClick = { showMoreMenu = false; showInChatSearch = true }
+                            )
+                            DropdownMenuItem(
+                                text = { Text(if (isMuted) "Unmute" else "Mute") },
+                                leadingIcon = {
+                                    Icon(
+                                        if (isMuted) Icons.Default.VolumeUp else Icons.Default.VolumeOff,
+                                        null
+                                    )
+                                },
+                                onClick = { showMoreMenu = false; viewModel.toggleMute() }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Clear history") },
+                                leadingIcon = { Icon(Icons.Default.Delete, null) },
+                                onClick = { showMoreMenu = false; viewModel.clearHistory() }
+                            )
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -145,6 +195,80 @@ fun ChatScreen(
                 .padding(paddingValues)
                 .imePadding()
         ) {
+            if (showInChatSearch) {
+                var query by remember { mutableStateOf("") }
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(LocalRCQColors.current.bgSecondary)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        OutlinedTextField(
+                            value = query,
+                            onValueChange = {
+                                query = it
+                                viewModel.searchInChat(it)
+                            },
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(8.dp),
+                            placeholder = { Text("Search messages...") },
+                            singleLine = true
+                        )
+                        IconButton(onClick = {
+                            showInChatSearch = false
+                            viewModel.clearInChatSearch()
+                        }) {
+                            Icon(Icons.Default.Close, null)
+                        }
+                    }
+                    if (inChatSearchResults.isNotEmpty()) {
+                        LazyColumn(modifier = Modifier.heightIn(max = 160.dp)) {
+                            items(inChatSearchResults) { msg ->
+                                Text(
+                                    text = msg.content,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { }
+                                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (!pinnedText.isNullOrBlank() && isGroupChat) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = LocalRCQColors.current.bgSecondary,
+                    tonalElevation = 1.dp
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.PushPin,
+                            null,
+                            tint = LocalRCQColors.current.accent,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            pinnedText.orEmpty(),
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            color = LocalRCQColors.current.textSecondary
+                        )
+                    }
+                }
+            }
+
             LazyColumn(
                 state = listState,
                 modifier = Modifier
@@ -162,10 +286,10 @@ fun ChatScreen(
                             senderName = message.senderId.toString(),
                             showSenderName = isGroupChat && message.senderId != currentUserId,
                             onReply = { viewModel.setReplyTo(message) },
-                            onForward = { viewModel.forwardMessage(message) },
+                            onForward = { showForwardPicker = message },
                             onEdit = { viewModel.editMessage(message, message.content) },
                             onDelete = { viewModel.deleteMessage(message.id) },
-                            onReact = { viewModel.addReaction(message.id, "👍") },
+                            onReact = { reactingMessage = message },
                             onVoicePlay = { _ -> viewModel.playVoice(message) },
                             onVoicePause = { viewModel.pauseVoice() },
                             isVoicePlaying = activeVoiceId == message.mediaId,
@@ -173,6 +297,28 @@ fun ChatScreen(
                         )
                     }
                 }
+            }
+
+            reactingMessage?.let { msg ->
+                ReactionPickerDialog(
+                    onDismiss = { reactingMessage = null },
+                    onReact = { emoji ->
+                        viewModel.addReaction(msg.id, emoji)
+                        reactingMessage = null
+                    }
+                )
+            }
+
+            showForwardPicker?.let { msg ->
+                ForwardPickerDialog(
+                    onDismiss = { showForwardPicker = null },
+                    onPick = { targetChatId ->
+                        viewModel.forwardMessageTo(msg, targetChatId)
+                        showForwardPicker = null
+                    },
+                    contacts = contacts,
+                    groups = groups
+                )
             }
 
             TypingIndicator(isVisible = isTyping)
@@ -224,6 +370,78 @@ fun ChatScreen(
             }
         }
     }
+}
+
+@Composable
+private fun ReactionPickerDialog(
+    onDismiss: () -> Unit,
+    onReact: (String) -> Unit
+) {
+    val reactions = listOf("👍", "❤️", "😂", "😮", "😢", "😡", "🔥", "👏", "🎉", "💯")
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("React") },
+        text = {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(reactions) { emoji ->
+                    Text(
+                        emoji,
+                        fontSize = 28.sp,
+                        modifier = Modifier.clickable { onReact(emoji) }
+                    )
+                }
+            }
+        },
+        confirmButton = {}
+    )
+}
+
+@Composable
+private fun ForwardPickerDialog(
+    onDismiss: () -> Unit,
+    onPick: (String) -> Unit,
+    contacts: List<Contact>,
+    groups: List<Group>
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Forward to...") },
+        text = {
+            LazyColumn(modifier = Modifier.heightIn(max = 400.dp)) {
+                if (contacts.isNotEmpty()) {
+                    item {
+                        Text(
+                            "Contacts",
+                            style = MaterialTheme.typography.labelSmall,
+                            modifier = Modifier.padding(vertical = 4.dp)
+                        )
+                    }
+                    items(contacts) { contact ->
+                        ListItem(
+                            headlineContent = { Text(contact.nickname) },
+                            modifier = Modifier.clickable { onPick("direct_${contact.userId}") }
+                        )
+                    }
+                }
+                if (groups.isNotEmpty()) {
+                    item {
+                        Text(
+                            "Groups",
+                            style = MaterialTheme.typography.labelSmall,
+                            modifier = Modifier.padding(vertical = 4.dp)
+                        )
+                    }
+                    items(groups) { group ->
+                        ListItem(
+                            headlineContent = { Text(group.name) },
+                            modifier = Modifier.clickable { onPick(group.id) }
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {}
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

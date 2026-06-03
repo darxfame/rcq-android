@@ -3,6 +3,7 @@ package com.rcq.messenger.data.repository
 import android.util.Log
 import com.rcq.messenger.data.api.*
 import com.rcq.messenger.data.db.*
+import com.rcq.messenger.data.websocket.WebSocketService
 import com.rcq.messenger.domain.model.*
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
@@ -69,15 +70,41 @@ class GroupRepository @Inject constructor(
         }
     }
 
+    suspend fun joinGroup(groupId: Int): Result<Group> = runCatching {
+        val response = api.joinGroup(groupId)
+        if (response.isSuccessful) {
+            val group = response.body()!!
+            groupDao.insertGroup(group.toGroupEntity())
+            group.toGroupEntity().toDomain()
+        } else throw Exception("joinGroup failed: ${response.code()}")
+    }
+
+    suspend fun getGroupPreview(groupId: Int): Result<GroupPreviewResponse> = runCatching {
+        val response = api.getGroupPreview(groupId)
+        if (response.isSuccessful) response.body()!!
+        else throw Exception("getGroupPreview failed: ${response.code()}")
+    }
+
     suspend fun updateGroup(group: Group): Result<Group> = runCatching {
-        api.updateGroup(group.id, group).let { response ->
-            if (response.isSuccessful) response.body()!!
+        val payload = GroupPatchRequest(
+            name = group.name,
+            description = group.description.ifBlank { null }
+        )
+        api.patchGroup(group.id, payload).let { response ->
+            if (response.isSuccessful) response.body()!!.toGroupEntity().toDomain()
             else throw Exception("Failed to update group")
         }
     }
 
+    suspend fun deleteGroup(groupId: String): Result<Unit> = runCatching {
+        val response = api.deleteGroup(groupId)
+        if (response.isSuccessful) {
+            groupDao.deleteGroup(groupId)
+        } else throw Exception("deleteGroup failed: ${response.code()}")
+    }
+
     suspend fun addMember(groupId: String, userId: Long): Result<Unit> = runCatching {
-        api.addMember(groupId, AddMemberRequest(userId)).let { response ->
+        api.addMember(groupId, AddMemberRequest(uin = userId)).let { response ->
             if (!response.isSuccessful) throw Exception("Failed to add member")
         }
     }
@@ -114,7 +141,8 @@ private fun Group.toEntity() = GroupEntity(
 
 @Singleton
 class AudioRoomRepository @Inject constructor(
-    private val api: RCQApiService
+    private val api: RCQApiService,
+    private val webSocketService: WebSocketService
 ) {
     suspend fun getAudioRooms(): Result<List<AudioRoom>> = runCatching {
         api.getAudioRooms().let { response ->
@@ -139,15 +167,16 @@ class AudioRoomRepository @Inject constructor(
 
     suspend fun joinRoom(roomId: String): Result<AudioRoom> = runCatching {
         api.joinRoom(roomId).let { response ->
-            if (response.isSuccessful) response.body()!!
-            else throw Exception("Failed to join room")
+            if (response.isSuccessful) {
+                response.body()!!.also {
+                    webSocketService.sendRoomEnter(roomId.toInt())
+                }
+            } else throw Exception("Failed to join room")
         }
     }
 
     suspend fun leaveRoom(roomId: String): Result<Unit> = runCatching {
-        api.leaveRoom(roomId).let { response ->
-            if (!response.isSuccessful) throw Exception("Failed to leave room")
-        }
+        webSocketService.sendRoomLeave(roomId.toInt())
     }
 
     suspend fun toggleMute(roomId: String): Result<Unit> = runCatching {
@@ -165,7 +194,6 @@ class AudioRoomRepository @Inject constructor(
 
 @Singleton
 class CallRepository @Inject constructor(
-    private val api: RCQApiService,
     private val callDao: CallDao
 ) {
     fun getCalls(limit: Int = 50): Flow<List<Call>> = callDao.getCalls(limit).map { entities ->
@@ -176,40 +204,38 @@ class CallRepository @Inject constructor(
         entity.map { it.toDomain() }
     }
 
-    suspend fun syncCallHistory(): Result<Unit> = runCatching {
-        api.getCallHistory().let { response ->
-            if (response.isSuccessful) {
-                response.body()?.calls?.forEach { callDao.insertCall(it.toEntity()) }
-            }
-        }
+    suspend fun recordCallStarted(callId: String, targetUin: Long, type: CallType) {
+        callDao.insertCall(
+            CallEntity(
+                id = callId,
+                type = type.name,
+                status = CallStatus.CONNECTING.name,
+                participantIds = listOf(targetUin),
+                initiatorId = targetUin,
+                startTime = System.currentTimeMillis(),
+                endTime = null,
+                duration = 0L,
+                isGroupCall = false
+            )
+        )
+    }
+
+    suspend fun recordCallEnded(callId: String, reason: String) {
+        callDao.endCall(callId, System.currentTimeMillis())
     }
 
     suspend fun initiateCall(targetId: Long, type: CallType): Result<Call> = runCatching {
-        api.initiateCall(InitiateCallRequest(targetId, type)).let { response ->
-            if (response.isSuccessful) response.body()!!.also {
-                callDao.insertCall(it.toEntity())
-            }
-            else throw Exception("Failed to initiate call")
-        }
+        val callId = "call_${System.currentTimeMillis()}_$targetId"
+        recordCallStarted(callId, targetId, type)
+        callDao.getCall(callId)?.toDomain() ?: throw Exception("Failed to record call")
     }
 
-    suspend fun acceptCall(callId: String): Result<Call> = runCatching {
-        api.acceptCall(callId).let { response ->
-            if (response.isSuccessful) response.body()!!
-            else throw Exception("Failed to accept call")
-        }
-    }
-
-    suspend fun declineCall(callId: String): Result<Unit> = runCatching {
-        api.declineCall(callId).let { response ->
-            if (!response.isSuccessful) throw Exception("Failed to decline call")
-        }
+    suspend fun syncCallHistory(): Result<Unit> = runCatching {
+        Unit
     }
 
     suspend fun endCall(callId: String): Result<Unit> = runCatching {
-        api.endCall(callId).let { response ->
-            if (!response.isSuccessful) throw Exception("Failed to end call")
-        }
+        recordCallEnded(callId, "ended")
     }
 }
 

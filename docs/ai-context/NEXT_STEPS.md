@@ -26,9 +26,13 @@
 - [x] Fix direct/group message send status handling to follow iOS `delivered/queued` and avoid `response.body()!!` crashes
 - [x] Audit WebSocket typed event parity against iOS `WebSocketService.swift`
 - [x] Handle iOS envelope control scenarios from `MessageNew` (`system`, `visit`, `read`, `reaction`, `edit`, `delete`, `bounce`) in chat repository
+- [x] Execute `CODEX_FIX_PLAN.md` blocks 1-9 for WS/call/audio-room/group backend parity
+- [x] Validate `./gradlew compileProductionDebugKotlin` after each fix-plan block
+- [x] Validate final `./gradlew test`
 - [ ] Remove dead UI clicks/stubs for currently visible Android screens
 - [ ] Add focused tests for WebSocket event parsing
-- [ ] Validate `assembleProductionDebug` after each parity fix
+- [ ] Wire `CallManager` to real `CallService` SDP offer/answer and ICE send flow, then device-validate Android↔iOS calls
+- [ ] Validate `assembleProductionDebug` after UI/device-facing parity fixes
 - [x] Run online ADB validation on connected Android device for registration direct path
 - [x] Run online ADB validation for chat-list startup requests and logcat crash regression
 - [x] Add local priority VLESS Reality xhttp relay above signed remote/cache relay configs
@@ -54,6 +58,19 @@
 - [ ] MVI refactor: ChatsViewModel + ChatViewModel
 - [ ] Design tokens: SpacingTokens, ColorTokens, TypographyTokens
 - [ ] GitHub Actions CI
+
+## Codex Execution Queue (2026-06-03)
+
+Execute `docs/ai-context/CODEX_FIX_PLAN.md` blocks in order:
+- [x] BLOCK 1 — WsEvent model: add sdp/media/reason fields, room events, AccountBurned
+- [x] BLOCK 2 — WsEvent parser: fix call_ice name, fix call_offer media field, room parsers
+- [x] BLOCK 3 — WebSocketOutgoingPayloads: add all call/room signals
+- [x] BLOCK 4 — RCQApiService: remove dead REST, fix SealedMessageResponse, add group endpoints
+- [x] BLOCK 5 — CallRepository: remove REST, use WS-only architecture
+- [x] BLOCK 6 — AudioRoomRepository: add WS room_enter after REST join; WS room_leave
+- [x] BLOCK 7 — ChatRepository: fix GroupUpdated WS handler to trigger DB sync
+- [x] BLOCK 8 — GroupRepository: add joinGroup, getGroupPreview, deleteGroup
+- [x] BLOCK 9 — Fix all compile errors from changed WsEvent fields
 
 ## Priority Rule
 

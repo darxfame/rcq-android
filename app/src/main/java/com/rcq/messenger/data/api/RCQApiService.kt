@@ -3,6 +3,7 @@ package com.rcq.messenger.data.api
 import com.rcq.messenger.domain.model.*
 import retrofit2.Response
 import retrofit2.http.*
+import retrofit2.http.PATCH
 import okhttp3.MultipartBody
 import okhttp3.ResponseBody
 
@@ -31,9 +32,6 @@ interface RCQApiService {
     // Contacts
     @GET("contacts")
     suspend fun getContacts(): Response<List<User>>
-
-    @POST("contacts")
-    suspend fun addContact(@Body request: AddContactRequest): Response<Contact>
 
     @DELETE("contacts/{id}")
     suspend fun removeContact(@Path("id") contactId: Long): Response<Unit>
@@ -120,8 +118,17 @@ interface RCQApiService {
     @GET("groups/{id}")
     suspend fun getGroup(@Path("id") groupId: String): Response<GroupApiResponse>
 
-    @PUT("groups/{id}")
-    suspend fun updateGroup(@Path("id") groupId: String, @Body group: Group): Response<Group>
+    @PATCH("groups/{id}")
+    suspend fun patchGroup(@Path("id") groupId: String, @Body patch: GroupPatchRequest): Response<GroupApiResponse>
+
+    @GET("groups/{id}/preview")
+    suspend fun getGroupPreview(@Path("id") groupId: Int): Response<GroupPreviewResponse>
+
+    @POST("groups/{id}/join")
+    suspend fun joinGroup(@Path("id") groupId: Int): Response<GroupApiResponse>
+
+    @DELETE("groups/{id}")
+    suspend fun deleteGroup(@Path("id") groupId: String): Response<Unit>
 
     @POST("groups/{id}/members")
     suspend fun addMember(
@@ -156,22 +163,6 @@ interface RCQApiService {
 
     @POST("rooms/{id}/raise-hand")
     suspend fun raiseHand(@Path("id") roomId: String): Response<Unit>
-
-    // Calls
-    @GET("calls")
-    suspend fun getCallHistory(): Response<CallLog>
-
-    @POST("calls/initiate")
-    suspend fun initiateCall(@Body request: InitiateCallRequest): Response<Call>
-
-    @POST("calls/{id}/accept")
-    suspend fun acceptCall(@Path("id") callId: String): Response<Call>
-
-    @POST("calls/{id}/decline")
-    suspend fun declineCall(@Path("id") callId: String): Response<Unit>
-
-    @POST("calls/{id}/end")
-    suspend fun endCall(@Path("id") callId: String): Response<Unit>
 
     // Stories
     @GET("stories")
@@ -222,6 +213,9 @@ interface RCQApiService {
     @POST("keys/prekeys")
     suspend fun replenishPreKeys(@Body request: ReplenishPreKeysRequest): Response<Unit>
 
+    @GET("keys/me/status")
+    suspend fun getKeyStatus(): Response<KeyStatusResponse>
+
     // Group sealed-sender fan-out
     @POST("messages/group-sealed")
     suspend fun sendGroupSealedMessage(@Body request: GroupSealedMessageRequest): Response<SealedMessageResponse>
@@ -256,12 +250,6 @@ data class AuthResponse(
 )
 
 @kotlinx.serialization.Serializable
-data class AddContactRequest(
-    val userId: Long,
-    val nickname: String? = null
-)
-
-@kotlinx.serialization.Serializable
 data class CreateChatRequest(
     val targetId: Long
 )
@@ -285,7 +273,7 @@ data class RespondContactRequestBody(
 
 @kotlinx.serialization.Serializable
 data class AddMemberRequest(
-    val userId: Long
+    val uin: Long
 )
 
 @kotlinx.serialization.Serializable
@@ -294,12 +282,6 @@ data class CreateRoomRequest(
     val isPublic: Boolean = true,
     val maxSpeakers: Int = 10,
     val maxListeners: Int = 100
-)
-
-@kotlinx.serialization.Serializable
-data class InitiateCallRequest(
-    val targetId: Long,
-    val type: CallType
 )
 
 @kotlinx.serialization.Serializable
@@ -404,6 +386,14 @@ data class ReplenishPreKeysRequest(
     @kotlinx.serialization.SerialName("one_time_prekeys") val oneTimePreKeys: List<PreKeyData>
 )
 
+@kotlinx.serialization.Serializable
+data class KeyStatusResponse(
+    @kotlinx.serialization.SerialName("has_bundle") val hasBundle: Boolean,
+    @kotlinx.serialization.SerialName("one_time_prekey_count") val oneTimePreKeyCount: Int,
+    @kotlinx.serialization.SerialName("target_count") val targetCount: Int,
+    @kotlinx.serialization.SerialName("signed_prekey_age_seconds") val signedPreKeyAgeSeconds: Int? = null
+)
+
 // GET /keys/{uin}/bundle — BundleOut on the server
 @kotlinx.serialization.Serializable
 data class PreKeyBundleResponse(
@@ -457,8 +447,37 @@ data class GroupApiResponse(
     @kotlinx.serialization.SerialName("is_closed") val isClosed: Boolean = false,
     @kotlinx.serialization.SerialName("members_hidden") val membersHidden: Boolean = false,
     @kotlinx.serialization.SerialName("pinned_text") val pinnedText: String? = null,
+    @kotlinx.serialization.SerialName("pinned_at") val pinnedAt: String? = null,
+    @kotlinx.serialization.SerialName("pinned_by") val pinnedBy: Int? = null,
+    @kotlinx.serialization.SerialName("avatar_media_id") val avatarMediaId: String? = null,
+    @kotlinx.serialization.SerialName("avatar_media_key") val avatarMediaKey: String? = null,
     @kotlinx.serialization.SerialName("created_at") val createdAt: String = "",
     val members: List<GroupMemberApi> = emptyList()
+)
+
+@kotlinx.serialization.Serializable
+data class GroupPatchRequest(
+    val name: String? = null,
+    val description: String? = null,
+    @kotlinx.serialization.SerialName("post_policy") val postPolicy: String? = null,
+    @kotlinx.serialization.SerialName("is_closed") val isClosed: Boolean? = null,
+    @kotlinx.serialization.SerialName("members_hidden") val membersHidden: Boolean? = null,
+    @kotlinx.serialization.SerialName("pinned_text") val pinnedText: String? = null,
+    @kotlinx.serialization.SerialName("avatar_media_id") val avatarMediaId: String? = null,
+    @kotlinx.serialization.SerialName("avatar_media_key") val avatarMediaKey: String? = null
+)
+
+@kotlinx.serialization.Serializable
+data class GroupPreviewResponse(
+    val id: Int,
+    val name: String,
+    val description: String? = null,
+    @kotlinx.serialization.SerialName("member_count") val memberCount: Int,
+    @kotlinx.serialization.SerialName("is_closed") val isClosed: Boolean = false,
+    @kotlinx.serialization.SerialName("owner_uin") val ownerUin: Int,
+    @kotlinx.serialization.SerialName("owner_nickname") val ownerNickname: String? = null,
+    @kotlinx.serialization.SerialName("avatar_media_id") val avatarMediaId: String? = null,
+    @kotlinx.serialization.SerialName("avatar_media_key") val avatarMediaKey: String? = null
 )
 
 @kotlinx.serialization.Serializable
@@ -466,6 +485,7 @@ data class GroupMemberApi(
     val uin: Int,
     val nickname: String,
     val role: String = "member",
+    val status: String = "offline",
     @kotlinx.serialization.SerialName("identity_key") val identityKey: String = "",
     @kotlinx.serialization.SerialName("signing_key") val signingKey: String = "",
     @kotlinx.serialization.SerialName("signal_identity_key") val signalIdentityKey: String? = null
@@ -484,7 +504,7 @@ data class SealedMessageRequest(
 data class SealedMessageResponse(
     val delivered: Boolean = false,
     val queued: Boolean = false,
-    val id: String = ""
+    @kotlinx.serialization.SerialName("server_time") val serverTime: String = ""
 )
 
 // Offline queue — matches server OfflineMessage / OfflineGroupMessage schemas

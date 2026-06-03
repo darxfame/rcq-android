@@ -129,12 +129,13 @@ private data class InboxData(
 @HiltViewModel
 class ChatViewModel @Inject constructor(
     private val chatRepository: ChatRepository,
+    private val contactRepository: ContactRepository,
+    private val groupRepository: GroupRepository,
     private val userRepository: UserRepository,
     private val mediaService: MediaService,
     private val voiceRecorder: VoiceRecorder,
     private val dataStore: DataStore<Preferences>
 ) : ViewModel() {
-
     private val _messages = MutableStateFlow<List<Message>>(emptyList())
     val messages: StateFlow<List<Message>> = _messages.asStateFlow()
 
@@ -163,10 +164,23 @@ class ChatViewModel @Inject constructor(
     private val _isTyping = MutableStateFlow(false)
     val isTyping: StateFlow<Boolean> = _isTyping.asStateFlow()
 
+    private val _isMuted = MutableStateFlow(false)
+    val isMuted: StateFlow<Boolean> = _isMuted.asStateFlow()
+
+    private val _pinnedText = MutableStateFlow<String?>(null)
+    val pinnedText: StateFlow<String?> = _pinnedText.asStateFlow()
+
+    val inChatSearchResults = MutableStateFlow<List<Message>>(emptyList())
+
+    val contacts: StateFlow<List<Contact>> = contactRepository.getContacts()
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    val groups: StateFlow<List<Group>> = groupRepository.getGroups()
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
     private var chatId: String = ""
     private var messagesJob: Job? = null
     private var typingJob: Job? = null
-
     init {
         viewModelScope.launch {
             dataStore.data.collect { prefs ->
@@ -189,6 +203,7 @@ class ChatViewModel @Inject constructor(
             chatRepository.getChat(chatId)?.let { chat ->
                 _chatTitle.value = chat.targetNickname.ifEmpty { "Chat" }
                 _chatAvatar.value = chat.targetAvatar
+                _isMuted.value = chat.isMuted
             }
             chatRepository.clearUnreadCount(chatId)
             chatRepository.syncMessages(chatId)
@@ -428,6 +443,56 @@ class ChatViewModel @Inject constructor(
 
     fun forwardMessage(message: Message) {
         _sendError.value = "Forward: coming soon"
+    }
+
+    fun forwardMessageTo(message: Message, targetChatId: String) {
+        if (targetChatId.isBlank()) return
+        viewModelScope.launch {
+            val forwarded = message.copy(
+                id = java.util.UUID.randomUUID().toString(),
+                chatId = targetChatId,
+                senderId = _currentUserId.value,
+                isFromMe = true,
+                timestamp = System.currentTimeMillis(),
+                status = MessageStatus.SENDING
+            )
+            chatRepository.sendMessage(targetChatId, forwarded)
+                .onFailure { _sendError.value = "Forward failed: ${it.message}" }
+        }
+    }
+
+    fun toggleMute() {
+        val id = chatId
+        if (id.isEmpty()) return
+        val next = !_isMuted.value
+        _isMuted.value = next
+        viewModelScope.launch {
+            chatRepository.setMuted(id, next)
+                .let { }
+        }
+    }
+
+    fun clearHistory() {
+        val id = chatId
+        if (id.isEmpty()) return
+        viewModelScope.launch {
+            chatRepository.clearHistory(id)
+        }
+    }
+
+    fun searchInChat(query: String) {
+        val id = chatId
+        viewModelScope.launch {
+            inChatSearchResults.value = if (id.isNotEmpty() && query.length >= 2) {
+                chatRepository.searchInChat(id, query)
+            } else {
+                emptyList()
+            }
+        }
+    }
+
+    fun clearInChatSearch() {
+        inChatSearchResults.value = emptyList()
     }
 
     fun editMessage(message: Message, newContent: String) {

@@ -3,6 +3,7 @@ package com.rcq.messenger.crypto
 import java.util.Base64
 import timber.log.Timber
 import org.json.JSONObject
+import com.rcq.messenger.data.api.RCQApiService
 import org.signal.libsignal.protocol.ecc.Curve
 import org.signal.libsignal.protocol.kem.KEMKeyPair
 import org.signal.libsignal.protocol.kem.KEMKeyType
@@ -16,8 +17,16 @@ import javax.inject.Singleton
 class CryptoService @Inject constructor(
     private val sessionManager: SessionManager,
     private val keyStore: SignalKeyStore,
+    private val api: RCQApiService? = null,
     val ecies: EciesCrypto
 ) {
+
+    constructor(
+        sessionManager: SessionManager,
+        keyStore: SignalKeyStore,
+        ecies: EciesCrypto,
+        unused: RCQApiService? = null
+    ) : this(sessionManager, keyStore, unused, ecies)
 
     private val ENC = Base64.getEncoder()
     private val DEC = Base64.getDecoder()
@@ -48,6 +57,45 @@ class CryptoService @Inject constructor(
 
     fun deleteSession(recipientUin: Long) {
         sessionManager.deleteSession(recipientUin)
+    }
+
+    suspend fun uploadBundleAndReplenish(bundle: com.rcq.messenger.data.api.RegisterBundleRequest): retrofit2.Response<Unit> {
+        val api = api ?: throw IllegalStateException("RCQApiService is not available")
+        val response = api.uploadBundle(bundle)
+        if (response.isSuccessful) {
+            replenishPreKeysIfNeeded()
+        }
+        return response
+    }
+
+    private suspend fun replenishPreKeysIfNeeded() {
+        val api = api ?: return
+        val statusResponse = api.getKeyStatus()
+        if (!statusResponse.isSuccessful) return
+
+        val status = statusResponse.body() ?: return
+        if (status.oneTimePreKeyCount >= 25) return
+
+        val target = status.targetCount.takeIf { it > 0 } ?: 25
+        val missing = target - status.oneTimePreKeyCount
+        if (missing <= 0) return
+
+        val generated = keyStore.generatePreKeys(1, missing)
+        if (generated.isEmpty()) return
+
+        val request = com.rcq.messenger.data.api.ReplenishPreKeysRequest(
+            oneTimePreKeys = generated.map { preKey ->
+                com.rcq.messenger.data.api.PreKeyData(
+                    id = preKey.id,
+                    key = ENC.encodeToString(preKey.keyPair.publicKey.serialize())
+                )
+            }
+        )
+
+        runCatching { api.replenishPreKeys(request) }
+            .onFailure { error ->
+                Timber.w("Failed to replenish OPKs: ${error.message}")
+            }
     }
 
     fun getIdentityKey(): String =

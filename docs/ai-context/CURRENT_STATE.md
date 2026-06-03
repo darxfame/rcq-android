@@ -14,6 +14,7 @@
 - Main chats screen now uses an `InboxUiState`/`InboxMapper` hub model that combines chats, contacts, and groups. Groups such as `RCQ Beta` and default contacts such as `.Dev` can appear even before they have messages.
 - Add Contact request parity: Android sends `POST /contacts/request` with iOS-compatible `{ "to_uin": ... }`, refreshes contacts after success/duplicate, and maps HTTP 409 to a duplicate-contact error.
 - WebSocket: connect, send, receive, reconnect with backoff; Android WS URL builds `wss://` safely after OkHttp `HttpUrl` construction
+- WebSocket backend parity pass: call events now use server fields (`media`, `sdp`, `candidate`, `reason`), `call_ice` parsing, renegotiate events, account burn, audio-room roster/member/speaking/mesh events, typed outgoing call/room payloads, and `GroupUpdated` sync/delete handling.
 - Connection diagnostics: client-only screens are reported locally, relay probes are capped, and OkHttp debug logging is BASIC to avoid large-body stalls
 - WebSocket envelope parity: `system`, `visit`, and control envelope kinds (`read`, `reaction`, `edit`, `delete`, `bounce`) coming in `MessageNew` are now parsed from decrypted payload and applied (message state updates, delete/bounce, reactions, edits, system notices) instead of being treated as generic messages.
 - Dark mode (persisted DataStore, applied at launch)
@@ -30,6 +31,7 @@
 ## Broken / Partial 🔴
 | Issue | Root Cause |
 |-------|-----------|
+| Call UI needs WebRTC SDP flow validation | WS event/payload contract is aligned, but `CallManager` still needs real SDP offer/answer creation from `CallService` before live calls can be considered functional |
 | UI still needs visual device validation | Inbox model and Compose screen now expose chats/contacts/groups together; verify `RCQ Beta`, `.Dev`, search, emoji picker, attachment sheet, relay picker, and custom VLESS entry on device |
 | Add Contact flow blocked in live device validation | Backend request parity is fixed in code, but 2026-06-03 ADB run showed active sing-box relay `relay-do-fra-yandex-hy2` causing `SOCKS server general failure` / `connection closed` before Add request can reach `POST /contacts/request` |
 | Входящие DM иногда показывают 🔒 | Signal-сессия не установлена для нового собеседника |

@@ -24,6 +24,9 @@ interface CallDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertCalls(calls: List<CallEntity>)
 
+    @Query("UPDATE calls SET status = 'ENDED', endTime = :endTime, duration = :endTime - startTime WHERE id = :callId")
+    suspend fun endCall(callId: String, endTime: Long)
+
     @Delete
     suspend fun deleteCall(call: CallEntity)
 }

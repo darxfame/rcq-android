@@ -11,6 +11,10 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.intOrNull
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.webrtc.IceCandidate
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -59,8 +63,11 @@ class CallManager @Inject constructor(
         )
         _currentCall.value = callInfo
         context.startService(Intent(context, CallService::class.java))
-        webSocketService.sendMessage(
-            """{"type":"call_offer","call_id":"${callInfo.callId}","to_uin":$targetUin,"is_video":$isVideoCall}"""
+        webSocketService.sendCallOffer(
+            toUin = targetUin,
+            callId = callInfo.callId,
+            sdp = "",
+            media = if (isVideoCall) "video" else "audio"
         )
     }
 
@@ -77,22 +84,31 @@ class CallManager @Inject constructor(
         _currentCall.value = callInfo
         _incomingCall.value = null
         context.startService(Intent(context, CallService::class.java))
-        webSocketService.sendMessage(
-            """{"type":"call_answer","call_id":"$callId","accepted":true}"""
+        webSocketService.sendCallAnswer(
+            toUin = incoming.callerUin,
+            callId = callId,
+            sdp = ""
         )
     }
 
     fun declineCall(callId: String) {
+        val incoming = _incomingCall.value
         _incomingCall.value = null
-        webSocketService.sendMessage(
-            """{"type":"call_answer","call_id":"$callId","accepted":false}"""
-        )
+        if (incoming?.callId == callId) {
+            webSocketService.sendCallEnd(
+                toUin = incoming.callerUin,
+                callId = callId,
+                reason = "declined"
+            )
+        }
     }
 
     fun endCall() {
         val call = _currentCall.value ?: return
-        webSocketService.sendMessage(
-            """{"type":"call_end","call_id":"${call.callId}","reason":"user_hangup"}"""
+        webSocketService.sendCallEnd(
+            toUin = call.targetUin,
+            callId = call.callId,
+            reason = "user_hangup"
         )
         context.stopService(Intent(context, CallService::class.java))
         _currentCall.value = null
@@ -103,7 +119,7 @@ class CallManager @Inject constructor(
             callId = event.callId,
             callerUin = event.fromUin,
             callerName = "User ${event.fromUin}",
-            isVideoCall = event.callType == "video",
+            isVideoCall = event.media == "video",
             timestamp = System.currentTimeMillis()
         )
     }
@@ -115,9 +131,10 @@ class CallManager @Inject constructor(
     }
 
     private fun handleIceCandidate(event: WsEvent.CallIceCandidate) {
-        val sdpMid = event.raw["sdp_mid"]?.toString()?.trim('"')
-        val sdpMLineIndex = event.raw["sdp_mline_index"]?.toString()?.toIntOrNull() ?: 0
-        val candidate = event.raw["candidate"]?.toString()?.trim('"') ?: return
+        val candidateJson = runCatching { json.parseToJsonElement(event.candidate).jsonObject }.getOrNull()
+        val sdpMid = candidateJson?.get("sdp_mid")?.jsonPrimitive?.contentOrNull
+        val sdpMLineIndex = candidateJson?.get("sdp_mline_index")?.jsonPrimitive?.intOrNull ?: 0
+        val candidate = candidateJson?.get("candidate")?.jsonPrimitive?.contentOrNull ?: event.candidate
         callService?.addIceCandidate(IceCandidate(sdpMid, sdpMLineIndex, candidate))
     }
 

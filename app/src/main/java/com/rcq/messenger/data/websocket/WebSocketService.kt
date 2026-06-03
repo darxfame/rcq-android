@@ -66,24 +66,44 @@ sealed class WsEvent {
     data class PresenceOffline(val uin: Long) : WsEvent()
 
     // Group events
-    data class GroupUpdated(val groupId: String) : WsEvent()
+    data class GroupUpdated(val groupId: String, val groupJson: JsonObject?) : WsEvent()
     data class GroupMemberJoined(val groupId: String, val userId: Long) : WsEvent()
     data class GroupMemberLeft(val groupId: String, val userId: Long) : WsEvent()
     data class GroupDeleted(val groupId: String) : WsEvent()
 
     // Call events
-    data class CallOffer(val callId: String, val fromUin: Long, val callType: String) : WsEvent()
-    data class CallAnswer(val callId: String, val fromUin: Long) : WsEvent()
-    data class CallIceCandidate(val callId: String, val raw: JsonObject) : WsEvent()
-    data class CallEnd(val callId: String) : WsEvent()
+    data class CallOffer(val callId: String, val fromUin: Long, val media: String, val sdp: String) : WsEvent()
+    data class CallAnswer(val callId: String, val fromUin: Long, val sdp: String) : WsEvent()
+    data class CallIceCandidate(val callId: String, val fromUin: Long, val candidate: String) : WsEvent()
+    data class CallEnd(val callId: String, val fromUin: Long, val reason: String) : WsEvent()
+    data class CallRenegotiate(val callId: String, val fromUin: Long, val sdp: String) : WsEvent()
+    data class CallRenegotiateAnswer(val callId: String, val fromUin: Long, val sdp: String) : WsEvent()
+    data class CallRenegotiateDecline(val callId: String, val fromUin: Long) : WsEvent()
     data class CallUpgrade(val callId: String, val toType: String) : WsEvent()
     data class CallUpgradeAnswer(val callId: String, val accepted: Boolean) : WsEvent()
 
     // Audio Room events
-    data class AudioRoomStarted(val roomId: String) : WsEvent()
-    data class AudioRoomPeerJoined(val roomId: String, val userId: Long) : WsEvent()
-    data class AudioRoomPeerLeft(val roomId: String, val userId: Long) : WsEvent()
-    data class AudioRoomEnded(val roomId: String) : WsEvent()
+    data class RoomRoster(
+        val roomId: Int,
+        val members: List<RoomMember>,
+        val ownerOnlySpeaking: Boolean
+    ) : WsEvent()
+    data class RoomMemberEntered(
+        val roomId: Int,
+        val uin: Int,
+        val nickname: String,
+        val mutedByOwner: Boolean
+    ) : WsEvent()
+    data class RoomMemberLeft(val roomId: Int, val uin: Int) : WsEvent()
+    data class RoomEnterRejected(val roomId: Int, val reason: String) : WsEvent()
+    data class RoomSpeaking(val roomId: Int, val uin: Int, val speaking: Boolean) : WsEvent()
+    data class RoomKicked(val roomId: Int, val reason: String) : WsEvent()
+    data class RoomDeleted(val roomId: Int) : WsEvent()
+    data class RoomMemberMuted(val roomId: Int, val uin: Int, val mutedByOwner: Boolean) : WsEvent()
+    data class RoomOffer(val roomId: Int, val fromUin: Int, val sdp: String) : WsEvent()
+    data class RoomAnswer(val roomId: Int, val fromUin: Int, val sdp: String) : WsEvent()
+    data class RoomIce(val roomId: Int, val fromUin: Int, val candidate: String) : WsEvent()
+    data class RoomMember(val uin: Int, val nickname: String, val mutedByOwner: Boolean)
 
     // Story events
     data class StoryPosted(val storyId: String, val userId: Long) : WsEvent()
@@ -93,6 +113,7 @@ sealed class WsEvent {
     // System events
     data class Ban(val reason: String) : WsEvent()
     data class Warning(val message: String) : WsEvent()
+    object AccountBurned : WsEvent()
 
     // Fallback
     data class Unknown(val type: String, val raw: JsonObject) : WsEvent()
@@ -226,9 +247,39 @@ class WebSocketService @Inject constructor(
         return sent
     }
 
+    fun sendPing(): Boolean = sendMessage(WebSocketOutgoingPayloads.ping())
+
     fun sendTyping(toUin: Long, active: Boolean): Boolean {
         return sendMessage(WebSocketOutgoingPayloads.typing(toUin = toUin, active = active))
     }
+
+    fun sendCallOffer(toUin: Long, callId: String, sdp: String, media: String = "audio"): Boolean =
+        sendMessage(WebSocketOutgoingPayloads.callOffer(toUin, callId, sdp, media))
+
+    fun sendCallAnswer(toUin: Long, callId: String, sdp: String): Boolean =
+        sendMessage(WebSocketOutgoingPayloads.callAnswer(toUin, callId, sdp))
+
+    fun sendCallIce(toUin: Long, callId: String, candidate: String): Boolean =
+        sendMessage(WebSocketOutgoingPayloads.callIce(toUin, callId, candidate))
+
+    fun sendCallEnd(toUin: Long, callId: String, reason: String = "user_ended"): Boolean =
+        sendMessage(WebSocketOutgoingPayloads.callEnd(toUin, callId, reason))
+
+    fun sendRoomEnter(roomId: Int): Boolean = sendMessage(WebSocketOutgoingPayloads.roomEnter(roomId))
+
+    fun sendRoomLeave(roomId: Int): Boolean = sendMessage(WebSocketOutgoingPayloads.roomLeave(roomId))
+
+    fun sendRoomOffer(roomId: Int, toUin: Int, sdp: String): Boolean =
+        sendMessage(WebSocketOutgoingPayloads.roomOffer(roomId, toUin, sdp))
+
+    fun sendRoomAnswer(roomId: Int, toUin: Int, sdp: String): Boolean =
+        sendMessage(WebSocketOutgoingPayloads.roomAnswer(roomId, toUin, sdp))
+
+    fun sendRoomIce(roomId: Int, toUin: Int, candidate: String): Boolean =
+        sendMessage(WebSocketOutgoingPayloads.roomIce(roomId, toUin, candidate))
+
+    fun sendRoomSpeaking(roomId: Int, speaking: Boolean): Boolean =
+        sendMessage(WebSocketOutgoingPayloads.roomSpeaking(roomId, speaking))
 
     // ---- Internal ----
 
@@ -414,17 +465,16 @@ class WebSocketService @Inject constructor(
                     messageId = obj["message_id"]?.jsonPrimitive?.contentOrNull ?: ""
                 )
 
-                // Typing events — server sends from_uin (not user_id)
-                "typing_started", "typing" -> WsEvent.TypingStarted(
-                    chatId = obj["chat_id"]?.jsonPrimitive?.contentOrNull ?: "",
-                    userId = obj["from_uin"]?.jsonPrimitive?.longOrNull
-                        ?: obj["user_id"]?.jsonPrimitive?.longOrNull ?: 0
-                )
-                "typing_stopped" -> WsEvent.TypingStopped(
-                    chatId = obj["chat_id"]?.jsonPrimitive?.contentOrNull ?: "",
-                    userId = obj["from_uin"]?.jsonPrimitive?.longOrNull
-                        ?: obj["user_id"]?.jsonPrimitive?.longOrNull ?: 0
-                )
+                // Typing events — server sends one "typing" event with from_uin + active.
+                "typing" -> {
+                    val fromUin = obj["from_uin"]?.jsonPrimitive?.longOrNull ?: 0
+                    val active = obj["active"]?.jsonPrimitive?.booleanOrNull ?: true
+                    if (active) {
+                        WsEvent.TypingStarted(chatId = "direct_$fromUin", userId = fromUin)
+                    } else {
+                        WsEvent.TypingStopped(chatId = "direct_$fromUin", userId = fromUin)
+                    }
+                }
 
                 // Presence events
                 "presence" -> when (obj["status"]?.jsonPrimitive?.contentOrNull?.lowercase()) {
@@ -472,9 +522,10 @@ class WebSocketService @Inject constructor(
                 )
 
                 // Group events — server sends group_created/group_membership_changed/group_deleted
-                "group_created", "group_membership_changed", "group_updated" -> WsEvent.GroupUpdated(
+                "group_created", "group_membership_changed" -> WsEvent.GroupUpdated(
                     groupId = obj["group"]?.jsonObject?.get("id")?.jsonPrimitive?.contentOrNull
-                        ?: obj["group_id"]?.jsonPrimitive?.contentOrNull ?: ""
+                        ?: obj["group_id"]?.jsonPrimitive?.contentOrNull ?: "",
+                    groupJson = obj["group"]?.jsonObject
                 )
                 "group_member_joined", "group_member_added" -> WsEvent.GroupMemberJoined(
                     groupId = obj["group_id"]?.jsonPrimitive?.contentOrNull ?: "",
@@ -489,21 +540,40 @@ class WebSocketService @Inject constructor(
                 )
 
                 // Call events
-                "call_offer", "call_incoming" -> WsEvent.CallOffer(
+                "call_offer" -> WsEvent.CallOffer(
                     callId = obj["call_id"]?.jsonPrimitive?.contentOrNull ?: "",
                     fromUin = obj["from_uin"]?.jsonPrimitive?.longOrNull ?: 0,
-                    callType = obj["call_type"]?.jsonPrimitive?.contentOrNull ?: "audio"
+                    media = obj["media"]?.jsonPrimitive?.contentOrNull ?: "audio",
+                    sdp = obj["sdp"]?.jsonPrimitive?.contentOrNull ?: ""
                 )
-                "call_answer", "call_accepted" -> WsEvent.CallAnswer(
+                "call_answer" -> WsEvent.CallAnswer(
+                    callId = obj["call_id"]?.jsonPrimitive?.contentOrNull ?: "",
+                    fromUin = obj["from_uin"]?.jsonPrimitive?.longOrNull ?: 0,
+                    sdp = obj["sdp"]?.jsonPrimitive?.contentOrNull ?: ""
+                )
+                "call_ice" -> WsEvent.CallIceCandidate(
+                    callId = obj["call_id"]?.jsonPrimitive?.contentOrNull ?: "",
+                    fromUin = obj["from_uin"]?.jsonPrimitive?.longOrNull ?: 0,
+                    candidate = obj["candidate"]?.jsonPrimitive?.contentOrNull ?: ""
+                )
+                "call_end" -> WsEvent.CallEnd(
+                    callId = obj["call_id"]?.jsonPrimitive?.contentOrNull ?: "",
+                    fromUin = obj["from_uin"]?.jsonPrimitive?.longOrNull ?: 0,
+                    reason = obj["reason"]?.jsonPrimitive?.contentOrNull ?: "ended"
+                )
+                "call_renegotiate" -> WsEvent.CallRenegotiate(
+                    callId = obj["call_id"]?.jsonPrimitive?.contentOrNull ?: "",
+                    fromUin = obj["from_uin"]?.jsonPrimitive?.longOrNull ?: 0,
+                    sdp = obj["sdp"]?.jsonPrimitive?.contentOrNull ?: ""
+                )
+                "call_renegotiate_answer" -> WsEvent.CallRenegotiateAnswer(
+                    callId = obj["call_id"]?.jsonPrimitive?.contentOrNull ?: "",
+                    fromUin = obj["from_uin"]?.jsonPrimitive?.longOrNull ?: 0,
+                    sdp = obj["sdp"]?.jsonPrimitive?.contentOrNull ?: ""
+                )
+                "call_renegotiate_decline" -> WsEvent.CallRenegotiateDecline(
                     callId = obj["call_id"]?.jsonPrimitive?.contentOrNull ?: "",
                     fromUin = obj["from_uin"]?.jsonPrimitive?.longOrNull ?: 0
-                )
-                "call_ice_candidate" -> WsEvent.CallIceCandidate(
-                    callId = obj["call_id"]?.jsonPrimitive?.contentOrNull ?: "",
-                    raw = obj
-                )
-                "call_end", "call_ended" -> WsEvent.CallEnd(
-                    callId = obj["call_id"]?.jsonPrimitive?.contentOrNull ?: ""
                 )
                 "call_upgrade" -> WsEvent.CallUpgrade(
                     callId = obj["call_id"]?.jsonPrimitive?.contentOrNull ?: "",
@@ -515,20 +585,71 @@ class WebSocketService @Inject constructor(
                 )
 
                 // Audio Room events
-                "room_created", "audio_room_started" -> WsEvent.AudioRoomStarted(
-                    roomId = obj["room_id"]?.jsonPrimitive?.contentOrNull
-                        ?: obj["id"]?.jsonPrimitive?.contentOrNull ?: ""
+                "room_roster" -> {
+                    val membersArray = obj["members"]?.jsonArray ?: JsonArray(emptyList())
+                    val members = membersArray.mapNotNull { elem ->
+                        val m = elem.jsonObject
+                        val uin = m["uin"]?.jsonPrimitive?.intOrNull ?: return@mapNotNull null
+                        WsEvent.RoomMember(
+                            uin = uin,
+                            nickname = m["nickname"]?.jsonPrimitive?.contentOrNull ?: uin.toString(),
+                            mutedByOwner = m["muted_by_owner"]?.jsonPrimitive?.booleanOrNull ?: false
+                        )
+                    }
+                    WsEvent.RoomRoster(
+                        roomId = obj["room_id"]?.jsonPrimitive?.intOrNull ?: 0,
+                        members = members,
+                        ownerOnlySpeaking = obj["owner_only_speaking"]?.jsonPrimitive?.booleanOrNull ?: false
+                    )
+                }
+                "room_member_entered" -> {
+                    val m = obj["member"]?.jsonObject ?: JsonObject(emptyMap())
+                    WsEvent.RoomMemberEntered(
+                        roomId = obj["room_id"]?.jsonPrimitive?.intOrNull ?: 0,
+                        uin = m["uin"]?.jsonPrimitive?.intOrNull ?: 0,
+                        nickname = m["nickname"]?.jsonPrimitive?.contentOrNull ?: "",
+                        mutedByOwner = m["muted_by_owner"]?.jsonPrimitive?.booleanOrNull ?: false
+                    )
+                }
+                "room_member_left" -> WsEvent.RoomMemberLeft(
+                    roomId = obj["room_id"]?.jsonPrimitive?.intOrNull ?: 0,
+                    uin = obj["uin"]?.jsonPrimitive?.intOrNull ?: 0
                 )
-                "room_member_joined", "audio_room_peer_joined" -> WsEvent.AudioRoomPeerJoined(
-                    roomId = obj["room_id"]?.jsonPrimitive?.contentOrNull ?: "",
-                    userId = obj["user_id"]?.jsonPrimitive?.longOrNull ?: 0
+                "room_enter_rejected" -> WsEvent.RoomEnterRejected(
+                    roomId = obj["room_id"]?.jsonPrimitive?.intOrNull ?: 0,
+                    reason = obj["reason"]?.jsonPrimitive?.contentOrNull ?: "rejected"
                 )
-                "room_member_left", "audio_room_peer_left" -> WsEvent.AudioRoomPeerLeft(
-                    roomId = obj["room_id"]?.jsonPrimitive?.contentOrNull ?: "",
-                    userId = obj["user_id"]?.jsonPrimitive?.longOrNull ?: 0
+                "room_speaking" -> WsEvent.RoomSpeaking(
+                    roomId = obj["room_id"]?.jsonPrimitive?.intOrNull ?: 0,
+                    uin = obj["uin"]?.jsonPrimitive?.intOrNull ?: 0,
+                    speaking = obj["speaking"]?.jsonPrimitive?.booleanOrNull ?: false
                 )
-                "room_deleted", "audio_room_ended" -> WsEvent.AudioRoomEnded(
-                    roomId = obj["room_id"]?.jsonPrimitive?.contentOrNull ?: ""
+                "audio_room_kicked" -> WsEvent.RoomKicked(
+                    roomId = obj["room_id"]?.jsonPrimitive?.intOrNull ?: 0,
+                    reason = obj["reason"]?.jsonPrimitive?.contentOrNull ?: "kicked"
+                )
+                "audio_room_deleted" -> WsEvent.RoomDeleted(
+                    roomId = obj["room_id"]?.jsonPrimitive?.intOrNull ?: 0
+                )
+                "audio_room_member_muted" -> WsEvent.RoomMemberMuted(
+                    roomId = obj["room_id"]?.jsonPrimitive?.intOrNull ?: 0,
+                    uin = obj["uin"]?.jsonPrimitive?.intOrNull ?: 0,
+                    mutedByOwner = obj["muted_by_owner"]?.jsonPrimitive?.booleanOrNull ?: false
+                )
+                "room_offer" -> WsEvent.RoomOffer(
+                    roomId = obj["room_id"]?.jsonPrimitive?.intOrNull ?: 0,
+                    fromUin = obj["from_uin"]?.jsonPrimitive?.intOrNull ?: 0,
+                    sdp = obj["sdp"]?.jsonPrimitive?.contentOrNull ?: ""
+                )
+                "room_answer" -> WsEvent.RoomAnswer(
+                    roomId = obj["room_id"]?.jsonPrimitive?.intOrNull ?: 0,
+                    fromUin = obj["from_uin"]?.jsonPrimitive?.intOrNull ?: 0,
+                    sdp = obj["sdp"]?.jsonPrimitive?.contentOrNull ?: ""
+                )
+                "room_ice" -> WsEvent.RoomIce(
+                    roomId = obj["room_id"]?.jsonPrimitive?.intOrNull ?: 0,
+                    fromUin = obj["from_uin"]?.jsonPrimitive?.intOrNull ?: 0,
+                    candidate = obj["candidate"]?.jsonPrimitive?.contentOrNull ?: ""
                 )
 
                 // Story events
@@ -552,6 +673,8 @@ class WebSocketService @Inject constructor(
                 "warning" -> WsEvent.Warning(
                     message = obj["message"]?.jsonPrimitive?.contentOrNull ?: ""
                 )
+                "account_burned" -> WsEvent.AccountBurned
+                "pong" -> WsEvent.Unknown("pong", obj)
 
                 else -> {
                     Log.w(TAG, "Unknown WS event type: $type — raw: ${obj.toString().take(200)}")

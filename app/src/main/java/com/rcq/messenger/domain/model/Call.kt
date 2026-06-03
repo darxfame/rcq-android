@@ -33,10 +33,3 @@ enum class CallStatus {
     DECLINED,
     FAILED
 }
-
-@Serializable
-data class CallLog(
-    val calls: List<Call>,
-    val totalMissed: Int = 0,
-    val lastCall: Call? = null
-)

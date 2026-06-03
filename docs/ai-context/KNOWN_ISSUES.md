@@ -4,6 +4,13 @@
 
 ## Active
 
+### BUG-015: Call UI still needs real SDP offer/answer wiring
+- **Severity:** High
+- **Symptom:** Android call signaling payloads now match the server contract, but live WebRTC calls are not device-validated.
+- **Current state:** `WsEvent`, parser, outgoing payload builders, and `CallManager` send paths use WS-only call events. `CallManager` currently sends empty SDP strings because service binding/offer-answer creation is not coordinated in this fix-plan pass.
+- **Fix:** Wire `CallManager` to `CallService.createOffer/createAnswer`, set remote descriptions from incoming offer/answer, send ICE through `sendCallIce`, and validate Android↔iOS calls on device.
+- **File:** `call/CallManager.kt`, `service/CallService.kt`, `data/websocket/WebSocketService.kt`
+
 ### BUG-011: Main inbox UI still needs visual device validation
 - **Severity:** High
 - **Symptom:** user reported “No contacts yet” and missing `RCQ Beta`.
@@ -37,6 +44,7 @@
 
 | ID | Описание | Дата | Коммит |
 |----|----------|------|--------|
+| BUG-016 | Backend WS/API parity plan blocks 1-9: call/room/group WsEvent fields and parsers, outgoing payloads, dead call REST removal, audio-room WS enter/leave, group preview/join/delete, GroupUpdated sync | 2026-06-03 | uncommitted |
 | BUG-014 | Входящие control-envelope события (`read`, `reaction`, `delete`, `bounce`, `system`, `edit`, `visit`) обрабатывались как обычные сообщения | 2026-06-03 | uncommitted |
 | BUG-013 | Отправка сообщений: статус после отправки не учитывал `queued`/`delivered` и возможен NPE при пустом ответе | 2026-06-03 | uncommitted |
 | BUG-010 | Chats screen stayed in loading/error path because `syncChats()` called absent `/chats`; diagnostics also called client-only routes and stalled on large BODY logs. Fixed by syncing queue only, reporting client-only checks locally, capping relay probes, and using BASIC HTTP logging | 2026-06-03 | uncommitted |

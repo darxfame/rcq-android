@@ -167,7 +167,7 @@ class AuthViewModel @Inject constructor(
                     // Upload Signal key bundle so peers can start encrypted sessions with us
                     runCatching {
                         val signalBundle = cryptoService.generateSignalBundle()
-                        api.uploadBundle(signalBundle)
+                        cryptoService.uploadBundleAndReplenish(signalBundle)
                     }
                     _authState.value = AuthState.ShowRecoveryPhrase
                 } else {

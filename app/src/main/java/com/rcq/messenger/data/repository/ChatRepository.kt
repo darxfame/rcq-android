@@ -1,13 +1,13 @@
 package com.rcq.messenger.data.repository
 
 import android.util.Log
-import com.rcq.messenger.data.api.AddContactRequest
 import com.rcq.messenger.data.api.ContactRequest
 import com.rcq.messenger.data.api.CreateChatRequest
 import com.rcq.messenger.data.api.PresenceUpdateRequest
 import com.rcq.messenger.data.api.RespondContactRequestBody
 import com.rcq.messenger.data.api.SendContactRequestBody
 import com.rcq.messenger.data.api.RCQApiService
+import com.rcq.messenger.data.api.GroupApiResponse
 import com.rcq.messenger.data.db.*
 import com.rcq.messenger.domain.model.*
 import com.rcq.messenger.crypto.CryptoService
@@ -262,6 +262,7 @@ class ChatRepository @Inject constructor(
     suspend fun setPinned(chatId: String, pinned: Boolean) = chatDao.setPinned(chatId, pinned)
     suspend fun setMuted(chatId: String, muted: Boolean) = chatDao.setMuted(chatId, muted)
     suspend fun setArchived(chatId: String, archived: Boolean) = chatDao.setArchived(chatId, archived)
+    suspend fun clearHistory(chatId: String) = messageDao.deleteChatMessages(chatId)
 
     suspend fun searchMessages(query: String): List<Message> =
         if (query.length < 2) emptyList()
@@ -284,6 +285,9 @@ class ChatRepository @Inject constructor(
                             fromUin = event.fromUin,
                             nickname = event.fromNickname
                         )
+                    }
+                    is WsEvent.ContactRemoved -> {
+                        contactDao.deleteByUserId(event.peerUin)
                     }
                     is WsEvent.MessageNew -> {
                         try {
@@ -416,6 +420,32 @@ class ChatRepository @Inject constructor(
                     is WsEvent.PresenceDnd -> contactDao.updateStatus(event.uin, "DND")
                     is WsEvent.PresenceInvisible -> contactDao.updateStatus(event.uin, "INVISIBLE")
                     is WsEvent.PresenceOffline -> contactDao.updateStatus(event.uin, "OFFLINE")
+                    is WsEvent.GroupUpdated -> {
+                        scope.launch {
+                            try {
+                                val groupId = event.groupId
+                                if (groupId.isNotEmpty()) {
+                                    val response = api.getGroup(groupId)
+                                    if (response.isSuccessful) {
+                                        response.body()?.let { group ->
+                                            groupDao.insertGroup(group.toGroupEntity())
+                                        }
+                                    }
+                                }
+                            } catch (e: Exception) {
+                                Log.e("ChatRepository", "GroupUpdated sync failed: ${e.message}")
+                            }
+                        }
+                    }
+                    is WsEvent.GroupDeleted -> {
+                        scope.launch {
+                            try {
+                                groupDao.deleteGroup(event.groupId)
+                            } catch (e: Exception) {
+                                Log.e("ChatRepository", "GroupDeleted handler failed: ${e.message}")
+                            }
+                        }
+                    }
                     else -> Unit
                 }
             }
@@ -665,7 +695,7 @@ class ChatRepository @Inject constructor(
             if (response.isSuccessful) {
                 val resp = response.body()!!
                 // Use server-assigned ID if non-empty, otherwise keep optimistic UUID
-                val finalId = resp.id.ifBlank { message.id }
+                val finalId = resp.serverTime.ifBlank { message.id }
                 if (finalId != message.id) messageDao.deleteMessage(message.id)
                 val sentEntity = message.copy(id = finalId, status = MessageStatus.SENT).toEntity().copy(
                     ciphertext = wrapped.payload, signalType = wrapped.signalType,
@@ -819,6 +849,17 @@ private fun Chat.toEntity() = ChatEntity(
     lastMessageContent = lastMessage?.content,
     lastMessageTimestamp = lastMessage?.timestamp,
     lastMessageKind = lastMessage?.kind?.name
+)
+
+private fun GroupApiResponse.toGroupEntity() = GroupEntity(
+    id = id.toString(),
+    name = name,
+    avatarUrl = null,
+    description = description,
+    creatorId = ownerUin.toLong(),
+    memberIds = members.map { it.uin.toLong() },
+    adminIds = members.filter { it.role == "admin" || it.role == "owner" }.map { it.uin.toLong() },
+    createdAt = System.currentTimeMillis()
 )
 
 private fun MessageEntity.toDomain() = Message(
