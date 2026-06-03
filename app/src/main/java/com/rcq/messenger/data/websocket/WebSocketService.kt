@@ -217,8 +217,17 @@ class WebSocketService @Inject constructor(
         reconnectStrategy.reset()
     }
 
-    fun sendMessage(message: String) {
-        webSocket?.send(message)
+    fun sendMessage(message: String): Boolean {
+        val sent = webSocket?.send(message) == true
+        if (!sent) {
+            Log.w(TAG, "WebSocket send failed; state=${_connectionState.value}")
+            scheduleReconnect()
+        }
+        return sent
+    }
+
+    fun sendTyping(toUin: Long, active: Boolean): Boolean {
+        return sendMessage(WebSocketOutgoingPayloads.typing(toUin = toUin, active = active))
     }
 
     // ---- Internal ----
@@ -368,6 +377,7 @@ class WebSocketService @Inject constructor(
 
                 // Message events — server sends envelope_type directly as "type" (sealed sender)
                 "message", "prekey_message", "reaction", "delete", "edit", "read", "bounce",
+                "system", "visit",
                 "message_new", "new_message" -> WsEvent.MessageNew(
                     chatId = obj["chat_id"]?.jsonPrimitive?.contentOrNull ?: "",
                     raw = obj
@@ -417,6 +427,29 @@ class WebSocketService @Inject constructor(
                 )
 
                 // Presence events
+                "presence" -> when (obj["status"]?.jsonPrimitive?.contentOrNull?.lowercase()) {
+                    "online" -> WsEvent.PresenceOnline(
+                        uin = obj["uin"]?.jsonPrimitive?.longOrNull
+                            ?: obj["user_id"]?.jsonPrimitive?.longOrNull ?: 0
+                    )
+                    "away" -> WsEvent.PresenceAway(
+                        uin = obj["uin"]?.jsonPrimitive?.longOrNull
+                            ?: obj["user_id"]?.jsonPrimitive?.longOrNull ?: 0
+                    )
+                    "dnd" -> WsEvent.PresenceDnd(
+                        uin = obj["uin"]?.jsonPrimitive?.longOrNull
+                            ?: obj["user_id"]?.jsonPrimitive?.longOrNull ?: 0
+                    )
+                    "invisible" -> WsEvent.PresenceInvisible(
+                        uin = obj["uin"]?.jsonPrimitive?.longOrNull
+                            ?: obj["user_id"]?.jsonPrimitive?.longOrNull ?: 0
+                    )
+                    "offline" -> WsEvent.PresenceOffline(
+                        uin = obj["uin"]?.jsonPrimitive?.longOrNull
+                            ?: obj["user_id"]?.jsonPrimitive?.longOrNull ?: 0
+                    )
+                    else -> throw IllegalArgumentException("Unknown presence status")
+                }
                 "presence_online", "online" -> WsEvent.PresenceOnline(
                     uin = obj["uin"]?.jsonPrimitive?.longOrNull
                         ?: obj["user_id"]?.jsonPrimitive?.longOrNull ?: 0
