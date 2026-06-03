@@ -2,23 +2,28 @@
 
 > Immediate tasks. Updated at end of each session.
 
-## Phase 0 — Active
+## iOS Parity — Active
 
 ### Done ✅
 - [x] Delete WebSocketManager + WebSocketEvent, migrate CallManager to WsEvent
 - [x] Delete Games/Marketplace/Pets code and DB entities
 - [x] Create docs structure
 - [x] Write AI context files
+- [x] Fix GitHub `assembleProductionDebug` duplicate AAR failure
+- [x] Create `IOS_ANDROID_PARITY.md`
+- [x] Align HTTP/WS transport base URL and `X-RCQ-Auth` support with iOS
 
 ### This Session
-- [ ] FIX BUG-001: WS 500 — diagnose auth header vs iOS ref
-- [ ] FIX BUG-002: Message ordering — use serverTime
-- [ ] FIX BUG-003: Group filter — JOIN with membership
+- [ ] Audit WebSocket typed event parity against iOS `WebSocketService.swift`
+- [ ] Add focused tests for WebSocket event parsing
+- [ ] Validate `assembleProductionDebug` after each parity fix
+- [ ] Run online ADB validation on connected Android device
 
 ### This Week
-- [ ] Add `pending_outbox` Room table + OutboxProcessor
-- [ ] Add staging build variant
-- [ ] Add Timber logging
+- [ ] Crypto/message envelope parity audit and tests
+- [ ] Auth/account/recovery parity audit
+- [ ] Message ordering: use server envelope `serverTime` everywhere
+- [ ] Sing-box runtime validation on device
 
 ### Next Week
 - [ ] MVI refactor: ChatsViewModel + ChatViewModel
@@ -27,6 +32,6 @@
 
 ## Priority Rule
 
-1. Fix 🔴 Critical bugs first (BUG-001 → BUG-002 → BUG-003)
-2. Then offline outbox (P0 UX)
-3. Then infrastructure (CI, logging, variants)
+1. iOS behavioral parity for active Android surfaces first
+2. Security-sensitive parity: crypto, auth, WebSocket, message ordering
+3. Device validation via ADB before broad feature expansion

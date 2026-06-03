@@ -1,14 +1,14 @@
 # Known Issues
 
-> Updated: 2026-05-31
+> Updated: 2026-06-03
 
 ## Active
 
-### BUG-005: SingBox не маршрутизирует трафик
+### BUG-005: SingBox runtime needs device validation
 - **Severity:** High (stealth mode non-functional)
-- **Symptom:** `BypassMode.AUTO` включается, но трафик всё равно идёт напрямую
-- **Root cause:** `SingBoxTransport.start()` — заглушка, бинарник не включён в APK
-- **Fix:** Добавить sing-box binary в `jniLibs/`, реализовать `SingBoxTransport`
+- **Symptom:** `BypassMode.AUTO` should route through embedded sing-box, but online routing still needs ADB/logcat validation
+- **Current state:** `app/libs/libbox.aar` is explicitly included; `./gradlew assembleProductionDebug` passes
+- **Fix:** Validate startup and routing on device; diagnose `SingBoxTransport` logs if proxy is not engaged
 - **File:** `service/SingBoxTransport.kt`
 
 ### BUG-006: Входящие сообщения иногда не расшифровываются

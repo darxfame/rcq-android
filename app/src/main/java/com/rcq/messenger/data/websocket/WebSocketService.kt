@@ -8,6 +8,7 @@ import android.net.NetworkRequest
 import android.util.Log
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import com.rcq.messenger.BuildConfig
 import com.rcq.messenger.di.PreferencesKeys
 import com.rcq.messenger.service.ProxyManager
 import com.rcq.messenger.service.RcqProxySelector
@@ -16,6 +17,7 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlinx.serialization.json.*
 import okhttp3.*
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import javax.inject.Inject
@@ -126,7 +128,6 @@ class WebSocketService @Inject constructor(
 ) {
     companion object {
         private const val TAG = "WebSocketService"
-        private const val WS_BASE_URL = "wss://api.rcq.app/ws"
         private const val PING_INTERVAL_SECONDS = 25L
         private const val STALE_WATCHDOG_MS = 90_000L
     }
@@ -223,9 +224,13 @@ class WebSocketService @Inject constructor(
     // ---- Internal ----
 
     private fun createWebSocket() {
-        val (token, uin) = runBlocking {
+        val (token, uin, serverToken) = runBlocking {
             val prefs = dataStore.data.first()
-            Pair(prefs[PreferencesKeys.AUTH_TOKEN], prefs[PreferencesKeys.USER_UIN])
+            Triple(
+                prefs[PreferencesKeys.AUTH_TOKEN],
+                prefs[PreferencesKeys.USER_UIN],
+                prefs[PreferencesKeys.SERVER_TOKEN]
+            )
         }
 
         if (token == null || uin == null) {
@@ -235,11 +240,20 @@ class WebSocketService @Inject constructor(
             return
         }
 
-        val wsUrl = "$WS_BASE_URL/$uin?token=$token"
+        val apiBase = BuildConfig.API_BASE_URL.toHttpUrl()
+        val wsScheme = if (apiBase.scheme == "http") "ws" else "wss"
+        val wsUrl = apiBase.newBuilder()
+            .scheme(wsScheme)
+            .encodedPath("/ws/$uin")
+            .addQueryParameter("token", token)
+            .build()
         Log.d(TAG, "Connecting WebSocket: $wsUrl")
 
         val request = Request.Builder()
             .url(wsUrl)
+            .apply {
+                serverToken?.let { header("X-RCQ-Auth", it) }
+            }
             .build()
 
         webSocket = okHttpClient.newWebSocket(request, object : WebSocketListener() {

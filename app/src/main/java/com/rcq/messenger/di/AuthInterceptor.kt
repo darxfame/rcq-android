@@ -21,6 +21,7 @@ import javax.inject.Singleton
 object PreferencesKeys {
     val AUTH_TOKEN = stringPreferencesKey("token")
     val USER_UIN = longPreferencesKey("uin")
+    val SERVER_TOKEN = stringPreferencesKey("server_token")
     val RETRO_MODE = booleanPreferencesKey("pref_retro_mode_enabled")
     val DARK_THEME = booleanPreferencesKey("pref_dark_theme")
     val AMOLED_THEME = booleanPreferencesKey("pref_amoled_theme")
@@ -47,6 +48,13 @@ class AuthInterceptor @Inject constructor(
                 null
             }
         }
+        val serverToken = runBlocking {
+            try {
+                dataStore.data.first()[PreferencesKeys.SERVER_TOKEN]
+            } catch (e: Exception) {
+                null
+            }
+        }
 
         val request = chain.request().newBuilder().apply {
             addHeader("Content-Type", "application/json")
@@ -54,9 +62,11 @@ class AuthInterceptor @Inject constructor(
             token?.let {
                 addHeader("Authorization", "Bearer $it")
             }
+            serverToken?.let {
+                addHeader("X-RCQ-Auth", it)
+            }
         }.build()
 
         return chain.proceed(request)
     }
 }
-

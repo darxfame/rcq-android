@@ -1,7 +1,9 @@
-# Current State — 2026-05-31
+# Current State — 2026-06-03
 
 ## Build
-- **Debug:** ✅ Passing · **DB:** v14 · **Branch:** `phase-1-core-messaging`
+- **Production Debug:** ✅ Passing via `./gradlew assembleProductionDebug`
+- **DB:** v14 · **Branch:** `main`
+- CI build fix: Gradle now includes only `app/libs/libbox.aar` and excludes the stale parallel `app.rcq.android` source tree from compilation.
 
 ## Working ✅
 - Registration + JWT auth + ECIES key generation (iOS-compat)
@@ -21,7 +23,7 @@
 ## Broken / Partial 🔴
 | Issue | Root Cause |
 |-------|-----------|
-| SingBox не маршрутизирует трафик | Заглушка — бинарник отсутствует в APK |
+| SingBox runtime needs device validation | `libbox.aar` is included; routing behavior still needs online ADB/logcat validation |
 | Входящие DM иногда показывают 🔒 | Signal-сессия не установлена для нового собеседника |
 | JIMM mode влияет только на контакты | Другие экраны не читают LocalRetroMode |
 | P5 Звуки / P7 Смайлы JIMM | Не реализованы (0%) |

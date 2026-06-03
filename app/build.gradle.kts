@@ -51,6 +51,12 @@ android {
         }
     }
 
+    sourceSets {
+        getByName("main") {
+            java.setSrcDirs(listOf("src/main/java/com"))
+        }
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -83,11 +89,10 @@ android {
 }
 
 dependencies {
-    // sing-box нативное ядро (libbox.aar).
-    // Положите собранный libbox.aar в app/libs/ — Gradle подхватит автоматически.
-    // Сборка ядра из форка Lantern: см. docs/SINGBOX_INTEGRATION.md
-    // Пустой каталог libs/ не ломает сборку (fileTree вернёт пустой набор).
-    implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.aar", "*.jar"))))
+    // Embedded sing-box wrapper. Do not include every AAR from app/libs:
+    // rcqbox.aar and libbox.aar both bundle gomobile's go.* runtime classes.
+    implementation(files("libs/libbox.aar"))
+    implementation(fileTree(mapOf("dir" to "libs", "include" to listOf("*.jar"))))
 
     // Logging
     implementation("com.jakewharton.timber:timber:5.0.1")
