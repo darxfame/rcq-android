@@ -57,7 +57,9 @@ import app.rcq.android.security.PanicPinService
 fun RecoveryPhraseScreen(session: Session, onBack: () -> Unit) {
     val c = RcqTheme.colors
     val context = LocalContext.current
-    val phrase = remember { session.recoveryPhrase() }
+    // Seed accounts get a 24-word phrase; legacy (pre-seed) accounts fall back
+    // to a 48-word raw-key export. Only truly keyless accounts show nothing.
+    val phrase = remember { session.recoveryPhrase() ?: session.legacyExportPhrase() }
 
     Column(Modifier.fillMaxSize().background(c.bgPrimary)) {
         Row(
@@ -94,12 +96,13 @@ fun RecoveryPhraseScreen(session: Session, onBack: () -> Unit) {
         ) {
             Text(stringResource(R.string.recovery_warn), color = Color(0xFFE5A50A), fontSize = 13.sp)
 
-            // Two-column numbered grid of the 24 words.
+            // Two-column numbered grid of the words (24 for seed, 48 for legacy).
+            val mid = phrase.size / 2
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                listOf(phrase.subList(0, 12), phrase.subList(12, 24)).forEachIndexed { col, half ->
+                listOf(phrase.subList(0, mid), phrase.subList(mid, phrase.size)).forEachIndexed { col, half ->
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         half.forEachIndexed { i, w ->
-                            val n = col * 12 + i + 1
+                            val n = col * mid + i + 1
                             Row(
                                 Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(c.bgSecondary).padding(horizontal = 10.dp, vertical = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically,

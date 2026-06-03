@@ -84,6 +84,21 @@ object IdentityKeys {
         )
     }
 
+    /** Rebuild an identity from raw 32-byte private keys (legacy account
+     *  recovery: the keys weren't seed-derived, so they're backed up + restored
+     *  directly as a 48-word phrase = idPriv||signPriv). Recomputes the public
+     *  halves. */
+    fun fromRawPrivates(identityPrivate: ByteArray, signingPrivate: ByteArray): GeneratedIdentity {
+        val xPriv = X25519PrivateKeyParameters(identityPrivate, 0)
+        val edPriv = Ed25519PrivateKeyParameters(signingPrivate, 0)
+        return GeneratedIdentity(
+            identityPublic = xPriv.generatePublicKey().encoded,
+            identityPrivate = xPriv.encoded,
+            signingPublic = edPriv.generatePublicKey().encoded,
+            signingPrivate = edPriv.encoded,
+        )
+    }
+
     /** A fresh 32-byte recovery seed (256 bits → a 24-word BIP39 phrase). */
     fun newSeed(): ByteArray = ByteArray(32).also { SecureRandom().nextBytes(it) }
 

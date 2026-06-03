@@ -26,9 +26,11 @@ object RecoveryPhrase {
             .also { cachedWords = it }
     }
 
-    /** 32-byte seed → 24 words. */
+    /** Bytes → BIP39 words. 32 bytes (a seed) → 24 words; 64 bytes (a legacy
+     *  account's raw idPriv||signPriv export) → 48 words. Same algorithm; the
+     *  checksum length scales with the entropy (entropy_bits / 32). */
     fun encode(seed: ByteArray, context: Context): List<String> {
-        require(seed.size == 32) { "recovery seed must be 32 bytes" }
+        require(seed.size == 32 || seed.size == 64) { "recovery entropy must be 32 or 64 bytes" }
         val words = wordlist(context)
         val hash = sha256(seed)
         val csBits = seed.size * 8 / 32 // 8
@@ -45,11 +47,12 @@ object RecoveryPhrase {
         return out
     }
 
-    /** 24 words → 32-byte seed, or null if word/count/checksum is invalid. */
+    /** 24 words → 32-byte seed, or 48 words → 64-byte legacy raw-key blob, or
+     *  null if word/count/checksum is invalid. */
     fun decode(input: List<String>, context: Context): ByteArray? {
-        if (input.size != 24) return null
+        if (input.size != 24 && input.size != 48) return null
         val words = wordlist(context)
-        val bits = ArrayList<Boolean>(264)
+        val bits = ArrayList<Boolean>(input.size * 11)
         for (w in input) {
             val i = words.indexOf(w.trim().lowercase())
             if (i < 0) return null

@@ -276,9 +276,21 @@ class Session(context: Context) {
     }
 
     /** The active account's 24-word recovery phrase, or null for a legacy
-     *  account whose keys predate seed-derivation (no phrase to show). */
+     *  account whose keys predate seed-derivation (use [legacyExportPhrase]). */
     fun recoveryPhrase(): List<String>? =
         store.recoverySeed?.let { app.rcq.android.crypto.RecoveryPhrase.encode(it, appCtx) }
+
+    /** A LEGACY account (no seed) backup: its raw identity keys exported as a
+     *  48-word phrase (idPriv||signPriv = 64 bytes). null for a seed-derived
+     *  account (use [recoveryPhrase]) or if keys are missing/malformed. Restore
+     *  via [recoverAccount], which accepts either a 24- or 48-word phrase. */
+    fun legacyExportPhrase(): List<String>? {
+        if (store.recoverySeed != null) return null
+        val id = store.identityPrivate ?: return null
+        val sign = store.signingPrivate ?: return null
+        if (id.size != 32 || sign.size != 32) return null
+        return app.rcq.android.crypto.RecoveryPhrase.encode(id + sign, appCtx)
+    }
 
     /** Restore an account from its recovery phrase on a fresh device: derive the
      *  keypair from the seed, prove ownership of the signing key to the server,
@@ -287,9 +299,16 @@ class Session(context: Context) {
      *  has no account for these keys. */
     suspend fun recoverAccount(words: List<String>, serverInput: String? = null): Int {
         if (AccountManager.isAtLimit) throw IllegalStateException("Account limit reached")
-        val seed = app.rcq.android.crypto.RecoveryPhrase.decode(words, appCtx)
+        val decoded = app.rcq.android.crypto.RecoveryPhrase.decode(words, appCtx)
             ?: throw IllegalArgumentException("invalid_phrase")
-        val identity = IdentityKeys.fromSeed(seed)
+        // 32 bytes = a seed (new accounts); 64 bytes = a legacy account's raw
+        // idPriv||signPriv export. Legacy restores carry no seed forward.
+        val seed: ByteArray? = if (decoded.size == 32) decoded else null
+        val identity = when (decoded.size) {
+            32 -> IdentityKeys.fromSeed(decoded)
+            64 -> IdentityKeys.fromRawPrivates(decoded.copyOfRange(0, 32), decoded.copyOfRange(32, 64))
+            else -> throw IllegalArgumentException("invalid_phrase")
+        }
         val host = normalizeHost(serverInput)
         val regApi = RcqApi("https://${host ?: RcqApi.DEFAULT_HOST}")
         val signingPubB64 = Base64.encodeToString(identity.signingPublic, Base64.NO_WRAP)

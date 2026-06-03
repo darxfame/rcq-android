@@ -111,7 +111,7 @@
 
     <!-- Account recovery (seed phrase) -->
     <string name="recovery_title">Recovery phrase</string>
-    <string name="recovery_warn">Write these 24 words down and keep them somewhere safe and offline. Anyone with this phrase can take over your account. We can\'t recover it for you.</string>
+    <string name="recovery_warn">Write these words down and keep them somewhere safe and offline. Anyone with this phrase can take over your account. We can\'t recover it for you.</string>
     <string name="recovery_copy">Copy phrase</string>
     <string name="recovery_copied">Copied to clipboard</string>
     <string name="recovery_note">To restore later: reinstall RCQ, tap \"Restore from phrase\" and enter these words.</string>
@@ -120,7 +120,7 @@
     <string name="recovery_pin_unlock">Show phrase</string>
     <string name="recovery_pin_wrong">Wrong PIN.</string>
     <string name="restore_title">Restore account</string>
-    <string name="restore_hint">Enter your 24-word recovery phrase to restore your account on this device.</string>
+    <string name="restore_hint">Enter your recovery phrase (24 words, or 48 for an older account) to restore your account on this device.</string>
     <string name="restore_phrase_ph">word word word …</string>
     <string name="restore_wordcount">%1$d / 24 words</string>
     <string name="restore_server_ph">Server (leave blank for the default)</string>
