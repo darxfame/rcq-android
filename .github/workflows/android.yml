@@ -38,14 +38,22 @@ jobs:
           path: app/build/outputs/apk/production/debug/*.apk
           retention-days: 7
 
+      - name: Move latest-debug tag
+        if: success() && github.event_name == 'push'
+        run: |
+          git tag -f latest-debug "$GITHUB_SHA"
+          git push -f origin latest-debug
+
       - name: Release latest-debug
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65  # v2
-        if: success() && github.event_name == 'push' && (github.ref_name == 'main' || github.ref_name == 'phase-1-core-messaging' || github.ref_name == 'phase-1-core-messaging-clean')
+        if: success() && github.event_name == 'push'
         with:
           tag_name: latest-debug
           name: Latest Debug Build
           prerelease: true
           make_latest: false
+          overwrite_files: true
+          fail_on_unmatched_files: true
           files: app/build/outputs/apk/production/debug/*.apk
           body: |
             Автоматическая отладочная сборка из ветки `${{ github.ref_name }}`
