@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.rcq.messenger.ui.theme.*
 
@@ -61,7 +62,9 @@ fun BottomNavBar(
                         text = screen.title,
                         fontSize = RCQFontSize.monoSmall,
                         color = if (selected) rcq.accent else rcq.textSecondary,
-                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
+                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }

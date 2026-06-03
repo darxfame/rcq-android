@@ -36,6 +36,7 @@ import com.rcq.messenger.data.repository.GroupRepository
 import com.rcq.messenger.data.repository.UserRepository
 import com.rcq.messenger.domain.model.Contact
 import com.rcq.messenger.domain.model.Group
+import com.rcq.messenger.service.ProxyManager
 import com.rcq.messenger.ui.theme.*
 import com.rcq.messenger.ui.theme.LocalRetroMode
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -49,7 +50,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.supervisorScope
 import javax.inject.Inject
 
 @HiltViewModel
@@ -59,6 +62,7 @@ class ContactsViewModel @Inject constructor(
     private val userRepository: UserRepository,
     private val contactDao: ContactDao,
     private val groupRepository: GroupRepository,
+    private val proxyManager: ProxyManager,
     private val dataStore: DataStore<Preferences>
 ) : ViewModel() {
 
@@ -92,12 +96,37 @@ class ContactsViewModel @Inject constructor(
     fun refresh() {
         viewModelScope.launch {
             _isLoading.value = true
-            contactRepository.syncContacts()
-                .onFailure { android.util.Log.e("ContactsVM", "syncContacts failed: ${it.message}") }
-            groupRepository.syncGroups()
-                .onFailure { android.util.Log.e("ContactsVM", "syncGroups failed: ${it.message}") }
-            _isLoading.value = false
+            try {
+                val failed = syncContactsAndGroups()
+                if (failed && proxyManager.isAutoSingBoxActive()) {
+                    android.util.Log.w("ContactsVM", "sync failed through sing-box; retrying via system route")
+                    proxyManager.stopSingBox()
+                    syncContactsAndGroups()
+                }
+            } finally {
+                _isLoading.value = false
+            }
         }
+    }
+
+    private suspend fun syncContactsAndGroups(): Boolean = supervisorScope {
+        val contacts = async {
+            contactRepository.syncContacts()
+                .also { if (it.isFailure) android.util.Log.e("ContactsVM", "syncContacts failed: ${it.exceptionOrNull()?.message}") }
+                .isFailure
+        }
+        val groups = async {
+            groupRepository.syncGroups()
+                .also { if (it.isFailure) android.util.Log.e("ContactsVM", "syncGroups failed: ${it.exceptionOrNull()?.message}") }
+                .isFailure
+        }
+        val contactsFailed = contacts.await().also {
+            if (it) android.util.Log.e("ContactsVM", "syncContacts failed")
+        }
+        val groupsFailed = groups.await().also {
+            if (it) android.util.Log.e("ContactsVM", "syncGroups failed")
+        }
+        contactsFailed || groupsFailed
     }
 
     fun openOrCreateChat(userId: Long) {
@@ -175,10 +204,6 @@ fun ContactsScreen(
 
     LaunchedEffect(editingContact) {
         nicknameInput = editingContact?.let { it.customNickname ?: it.nickname } ?: ""
-    }
-
-    LaunchedEffect(Unit) {
-        viewModel.refresh()
     }
 
     if (editingContact != null) {

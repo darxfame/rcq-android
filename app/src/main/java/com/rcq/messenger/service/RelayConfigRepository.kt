@@ -28,6 +28,22 @@ class RelayConfigRepository @Inject constructor(
         )
         private const val CACHE_FILE = "relay-config.json"
 
+        private val LOCAL_PRIORITY_RELAYS = listOf(
+            RelayEntry(
+                tag = "relay-usa-amd-xhttp", proto = "vless",
+                server = "80.209.243.23", port = 443, sni = "amd.com",
+                uuid = "63bbedb0-2e27-4a15-9aca-b0856d5f9b3a",
+                public_key = "YQL5CMcuLgjJwH-2f10LlWx79ZDMnRzl8oZAFPPUqmk",
+                short_id = "2a3f5c8d",
+                fingerprint = "random",
+                allow_insecure = false,
+                transport_type = "xhttp",
+                transport_path = "/telemetry",
+                xhttp_mode = "auto",
+                priority = -100
+            )
+        )
+
         // Mirrors iOS RelayConfigStore.bundledFallback — все 8 relay из relay-config.json v9
         private val BUNDLED_FALLBACK = listOf(
             RelayEntry(
@@ -91,8 +107,8 @@ class RelayConfigRepository @Inject constructor(
 
     fun currentRelays(): List<RelayEntry> {
         cached?.takeIf { it.isNotEmpty() }?.let { return it }
-        loadFromDisk()?.let { cached = it; return it }
-        return BUNDLED_FALLBACK
+        loadFromDisk()?.let { cached = withLocalPriorityRelays(it); return cached!! }
+        return withLocalPriorityRelays(BUNDLED_FALLBACK)
     }
 
     suspend fun refreshInBackground() = withContext(Dispatchers.IO) {
@@ -100,9 +116,9 @@ class RelayConfigRepository @Inject constructor(
             runCatching {
                 val data = URL(url).readBytes()
                 val relays = verifyAndDecode(data) ?: return@runCatching
-                cached = relays
+                cached = withLocalPriorityRelays(relays)
                 cacheFile.writeBytes(data)
-                Timber.d("RelayConfig: refreshed from $url — ${relays.size} relays")
+                Timber.d("RelayConfig: refreshed from $url — ${cached?.size ?: 0} relays")
                 return@withContext
             }.onFailure { Timber.w("RelayConfig: fetch from $url failed: ${it.message}") }
         }
@@ -137,6 +153,12 @@ class RelayConfigRepository @Inject constructor(
         jsonCodec.decodeFromString<RelayConfig>(String(data, Charsets.UTF_8))
             .relays.sortedBy { it.priority }
     }.onFailure { Timber.w("RelayConfig: verify/decode failed: ${it.message}") }.getOrNull()
+
+    private fun withLocalPriorityRelays(relays: List<RelayEntry>): List<RelayEntry> {
+        val localTags = LOCAL_PRIORITY_RELAYS.mapTo(mutableSetOf()) { it.tag }
+        return (LOCAL_PRIORITY_RELAYS + relays.filterNot { it.tag in localTags })
+            .sortedBy { it.priority }
+    }
 
     // Matches iOS JSONSerialization options [.sortedKeys, .withoutEscapingSlashes]
     private fun canonicalJson(obj: JSONObject): String = buildString {

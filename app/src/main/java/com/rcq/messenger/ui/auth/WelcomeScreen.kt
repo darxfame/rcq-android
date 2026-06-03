@@ -26,6 +26,7 @@ import com.rcq.messenger.ui.theme.*
 fun WelcomeScreen(
     onCreateAccount: (String) -> Unit,
     onRestoreAccount: () -> Unit = {},
+    onConnectionSettings: () -> Unit = {},
     isLoading: Boolean = false,
     error: String? = null
 ) {
@@ -138,6 +139,17 @@ fun WelcomeScreen(
                 Text(
                     text = "Restore existing account",
                     color = Primary,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+
+            TextButton(
+                onClick = onConnectionSettings,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = "Подключение",
+                    color = TextSecondary,
                     style = MaterialTheme.typography.bodyMedium
                 )
             }

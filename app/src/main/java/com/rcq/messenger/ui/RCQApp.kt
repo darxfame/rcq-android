@@ -48,6 +48,7 @@ import com.rcq.messenger.ui.settings.SettingsScreen
 import com.rcq.messenger.ui.settings.StealthSettingsScreen
 import com.rcq.messenger.ui.settings.PINSettingsScreen
 import com.rcq.messenger.ui.settings.ConnectionDiagnosticsScreen
+import com.rcq.messenger.ui.settings.ConnectionSettingsSheet
 import com.rcq.messenger.ui.profile.ProfileScreen
 import com.rcq.messenger.ui.calls.CallScreen
 
@@ -87,7 +88,11 @@ object Routes {
 }
 
 val bottomNavItems = listOf(
-    Screen.Chats, Screen.Contacts, Screen.Settings
+    Screen.Chats,
+    Screen.Contacts,
+    Screen.AudioRooms,
+    Screen.Stories,
+    Screen.Settings
 )
 
 @Composable
@@ -257,10 +262,18 @@ fun AuthNavigation(navController: NavHostController, authViewModel: AuthViewMode
     val recoveryPhrase by authViewModel.recoveryPhrase.collectAsState()
     val currentUin by authViewModel.currentUin.collectAsState()
     val connectionStatus by authViewModel.connectionStatus.collectAsState()
+    var showConnectionSettings by remember { mutableStateOf(false) }
+
+    if (showConnectionSettings) {
+        ConnectionSettingsSheet(onDismiss = { showConnectionSettings = false })
+    }
 
     when (authState) {
         is AuthState.Loading -> {
-            ConnectionProbeSplash(statusText = connectionStatus)
+            ConnectionProbeSplash(
+                statusText = connectionStatus,
+                onConnectionSettings = { showConnectionSettings = true }
+            )
             return
         }
         is AuthState.ShowRecoveryPhrase -> {
@@ -276,6 +289,7 @@ fun AuthNavigation(navController: NavHostController, authViewModel: AuthViewMode
                     WelcomeScreen(
                         onCreateAccount = { authViewModel.startRegistration(it) },
                         onRestoreAccount = { navController.navigate(AuthScreen.RestoreId.route) },
+                        onConnectionSettings = { showConnectionSettings = true },
                         isLoading = isLoading,
                         error = error
                     )
@@ -291,7 +305,10 @@ fun AuthNavigation(navController: NavHostController, authViewModel: AuthViewMode
     }
 }
 @Composable
-fun ConnectionProbeSplash(statusText: String) {
+fun ConnectionProbeSplash(
+    statusText: String,
+    onConnectionSettings: () -> Unit = {}
+) {
     val rcq = LocalRCQColors.current
     val rotation by rememberInfiniteTransition(label = "spin").animateFloat(
         initialValue = 0f, targetValue = 360f,
@@ -321,6 +338,10 @@ fun ConnectionProbeSplash(statusText: String) {
                 color = rcq.accent, fontFamily = FontFamily.Monospace)
             Spacer(Modifier.height(12.dp))
             Text(statusText, fontSize = 13.sp, color = rcq.textSecondary)
+            Spacer(Modifier.height(8.dp))
+            TextButton(onClick = onConnectionSettings) {
+                Text("Подключение", color = rcq.textSecondary)
+            }
         }
     }
 }

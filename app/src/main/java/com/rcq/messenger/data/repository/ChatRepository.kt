@@ -29,6 +29,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
 import javax.inject.Singleton
 import com.rcq.messenger.data.websocket.WebSocketService
@@ -120,25 +121,30 @@ class ContactRepository @Inject constructor(
                 // Clear and insert contacts (map from User to ContactEntity)
                 contactDao.insertAll(users.map { it.toContactEntity() })
             } else {
-                Log.e("ContactRepository", "getContacts failed: ${response.errorBody()?.string()}")
-            }
-        }
-
-        // Also fetch pending requests separately (like iOS does)
-        Log.d("ContactRepository", "Fetching pending requests...")
-        api.getContactRequests().let { response ->
-            Log.d("ContactRepository", "getContactRequests response: ${response.code()}")
-            if (response.isSuccessful) {
-                val body = response.body()
-                Log.d("ContactRepository", "Pending requests body: $body")
-                _pendingRequests.value = body ?: emptyList()
-            } else {
-                Log.e("ContactRepository", "getContactRequests failed: ${response.errorBody()?.string()}")
+                throw Exception("getContacts failed: ${response.code()} ${response.errorBody()?.string()}")
             }
         }
 
         // Auto-add dev account without request flow (mirrors iOS .Dev behavior)
         ensureDevContact()
+
+        // Pending requests are secondary metadata; they must not block visible contacts
+        // or the auto-added .Dev contact when the endpoint is slow/degraded.
+        val pendingSynced = withTimeoutOrNull(5_000L) {
+            Log.d("ContactRepository", "Fetching pending requests...")
+            api.getContactRequests().let { response ->
+                Log.d("ContactRepository", "getContactRequests response: ${response.code()}")
+                if (response.isSuccessful) {
+                    val body = response.body()
+                    Log.d("ContactRepository", "Pending requests body: $body")
+                    _pendingRequests.value = body ?: emptyList()
+                } else {
+                    Log.e("ContactRepository", "getContactRequests failed: ${response.errorBody()?.string()}")
+                }
+            }
+            true
+        } ?: false
+        if (!pendingSynced) Log.w("ContactRepository", "getContactRequests timed out; keeping cached pending requests")
     }
 
     private suspend fun ensureDevContact() {
@@ -418,28 +424,32 @@ class ChatRepository @Inject constructor(
 
     private fun fetchOfflineQueue() {
         scope.launch {
-            runCatching {
-                val response = api.getMessageQueue()
-                if (!response.isSuccessful) return@runCatching
-                val rows = response.body() ?: return@runCatching
-                val directAckIds = mutableListOf<Int>()
-                val groupAckIds = mutableListOf<Int>()
-                for (row in rows) {
-                    val ingested = ingestQueueRow(row)
-                    if (ingested) {
-                        if (row.groupId == null) directAckIds.add(row.id)
-                        else groupAckIds.add(row.id)
-                    }
+            syncOfflineQueue()
+        }
+    }
+
+    private suspend fun syncOfflineQueue() {
+        runCatching {
+            val response = api.getMessageQueue()
+            if (!response.isSuccessful) return@runCatching
+            val rows = response.body() ?: return@runCatching
+            val directAckIds = mutableListOf<Int>()
+            val groupAckIds = mutableListOf<Int>()
+            for (row in rows) {
+                val ingested = ingestQueueRow(row)
+                if (ingested) {
+                    if (row.groupId == null) directAckIds.add(row.id)
+                    else groupAckIds.add(row.id)
                 }
-                if (directAckIds.isNotEmpty() || groupAckIds.isNotEmpty()) {
-                    runCatching {
-                        api.ackMessageQueue(
-                            com.rcq.messenger.data.api.QueueAckBody(
-                                directIds = directAckIds,
-                                groupIds = groupAckIds
-                            )
+            }
+            if (directAckIds.isNotEmpty() || groupAckIds.isNotEmpty()) {
+                runCatching {
+                    api.ackMessageQueue(
+                        com.rcq.messenger.data.api.QueueAckBody(
+                            directIds = directAckIds,
+                            groupIds = groupAckIds
                         )
-                    }
+                    )
                 }
             }
         }
@@ -534,15 +544,13 @@ class ChatRepository @Inject constructor(
         entities.map { it.toDomain() }
     }
 
+    // Chats are a client-side concept only — server has no /chats endpoint.
+    // They are materialized from Room rows created by outgoing sends,
+    // WebSocket events, and /messages/queue ingestion.
     suspend fun syncChats(): Result<Unit> = runCatching {
-        api.getChats().let { response ->
-            if (response.isSuccessful) {
-                chatDao.insertChats(response.body()!!.map { it.toEntity() })
-            }
-        }
+        syncOfflineQueue()
     }
 
-    // Chats are a client-side concept only — server has no /chats endpoint.
     // We derive the chatId from the target UIN and store locally.
     suspend fun createChat(targetId: Long): Result<Chat> = runCatching {
         chatDao.getChatByTargetId(targetId)?.toDomain() ?: run {

@@ -26,5 +26,9 @@ release.properties
 # NDK
 .externalNativeBuild/
 .cxx/
-reference/
+reference/*
+!reference/ios/
+!reference/ios/**
+!reference/android-legacy/
+!reference/android-legacy/**
 *.apk

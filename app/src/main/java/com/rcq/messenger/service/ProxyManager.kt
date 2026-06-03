@@ -12,6 +12,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.OkHttpClient
+import okhttp3.Protocol
 import okhttp3.Request
 import java.util.concurrent.TimeUnit
 import timber.log.Timber
@@ -25,12 +26,26 @@ import java.util.concurrent.atomic.AtomicInteger
 import javax.inject.Inject
 import javax.inject.Singleton
 
-enum class BypassMode { OFF, AUTO, MANUAL }
+enum class BypassMode { OFF, AUTO, MANUAL, BUILT_IN }
+
+object AutoBypassPolicy {
+    fun shouldRestoreEmbeddedTransport(
+        bypassModeIsAuto: Boolean,
+        embeddedTransportWasActive: Boolean,
+        embeddedTransportExplicitlyEnabled: Boolean
+    ): Boolean =
+        bypassModeIsAuto && embeddedTransportWasActive && embeddedTransportExplicitlyEnabled
+
+    fun shouldPersistEmbeddedTransportForMode(mode: String): Boolean =
+        mode == BypassMode.BUILT_IN.name
+}
 
 @Singleton
 class ProxyManager @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val singBoxTransport: SingBoxTransport
+    private val singBoxTransport: SingBoxTransport,
+    private val xrayTransport: XrayTransport,
+    private val relayConfigRepository: RelayConfigRepository
 ) {
     companion object {
         private const val PREFS = "rcq_proxy"
@@ -50,13 +65,28 @@ class ProxyManager @Inject constructor(
     val statusLabel: StateFlow<String> = _statusLabel
 
     init {
-        // Restore sing-box if it was active when the process was last killed
-        if (bypassMode == BypassMode.AUTO && prefs.getBoolean(KEY_SINGBOX_WAS_ACTIVE, false)) {
+        if (bypassMode == BypassMode.BUILT_IN) {
             scope.launch {
-                Timber.i("ProxyManager: restoring sing-box from last session")
-                singBoxTransport.start()
+                Timber.i("ProxyManager: starting explicit built-in embedded transport")
+                startEmbeddedTransport()
                 _statusLabel.value = computeLabel()
             }
+        }
+        // Mirrors iOS boot policy: restore only an explicit embedded-transport opt-in.
+        // Auto fallback is a transient route and must be revalidated before reuse.
+        else if (AutoBypassPolicy.shouldRestoreEmbeddedTransport(
+                bypassModeIsAuto = bypassMode == BypassMode.AUTO,
+                embeddedTransportWasActive = prefs.getBoolean(KEY_SINGBOX_WAS_ACTIVE, false),
+                embeddedTransportExplicitlyEnabled = singBoxTransport.isEnabled
+            )
+        ) {
+            scope.launch {
+                Timber.i("ProxyManager: restoring embedded transport from last session")
+                startEmbeddedTransport()
+                _statusLabel.value = computeLabel()
+            }
+        } else {
+            prefs.edit().putBoolean(KEY_SINGBOX_WAS_ACTIVE, false).apply()
         }
     }
 
@@ -86,7 +116,13 @@ class ProxyManager @Inject constructor(
     fun currentProxy(): Proxy = when (bypassMode) {
         BypassMode.OFF -> Proxy.NO_PROXY
         BypassMode.MANUAL -> parseProxyUrl(manualProxyUrl) ?: Proxy.NO_PROXY
+        BypassMode.BUILT_IN -> {
+            xrayTransport.proxyAddress()?.let { return Proxy(Proxy.Type.SOCKS, it) }
+            singBoxTransport.proxyAddress()?.let { return Proxy(Proxy.Type.SOCKS, it) }
+            Proxy.NO_PROXY
+        }
         BypassMode.AUTO -> {
+            xrayTransport.proxyAddress()?.let { return Proxy(Proxy.Type.SOCKS, it) }
             singBoxTransport.proxyAddress()?.let { return Proxy(Proxy.Type.SOCKS, it) }
             Proxy.NO_PROXY
         }
@@ -104,11 +140,12 @@ class ProxyManager @Inject constructor(
         if (bypassMode != BypassMode.AUTO) return
         val count = failureCount.incrementAndGet()
         Timber.w("ProxyManager: connection failure #$count")
-        if (count >= AUTO_THRESHOLD && !singBoxTransport.isActive) {
-            Timber.i("ProxyManager: failure threshold reached → starting sing-box")
+        if (count >= AUTO_THRESHOLD && !isEmbeddedTransportActive()) {
+            Timber.i("ProxyManager: failure threshold reached → starting embedded transport")
             scope.launch {
-                singBoxTransport.start()
-                prefs.edit().putBoolean(KEY_SINGBOX_WAS_ACTIVE, true).apply()
+                if (startEmbeddedTransport()) {
+                    prefs.edit().putBoolean(KEY_SINGBOX_WAS_ACTIVE, true).apply()
+                }
                 _statusLabel.value = computeLabel()
             }
         }
@@ -124,28 +161,38 @@ class ProxyManager @Inject constructor(
     ): Boolean = withContext(Dispatchers.IO) {
         onStatus("Проверяю соединение…")
         val probeUrl = BuildConfig.API_BASE_URL.trimEnd('/') + "/health"
-        val directOk = withTimeoutOrNull(5_000) {
+        val directOk = withTimeoutOrNull(6_000) {
             runCatching {
                 val client = OkHttpClient.Builder()
+                    .proxy(Proxy.NO_PROXY)
+                    .protocols(listOf(Protocol.HTTP_1_1))
                     .connectTimeout(4, TimeUnit.SECONDS)
-                    .readTimeout(4, TimeUnit.SECONDS)
+                    .readTimeout(6, TimeUnit.SECONDS)
                     .build()
-                val resp = client.newCall(Request.Builder().url(probeUrl).head().build()).execute()
-                resp.close()
-                resp.isSuccessful || resp.code in 401..403
+                client.newCall(Request.Builder().url(probeUrl).get().build()).execute().use { resp ->
+                    resp.isSuccessful || resp.code in 401..403
+                }
             }.getOrDefault(false)
         } ?: false
 
         if (directOk) {
+            if (bypassMode == BypassMode.AUTO && isEmbeddedTransportActive() && !singBoxTransport.isEnabled) {
+                Timber.i("ProxyManager: direct probe OK — stopping stale auto embedded transport")
+                stopEmbeddedTransports()
+                prefs.edit().putBoolean(KEY_SINGBOX_WAS_ACTIVE, false).apply()
+            }
+            failureCount.set(0)
+            _statusLabel.value = computeLabel()
             onStatus("Прямое подключение ✓")
             Timber.i("ProxyManager: direct probe OK — no bypass needed")
         } else {
             onStatus("Прямое соединение недоступно, включаю обход…")
             Timber.i("ProxyManager: direct probe FAILED — enabling bypass")
             if (bypassMode == BypassMode.OFF) bypassMode = BypassMode.AUTO
-            if (bypassMode == BypassMode.AUTO && !singBoxTransport.isActive) {
-                singBoxTransport.start()
-                prefs.edit().putBoolean(KEY_SINGBOX_WAS_ACTIVE, true).apply()
+            if (bypassMode == BypassMode.AUTO && !isEmbeddedTransportActive()) {
+                if (startEmbeddedTransport()) {
+                    prefs.edit().putBoolean(KEY_SINGBOX_WAS_ACTIVE, true).apply()
+                }
                 _statusLabel.value = computeLabel()
             }
             onStatus("Обход включён")
@@ -160,9 +207,10 @@ class ProxyManager @Inject constructor(
     fun forceEnableNow() {
         scope.launch {
             if (bypassMode == BypassMode.OFF) bypassMode = BypassMode.AUTO
-            if (!singBoxTransport.isActive) {
-                singBoxTransport.start()
-                prefs.edit().putBoolean(KEY_SINGBOX_WAS_ACTIVE, true).apply()
+            if (!isEmbeddedTransportActive()) {
+                if (startEmbeddedTransport()) {
+                    prefs.edit().putBoolean(KEY_SINGBOX_WAS_ACTIVE, true).apply()
+                }
             }
             failureCount.set(AUTO_THRESHOLD)
             _statusLabel.value = computeLabel()
@@ -172,7 +220,7 @@ class ProxyManager @Inject constructor(
 
     /** Явная остановка sing-box пользователем — сбрасывает персистентный флаг */
     fun stopSingBox() {
-        singBoxTransport.stop()
+        stopEmbeddedTransports()
         prefs.edit().putBoolean(KEY_SINGBOX_WAS_ACTIVE, false).apply()
         failureCount.set(0)
         _statusLabel.value = computeLabel()
@@ -180,14 +228,55 @@ class ProxyManager @Inject constructor(
 
     fun stealthStatusLabel(): String = computeLabel()
 
+    fun isAutoSingBoxActive(): Boolean =
+        bypassMode == BypassMode.AUTO && isEmbeddedTransportActive()
+
+    private suspend fun startEmbeddedTransport(): Boolean {
+        val relays = relayConfigRepository.currentRelays()
+        val selection = RelaySelectionPolicy.selectForEmbeddedTransport(
+            base = relays,
+            lastGoodTag = null,
+            xrayAvailable = xrayTransport.isEngineAvailable
+        )
+        return when (selection.engine) {
+            "xray" -> {
+                singBoxTransport.stop()
+                xrayTransport.start(selection.relays)
+            }
+            else -> {
+                xrayTransport.stop()
+                singBoxTransport.start()
+                singBoxTransport.isActive
+            }
+        }.also { ok ->
+            Timber.i("ProxyManager: embedded ${selection.engine} start result=$ok")
+        }
+    }
+
+    private fun stopEmbeddedTransports() {
+        singBoxTransport.stop()
+        xrayTransport.stop()
+    }
+
+    private fun isEmbeddedTransportActive(): Boolean =
+        singBoxTransport.isActive || xrayTransport.isActive
+
     private fun computeLabel(): String = when (bypassMode) {
         BypassMode.OFF -> "Выключено"
         BypassMode.MANUAL -> manualProxyUrl.ifBlank { "Ручной (не задан)" }
+        BypassMode.BUILT_IN -> when {
+            xrayTransport.isActive -> "Встроенный relay: Xray активен"
+            singBoxTransport.isActive -> "Встроенный relay: активен"
+            !xrayTransport.isEngineAvailable && !singBoxTransport.isEngineAvailable ->
+                "Встроенный relay: движок не установлен"
+            else -> "Встроенный relay: ожидает запуска"
+        }
         BypassMode.AUTO -> when {
+            xrayTransport.isActive -> "Авто: Xray активен"
             singBoxTransport.isActive -> "Авто: sing-box активен"
             // Движок не собран в APK — честно сообщаем, а не «подключаю прокси…» без конца
-            !singBoxTransport.isEngineAvailable && failureCount.get() > 0 ->
-                "Авто: движок sing-box не установлен (нужен libbox.aar)"
+            !xrayTransport.isEngineAvailable && !singBoxTransport.isEngineAvailable && failureCount.get() > 0 ->
+                "Авто: движки обхода не установлены"
             failureCount.get() > 0 -> "Авто: ${failureCount.get()} ошибок, подключаю прокси…"
             else -> "Авто: прямое подключение"
         }
@@ -207,7 +296,18 @@ class ProxyManager @Inject constructor(
 }
 
 class RcqProxySelector(private val proxyManager: ProxyManager) : ProxySelector() {
-    override fun select(uri: URI?): List<Proxy> = listOf(proxyManager.currentProxy())
+    override fun select(uri: URI?): List<Proxy> {
+        val rcqProxy = proxyManager.currentProxy()
+        if (rcqProxy.type() != Proxy.Type.DIRECT) return listOf(rcqProxy)
+
+        val systemSelector = getDefault()
+        if (systemSelector != null && systemSelector !is RcqProxySelector) {
+            val systemProxies = runCatching { systemSelector.select(uri) }.getOrNull()
+            if (!systemProxies.isNullOrEmpty()) return systemProxies
+        }
+        return listOf(Proxy.NO_PROXY)
+    }
+
     override fun connectFailed(uri: URI?, sa: SocketAddress?, ioe: IOException?) {
         Timber.w("ProxySelector: connect failed for $uri via $sa: ${ioe?.message}")
         proxyManager.reportFailure()

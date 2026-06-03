@@ -49,7 +49,7 @@ object AppModule {
     @Singleton
     fun provideOkHttpClient(authInterceptor: AuthInterceptor, proxyManager: ProxyManager): OkHttpClient {
         val loggingInterceptor = HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.BODY
+            level = HttpLoggingInterceptor.Level.BASIC
         }
 
         return OkHttpClient.Builder()

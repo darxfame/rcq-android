@@ -36,9 +36,27 @@
 - Android WebSocket previously hardcoded `wss://api.rcq.app/ws`; it now derives scheme/host from `BuildConfig.API_BASE_URL`, matching iOS flavor/base-url behavior.
 - Android HTTP/WS previously had no `X-RCQ-Auth` support; both now read `PreferencesKeys.SERVER_TOKEN`.
 
+## UI Parity Findings
+
+Source checked: iOS `RCQApp.swift`, `ContactListView.swift`, chat/settings/story/call views, and active Android Compose screens under `app/src/main/java/com/rcq/messenger/ui`.
+
+| Surface | iOS Reference | Android Status | Gap |
+|---|---|---|---|
+| Root/app shell | `RootView` is AppState-driven: onboarding, boot, PIN/panic lock, privacy cover, call/audio overlays, app foreground reconnect/sync. | Auth gate plus bottom-nav scaffold starting at `Chats`. | Missing root PIN/privacy cover flow, call/audio full-screen overlay restoration, app foreground reconnect/offline queue UI handling. |
+| Main navigation | iOS centers on `ContactListView` with action entry points for stories/news/nearby/random/radio/hood/QR/accounts/settings. | Bottom nav with Chats/Contacts/Rooms/Stories/Settings. | Navigation model intentionally redesigned, but many iOS entry points are missing or unreachable from Android. |
+| Chats list | iOS has contact-first shell plus richer chat affordances. | Android has search and create/browse group actions. | Presence/status source and unread/mute semantics need verification; direct creation callback currently has a navigation TODO in `ChatsViewModel`. |
+| Chat screen | iOS has message actions, unified media picker, albums, polls, link/location/voice/video/file bubbles, in-chat search, banners, media viewer. | Android has text, attachment menu, reply preview, basic media bubble. | Call/more buttons are stubs; sender names and typing names are hardcoded; many message types/actions are missing or partial. |
+| Contacts/groups | iOS supports user info, group info/settings, QR, account switching, news/nearby/random/radio/hood entry points. | Android supports contacts, pending requests, add contact, group browse/create, profile. | Group info/settings and several iOS discovery/social entry points are missing. |
+| Stories | iOS has composer, viewer, viewers, delete/reply behavior. | Android has Stories screen and viewer. | Add story, own story, download, and more actions are stubs; composer parity is missing. |
+| Calls | iOS has call overlay, minimized call bar, signaling-backed state. | Android has `CallScreen`/`CallsScreen`. | Target user/nickname is hardcoded, call-back action is stubbed, minimized bar and restored active call UI are missing. |
+| Audio rooms | iOS restores active room and presents room screen full-screen. | Android has `AudioRoomsScreen`. | Room click is still a join TODO; roster/restore/key rotation/mute UI parity needs audit. |
+| Settings | iOS has privacy, notifications, sounds, blocked users, server picker, accounts, language, about/bug bounty flows. | Android has settings plus stealth/PIN/diagnostics. | Profile/privacy/cache/about/help rows are dead clicks; several iOS settings sheets are missing. |
+| Auth/recovery UI | iOS onboarding and recovery are tied into boot/account state. | Android welcome/recovery phrase flow exists. | Recovery phrase copy action is TODO; account switching and onboarding details need parity audit. |
+
 ## Next Audit Order
 
-1. WebSocket typed event parity and downstream consumers.
-2. Crypto/message envelope parity with focused JVM tests.
-3. Auth/account/recovery persisted state parity.
-4. Device validation: productionDebug install, login/register flow, WS connect, sing-box diagnostics.
+1. UI/navigation parity backlog: remove dead clicks/stubs and prioritize iOS-backed entry points.
+2. WebSocket typed event parity and downstream consumers.
+3. Crypto/message envelope parity with focused JVM tests.
+4. Auth/account/recovery persisted state parity.
+5. Device validation: productionDebug install, login/register flow, WS connect, sing-box diagnostics.

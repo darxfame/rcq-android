@@ -53,12 +53,25 @@ class StealthViewModel @Inject constructor(
         proxyManager.bypassMode = mode
         bypassMode.value = mode
         autoDisabled.value = proxyManager.singboxAutoDisabled
-        if (mode == BypassMode.AUTO) {
-            viewModelScope.launch {
-                singBox.setEnabled(true)
+        when (mode) {
+            BypassMode.BUILT_IN -> viewModelScope.launch {
+                proxyManager.forceEnableNow()
                 singboxEnabled.value = singBox.isEnabled
                 singboxActive.value = singBox.isActive
                 lastError.value = singBox.lastStartError
+            }
+            BypassMode.AUTO, BypassMode.OFF, BypassMode.MANUAL -> {
+                if (singBox.isActive && mode != BypassMode.AUTO) {
+                    proxyManager.stopSingBox()
+                }
+                if (mode != BypassMode.BUILT_IN) {
+                    viewModelScope.launch {
+                        singBox.setEnabled(false)
+                        singboxEnabled.value = singBox.isEnabled
+                        singboxActive.value = singBox.isActive
+                        lastError.value = singBox.lastStartError
+                    }
+                }
             }
         }
     }
@@ -144,6 +157,7 @@ fun StealthSettingsScreen(
                     BypassMode.OFF -> TextSecondary
                     BypassMode.MANUAL -> Primary
                     BypassMode.AUTO -> if (singboxActive) Warning else Online
+                    BypassMode.BUILT_IN -> if (singboxActive) Online else Warning
                 }
                 Box(Modifier.size(8.dp).background(statusColor, RoundedCornerShape(50)))
                 Spacer(Modifier.width(8.dp))
@@ -170,8 +184,9 @@ fun StealthSettingsScreen(
                 Text(
                     when (bypassMode) {
                         BypassMode.OFF -> "Прямое подключение без прокси."
-                        BypassMode.AUTO -> "После 3 неудач подряд автоматически запускает sing-box."
+                        BypassMode.AUTO -> "Сначала прямое подключение; встроенный relay включается только после ошибок."
                         BypassMode.MANUAL -> "Всегда использует указанный прокси-адрес."
+                        BypassMode.BUILT_IN -> "Всегда использует встроенный relay."
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = TextSecondary
@@ -214,7 +229,7 @@ fun StealthSettingsScreen(
             }
 
             // Sing-box status card (AUTO mode)
-            if (bypassMode == BypassMode.AUTO) {
+            if (bypassMode == BypassMode.AUTO || bypassMode == BypassMode.BUILT_IN) {
                 SettingsCard {
                     Row(
                         Modifier.fillMaxWidth(),
@@ -225,7 +240,8 @@ fun StealthSettingsScreen(
                             Text("Sing-box", style = MaterialTheme.typography.titleSmall, color = TextPrimary)
                             Text(
                                 if (singboxActive) "Активен: 127.0.0.1:${SingBoxTransport.LOCAL_PORT}"
-                                else "Ожидает ошибок соединения",
+                                else if (bypassMode == BypassMode.AUTO) "Ожидает ошибок соединения"
+                                else "Включается как основной маршрут",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = if (singboxActive) Online else TextSecondary
                             )
@@ -288,6 +304,7 @@ fun BypassModeSelector(selected: BypassMode, onSelect: (BypassMode) -> Unit) {
     val options = listOf(
         BypassMode.OFF to "Выкл",
         BypassMode.AUTO to "Авто",
+        BypassMode.BUILT_IN to "Relay",
         BypassMode.MANUAL to "Ручной"
     )
     SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {

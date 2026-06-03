@@ -2,6 +2,7 @@ package com.rcq.messenger.service
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.rcq.messenger.BuildConfig
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -12,8 +13,11 @@ import kotlinx.serialization.Serializable
 import org.json.JSONArray
 import org.json.JSONObject
 import timber.log.Timber
+import java.net.HttpURLConnection
 import java.net.InetSocketAddress
+import java.net.Proxy
 import java.net.Socket
+import java.net.URL
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -37,8 +41,77 @@ data class RelayEntry(
     val public_key: String? = null,
     val short_id: String? = null,
     val flow: String? = null,
+    val fingerprint: String? = null,
+    val allow_insecure: Boolean = false,
+    val transport_type: String? = null,
+    val transport_path: String? = null,
+    val xhttp_mode: String? = null,
     val priority: Int = 0
 )
+
+data class EmbeddedRelaySelection(
+    val engine: String,
+    val relays: List<RelayEntry>
+)
+
+object RelaySelectionPolicy {
+    fun orderForAndroid(
+        base: List<RelayEntry>,
+        lastGoodTag: String?,
+        supportsXhttp: Boolean = false
+    ): List<RelayEntry> {
+        val supported = base.filter { it.isSupportedByEngine(supportsXhttp) }
+        val priorityRelays = supported
+            .filter { it.priority < 0 }
+            .sortedBy { it.priority }
+        val regularRelays = supported
+            .filter { it.priority >= 0 }
+            .sortedBy { it.priority }
+
+        val tcpRelays = regularRelays.filter { it.isTcpRelay }
+        val udpRelays = regularRelays.filterNot { it.isTcpRelay }
+        return priorityRelays + promoteLastGood(tcpRelays, lastGoodTag) + udpRelays
+    }
+
+    fun tcpProbeCandidates(base: List<RelayEntry>, supportsXhttp: Boolean = false): List<RelayEntry> =
+        orderForAndroid(base, lastGoodTag = null, supportsXhttp = supportsXhttp)
+            .filter { it.isTcpRelay }
+
+    fun selectForEmbeddedTransport(
+        base: List<RelayEntry>,
+        lastGoodTag: String?,
+        xrayAvailable: Boolean
+    ): EmbeddedRelaySelection {
+        val xrayRelays = base
+            .filter { it.isXhttpRelay }
+            .sortedBy { it.priority }
+        if (xrayAvailable && xrayRelays.isNotEmpty()) {
+            return EmbeddedRelaySelection("xray", promoteLastGood(xrayRelays, lastGoodTag))
+        }
+        return EmbeddedRelaySelection(
+            "sing-box",
+            orderForAndroid(base, lastGoodTag = lastGoodTag, supportsXhttp = false)
+        )
+    }
+
+    private fun promoteLastGood(relays: List<RelayEntry>, lastGoodTag: String?): List<RelayEntry> {
+        if (lastGoodTag.isNullOrBlank()) return relays
+        val idx = relays.indexOfFirst { it.tag == lastGoodTag }
+        if (idx <= 0) return relays
+        return relays.toMutableList().also { it.add(0, it.removeAt(idx)) }
+    }
+
+    private val RelayEntry.isTcpRelay: Boolean
+        get() = proto.equals("vless", ignoreCase = true)
+
+    private val RelayEntry.isXhttpRelay: Boolean
+        get() = transport_type.equals("xhttp", ignoreCase = true)
+
+    private fun RelayEntry.isSupportedByEngine(supportsXhttp: Boolean): Boolean {
+        val transport = transport_type?.trim()?.lowercase()
+        return transport != "xhttp" || supportsXhttp
+    }
+}
 
 // Mirrors iOS SingBoxTransport.swift: same relay-config.json, same sing-box JSON format,
 // same SOCKS5 local port 1089.
@@ -59,6 +132,7 @@ class SingBoxTransport @Inject constructor(
         private const val PREF_ENABLED = "rcq.singbox.enabled"
         private const val PREF_LAST_RELAY = "rcq.singbox.lastGoodRelayTag"
         private const val PREF_LAST_ERROR = "rcq.singbox.lastError"
+        private const val BUNDLED_ENGINE_SUPPORTS_XHTTP = false
     }
 
     private val prefs: SharedPreferences =
@@ -105,7 +179,13 @@ class SingBoxTransport @Inject constructor(
             return@withContext
         }
         runCatching {
-            boxService = startNativeEngine(config)
+            val service = startNativeEngine(config)
+            boxService = service
+            if (!validateProxyRoute()) {
+                stopService(service)
+                boxService = null
+                error("Встроенный relay запустился, но api.rcq.app через него недоступен")
+            }
             isActive = true
             prefs.edit().remove(PREF_LAST_ERROR).apply()
             Timber.i("$TAG: sing-box started on 127.0.0.1:$LOCAL_PORT")
@@ -117,6 +197,27 @@ class SingBoxTransport @Inject constructor(
             Timber.e(e, "$TAG: start failed: ${e.message}")
         }
         Unit
+    }
+
+    private fun validateProxyRoute(): Boolean {
+        val proxy = Proxy(Proxy.Type.SOCKS, InetSocketAddress("127.0.0.1", LOCAL_PORT))
+        val url = URL(BuildConfig.API_BASE_URL.trimEnd('/') + "/health")
+        return runCatching {
+            val conn = (url.openConnection(proxy) as HttpURLConnection).apply {
+                connectTimeout = 6_000
+                readTimeout = 6_000
+                requestMethod = "GET"
+                setRequestProperty("Accept", "application/json")
+            }
+            try {
+                val code = conn.responseCode
+                code in 200..499
+            } finally {
+                conn.disconnect()
+            }
+        }.onFailure {
+            Timber.w(it, "$TAG: proxy route validation failed")
+        }.getOrDefault(false)
     }
 
     /**
@@ -174,13 +275,15 @@ class SingBoxTransport @Inject constructor(
         val svc = boxService
         boxService = null
         isActive = false
-        if (svc != null) {
-            // Метод закрытия отличается между сборками: close() (SagerNet) или stop() (iOS-style)
-            runCatching { svc.javaClass.getMethod("close").invoke(svc) }
-                .recoverCatching { svc.javaClass.getMethod("stop").invoke(svc) }
-                .onFailure { Timber.w(it, "$TAG: stop failed") }
-        }
+        if (svc != null) stopService(svc)
         Timber.d("$TAG: stopped")
+    }
+
+    private fun stopService(svc: Any) {
+        // Метод закрытия отличается между сборками: close() (SagerNet) или stop() (iOS-style)
+        runCatching { svc.javaClass.getMethod("close").invoke(svc) }
+            .recoverCatching { svc.javaClass.getMethod("stop").invoke(svc) }
+            .onFailure { Timber.w(it, "$TAG: stop failed") }
     }
 
     suspend fun setEnabled(on: Boolean) {
@@ -192,6 +295,10 @@ class SingBoxTransport @Inject constructor(
         val relays = relayConfigRepository.currentRelays()
         if (relays.isEmpty()) { Timber.w("$TAG: no relays available"); return null }
         val ordered = orderedRelays(relays)
+        if (ordered.isEmpty()) {
+            Timber.w("$TAG: no relays supported by bundled sing-box engine")
+            return null
+        }
         val outbounds = JSONArray().apply {
             // selector вместо urltest: не требует cache.db для хранения истории проб.
             // Выбор быстрейшего relay делаем сами через probeRelaysInBackground() →
@@ -223,16 +330,30 @@ class SingBoxTransport @Inject constructor(
     private fun vlessOutbound(r: RelayEntry) = JSONObject().apply {
         put("type", "vless"); put("tag", r.tag)
         put("server", r.server); put("server_port", r.port)
-        put("uuid", r.uuid ?: ""); put("flow", r.flow ?: "xtls-rprx-vision")
+        put("uuid", r.uuid ?: "")
+        r.flow?.takeIf { it.isNotBlank() }?.let { put("flow", it) }
         put("tls", JSONObject().apply {
             put("enabled", true); put("server_name", r.sni)
-            put("utls", JSONObject().put("enabled", true).put("fingerprint", "chrome"))
+            put("insecure", r.allow_insecure)
+            put("utls", JSONObject()
+                .put("enabled", true)
+                .put("fingerprint", r.fingerprint?.takeIf { it.isNotBlank() } ?: "chrome")
+            )
             put("reality", JSONObject().apply {
                 put("enabled", true)
                 put("public_key", r.public_key ?: "")
                 put("short_id", r.short_id ?: "")
             })
         })
+        r.transport_type?.takeIf { it.isNotBlank() }?.let { type ->
+            put("transport", JSONObject().apply {
+                put("type", type)
+                r.transport_path?.takeIf { it.isNotBlank() }?.let { put("path", it) }
+                if (type == "xhttp") {
+                    r.xhttp_mode?.takeIf { it.isNotBlank() }?.let { put("mode", it) }
+                }
+            })
+        }
     }
 
     private fun hysteria2Outbound(r: RelayEntry) = JSONObject().apply {
@@ -248,14 +369,21 @@ class SingBoxTransport @Inject constructor(
     }
 
     private fun orderedRelays(base: List<RelayEntry>): List<RelayEntry> {
-        val last = prefs.getString(PREF_LAST_RELAY, null) ?: return base
-        val idx = base.indexOfFirst { it.tag == last }.takeIf { it > 0 } ?: return base
-        return base.toMutableList().also { it.add(0, it.removeAt(idx)) }
+        val last = prefs.getString(PREF_LAST_RELAY, null)
+        return RelaySelectionPolicy.orderForAndroid(
+            base,
+            last,
+            supportsXhttp = BUNDLED_ENGINE_SUPPORTS_XHTTP
+        )
     }
 
     private suspend fun probeRelaysInBackground() {
         val relays = relayConfigRepository.currentRelays()
-        val winner = relays.firstOrNull { probeTcp(it.server, it.port) } ?: return
+        val winner = RelaySelectionPolicy.tcpProbeCandidates(
+            relays,
+            supportsXhttp = BUNDLED_ENGINE_SUPPORTS_XHTTP
+        )
+            .firstOrNull { probeTcp(it.server, it.port) } ?: return
         prefs.edit().putString(PREF_LAST_RELAY, winner.tag).apply()
         Timber.i("$TAG: Fastest relay: ${winner.tag}")
     }

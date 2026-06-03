@@ -241,12 +241,14 @@ class WebSocketService @Inject constructor(
         }
 
         val apiBase = BuildConfig.API_BASE_URL.toHttpUrl()
-        val wsScheme = if (apiBase.scheme == "http") "ws" else "wss"
-        val wsUrl = apiBase.newBuilder()
-            .scheme(wsScheme)
+        val httpUrl = apiBase.newBuilder()
             .encodedPath("/ws/$uin")
             .addQueryParameter("token", token)
             .build()
+        val wsUrl = httpUrl.toString().replaceFirst(
+            if (apiBase.scheme == "http") "http://" else "https://",
+            if (apiBase.scheme == "http") "ws://" else "wss://"
+        )
         Log.d(TAG, "Connecting WebSocket: $wsUrl")
 
         val request = Request.Builder()

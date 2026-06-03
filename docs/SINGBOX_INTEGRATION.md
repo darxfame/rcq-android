@@ -10,6 +10,10 @@
   проксируется только трафик приложения RCQ через `OkHttp` + `RcqProxySelector`.
 - Полный паритет с iOS (`reference/ios/.../SingBoxTransport.swift`): тот же формат
   `relay-config.json`, тот же sing-box JSON, тот же порт 1089.
+- Android дополнительно накладывает локальные priority relays поверх signed remote/cache
+  config. Сейчас первым идёт `relay-usa-amd-xhttp` — VLESS + Reality + xhttp
+  (`amd.com`, `/telemetry`). Для него нужен `libbox`/sing-box build с поддержкой
+  V2Ray transport `xhttp`.
 - `SingBoxTransport.kt` запускает ядро через **reflection** (без статической зависимости),
   поэтому модуль компилируется и без `.aar`. Поддерживаются два варианта API libbox:
   1. `BoxService(config).start()` / `BoxService().start(config)` (iOS-style конструктор);

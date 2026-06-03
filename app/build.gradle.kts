@@ -51,12 +51,6 @@ android {
         }
     }
 
-    sourceSets {
-        getByName("main") {
-            java.setSrcDirs(listOf("src/main/java/com"))
-        }
-    }
-
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17

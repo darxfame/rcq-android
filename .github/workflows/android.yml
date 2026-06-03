@@ -2,9 +2,9 @@ name: Android CI
 
 on:
   push:
-    branches: [ main, phase-1-core-messaging ]
+    branches: [ '**' ]
   pull_request:
-    branches: [ main ]
+    branches: [ '**' ]
 
 jobs:
   build:
@@ -40,7 +40,7 @@ jobs:
 
       - name: Release latest-debug
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65  # v2
-        if: success() && github.event_name == 'push'
+        if: success() && github.event_name == 'push' && (github.ref_name == 'main' || github.ref_name == 'phase-1-core-messaging' || github.ref_name == 'phase-1-core-messaging-clean')
         with:
           tag_name: latest-debug
           name: Latest Debug Build
