@@ -52,8 +52,8 @@ fun WelcomeScreen(
             Spacer(modifier = Modifier.weight(1f))
 
             Image(
-                painter = painterResource(id = R.drawable.icq_logo),
-                contentDescription = "ICQ Logo",
+                painter = painterResource(id = R.drawable.rcq_logo),
+                contentDescription = "RCQ Logo",
                 modifier = Modifier.size(96.dp)
             )
 

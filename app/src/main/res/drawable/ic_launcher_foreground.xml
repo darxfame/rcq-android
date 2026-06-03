@@ -2,5 +2,5 @@
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item
         android:gravity="center"
-        android:drawable="@drawable/icq_logo" />
+        android:drawable="@drawable/rcq_logo" />
 </layer-list>
