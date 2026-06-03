@@ -55,7 +55,6 @@ object XrayConfigBuilder {
                     "serverName":${jsonString(relay.sni)},
                     "fingerprint":${jsonString(relay.fingerprint?.takeIf { it.isNotBlank() } ?: "chrome")},
                     "publicKey":${jsonString(relay.public_key ?: "")},
-                    "password":${jsonString(relay.public_key ?: "")},
                     "shortId":${jsonString(relay.short_id ?: "")}
                   }$xhttpSettings
                 }
