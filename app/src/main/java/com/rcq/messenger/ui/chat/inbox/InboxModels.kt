@@ -1,6 +1,7 @@
 package com.rcq.messenger.ui.chat.inbox
 
 import com.rcq.messenger.domain.model.MessageKind
+import com.rcq.messenger.domain.model.UserStatus
 
 data class InboxUiState(
     val rows: List<InboxRow> = emptyList(),
@@ -26,8 +27,10 @@ data class InboxRow(
     val id: String,
     val title: String,
     val subtitle: String,
-    val timestamp: Long?,
-    val unreadCount: Int,
+    val preview: String?,
+    val timestamp: String?,
+    val unreadCount: Int?,
+    val status: UserStatus?,
     val isMuted: Boolean,
     val isPinned: Boolean,
     val avatarUrl: String?,

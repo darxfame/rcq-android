@@ -40,6 +40,7 @@ import com.rcq.messenger.ui.contacts.AddContactScreen
 import com.rcq.messenger.ui.contacts.PendingRequestsScreen
 import com.rcq.messenger.ui.contacts.CreateGroupScreen
 import com.rcq.messenger.ui.contacts.GroupBrowseScreen
+import com.rcq.messenger.ui.contacts.GroupInfoScreen
 import com.rcq.messenger.ui.common.BottomNavBar
 import com.rcq.messenger.ui.stories.*
 import com.rcq.messenger.ui.calls.*
@@ -75,13 +76,13 @@ sealed class AuthScreen(val route: String) {
 
 object Routes {
     const val CHAT = "chat/{chatId}"
-    const val CALL = "call/{callId}"
+    const val CALL = "call/{chatId}/{targetUin}"
     const val GROUP = "group/{groupId}"
     const val STORY_VIEWER = "story/{userId}"
     const val USER_PROFILE = "profile/{userId}"
 
     fun chat(chatId: String) = "chat/$chatId"
-    fun call(callId: String) = "call/$callId"
+    fun call(chatId: String, targetUin: Long) = "call/$chatId/$targetUin"
     fun group(groupId: String) = "group/$groupId"
     fun storyViewer(userId: Long) = "story/$userId"
     fun userProfile(userId: Long) = "profile/$userId"
@@ -172,7 +173,7 @@ fun MainScaffold(
             }
             composable(Screen.AudioRooms.route) {
                 AudioRoomsScreen(
-                    onRoomClick = { roomId -> /* Join room */ }
+                    onRoomClick = { }
                 )
             }
             composable(Screen.Stories.route) {
@@ -184,10 +185,13 @@ fun MainScaffold(
                 val currentUin by authViewModel.currentUin.collectAsState()
                 val nickname by authViewModel.nickname.collectAsState()
                 val recoveryPhrase by authViewModel.recoveryPhrase.collectAsState()
+                val currentStatus by authViewModel.currentStatus.collectAsState()
                 SettingsScreen(
                     currentUin = currentUin,
                     nickname = nickname,
                     recoveryPhrase = recoveryPhrase,
+                    currentStatus = currentStatus,
+                    onSetStatus = { status -> authViewModel.setStatus(status) },
                     onLogout = { authViewModel.logout() },
                     onNavigateToStealth = { navController.navigate("settings/stealth") },
                     onNavigateToPin = { navController.navigate("settings/pin") },
@@ -205,9 +209,28 @@ fun MainScaffold(
             }
 
             // Detail screens
-            composable(Routes.CHAT) { backStackEntry ->
+            composable(
+                route = Routes.CHAT,
+                arguments = listOf(navArgument("chatId") { type = NavType.StringType })
+            ) { backStackEntry ->
                 val chatId = backStackEntry.arguments?.getString("chatId") ?: return@composable
-                ChatScreen(chatId = chatId, onBack = { navController.popBackStack() })
+                ChatScreen(
+                    chatId = chatId,
+                    onBack = { navController.popBackStack() },
+                    onCall = { targetUin -> navController.navigate(Routes.call(chatId, targetUin)) },
+                    onGroupInfo = { navController.navigate(Routes.group(chatId)) }
+                )
+            }
+            composable(
+                route = Routes.GROUP,
+                arguments = listOf(navArgument("groupId") { type = NavType.StringType })
+            ) { backStackEntry ->
+                val groupId = backStackEntry.arguments?.getString("groupId") ?: return@composable
+                GroupInfoScreen(
+                    groupId = groupId,
+                    onBack = { navController.popBackStack() },
+                    onMemberClick = { userId -> navController.navigate(Routes.userProfile(userId)) }
+                )
             }
             composable("create_group") {
                 CreateGroupScreen(onBack = { navController.popBackStack() })
@@ -215,7 +238,8 @@ fun MainScaffold(
             composable("groups") {
                 GroupBrowseScreen(
                     onBack = { navController.popBackStack() },
-                    onGroupClick = { chatId -> navController.navigate(Routes.chat(chatId)) }
+                    onGroupClick = { chatId -> navController.navigate(Routes.chat(chatId)) },
+                    onGroupJoined = { groupId -> navController.navigate(Routes.chat(groupId)) }
                 )
             }
             composable("add_contact") {
@@ -242,9 +266,21 @@ fun MainScaffold(
                     }
                 )
             }
-            composable(Routes.CALL) { backStackEntry ->
-                val callId = backStackEntry.arguments?.getString("callId") ?: return@composable
-                CallScreen(chatId = callId, targetNickname = "User", onBack = { navController.popBackStack() })
+            composable(
+                route = Routes.CALL,
+                arguments = listOf(
+                    navArgument("chatId") { type = NavType.StringType },
+                    navArgument("targetUin") { type = NavType.LongType; defaultValue = 0L }
+                )
+            ) { backStackEntry ->
+                val chatId = backStackEntry.arguments?.getString("chatId") ?: return@composable
+                val targetUin = backStackEntry.arguments?.getLong("targetUin") ?: 0L
+                CallScreen(
+                    chatId = chatId,
+                    targetUin = targetUin,
+                    targetNickname = "User",
+                    onBack = { navController.popBackStack() }
+                )
             }
             composable("story/{userId}") { backStackEntry ->
                 val userId = backStackEntry.arguments?.getString("userId")?.toLongOrNull() ?: return@composable

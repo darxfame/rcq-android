@@ -26,7 +26,8 @@ import com.rcq.messenger.ui.theme.*
 fun GroupBrowseScreen(
     viewModel: GroupBrowseViewModel = hiltViewModel(),
     onBack: () -> Unit,
-    onGroupClick: (String) -> Unit
+    onGroupClick: (String) -> Unit,
+    onGroupJoined: (String) -> Unit = onGroupClick
 ) {
     val groups by viewModel.filteredGroups.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
@@ -131,7 +132,15 @@ fun GroupBrowseScreen(
             } else {
                 LazyColumn {
                     items(groups, key = { it.id }) { group ->
-                        GroupItem(group = group, onClick = { onGroupClick(group.id) })
+                        GroupItem(
+                            group = group,
+                            onClick = { onGroupClick(group.id) },
+                            onJoin = {
+                                viewModel.joinGroup(group.id) { groupId ->
+                                    onGroupJoined(groupId)
+                                }
+                            }
+                        )
                     }
                 }
             }
@@ -140,7 +149,11 @@ fun GroupBrowseScreen(
 }
 
 @Composable
-private fun GroupItem(group: Group, onClick: () -> Unit) {
+private fun GroupItem(
+    group: Group,
+    onClick: () -> Unit,
+    onJoin: () -> Unit
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -180,7 +193,9 @@ private fun GroupItem(group: Group, onClick: () -> Unit) {
                 )
             }
         }
-        Icon(Icons.Default.ChevronRight, contentDescription = null, tint = TextTertiary)
+        TextButton(onClick = onJoin) {
+            Text("Join")
+        }
     }
     HorizontalDivider(color = SurfaceVariant.copy(alpha = 0.5f))
 }

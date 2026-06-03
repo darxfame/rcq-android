@@ -32,6 +32,9 @@ class CallViewModel @Inject constructor(
     private val _targetNickname = MutableStateFlow("User")
     val targetNickname: StateFlow<String> = _targetNickname.asStateFlow()
 
+    private val _targetUin = MutableStateFlow(0L)
+    val targetUin: StateFlow<Long> = _targetUin.asStateFlow()
+
     private var callService: CallService? = null
 
     init {
@@ -53,6 +56,10 @@ class CallViewModel @Inject constructor(
     fun startVideoCall(chatId: String, targetUin: Long) {
         _callState.value = CallState.CONNECTING
         callManager.startCall(targetUin, isVideoCall = true)
+    }
+
+    fun setTargetUin(uin: Long) {
+        _targetUin.value = uin
     }
 
     fun acceptIncomingCall(callId: String) {

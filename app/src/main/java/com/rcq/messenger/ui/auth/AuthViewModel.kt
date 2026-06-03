@@ -14,6 +14,7 @@ import com.rcq.messenger.crypto.CryptoService.RegistrationBundle
 import com.rcq.messenger.crypto.EciesKeyStore
 import com.rcq.messenger.data.api.RCQApiService
 import com.rcq.messenger.data.api.RegisterRequest
+import com.rcq.messenger.data.repository.UserRepository
 import com.rcq.messenger.di.PreferencesKeys
 import com.rcq.messenger.service.ProxyManager
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -34,6 +35,7 @@ class AuthViewModel @Inject constructor(
     private val eciesKeyStore: EciesKeyStore,
     private val chatRepository: com.rcq.messenger.data.repository.ChatRepository,
     private val proxyManager: ProxyManager,
+    private val userRepository: UserRepository,
 ) : ViewModel() {
 
     private val _authState = MutableStateFlow<AuthState>(AuthState.Loading)
@@ -56,6 +58,9 @@ class AuthViewModel @Inject constructor(
 
     private val _currentUin = MutableStateFlow<Long?>(null)
     val currentUin: StateFlow<Long?> = _currentUin.asStateFlow()
+
+    private val _currentStatus = MutableStateFlow("online")
+    val currentStatus: StateFlow<String> = _currentStatus.asStateFlow()
 
     private val _recoveryPhrase = MutableStateFlow<List<String>>(emptyList())
     val recoveryPhrase: StateFlow<List<String>> = _recoveryPhrase.asStateFlow()
@@ -212,6 +217,15 @@ class AuthViewModel @Inject constructor(
 
     fun clearError() {
         _error.value = null
+    }
+
+    fun setStatus(status: String) {
+        viewModelScope.launch {
+            _currentStatus.value = status
+            userRepository.updatePresence(status).onFailure { e ->
+                _error.value = e.message ?: "Failed to update status"
+            }
+        }
     }
 
     private fun generateRecoveryPhrase(identityKey: String, signingKey: String): List<String> {

@@ -19,6 +19,7 @@ import com.rcq.messenger.ui.theme.*
 @Composable
 fun CallScreen(
     chatId: String,
+    targetUin: Long,
     targetNickname: String,
     onBack: () -> Unit,
     viewModel: CallViewModel = hiltViewModel()
@@ -27,10 +28,11 @@ fun CallScreen(
     val isMuted by viewModel.isMuted.collectAsState()
     val isSpeakerOn by viewModel.isSpeakerOn.collectAsState()
 
-    LaunchedEffect(chatId) {
-        // TODO: Get target user ID from chat
-        val targetUin = 0L // Placeholder - should get from chat participants
-        viewModel.startCall(chatId, targetUin)
+    LaunchedEffect(chatId, targetUin) {
+        if (targetUin > 0L) {
+            viewModel.setTargetUin(targetUin)
+            viewModel.startCall(chatId, targetUin)
+        }
     }
 
     Box(

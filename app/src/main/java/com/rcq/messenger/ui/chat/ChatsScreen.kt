@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -19,18 +20,19 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.rcq.messenger.ui.chat.inbox.InboxRow
 import com.rcq.messenger.ui.chat.inbox.InboxSearchResults
 import com.rcq.messenger.ui.chat.inbox.InboxTarget
+import com.rcq.messenger.ui.common.StatusIndicator
 import com.rcq.messenger.ui.theme.*
-import java.text.SimpleDateFormat
-import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -158,8 +160,15 @@ fun ChatsScreen(
                 EmptyChatsState()
             } else {
                 LazyColumn {
-                    items(inboxState.rows, key = { it.id }) { row ->
+                    itemsIndexed(inboxState.rows, key = { _, it -> it.id }) { idx, row ->
                         InboxItem(row = row, onClick = { openRow(row) })
+                        if (idx < inboxState.rows.size - 1) {
+                            HorizontalDivider(
+                                modifier = Modifier.padding(start = 68.dp),
+                                thickness = 0.5.dp,
+                                color = rcq.divider
+                            )
+                        }
                     }
                 }
             }
@@ -226,83 +235,84 @@ private fun InboxSectionHeader(title: String) {
 }
 
 @Composable
-fun InboxItem(
-    row: InboxRow,
-    onClick: () -> Unit
-) {
+private fun InboxItem(row: InboxRow, onClick: () -> Unit) {
     val rcq = LocalRCQColors.current
-    Column {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable(onClick = onClick)
-                .padding(horizontal = RCQMetrics.rowHPad, vertical = RCQMetrics.rowVPad),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // JIMM-style: status dot at left edge
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(modifier = Modifier.size(44.dp)) {
             Box(
                 modifier = Modifier
-                    .size(RCQMetrics.statusDot)
+                    .size(44.dp)
                     .clip(CircleShape)
-                    .background(if (row.isMuted) rcq.textSecondary else StatusOnline)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            // Square mini-avatar
-            Box(
-                modifier = Modifier
-                    .size(RCQMetrics.avatarLg)
-                    .clip(RoundedCornerShape(3.dp))
-                    .background(rcq.bgSecondary),
+                    .background(rcq.accent),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    row.title.firstOrNull()?.uppercase() ?: "?",
-                    fontSize = RCQFontSize.nickname,
+                    text = row.title.firstOrNull()?.uppercase() ?: "?",
+                    color = Color.White,
                     fontWeight = FontWeight.Bold,
-                    color = rcq.accent
+                    fontSize = 18.sp
                 )
             }
-            Spacer(modifier = Modifier.width(8.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        row.title,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = RCQFontSize.nickname,
-                        color = rcq.textPrimary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        row.timestamp?.let {
-                            Text(formatTime(it), fontSize = RCQFontSize.timestamp, color = rcq.textSecondary)
-                        }
-                        if (row.unreadCount > 0) {
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                "(${if (row.unreadCount > 99) "99+" else row.unreadCount})",
-                                fontSize = RCQFontSize.monoSmall,
-                                color = rcq.accent,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-                }
-                Text(
-                    row.subtitle,
-                    fontSize = RCQFontSize.caption,
-                    color = rcq.textSecondary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+            if (row.status != null) {
+                StatusIndicator(
+                    status = row.status,
+                    size = 12,
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .offset(x = 1.dp, y = 1.dp)
                 )
             }
         }
-        HorizontalDivider(thickness = RCQMetrics.dividerThick, color = rcq.divider, modifier = Modifier.padding(start = 28.dp))
+        Spacer(Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = row.title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = rcq.textPrimary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = row.preview ?: "",
+                style = MaterialTheme.typography.bodySmall,
+                color = rcq.textSecondary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        Spacer(Modifier.width(8.dp))
+        Column(horizontalAlignment = Alignment.End) {
+            Text(
+                text = row.timestamp ?: "",
+                style = MaterialTheme.typography.labelSmall,
+                color = if ((row.unreadCount ?: 0) > 0) rcq.accent else rcq.textSecondary
+            )
+            if ((row.unreadCount ?: 0) > 0) {
+                Spacer(Modifier.height(4.dp))
+                Box(
+                    modifier = Modifier
+                        .defaultMinSize(minWidth = 20.dp, minHeight = 20.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(rcq.accent)
+                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = if ((row.unreadCount ?: 0) > 99) "99+" else row.unreadCount.toString(),
+                        color = Color.White,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -333,17 +343,5 @@ fun EmptyChatsState() {
             style = MaterialTheme.typography.bodyMedium,
             color = TextSecondary
         )
-    }
-}
-
-private fun formatTime(timestamp: Long): String {
-    val now = System.currentTimeMillis()
-    val diff = now - timestamp
-    return when {
-        diff < 60_000 -> "Now"
-        diff < 3600_000 -> "${diff / 60_000}m"
-        diff < 86400_000 -> SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(timestamp))
-        diff < 604800_000 -> SimpleDateFormat("EEE", Locale.getDefault()).format(Date(timestamp))
-        else -> SimpleDateFormat("dd/MM", Locale.getDefault()).format(Date(timestamp))
     }
 }

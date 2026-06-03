@@ -20,9 +20,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -36,9 +38,10 @@ import com.rcq.messenger.data.repository.GroupRepository
 import com.rcq.messenger.data.repository.UserRepository
 import com.rcq.messenger.domain.model.Contact
 import com.rcq.messenger.domain.model.Group
+import com.rcq.messenger.domain.model.UserStatus
 import com.rcq.messenger.service.ProxyManager
+import com.rcq.messenger.ui.common.StatusIndicator
 import com.rcq.messenger.ui.theme.*
-import com.rcq.messenger.ui.theme.LocalRetroMode
 import dagger.hilt.android.lifecycle.HiltViewModel
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
@@ -186,6 +189,7 @@ fun ContactsScreen(
     val openChatError by viewModel.openChatError.collectAsState()
     var searchQuery by remember { mutableStateOf("") }
     var nicknameInput by remember { mutableStateOf("") }
+    var offlineCollapsed by remember { mutableStateOf(true) }
 
     // Navigate to chat as soon as VM resolves the chatId
     LaunchedEffect(pendingChatId) {
@@ -311,39 +315,86 @@ fun ContactsScreen(
                 singleLine = true
             )
 
-            val retroMode = LocalRetroMode.current
-
             if (filteredContacts.isEmpty() && groups.isEmpty() && !isLoading) {
                 EmptyContactsState(onAddContact = onAddContact)
-            } else if (retroMode) {
-                StatusGroupedContactList(
-                    contacts = filteredContacts,
-                    groups = groups,
-                    onContactClick = { viewModel.openOrCreateChat(it.userId) },
-                    onGroupClick = onGroupClick,
-                    onToggleFavorite = { viewModel.toggleFavorite(it.userId, it.isFavorite) },
-                    onEditNickname = { viewModel.startEditNickname(it) },
-                    onBlock = { viewModel.blockContact(it.userId) },
-                    onRemove = { viewModel.removeContact(it.userId) },
-                )
             } else {
+                val rcq = LocalRCQColors.current
+                val onlineContacts = filteredContacts.filter { it.status == UserStatus.ONLINE }
+                val awayContacts = filteredContacts.filter {
+                    it.status == UserStatus.AWAY || it.status == UserStatus.BUSY || it.status == UserStatus.DND
+                }
+                val offlineContacts = filteredContacts.filter {
+                    it.status == UserStatus.OFFLINE || it.status == UserStatus.INVISIBLE
+                }
                 LazyColumn {
-                    if (groups.isNotEmpty()) {
-                        item(key = "hdr_groups") { SectionHeader(title = "Groups (${groups.size})") }
-                        items(groups, key = { "g_${it.id}" }) { group ->
-                            GroupContactItem(group = group, onClick = { onGroupClick(group.id) })
+                    if (onlineContacts.isNotEmpty()) {
+                        item(key = "header_online") {
+                            StatusGroupHeader("Online", onlineContacts.size, rcq.accent)
                         }
-                    }
-                    if (filteredContacts.isNotEmpty()) {
-                        item(key = "hdr_contacts") { SectionHeader(title = "Contacts (${filteredContacts.size})") }
-                        items(filteredContacts, key = { it.id }) { contact ->
-                            ContactItem(
+                        items(onlineContacts, key = { it.userId }) { contact ->
+                            ContactRow(
                                 contact = contact,
                                 onClick = { viewModel.openOrCreateChat(contact.userId) },
-                                onToggleFavorite = { viewModel.toggleFavorite(contact.userId, contact.isFavorite) },
-                                onEditNickname = { viewModel.startEditNickname(contact) },
-                                onBlock = { viewModel.blockContact(contact.userId) },
-                                onRemove = { viewModel.removeContact(contact.userId) }
+                                onLongClick = { viewModel.startEditNickname(contact) }
+                            )
+                            HorizontalDivider(
+                                modifier = Modifier.padding(start = 56.dp),
+                                thickness = 0.5.dp,
+                                color = rcq.divider
+                            )
+                        }
+                    }
+                    if (awayContacts.isNotEmpty()) {
+                        item(key = "header_away") {
+                            StatusGroupHeader("Away", awayContacts.size, StatusAway)
+                        }
+                        items(awayContacts, key = { it.userId }) { contact ->
+                            ContactRow(
+                                contact = contact,
+                                onClick = { viewModel.openOrCreateChat(contact.userId) },
+                                onLongClick = { viewModel.startEditNickname(contact) }
+                            )
+                            HorizontalDivider(
+                                modifier = Modifier.padding(start = 56.dp),
+                                thickness = 0.5.dp,
+                                color = rcq.divider
+                            )
+                        }
+                    }
+                    item(key = "header_offline") {
+                        StatusGroupHeader(
+                            "Offline",
+                            offlineContacts.size,
+                            rcq.textSecondary,
+                            collapsible = true,
+                            collapsed = offlineCollapsed,
+                            onToggle = { offlineCollapsed = !offlineCollapsed }
+                        )
+                    }
+                    if (!offlineCollapsed) {
+                        items(offlineContacts, key = { it.userId }) { contact ->
+                            ContactRow(
+                                contact = contact,
+                                onClick = { viewModel.openOrCreateChat(contact.userId) },
+                                onLongClick = { viewModel.startEditNickname(contact) }
+                            )
+                            HorizontalDivider(
+                                modifier = Modifier.padding(start = 56.dp),
+                                thickness = 0.5.dp,
+                                color = rcq.divider
+                            )
+                        }
+                    }
+                    if (groups.isNotEmpty()) {
+                        item(key = "header_groups") {
+                            StatusGroupHeader("Groups", groups.size, rcq.accent)
+                        }
+                        items(groups, key = { "group_${it.id}" }) { group ->
+                            GroupRow(group = group, onClick = { onGroupClick(group.id) })
+                            HorizontalDivider(
+                                modifier = Modifier.padding(start = 56.dp),
+                                thickness = 0.5.dp,
+                                color = rcq.divider
                             )
                         }
                     }
@@ -351,6 +402,103 @@ fun ContactsScreen(
             }
         }
     }
+}
+
+@Composable
+private fun StatusGroupHeader(
+    title: String,
+    count: Int,
+    color: Color,
+    collapsible: Boolean = false,
+    collapsed: Boolean = false,
+    onToggle: (() -> Unit)? = null
+) {
+    val rcq = LocalRCQColors.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (collapsible) Modifier.clickable { onToggle?.invoke() } else Modifier)
+            .background(rcq.bgSecondary)
+            .padding(horizontal = 12.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(color))
+        Spacer(Modifier.width(8.dp))
+        Text(
+            "$title ($count)",
+            style = MaterialTheme.typography.labelMedium,
+            color = rcq.textSecondary,
+            fontWeight = FontWeight.SemiBold
+        )
+        if (collapsible) {
+            Spacer(Modifier.weight(1f))
+            Icon(
+                if (collapsed) Icons.Default.ExpandMore else Icons.Default.ExpandLess,
+                null,
+                tint = rcq.textSecondary,
+                modifier = Modifier.size(16.dp)
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun ContactRow(
+    contact: Contact,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit
+) {
+    val rcq = LocalRCQColors.current
+    val displayName = contact.customNickname ?: contact.nickname
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        StatusIndicator(status = contact.status, size = 16)
+        Spacer(Modifier.width(6.dp))
+        Box(
+            modifier = Modifier
+                .size(32.dp)
+                .clip(CircleShape)
+                .background(rcq.accent),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                displayName.firstOrNull()?.uppercase() ?: "?",
+                color = Color.White,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+        Spacer(Modifier.width(10.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                displayName,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
+                color = rcq.textPrimary,
+                maxLines = 1
+            )
+            if (!contact.statusMessage.isNullOrBlank()) {
+                Text(
+                    contact.statusMessage,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = rcq.textSecondary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun GroupRow(group: Group, onClick: () -> Unit) {
+    GroupContactItem(group = group, onClick = onClick)
 }
 
 @OptIn(ExperimentalFoundationApi::class)

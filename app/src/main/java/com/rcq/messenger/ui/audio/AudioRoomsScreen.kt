@@ -183,7 +183,10 @@ fun AudioRoomsScreen(
                 items(rooms) { room ->
                     AudioRoomItem(
                         room = room,
-                        onClick = { onRoomClick(room.id) }
+                        onClick = {
+                            viewModel.joinRoom(room.id)
+                            onRoomClick(room.id)
+                        }
                     )
                 }
             }

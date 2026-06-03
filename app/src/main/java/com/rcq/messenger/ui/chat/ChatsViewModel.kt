@@ -16,6 +16,7 @@ import com.rcq.messenger.domain.model.Group
 import com.rcq.messenger.domain.model.Message
 import com.rcq.messenger.domain.model.MessageKind
 import com.rcq.messenger.domain.model.MessageStatus
+import com.rcq.messenger.domain.model.UserStatus
 import com.rcq.messenger.media.MediaService
 import com.rcq.messenger.media.MediaType
 import com.rcq.messenger.media.VoiceRecorder
@@ -23,9 +24,12 @@ import com.rcq.messenger.ui.chat.inbox.InboxMapper
 import com.rcq.messenger.ui.chat.inbox.InboxUiState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.supervisorScope
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
 
 @HiltViewModel
@@ -84,10 +88,16 @@ class ChatsViewModel @Inject constructor(
         viewModelScope.launch {
             _isLoading.value = true
             _error.value = null
-            val chatResult = chatRepository.syncChats()
-            val contactResult = contactRepository.syncContacts()
-            val groupResult = groupRepository.syncGroups()
-            listOf(chatResult, contactResult, groupResult)
+            val results = supervisorScope {
+                val chatResult = async { chatRepository.syncChats() }
+                val contactResult = async { contactRepository.syncContacts() }
+                val groupResult = async {
+                    withTimeoutOrNull(6_000) { groupRepository.syncGroups() }
+                        ?: Result.failure(Exception("groups sync timed out"))
+                }
+                listOf(chatResult.await(), contactResult.await(), groupResult.await())
+            }
+            results
                 .firstOrNull { it.isFailure }
                 ?.onFailure { _error.value = it.message }
             _hasLoadedOnce.value = true
@@ -158,6 +168,12 @@ class ChatViewModel @Inject constructor(
     private val _currentUserId = MutableStateFlow(0L)
     val currentUserId: StateFlow<Long> = _currentUserId.asStateFlow()
 
+    private val _targetUin = MutableStateFlow(0L)
+    val targetUin: StateFlow<Long> = _targetUin.asStateFlow()
+
+    private val _memberCount = MutableStateFlow(0)
+    val memberCount: Int get() = _memberCount.value
+
     private val _sendError = MutableStateFlow<String?>(null)
     val sendError: StateFlow<String?> = _sendError.asStateFlow()
 
@@ -178,6 +194,10 @@ class ChatViewModel @Inject constructor(
     val groups: StateFlow<List<Group>> = groupRepository.getGroups()
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
+    val peerStatus: StateFlow<UserStatus> = combine(_targetUin, contacts) { targetUin, contacts ->
+        contacts.firstOrNull { it.userId == targetUin }?.status ?: UserStatus.OFFLINE
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, UserStatus.OFFLINE)
+
     private var chatId: String = ""
     private var messagesJob: Job? = null
     private var typingJob: Job? = null
@@ -196,14 +216,25 @@ class ChatViewModel @Inject constructor(
     fun loadChat(id: String) {
         if (chatId == id) return
         chatId = id
+        _targetUin.value = getPeerUin()
         messagesJob?.cancel()
         _isLoading.value = true
 
         viewModelScope.launch {
+            _pinnedText.value = null
             chatRepository.getChat(chatId)?.let { chat ->
                 _chatTitle.value = chat.targetNickname.ifEmpty { "Chat" }
                 _chatAvatar.value = chat.targetAvatar
                 _isMuted.value = chat.isMuted
+            }
+            if (!chatId.startsWith("direct_")) {
+                groupRepository.getGroup(chatId).onSuccess { group ->
+                    _chatTitle.value = group.name
+                    _memberCount.value = group.memberCount
+                    _pinnedText.value = group.pinnedText
+                }
+            } else {
+                _memberCount.value = 0
             }
             chatRepository.clearUnreadCount(chatId)
             chatRepository.syncMessages(chatId)
@@ -221,6 +252,8 @@ class ChatViewModel @Inject constructor(
             .onEach { _isTyping.value = it }
             .launchIn(viewModelScope)
     }
+
+    fun getPeerUin(): Long = chatId.removePrefix("direct_").toLongOrNull() ?: 0L
 
     fun updateMessageText(text: String) {
         _messageText.value = text

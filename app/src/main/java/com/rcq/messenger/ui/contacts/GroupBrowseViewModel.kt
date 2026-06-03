@@ -67,4 +67,15 @@ class GroupBrowseViewModel @Inject constructor(
             isLoading.value = false
         }
     }
+
+    fun joinGroup(groupId: String, onSuccess: (String) -> Unit) {
+        viewModelScope.launch {
+            isLoading.value = true
+            groupRepository.joinGroup(groupId.toIntOrNull() ?: 0).fold(
+                onSuccess = { onSuccess(groupId) },
+                onFailure = { error.value = "Failed to join: ${it.message}" }
+            )
+            isLoading.value = false
+        }
+    }
 }

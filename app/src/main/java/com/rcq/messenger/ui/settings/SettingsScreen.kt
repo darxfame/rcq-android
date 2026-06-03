@@ -14,6 +14,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.datastore.core.DataStore
@@ -167,10 +168,13 @@ fun SettingsScreen(
     onNavigateToStealth: () -> Unit = {},
     onNavigateToPin: () -> Unit = {},
     onNavigateToDiagnostics: () -> Unit = {},
+    currentStatus: String = "online",
+    onSetStatus: (String) -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
     var showLogoutDialog by remember { mutableStateOf(false) }
     var showRecoveryPhrase by remember { mutableStateOf(false) }
+    var showStatusPicker by remember { mutableStateOf(false) }
 
     val showEditDialog by viewModel.showEditDialog.collectAsState()
     val editNickname by viewModel.editNickname.collectAsState()
@@ -296,6 +300,32 @@ fun SettingsScreen(
         )
     }
 
+    if (showStatusPicker) {
+        AlertDialog(
+            onDismissRequest = { showStatusPicker = false },
+            title = { Text("Set Status") },
+            text = {
+                Column {
+                    listOf(
+                        "online" to "Online",
+                        "away" to "Away",
+                        "dnd" to "Busy / DND",
+                        "invisible" to "Invisible"
+                    ).forEach { (key, label) ->
+                        ListItem(
+                            headlineContent = { Text(label) },
+                            modifier = Modifier.clickable {
+                                onSetStatus(key)
+                                showStatusPicker = false
+                            }
+                        )
+                    }
+                }
+            },
+            confirmButton = {}
+        )
+    }
+
     val rcq = LocalRCQColors.current
     Scaffold(
         topBar = {
@@ -320,6 +350,26 @@ fun SettingsScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
+            item {
+                ListItem(
+                    headlineContent = { Text("Status") },
+                    supportingContent = { Text(currentStatus.replaceFirstChar { it.uppercase() }) },
+                    leadingContent = {
+                        Icon(
+                            Icons.Default.Circle,
+                            null,
+                            tint = when (currentStatus) {
+                                "online" -> Color(0xFF4CAF50)
+                                "away" -> Color(0xFFFF9800)
+                                "dnd" -> Color(0xFFF44336)
+                                else -> Color.Gray
+                            }
+                        )
+                    },
+                    modifier = Modifier.clickable { showStatusPicker = true }
+                )
+            }
+
             item {
                 SettingsHeader(currentUin = currentUin, nickname = nickname)
             }
