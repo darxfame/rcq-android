@@ -46,6 +46,21 @@ class RelayEngineSelectionPolicyTest {
         assertEquals("relay-uk-google-vision", selected.relays.first().tag)
     }
 
+    @Test
+    fun `xray fallback receives only xhttp relays even when tcp relay has higher priority`() {
+        val selected = RelaySelectionPolicy.selectForEngine(
+            engine = "xray",
+            base = listOf(
+                xhttpRelay().copy(priority = -100),
+                vlessRelay().copy(tag = "relay-uk-google-vision", priority = -120)
+            ),
+            lastGoodTag = null
+        )
+
+        assertEquals("xray", selected.engine)
+        assertEquals(listOf("relay-usa-amd-xhttp"), selected.relays.map { it.tag })
+    }
+
     private fun xhttpRelay() = RelayEntry(
         tag = "relay-usa-amd-xhttp",
         proto = "vless",

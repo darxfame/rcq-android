@@ -49,7 +49,7 @@ sealed class WsEvent {
     data class MessageEdited(val chatId: String, val messageId: String, val content: String) : WsEvent()
     data class MessageDeleted(val chatId: String, val messageId: String) : WsEvent()
     data class MessageDeletedForEveryone(val chatId: String, val messageId: String) : WsEvent()
-    data class MessageReaction(val chatId: String, val messageId: String, val raw: JsonObject) : WsEvent()
+    data class MessageReaction(val chatId: String, val messageId: String, val reactions: Map<String, Int>) : WsEvent()
     data class MessageRead(val chatId: String, val messageId: String, val userId: Long) : WsEvent()
     data class MessageDelivered(val chatId: String, val messageId: String) : WsEvent()
     data class MessageBounced(val chatId: String, val messageId: String) : WsEvent()
@@ -265,6 +265,15 @@ class WebSocketService @Inject constructor(
     fun sendCallEnd(toUin: Long, callId: String, reason: String = "user_ended"): Boolean =
         sendMessage(WebSocketOutgoingPayloads.callEnd(toUin, callId, reason))
 
+    fun sendCallRenegotiate(toUin: Long, callId: String, sdp: String): Boolean =
+        sendMessage(WebSocketOutgoingPayloads.callRenegotiate(toUin, callId, sdp))
+
+    fun sendCallRenegotiateAnswer(toUin: Long, callId: String, sdp: String): Boolean =
+        sendMessage(WebSocketOutgoingPayloads.callRenegotiateAnswer(toUin, callId, sdp))
+
+    fun sendCallRenegotiateDecline(toUin: Long, callId: String): Boolean =
+        sendMessage(WebSocketOutgoingPayloads.callRenegotiateDecline(toUin, callId))
+
     fun sendRoomEnter(roomId: Int): Boolean = sendMessage(WebSocketOutgoingPayloads.roomEnter(roomId))
 
     fun sendRoomLeave(roomId: Int): Boolean = sendMessage(WebSocketOutgoingPayloads.roomLeave(roomId))
@@ -449,7 +458,9 @@ class WebSocketService @Inject constructor(
                 "message_reaction" -> WsEvent.MessageReaction(
                     chatId = obj["chat_id"]?.jsonPrimitive?.contentOrNull ?: "",
                     messageId = obj["message_id"]?.jsonPrimitive?.contentOrNull ?: "",
-                    raw = obj
+                    reactions = obj["reactions"]?.jsonObject?.mapValues { (_, value) ->
+                        value.jsonPrimitive.intOrNull ?: 0
+                    }?.filterValues { it > 0 } ?: emptyMap()
                 )
                 "message_read" -> WsEvent.MessageRead(
                     chatId = obj["chat_id"]?.jsonPrimitive?.contentOrNull ?: "",

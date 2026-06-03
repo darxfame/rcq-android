@@ -18,5 +18,6 @@ data class ContactEntity(
     val addedAt: Long = System.currentTimeMillis(),
     val identityKey: String? = null,
     val signingKey: String? = null,
+    val signalIdentityKey: String? = null,
     val statusMessage: String? = null
 )

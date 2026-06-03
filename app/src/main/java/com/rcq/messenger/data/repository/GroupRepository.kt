@@ -10,6 +10,7 @@ import androidx.datastore.preferences.core.Preferences
 import com.rcq.messenger.di.PreferencesKeys
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -18,9 +19,14 @@ import javax.inject.Singleton
 class GroupRepository @Inject constructor(
     private val api: RCQApiService,
     private val groupDao: GroupDao,
+    private val contactDao: ContactDao,
     private val dataStore: DataStore<Preferences>
 ) {
-    companion object { private const val TAG = "GroupRepository" }
+    companion object {
+        private const val TAG = "GroupRepository"
+        private const val RCQ_BETA_GROUP_ID = "21"
+        private const val RCQ_BETA_GROUP_NAME = "RCQ Beta"
+    }
 
     // GET /groups returns only the user's groups — no client-side memberIds filter needed.
     // memberIds may be empty if server omits the members array to save bandwidth.
@@ -29,13 +35,19 @@ class GroupRepository @Inject constructor(
     }
 
     suspend fun syncGroups(): Result<Unit> = runCatching {
+        ensureRcqBetaGroup()
         Log.d(TAG, "syncGroups: fetching from server...")
         val response = api.getGroups()
         Log.d(TAG, "syncGroups: HTTP ${response.code()}")
         if (response.isSuccessful) {
             val groups = response.body() ?: emptyList()
             Log.d(TAG, "syncGroups: got ${groups.size} groups: ${groups.map { "${it.id}/${it.name}" }}")
+            groups.forEach { group ->
+                Log.d(TAG, "syncGroups: group ${group.id}/${group.name} has ${group.members.size} members")
+            }
             groupDao.insertGroups(groups.map { it.toGroupEntity() })
+            cacheGroupMembers(groups)
+            ensureRcqBetaGroup()
         } else {
             val err = response.errorBody()?.string()
             Log.e(TAG, "syncGroups: server error ${response.code()} — $err")
@@ -65,7 +77,12 @@ class GroupRepository @Inject constructor(
 
     suspend fun getGroup(groupId: String): Result<Group> = runCatching {
         api.getGroup(groupId).let { response ->
-            if (response.isSuccessful) response.body()!!.toGroupEntity().toDomain()
+            if (response.isSuccessful) {
+                val group = response.body()!!
+                groupDao.insertGroup(group.toGroupEntity())
+                cacheGroupMembers(listOf(group))
+                group.toGroupEntity().toDomain()
+            }
             else throw Exception("Group not found")
         }
     }
@@ -75,6 +92,7 @@ class GroupRepository @Inject constructor(
         if (response.isSuccessful) {
             val group = response.body()!!
             groupDao.insertGroup(group.toGroupEntity())
+            cacheGroupMembers(listOf(group))
             group.toGroupEntity().toDomain()
         } else throw Exception("joinGroup failed: ${response.code()}")
     }
@@ -114,6 +132,59 @@ class GroupRepository @Inject constructor(
             if (!response.isSuccessful) throw Exception("Failed to remove member")
         }
     }
+
+    private suspend fun ensureRcqBetaGroup() {
+        val ownUin = dataStore.data.first()[PreferencesKeys.USER_UIN]?.takeIf { it != 0L }
+        groupDao.getGroup(RCQ_BETA_GROUP_ID)?.let { existing ->
+            if (ownUin != null && !existing.memberIds.contains(ownUin)) {
+                groupDao.insertGroup(
+                    existing.copy(
+                        memberIds = existing.memberIds + ownUin,
+                        isPublic = true
+                    )
+                )
+                Log.w(TAG, "Repaired mandatory local group $RCQ_BETA_GROUP_NAME ($RCQ_BETA_GROUP_ID) member list")
+            }
+            return
+        }
+        groupDao.insertGroup(
+            GroupEntity(
+                id = RCQ_BETA_GROUP_ID,
+                name = RCQ_BETA_GROUP_NAME,
+                description = "Official RCQ beta group",
+                creatorId = 0L,
+                memberIds = ownUin?.let(::listOf) ?: emptyList(),
+                adminIds = emptyList(),
+                isPublic = true
+            )
+        )
+        Log.w(TAG, "Seeded mandatory local group $RCQ_BETA_GROUP_NAME ($RCQ_BETA_GROUP_ID)")
+    }
+
+    private suspend fun cacheGroupMembers(groups: List<GroupApiResponse>) {
+        groups.forEach { group ->
+            group.members.forEach { member ->
+                val userId = member.uin.toLong()
+                val existing = contactDao.getContactByUserId(userId)
+                val merged = ContactEntity(
+                    userId = userId,
+                    nickname = member.nickname,
+                    status = member.status,
+                    identityKey = member.identityKey,
+                    signingKey = member.signingKey,
+                    signalIdentityKey = member.signalIdentityKey,
+                    isBlocked = existing?.isBlocked ?: false,
+                    avatarUrl = existing?.avatarUrl,
+                    lastSeen = existing?.lastSeen,
+                    isFavorite = existing?.isFavorite ?: false,
+                    notificationSound = existing?.notificationSound,
+                    customNickname = existing?.customNickname,
+                    statusMessage = existing?.statusMessage
+                )
+                contactDao.insertContact(merged)
+            }
+        }
+    }
 }
 
 private fun com.rcq.messenger.data.api.GroupApiResponse.toGroupEntity() = GroupEntity(
@@ -124,19 +195,22 @@ private fun com.rcq.messenger.data.api.GroupApiResponse.toGroupEntity() = GroupE
     creatorId = ownerUin.toLong(),
     memberIds = members.map { it.uin.toLong() },
     adminIds = members.filter { it.role == "admin" || it.role == "owner" }.map { it.uin.toLong() },
-    createdAt = System.currentTimeMillis()
+    createdAt = System.currentTimeMillis(),
+    pinnedText = pinnedText
 )
 
 private fun GroupEntity.toDomain() = Group(
     id = id, name = name, avatarUrl = avatarUrl, description = description ?: "",
     ownerId = creatorId, adminIds = adminIds, memberIds = memberIds,
-    memberCount = memberIds.size, createdAt = createdAt, settings = GroupSettings()
+    memberCount = memberIds.size, createdAt = createdAt, settings = GroupSettings(),
+    pinnedText = pinnedText
 )
 
 private fun Group.toEntity() = GroupEntity(
     id = id, name = name, avatarUrl = avatarUrl, description = description,
     creatorId = ownerId, memberIds = memberIds, adminIds = adminIds,
-    createdAt = createdAt
+    createdAt = createdAt,
+    pinnedText = pinnedText
 )
 
 @Singleton
@@ -176,7 +250,14 @@ class AudioRoomRepository @Inject constructor(
     }
 
     suspend fun leaveRoom(roomId: String): Result<Unit> = runCatching {
-        webSocketService.sendRoomLeave(roomId.toInt())
+        webSocketService.sendRoomLeave(roomId.toIntOrNull() ?: 0)
+        val response = api.leaveRoom(roomId)
+        if (!response.isSuccessful) {
+            Log.w(
+                "AudioRoomRepository",
+                "REST leaveRoom failed: ${response.code()} - WS leave already sent"
+            )
+        }
     }
 
     suspend fun toggleMute(roomId: String): Result<Unit> = runCatching {

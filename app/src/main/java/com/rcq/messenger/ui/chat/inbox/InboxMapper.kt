@@ -123,8 +123,8 @@ class InboxMapper {
     private fun Group.toInboxRow(): InboxRow = InboxRow(
         id = "group:$id",
         title = name,
-        subtitle = if (memberCount > 0) "$memberCount members" else description,
-        preview = if (memberCount > 0) "$memberCount members" else description,
+        subtitle = groupSubtitle(),
+        preview = groupSubtitle(),
         timestamp = formatInboxTime(lastMessage?.timestamp ?: createdAt),
         unreadCount = unreadCount,
         status = null,
@@ -134,6 +134,12 @@ class InboxMapper {
         target = InboxTarget.Group(id),
         previewKind = lastMessage?.kind
     )
+
+    private fun Group.groupSubtitle(): String = when {
+        memberCount > 0 -> "$memberCount members"
+        description.isNotBlank() -> description
+        else -> "Group"
+    }
 
     private fun com.rcq.messenger.domain.model.Message.previewText(): String =
         content.takeIf { it.isNotBlank() } ?: when (kind) {

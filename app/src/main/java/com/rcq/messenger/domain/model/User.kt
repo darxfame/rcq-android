@@ -9,6 +9,7 @@ data class User(
     @kotlinx.serialization.SerialName("avatar_url") val avatarUrl: String? = null,
     val status: UserStatus = UserStatus.OFFLINE,
     @kotlinx.serialization.SerialName("last_seen") val lastSeen: String? = null,
+    @kotlinx.serialization.SerialName("status_message") val statusMessage: String? = null,
     val bio: String = "",
     @kotlinx.serialization.SerialName("blocked") val isBlocked: Boolean = false,
     val isFavorite: Boolean = false,
@@ -17,7 +18,8 @@ data class User(
     val tokens: Long = 0,
     @kotlinx.serialization.SerialName("is_premium") val isPremium: Boolean = false,
     @kotlinx.serialization.SerialName("identity_key") val identityKey: String? = null,
-    @kotlinx.serialization.SerialName("signing_key") val signingKey: String? = null
+    @kotlinx.serialization.SerialName("signing_key") val signingKey: String? = null,
+    @kotlinx.serialization.SerialName("signal_identity_key") val signalIdentityKey: String? = null
 )
 
 @Serializable

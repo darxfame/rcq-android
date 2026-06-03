@@ -29,6 +29,11 @@
 - [x] Execute `CODEX_FIX_PLAN.md` blocks 1-9 for WS/call/audio-room/group backend parity
 - [x] Validate `./gradlew compileProductionDebugKotlin` after each fix-plan block
 - [x] Validate final `./gradlew test`
+- [x] Execute `CODEX_UI_PLAN.md` blocks 1-6 for chat/group/settings UI parity
+- [x] Validate `./gradlew compileProductionDebugKotlin` after each UI block
+- [x] Execute `CODEX_FIX_PLAN.md` v3 blocks A-F cleanup
+- [x] Apply Miranda/Telegram/RCQ iOS polish for chat rows, chat header, message bubbles, delivery ticks, reaction chips, and grouped contacts
+- [x] Install updated `productionDebug` APK on connected Android device
 - [ ] Remove dead UI clicks/stubs for currently visible Android screens
 - [ ] Add focused tests for WebSocket event parsing
 - [ ] Wire `CallManager` to real `CallService` SDP offer/answer and ICE send flow, then device-validate Android↔iOS calls
@@ -39,9 +44,15 @@
 - [x] Add local priority Britain VLESS Reality TCP Vision relay above xHTTP fallback
 - [x] Add explicit built-in relay selection and custom `vless://` Reality URL input before/after login
 - [x] Add and validate process-based Xray-core engine for VLESS Reality xHTTP relay
-- [ ] Visually verify main inbox renders synced `RCQ Beta` and `.Dev`
+- [x] Visually verify main inbox renders `RCQ Beta` and `.Dev` (`911`) on device
+- [x] Fix offline queue reload on WS reconnect/open and ACK undecryptable queue rows with encrypted placeholder
+- [x] Fix contact/group member key mapping (`identity_key`, `signing_key`, `signal_identity_key`, `status_message`) and cache group member nicknames
+- [x] Fix group sealed fan-out refresh/session/payload path for stale member lists
+- [x] Add Nearby users screen wired to `GET /nearby`
+- [ ] Fix live `/groups` timeouts through direct/Xray route; mandatory local `RCQ Beta` seed keeps UI populated meanwhile
 - [ ] Fix/force direct transport or working relay for live ADB validation; current device routes Add Contact search through broken `relay-do-fra-yandex-hy2`
 - [ ] Re-run ADB validation for Add Contact success, duplicate 409, empty search, and backend error states
+- [ ] ADB-validate Chat More menu, ReactionPicker, ForwardPicker, InChatSearch, polished bubbles/ticks, grouped contacts, GroupInfoScreen, group Join, room Join, and Settings status picker
 - [ ] ADB-validate Britain relay (`relay-uk-google-vision`) with contacts/groups/messages queue
 - [ ] ADB-validate explicit relay selection and custom VLESS add/select flow
 
@@ -71,6 +82,22 @@ Execute `docs/ai-context/CODEX_FIX_PLAN.md` blocks in order:
 - [x] BLOCK 7 — ChatRepository: fix GroupUpdated WS handler to trigger DB sync
 - [x] BLOCK 8 — GroupRepository: add joinGroup, getGroupPreview, deleteGroup
 - [x] BLOCK 9 — Fix all compile errors from changed WsEvent fields
+
+Execute `docs/ai-context/CODEX_UI_PLAN.md` blocks in order:
+- [x] BLOCK UI-1 — Wire broken stubs in ChatScreen
+- [x] BLOCK UI-2 — Add missing state to ChatViewModel
+- [x] BLOCK UI-3 — Create GroupInfoScreen
+- [x] BLOCK UI-4 — Register GroupInfoScreen in NavHost
+- [x] BLOCK UI-5 — Add group join in GroupBrowseScreen
+- [x] BLOCK UI-6 — Add Status Picker to SettingsScreen
+
+Execute `docs/ai-context/CODEX_FIX_PLAN.md` v3 cleanup blocks:
+- [x] BLOCK A — Add missing WebSocketService WS send helper methods
+- [x] BLOCK B — Pass CallScreen `targetUin` through navigation
+- [x] BLOCK C — Verify GroupUpdated/GroupDeleted ChatRepository handlers
+- [x] BLOCK D — Verify GroupBrowse join calls repository and navigates to chat
+- [x] BLOCK E — Make AudioRoomRepository leave send WS leave plus REST cleanup
+- [x] BLOCK F — Verify Settings status keys match server lowercase values
 
 ## Priority Rule
 

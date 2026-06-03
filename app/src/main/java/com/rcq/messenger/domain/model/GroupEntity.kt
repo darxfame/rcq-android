@@ -16,5 +16,6 @@ data class GroupEntity(
     val isPublic: Boolean = false,
     val inviteLink: String? = null,
     val createdAt: Long = System.currentTimeMillis(),
-    val updatedAt: Long = System.currentTimeMillis()
+    val updatedAt: Long = System.currentTimeMillis(),
+    val pinnedText: String? = null
 )

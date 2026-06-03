@@ -11,12 +11,19 @@
 - **Fix:** Wire `CallManager` to `CallService.createOffer/createAnswer`, set remote descriptions from incoming offer/answer, send ICE through `sendCallIce`, and validate Android↔iOS calls on device.
 - **File:** `call/CallManager.kt`, `service/CallService.kt`, `data/websocket/WebSocketService.kt`
 
-### BUG-011: Main inbox UI still needs visual device validation
+### BUG-011: Main inbox UI still needs broad visual device validation
 - **Severity:** High
-- **Symptom:** user reported “No contacts yet” and missing `RCQ Beta`.
-- **Current state:** device log after Xray embedded bypass shows `/groups` HTTP 200 and `GroupRepository: syncGroups: got 1 groups: [21/RCQ Beta]`; `/contacts` and `/contacts/pending` return 200 without ViewModel timeout. Android main `ChatsScreen` now uses `InboxMapper` to combine chats, contacts, and groups.
-- **Fix:** device-verify the main inbox renders `.Dev`, `RCQ Beta`, grouped search results, emoji picker, attachment bottom sheet, relay picker, and custom VLESS flow.
+- **Symptom:** user reported empty contacts/chats and missing mandatory `RCQ Beta`.
+- **Current state:** fixed for mandatory starter rows. 2026-06-04 ADB validation confirmed Chats UI renders `RCQ Beta` and `.Dev`; Room contains `groups: 21|RCQ Beta` and only `.Dev` contact `911` (old `84048` absent). `/groups` still times out on the live route, so `GroupRepository` seeds mandatory local `RCQ Beta` before network sync and lets any successful server response overwrite it by id.
+- **Fix:** device-verify remaining grouped search results, chat unread badges/dividers/status overlays, emoji picker, attachment bottom sheet, relay picker, custom VLESS flow, and group detail/navigation flows.
 - **File:** `ui/chat/ChatsScreen.kt`, `ui/chat/ChatScreen.kt`, `ui/chat/inbox/InboxMapper.kt`, `ui/settings/ConnectionSettingsSheet.kt`, `ui/settings/StealthSettingsScreen.kt`
+
+### BUG-017: New iOS-parity chat/group UI needs device validation
+- **Severity:** Medium
+- **Symptom:** Code-level parity controls are implemented but not visually validated on a device.
+- **Current state:** Chat More menu, reaction picker, forward picker, in-chat search, pinned group banner, GroupInfoScreen, group join, audio-room join tap, Settings status picker, polished chat header, delivery ticks, reaction chips, and Miranda contact sections compile.
+- **Fix:** Run emulator/device QA for chat menus/dialogs, bubble layout/ticks, contact sections, group info member actions, group browse join, room join, and status updates against live/staging backend.
+- **File:** `ui/chat/ChatScreen.kt`, `ui/chat/ChatsViewModel.kt`, `ui/contacts/GroupInfoScreen.kt`, `ui/contacts/GroupBrowseScreen.kt`, `ui/settings/SettingsScreen.kt`
 
 ### BUG-012: Add Contact flow needs live device validation
 - **Severity:** Medium
@@ -44,6 +51,7 @@
 
 | ID | Описание | Дата | Коммит |
 |----|----------|------|--------|
+| BUG-018 | iOS-parity UI plan blocks 1-6: ChatScreen actions, ViewModel state, GroupInfo screen, group route, group join, status picker | 2026-06-03 | uncommitted |
 | BUG-016 | Backend WS/API parity plan blocks 1-9: call/room/group WsEvent fields and parsers, outgoing payloads, dead call REST removal, audio-room WS enter/leave, group preview/join/delete, GroupUpdated sync | 2026-06-03 | uncommitted |
 | BUG-014 | Входящие control-envelope события (`read`, `reaction`, `delete`, `bounce`, `system`, `edit`, `visit`) обрабатывались как обычные сообщения | 2026-06-03 | uncommitted |
 | BUG-013 | Отправка сообщений: статус после отправки не учитывал `queued`/`delivered` и возможен NPE при пустом ответе | 2026-06-03 | uncommitted |

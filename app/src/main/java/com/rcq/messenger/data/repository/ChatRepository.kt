@@ -32,6 +32,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
 import javax.inject.Singleton
+import com.rcq.messenger.data.websocket.ConnectionState
 import com.rcq.messenger.data.websocket.WebSocketService
 import com.rcq.messenger.data.websocket.WsEvent
 
@@ -95,7 +96,8 @@ class ContactRepository @Inject constructor(
 ) {
     companion object {
         // Dev account: auto-added to contacts without request flow (mirrors iOS .Dev badge)
-        const val DEV_UIN = 84048L
+        const val DEV_UIN = 911L
+        private const val LEGACY_DEV_UIN = 84048L
     }
 
     // Local cache for pending contact requests (from server sync)
@@ -117,7 +119,8 @@ class ContactRepository @Inject constructor(
             Log.d("ContactRepository", "getContacts response: ${response.code()}")
             if (response.isSuccessful) {
                 val users = response.body()!!
-                Log.d("ContactRepository", "Got ${users.size} contacts")
+                val first = users.firstOrNull()
+                Log.d("ContactRepository", "Got ${users.size} contacts. First: ${first?.nickname} / uin=${first?.id}")
                 // Clear and insert contacts (map from User to ContactEntity)
                 contactDao.insertAll(users.map { it.toContactEntity() })
             } else {
@@ -126,6 +129,7 @@ class ContactRepository @Inject constructor(
         }
 
         // Auto-add dev account without request flow (mirrors iOS .Dev behavior)
+        removeLegacyDevFallback()
         ensureDevContact()
 
         // Pending requests are secondary metadata; they must not block visible contacts
@@ -147,18 +151,42 @@ class ContactRepository @Inject constructor(
         if (!pendingSynced) Log.w("ContactRepository", "getContactRequests timed out; keeping cached pending requests")
     }
 
+    private suspend fun removeLegacyDevFallback() {
+        val legacy = contactDao.getContactByUserId(LEGACY_DEV_UIN) ?: return
+        if (legacy.nickname == ".Dev") {
+            contactDao.deleteByUserId(LEGACY_DEV_UIN)
+            Log.d("ContactRepository", "Removed legacy .Dev fallback ($LEGACY_DEV_UIN)")
+        }
+    }
+
     private suspend fun ensureDevContact() {
         if (contactDao.getContactByUserId(DEV_UIN) != null) return
-        runCatching {
+        val insertedFromServer = runCatching {
             api.getUserByUin(DEV_UIN).let { resp ->
                 if (resp.isSuccessful) {
                     resp.body()?.let { user ->
                         contactDao.insertContact(user.toContactEntity())
                         Log.d("ContactRepository", "Dev contact ($DEV_UIN) auto-added")
+                        return@runCatching true
                     }
+                } else {
+                    Log.w("ContactRepository", "ensureDevContact lookup failed: ${resp.code()}")
                 }
+                false
             }
         }.onFailure { Log.w("ContactRepository", "ensureDevContact failed: ${it.message}") }
+            .getOrDefault(false)
+
+        if (!insertedFromServer && contactDao.getContactByUserId(DEV_UIN) == null) {
+            contactDao.insertContact(
+                ContactEntity(
+                    userId = DEV_UIN,
+                    nickname = ".Dev",
+                    status = UserStatus.ONLINE.name
+                )
+            )
+            Log.w("ContactRepository", "Dev contact ($DEV_UIN) inserted from local fallback")
+        }
     }
 
     suspend fun getContactRequests(): Result<List<ContactRequest>> = runCatching {
@@ -277,6 +305,10 @@ class ChatRepository @Inject constructor(
 
     init {
         fetchOfflineQueue()
+        webSocketService.connectionState
+            .filter { it == ConnectionState.CONNECTED }
+            .onEach { scope.launch { syncOfflineQueue() } }
+            .launchIn(scope)
         webSocketService.events
             .onEach { event ->
                 when (event) {
@@ -412,8 +444,10 @@ class ChatRepository @Inject constructor(
                         messageDao.markDeletedForEveryone(event.messageId)
                     }
                     is WsEvent.MessageReaction -> {
-                        val reactionsJson = event.raw["reactions"]?.toString() ?: return@onEach
-                        messageDao.updateReactions(event.messageId, reactionsJson)
+                        if (event.reactions.isNotEmpty()) {
+                            val reactionsJson = json.encodeToString(event.reactions)
+                            messageDao.updateReactions(event.messageId, reactionsJson)
+                        }
                     }
                     is WsEvent.PresenceOnline -> contactDao.updateStatus(event.uin, "ONLINE")
                     is WsEvent.PresenceAway -> contactDao.updateStatus(event.uin, "AWAY")
@@ -446,6 +480,11 @@ class ChatRepository @Inject constructor(
                             }
                         }
                     }
+                    is WsEvent.Unknown -> {
+                        if (event.type == "pong" || event.type == "opened") {
+                            scope.launch { syncOfflineQueue() }
+                        }
+                    }
                     else -> Unit
                 }
             }
@@ -461,7 +500,10 @@ class ChatRepository @Inject constructor(
     private suspend fun syncOfflineQueue() {
         runCatching {
             val response = api.getMessageQueue()
-            if (!response.isSuccessful) return@runCatching
+            if (!response.isSuccessful) {
+                Log.e("ChatRepository", "getMessageQueue failed: ${response.code()} ${response.errorBody()?.string()}")
+                return@runCatching
+            }
             val rows = response.body() ?: return@runCatching
             val directAckIds = mutableListOf<Int>()
             val groupAckIds = mutableListOf<Int>()
@@ -482,14 +524,21 @@ class ChatRepository @Inject constructor(
                     )
                 }
             }
+        }.onFailure { e ->
+            Log.e("ChatRepository", "syncOfflineQueue exception: ${e.message}", e)
         }
     }
 
     private suspend fun ingestQueueRow(row: com.rcq.messenger.data.api.QueuedMessage): Boolean {
         return try {
-            val decrypted = runCatching { cryptoService.decryptWrapped(row.payload) }.getOrNull()
-                ?: return false
-            val senderId = decrypted.senderUin
+            val decrypted = runCatching { cryptoService.decryptWrapped(row.payload) }
+                .onFailure { e -> Log.w("ChatRepository", "decryptWrapped failed for queue row ${row.id}: ${e.message}") }
+                .getOrNull()
+            val senderId = decrypted?.senderUin
+                ?: run {
+                    Log.w("ChatRepository", "Cannot identify sender for row ${row.id}, skipping")
+                    return false
+                }
             if (currentUserUin != 0L && senderId == currentUserUin) return true
             val chatId = when {
                 row.groupId != null -> row.groupId.toString()
@@ -500,14 +549,14 @@ class ChatRepository @Inject constructor(
                 runCatching { java.time.Instant.parse(it).toEpochMilli() }.getOrNull()
             } ?: System.currentTimeMillis()
             val msg = com.rcq.messenger.domain.model.Message(
-                id = decrypted.messageId,   // use envelope UUID — enables dedup on re-fetch
+                id = decrypted?.messageId ?: "queue_${row.id}",
                 chatId = chatId,
                 senderId = senderId,
                 isFromMe = false,
                 kind = runCatching {
-                    json.decodeFromString<com.rcq.messenger.domain.model.MessageKind>("\"${decrypted.kind}\"")
+                    json.decodeFromString<com.rcq.messenger.domain.model.MessageKind>("\"${decrypted?.kind ?: "text"}\"")
                 }.getOrDefault(com.rcq.messenger.domain.model.MessageKind.TEXT),
-                content = decrypted.content,
+                content = decrypted?.content ?: "🔒 Зашифрованное сообщение",
                 timestamp = timestamp,
                 receivedWhileAway = true
             )
@@ -717,21 +766,28 @@ class ChatRepository @Inject constructor(
         optimisticEntity: com.rcq.messenger.domain.model.MessageEntity
     ): Message {
         val recipients = mutableListOf<com.rcq.messenger.data.api.GroupSealedRecipient>()
+        val groupForSend = refreshGroupForSendIfNeeded(group, message.senderId)
 
-        for (memberUin in group.memberIds) {
+        for (memberUin in groupForSend.memberIds) {
             if (memberUin == message.senderId) continue // skip self
 
             try {
+                var memberContact = contactDao.getContactByUserId(memberUin)
                 if (!cryptoService.hasSession(memberUin)) {
                     val bundleResp = api.fetchPreKeyBundle(memberUin)
                     if (bundleResp.isSuccessful && bundleResp.body() != null) {
-                        cryptoService.buildSession(memberUin, bundleResp.body()!!)
+                        val bundle = bundleResp.body()!!
+                        cryptoService.buildSession(memberUin, bundle)
+                        memberContact = upsertMemberSignalIdentity(memberUin, bundle.identityKey, memberContact)
                     } else {
                         Log.w("ChatRepository", "No key bundle for group member $memberUin — skipping")
                         continue
                     }
                 }
-                val memberIdentityKey = contactDao.getContactByUserId(memberUin)?.identityKey
+                val memberIdentityKey = memberContact?.identityKey?.takeIf { it.isNotBlank() }
+                if (memberIdentityKey == null) {
+                    Log.w("ChatRepository", "Missing ECIES identity_key for group member $memberUin; using Signal session fallback")
+                }
                 val wrapped = cryptoService.encryptWrapped(message.senderId, memberUin, message.content, memberIdentityKey)
                 recipients.add(com.rcq.messenger.data.api.GroupSealedRecipient(
                     toUin = memberUin, payload = wrapped.payload
@@ -766,6 +822,57 @@ class ChatRepository @Inject constructor(
                 throw Exception("Group send failed: ${response.code()}")
             }
         }
+    }
+
+    private suspend fun refreshGroupForSendIfNeeded(
+        group: com.rcq.messenger.domain.model.GroupEntity,
+        senderUin: Long
+    ): com.rcq.messenger.domain.model.GroupEntity {
+        if (group.memberIds.any { it != senderUin }) return group
+        val groupId = group.id
+        return runCatching {
+            val response = api.getGroup(groupId)
+            if (!response.isSuccessful) return@runCatching group
+            val apiGroup = response.body() ?: return@runCatching group
+            val fresh = apiGroup.toGroupEntity()
+            groupDao.insertGroup(fresh)
+            apiGroup.members.forEach { member ->
+                val existing = contactDao.getContactByUserId(member.uin.toLong())
+                contactDao.insertContact(
+                    ContactEntity(
+                        userId = member.uin.toLong(),
+                        nickname = member.nickname,
+                        status = member.status,
+                        identityKey = member.identityKey,
+                        signingKey = member.signingKey,
+                        signalIdentityKey = member.signalIdentityKey,
+                        isBlocked = existing?.isBlocked ?: false,
+                        avatarUrl = existing?.avatarUrl,
+                        lastSeen = existing?.lastSeen,
+                        isFavorite = existing?.isFavorite ?: false,
+                        notificationSound = existing?.notificationSound,
+                        customNickname = existing?.customNickname,
+                        statusMessage = existing?.statusMessage
+                    )
+                )
+            }
+            fresh
+        }.onFailure { e ->
+            Log.w("ChatRepository", "refreshGroupForSendIfNeeded failed for $groupId: ${e.message}")
+        }.getOrDefault(group)
+    }
+
+    private suspend fun upsertMemberSignalIdentity(
+        memberUin: Long,
+        signalIdentityKey: String,
+        existing: ContactEntity?
+    ): ContactEntity {
+        val updated = (existing ?: ContactEntity(
+            userId = memberUin,
+            nickname = memberUin.toString()
+        )).copy(signalIdentityKey = signalIdentityKey)
+        contactDao.insertContact(updated)
+        return updated
     }
 
     suspend fun editMessage(chatId: String, message: Message): Result<Message> = runCatching {
@@ -823,7 +930,9 @@ private fun User.toContactEntity() = ContactEntity(
     notificationSound = notificationSound,
     customNickname = customNickname,
     identityKey = identityKey,
-    signingKey = signingKey
+    signingKey = signingKey,
+    signalIdentityKey = signalIdentityKey,
+    statusMessage = statusMessage
 )
 
 private fun ChatEntity.toDomain() = Chat(
@@ -859,7 +968,8 @@ private fun GroupApiResponse.toGroupEntity() = GroupEntity(
     creatorId = ownerUin.toLong(),
     memberIds = members.map { it.uin.toLong() },
     adminIds = members.filter { it.role == "admin" || it.role == "owner" }.map { it.uin.toLong() },
-    createdAt = System.currentTimeMillis()
+    createdAt = System.currentTimeMillis(),
+    pinnedText = pinnedText
 )
 
 private fun MessageEntity.toDomain() = Message(

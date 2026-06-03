@@ -178,7 +178,8 @@ fun ContactsScreen(
     onChatClick: (String) -> Unit = {},
     onGroupClick: (String) -> Unit = {},
     onAddContact: () -> Unit,
-    onPendingRequests: () -> Unit = {}
+    onPendingRequests: () -> Unit = {},
+    onNearby: () -> Unit = {}
 ) {
     val contacts by viewModel.contacts.collectAsState()
     val groups by viewModel.groups.collectAsState()
@@ -260,6 +261,9 @@ fun ContactsScreen(
                     )
                 },
                 actions = {
+                    IconButton(onClick = onNearby) {
+                        Icon(Icons.Default.LocationOn, contentDescription = "Nearby")
+                    }
                     BadgedBox(
                         badge = {
                             if (pendingCount > 0) {

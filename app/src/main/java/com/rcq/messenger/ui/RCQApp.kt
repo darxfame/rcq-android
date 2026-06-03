@@ -41,6 +41,7 @@ import com.rcq.messenger.ui.contacts.PendingRequestsScreen
 import com.rcq.messenger.ui.contacts.CreateGroupScreen
 import com.rcq.messenger.ui.contacts.GroupBrowseScreen
 import com.rcq.messenger.ui.contacts.GroupInfoScreen
+import com.rcq.messenger.ui.contacts.NearbyScreen
 import com.rcq.messenger.ui.common.BottomNavBar
 import com.rcq.messenger.ui.stories.*
 import com.rcq.messenger.ui.calls.*
@@ -80,6 +81,7 @@ object Routes {
     const val GROUP = "group/{groupId}"
     const val STORY_VIEWER = "story/{userId}"
     const val USER_PROFILE = "profile/{userId}"
+    const val NEARBY = "nearby"
 
     fun chat(chatId: String) = "chat/$chatId"
     fun call(chatId: String, targetUin: Long) = "call/$chatId/$targetUin"
@@ -168,7 +170,8 @@ fun MainScaffold(
                     onChatClick = { chatId -> navController.navigate(Routes.chat(chatId)) },
                     onGroupClick = { groupId -> navController.navigate(Routes.chat(groupId)) },
                     onAddContact = { navController.navigate("add_contact") },
-                    onPendingRequests = { navController.navigate("pending_requests") }
+                    onPendingRequests = { navController.navigate("pending_requests") },
+                    onNearby = { navController.navigate(Routes.NEARBY) }
                 )
             }
             composable(Screen.AudioRooms.route) {
@@ -250,6 +253,12 @@ fun MainScaffold(
             }
             composable("pending_requests") {
                 PendingRequestsScreen(
+                    onBack = { navController.popBackStack() },
+                    onUserClick = { userId -> navController.navigate(Routes.userProfile(userId)) }
+                )
+            }
+            composable(Routes.NEARBY) {
+                NearbyScreen(
                     onBack = { navController.popBackStack() },
                     onUserClick = { userId -> navController.navigate(Routes.userProfile(userId)) }
                 )

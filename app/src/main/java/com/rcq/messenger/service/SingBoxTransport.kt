@@ -105,6 +105,26 @@ object RelaySelectionPolicy {
         )
     }
 
+    fun selectForEngine(
+        engine: String,
+        base: List<RelayEntry>,
+        lastGoodTag: String?
+    ): EmbeddedRelaySelection {
+        return when (engine) {
+            "xray" -> EmbeddedRelaySelection(
+                engine = "xray",
+                relays = promoteLastGood(
+                    base.filter { it.isXhttpRelay }.sortedBy { it.priority },
+                    lastGoodTag
+                )
+            )
+            else -> EmbeddedRelaySelection(
+                engine = "sing-box",
+                relays = orderForAndroid(base, lastGoodTag = lastGoodTag, supportsXhttp = false)
+            )
+        }
+    }
+
     private fun promoteLastGood(relays: List<RelayEntry>, lastGoodTag: String?): List<RelayEntry> {
         if (lastGoodTag.isNullOrBlank()) return relays
         val idx = relays.indexOfFirst { it.tag == lastGoodTag }

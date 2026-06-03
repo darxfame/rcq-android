@@ -12,8 +12,15 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.OkHttpClient
+import okhttp3.Interceptor
 import okhttp3.Protocol
 import okhttp3.Request
+import okhttp3.Response
+import okhttp3.ResponseBody
+import okio.Buffer
+import okio.BufferedSource
+import okio.ForwardingSource
+import okio.buffer
 import java.util.concurrent.TimeUnit
 import timber.log.Timber
 import java.io.IOException
@@ -52,7 +59,7 @@ class ProxyManager @Inject constructor(
         private const val KEY_MANUAL_URL = "manual_proxy_url"
         private const val KEY_BYPASS_MODE = "bypass_mode"
         private const val KEY_SINGBOX_WAS_ACTIVE = "singbox_was_active"
-        private const val AUTO_THRESHOLD = 3
+        private const val AUTO_THRESHOLD = 2
     }
 
     private val prefs: SharedPreferences =
@@ -260,7 +267,7 @@ class ProxyManager @Inject constructor(
         }
 
         val fallbackSelection = fallbackEngine
-            ?.let { RelaySelectionPolicy.selectForEmbeddedTransport(relays, null, xrayTransport.isEngineAvailable) }
+            ?.let { RelaySelectionPolicy.selectForEngine(it, relays, lastGoodTag = null) }
 
         return if (fallbackEngine != null && fallbackSelection != null) {
             Timber.i(
@@ -364,4 +371,49 @@ class RcqProxySelector(private val proxyManager: ProxyManager) : ProxySelector()
         Timber.w("ProxySelector: connect failed for $uri via $sa: ${ioe?.message}")
         proxyManager.reportFailure()
     }
+}
+
+class RcqProxyHealthInterceptor(private val proxyManager: ProxyManager) : Interceptor {
+    override fun intercept(chain: Interceptor.Chain): Response {
+        return try {
+            val response = chain.proceed(chain.request()).also {
+                proxyManager.reportSuccess()
+            }
+            response.withFailureReportingBody()
+        } catch (e: IOException) {
+            proxyManager.reportFailure()
+            throw e
+        }
+    }
+
+    private fun Response.withFailureReportingBody(): Response {
+        val original = body ?: return this
+        return newBuilder()
+            .body(FailureReportingResponseBody(original, proxyManager))
+            .build()
+    }
+}
+
+private class FailureReportingResponseBody(
+    private val delegate: ResponseBody,
+    private val proxyManager: ProxyManager
+) : ResponseBody() {
+    private val bufferedSource: BufferedSource by lazy {
+        object : ForwardingSource(delegate.source()) {
+            override fun read(sink: Buffer, byteCount: Long): Long {
+                return try {
+                    super.read(sink, byteCount)
+                } catch (e: IOException) {
+                    proxyManager.reportFailure()
+                    throw e
+                }
+            }
+        }.buffer()
+    }
+
+    override fun contentType() = delegate.contentType()
+
+    override fun contentLength() = delegate.contentLength()
+
+    override fun source(): BufferedSource = bufferedSource
 }

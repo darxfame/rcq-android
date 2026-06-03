@@ -1,6 +1,7 @@
 package com.rcq.messenger.di
 
 import android.content.Context
+import android.location.LocationManager
 import com.rcq.messenger.BuildConfig
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
@@ -18,6 +19,7 @@ import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import com.rcq.messenger.service.ProxyManager
 import com.rcq.messenger.service.RcqProxySelector
+import com.rcq.messenger.service.RcqProxyHealthInterceptor
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
@@ -55,6 +57,7 @@ object AppModule {
         return OkHttpClient.Builder()
             .addInterceptor(loggingInterceptor)
             .addInterceptor(authInterceptor)
+            .addInterceptor(RcqProxyHealthInterceptor(proxyManager))
             .proxySelector(RcqProxySelector(proxyManager))
             .connectTimeout(10, TimeUnit.SECONDS)
             .readTimeout(15, TimeUnit.SECONDS)
@@ -94,7 +97,9 @@ object AppModule {
             RCQDatabase.MIGRATION_10_11,
             RCQDatabase.MIGRATION_11_12,
             RCQDatabase.MIGRATION_12_13,
-            RCQDatabase.MIGRATION_13_14
+            RCQDatabase.MIGRATION_13_14,
+            RCQDatabase.MIGRATION_14_15,
+            RCQDatabase.MIGRATION_15_16
         ).build()
     }
 
@@ -130,5 +135,11 @@ object AppModule {
     @Singleton
     fun provideDataStore(@ApplicationContext context: Context): DataStore<Preferences> {
         return context.dataStore
+    }
+
+    @Provides
+    @Singleton
+    fun provideLocationManager(@ApplicationContext context: Context): LocationManager {
+        return context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
     }
 }

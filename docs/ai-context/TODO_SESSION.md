@@ -1,7 +1,7 @@
 # TODO — текущая сессия (2026-05-31)
 
 ## Сделано ✅
-- Dev UIN = **84048** (.Dev badge, авто-добавление без заявки)
+- Dev UIN = **911** (.Dev badge, авто-добавление без заявки)
 - WebSocket через RcqProxySelector (обход работает и для WS)
 - Диагностика: 10 REST ручек + WS статус
 - ContactEntity: поле `statusMessage` (миграция 13→14)
@@ -40,4 +40,4 @@
 - [ ] BUG-005: SingBox stub → нужен libbox.aar (отложено)
 
 ## Dev UIN
-UIN разработчика: **84048**
+UIN разработчика: **911**
