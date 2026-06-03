@@ -233,23 +233,70 @@ class ProxyManager @Inject constructor(
 
     private suspend fun startEmbeddedTransport(): Boolean {
         val relays = relayConfigRepository.selectedOrCurrentRelays()
+        Timber.i(
+            "ProxyManager: startEmbeddedTransport relays=${relays.size}, " +
+                "xrayEngineAvailable=${xrayTransport.isEngineAvailable}, " +
+                "singboxEngineAvailable=${singBoxTransport.isEngineAvailable}"
+        )
         val selection = RelaySelectionPolicy.selectForEmbeddedTransport(
             base = relays,
             lastGoodTag = null,
             xrayAvailable = xrayTransport.isEngineAvailable
         )
-        return when (selection.engine) {
+        val firstRelay = selection.relays.firstOrNull()
+        Timber.i(
+            "ProxyManager: startEmbeddedTransport selecting engine=${selection.engine} " +
+                "firstRelay=${firstRelay?.tag}, proto=${firstRelay?.proto}, type=${firstRelay?.transport_type}"
+        )
+        val primaryResult = startEmbeddedTransport(selection.engine, selection.relays)
+        if (primaryResult) {
+            Timber.i("ProxyManager: embedded ${selection.engine} start result=true")
+            return true
+        }
+
+        val fallbackEngine = when (selection.engine) {
+            "xray" -> if (singBoxTransport.isEngineAvailable) "sing-box" else null
+            else -> if (xrayTransport.isEngineAvailable) "xray" else null
+        }
+
+        val fallbackSelection = fallbackEngine
+            ?.let { RelaySelectionPolicy.selectForEmbeddedTransport(relays, null, xrayTransport.isEngineAvailable) }
+
+        return if (fallbackEngine != null && fallbackSelection != null) {
+            Timber.i(
+                "ProxyManager: embedded ${selection.engine} failed, trying fallback=$fallbackEngine " +
+                    "with firstRelay=${fallbackSelection.relays.firstOrNull()?.tag ?: "-"}"
+            )
+            val fallbackResult = startEmbeddedTransport(fallbackEngine, fallbackSelection.relays)
+            Timber.i("ProxyManager: embedded $fallbackEngine start result=$fallbackResult")
+            fallbackResult
+        } else {
+            Timber.i("ProxyManager: embedded ${selection.engine} failed, no fallback available")
+            false
+        }
+    }
+
+    private suspend fun startEmbeddedTransport(
+        engine: String,
+        selectedRelays: List<RelayEntry>
+    ): Boolean {
+        return when (engine) {
             "xray" -> {
                 singBoxTransport.stop()
-                xrayTransport.start(selection.relays)
+                val ok = xrayTransport.start(selectedRelays)
+                if (!ok) {
+                    Timber.w("ProxyManager: xray start failed; last error=${xrayTransport.lastStartError ?: "<none>"}")
+                }
+                ok
             }
             else -> {
                 xrayTransport.stop()
-                singBoxTransport.start()
-                singBoxTransport.isActive
+                val ok = singBoxTransport.start()
+                if (!ok) {
+                    Timber.w("ProxyManager: sing-box start failed; last error=${singBoxTransport.lastStartError ?: "<none>"}")
+                }
+                ok
             }
-        }.also { ok ->
-            Timber.i("ProxyManager: embedded ${selection.engine} start result=$ok")
         }
     }
 

@@ -6,12 +6,17 @@ import com.rcq.messenger.BuildConfig
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
-import org.json.JSONArray
-import org.json.JSONObject
+import kotlinx.serialization.json.add
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonArray
+import kotlinx.serialization.json.putJsonObject
 import timber.log.Timber
 import java.net.HttpURLConnection
 import java.net.InetSocketAddress
@@ -119,6 +124,98 @@ object RelaySelectionPolicy {
     }
 }
 
+internal object SingBoxConfigJsonBuilder {
+    fun build(ordered: List<RelayEntry>, localPort: Int): String {
+        val healthUrl = BuildConfig.API_BASE_URL.trimEnd('/') + "/health"
+        return buildJsonObject {
+            putJsonObject("log") { put("level", "warn") }
+            putJsonObject("dns") {
+                putJsonArray("servers") {
+                    add(buildJsonObject {
+                        put("tag", "cloudflare")
+                        put("address", "1.1.1.1")
+                        put("detour", "direct")
+                    })
+                    add(buildJsonObject {
+                        put("tag", "google")
+                        put("address", "8.8.8.8")
+                        put("detour", "direct")
+                    })
+                }
+                put("strategy", "ipv4_only")
+            }
+            putJsonArray("inbounds") {
+                add(buildJsonObject {
+                    put("type", "mixed"); put("tag", "in")
+                    put("listen", "127.0.0.1"); put("listen_port", localPort)
+                })
+            }
+            putJsonArray("outbounds") {
+                add(buildJsonObject {
+                    put("type", "urltest")
+                    put("tag", "out")
+                    putJsonArray("outbounds") { ordered.forEach { add(it.tag) } }
+                    put("url", healthUrl)
+                    put("interval", "5m")
+                    put("tolerance", 50)
+                })
+                ordered.forEach { add(if (it.proto == "vless") vlessOutbound(it) else hysteria2Outbound(it)) }
+            }
+        }.toString()
+    }
+
+    private fun vlessOutbound(r: RelayEntry) = buildJsonObject {
+        put("type", "vless"); put("tag", r.tag)
+        put("server", r.server); put("server_port", r.port)
+        put("uuid", r.uuid ?: "")
+        r.flow?.takeIf { it.isNotBlank() }?.let { put("flow", it) }
+        putJsonObject("tls") {
+            put("enabled", true); put("server_name", r.sni)
+            put("insecure", r.allow_insecure)
+            putJsonObject("utls") {
+                put("enabled", true)
+                put("fingerprint", r.fingerprint?.takeIf { it.isNotBlank() } ?: "chrome")
+            }
+            putJsonObject("reality") {
+                put("enabled", true)
+                put("public_key", r.public_key ?: "")
+                put("short_id", r.short_id ?: "")
+            }
+        }
+        r.transport_type
+            ?.takeIf { it.isNotBlank() && !it.equals("tcp", ignoreCase = true) }
+            ?.let { type ->
+                putJsonObject("transport") {
+                    put("type", type)
+                    r.transport_path?.takeIf { it.isNotBlank() }?.let { put("path", it) }
+                    if (type == "xhttp") {
+                        r.xhttp_mode?.takeIf { it.isNotBlank() }?.let { put("mode", it) }
+                    }
+                }
+            }
+    }
+
+    private fun hysteria2Outbound(r: RelayEntry) = buildJsonObject {
+        put("type", "hysteria2"); put("tag", r.tag)
+        put("server", r.server); put("server_port", r.port)
+        put("password", r.password ?: "")
+        putJsonObject("tls") {
+            put("enabled", true); put("server_name", r.sni); put("insecure", true)
+        }
+        r.obfs_password?.takeIf { it.isNotEmpty() }?.let {
+            putJsonObject("obfs") {
+                put("type", "salamander")
+                put("password", it)
+            }
+        }
+    }
+}
+
+internal object RelayStartPlan {
+    fun attempts(ordered: List<RelayEntry>): List<List<RelayEntry>> =
+        ordered.map { first -> listOf(first) + ordered.filterNot { it.tag == first.tag } }
+}
+
 // Mirrors iOS SingBoxTransport.swift: same relay-config.json, same sing-box JSON format,
 // same SOCKS5 local port 1089.
 //
@@ -139,6 +236,8 @@ class SingBoxTransport @Inject constructor(
         private const val PREF_LAST_RELAY = "rcq.singbox.lastGoodRelayTag"
         private const val PREF_LAST_ERROR = "rcq.singbox.lastError"
         private const val BUNDLED_ENGINE_SUPPORTS_XHTTP = false
+        private const val ROUTE_PROBE_ATTEMPTS = 3
+        private const val ROUTE_PROBE_RETRY_MS = 350L
     }
 
     private val prefs: SharedPreferences =
@@ -172,58 +271,77 @@ class SingBoxTransport @Inject constructor(
     fun proxyAddress(): InetSocketAddress? =
         if (isActive) InetSocketAddress("127.0.0.1", LOCAL_PORT) else null
 
-    suspend fun start() = withContext(Dispatchers.IO) {
-        if (isActive) return@withContext
-        val config = buildSingBoxConfig() ?: run {
-            Timber.e("$TAG: Failed to build sing-box config"); return@withContext
+    suspend fun start(): Boolean = withContext(Dispatchers.IO) {
+        if (isActive) return@withContext true
+        val attempts = buildSingBoxConfigAttempts() ?: run {
+            Timber.e("$TAG: Failed to build sing-box config")
+            return@withContext false
         }
         if (!isEngineAvailable) {
             // Честно фиксируем причину: нативный движок не собран в APK.
             val msg = "Движок sing-box не установлен: добавьте app/libs/libbox.aar и пересоберите."
             prefs.edit().putString(PREF_LAST_ERROR, msg).apply()
             Timber.w("$TAG: engine unavailable — bypass NOT active. $msg")
-            return@withContext
+            return@withContext false
         }
-        runCatching {
-            val service = startNativeEngine(config)
-            boxService = service
-            if (!validateProxyRoute()) {
-                stopService(service)
+        var lastError: Throwable? = null
+        for ((relayTag, config) in attempts) {
+            var service: Any? = null
+            runCatching {
+                Timber.d("$TAG: trying relay $relayTag")
+                service = startNativeEngine(config)
+                if (!validateProxyRoute()) {
+                    Timber.w("$TAG: relay $relayTag started, but health route check failed; keeping transport active (iOS parity)")
+                }
+                boxService = service
+                isActive = true
+                prefs.edit()
+                    .remove(PREF_LAST_ERROR)
+                    .putString(PREF_LAST_RELAY, relayTag)
+                    .apply()
+                Timber.i("$TAG: sing-box started on 127.0.0.1:$LOCAL_PORT via $relayTag")
+                scope.launch { probeRelaysInBackground() }
+                return@withContext true
+            }.onFailure { e ->
+                lastError = e
+                service?.let { stopService(it) }
                 boxService = null
-                error("Встроенный relay запустился, но api.rcq.app через него недоступен")
+                isActive = false
+                Timber.w(e, "$TAG: relay $relayTag failed")
             }
-            isActive = true
-            prefs.edit().remove(PREF_LAST_ERROR).apply()
-            Timber.i("$TAG: sing-box started on 127.0.0.1:$LOCAL_PORT")
-            scope.launch { probeRelaysInBackground() }
-        }.onFailure { e ->
-            isActive = false
-            boxService = null
-            prefs.edit().putString(PREF_LAST_ERROR, e.message?.take(400) ?: "unknown").apply()
-            Timber.e(e, "$TAG: start failed: ${e.message}")
         }
-        Unit
+        val msg = lastError?.message?.take(400) ?: "Ни один встроенный relay не прошел проверку"
+        prefs.edit().putString(PREF_LAST_ERROR, msg).apply()
+        Timber.e(lastError, "$TAG: start failed: $msg")
+        false
     }
 
-    private fun validateProxyRoute(): Boolean {
-        val proxy = Proxy(Proxy.Type.SOCKS, InetSocketAddress("127.0.0.1", LOCAL_PORT))
-        val url = URL(BuildConfig.API_BASE_URL.trimEnd('/') + "/health")
-        return runCatching {
-            val conn = (url.openConnection(proxy) as HttpURLConnection).apply {
-                connectTimeout = 6_000
-                readTimeout = 6_000
-                requestMethod = "GET"
-                setRequestProperty("Accept", "application/json")
+    private suspend fun validateProxyRoute(): Boolean {
+        repeat(ROUTE_PROBE_ATTEMPTS) { attempt ->
+            val ok = runCatching {
+                val proxy = Proxy(Proxy.Type.SOCKS, InetSocketAddress("127.0.0.1", LOCAL_PORT))
+                val url = URL(BuildConfig.API_BASE_URL.trimEnd('/') + "/health")
+                val conn = (url.openConnection(proxy) as HttpURLConnection).apply {
+                    connectTimeout = 4_000
+                    readTimeout = 4_000
+                    requestMethod = "GET"
+                    setRequestProperty("Accept", "application/json")
+                }
+                try {
+                    val code = conn.responseCode
+                    code in 200..499
+                } finally {
+                    conn.disconnect()
+                }
+            }.onFailure {
+                Timber.w(it, "$TAG: proxy route validation failed (attempt ${attempt + 1}/$ROUTE_PROBE_ATTEMPTS)")
+            }.getOrDefault(false)
+            if (ok) return true
+            if (attempt < ROUTE_PROBE_ATTEMPTS - 1) {
+                delay(ROUTE_PROBE_RETRY_MS)
             }
-            try {
-                val code = conn.responseCode
-                code in 200..499
-            } finally {
-                conn.disconnect()
-            }
-        }.onFailure {
-            Timber.w(it, "$TAG: proxy route validation failed")
-        }.getOrDefault(false)
+        }
+        return false
     }
 
     /**
@@ -297,7 +415,7 @@ class SingBoxTransport @Inject constructor(
         if (on) start() else stop()
     }
 
-    private fun buildSingBoxConfig(): String? {
+    private fun buildSingBoxConfigAttempts(): List<Pair<String, String>>? {
         val relays = relayConfigRepository.selectedOrCurrentRelays()
         if (relays.isEmpty()) { Timber.w("$TAG: no relays available"); return null }
         val ordered = orderedRelays(relays)
@@ -305,75 +423,8 @@ class SingBoxTransport @Inject constructor(
             Timber.w("$TAG: no relays supported by bundled sing-box engine")
             return null
         }
-        val outbounds = JSONArray().apply {
-            // selector вместо urltest: не требует cache.db для хранения истории проб.
-            // Выбор быстрейшего relay делаем сами через probeRelaysInBackground() →
-            // PREF_LAST_RELAY → orderedRelays() ставит победителя первым при следующем старте.
-            put(JSONObject().apply {
-                put("type", "selector"); put("tag", "out")
-                put("outbounds", JSONArray(ordered.map { it.tag }))
-                put("default", ordered.first().tag)
-            })
-            for (r in ordered) put(if (r.proto == "vless") vlessOutbound(r) else hysteria2Outbound(r))
-        }
-        // Sing-box по дефолту пишет cache.db в CWD ("/" на Android — read-only).
-        // Защита в два слоя:
-        //   1) Libbox.setup() в startNativeEngine() переключает CWD на filesDir
-        //   2) selector вместо urltest — даже без cache.db работает корректно
-        //   3) experimental.cache_file.enabled=false — на случай если ядро всё-таки
-        //      попытается открыть cache.db, оно его пропустит
-        return JSONObject().apply {
-            put("log", JSONObject().put("level", "warn"))
-            put("inbounds", JSONArray().put(JSONObject().apply {
-                put("type", "mixed"); put("tag", "in")
-                put("listen", "127.0.0.1"); put("listen_port", LOCAL_PORT)
-            }))
-            put("outbounds", outbounds)
-            put("experimental", JSONObject().put("cache_file", JSONObject().put("enabled", false)))
-        }.toString()
-    }
-
-    private fun vlessOutbound(r: RelayEntry) = JSONObject().apply {
-        put("type", "vless"); put("tag", r.tag)
-        put("server", r.server); put("server_port", r.port)
-        put("uuid", r.uuid ?: "")
-        r.flow?.takeIf { it.isNotBlank() }?.let { put("flow", it) }
-        put("tls", JSONObject().apply {
-            put("enabled", true); put("server_name", r.sni)
-            put("insecure", r.allow_insecure)
-            put("utls", JSONObject()
-                .put("enabled", true)
-                .put("fingerprint", r.fingerprint?.takeIf { it.isNotBlank() } ?: "chrome")
-            )
-            put("reality", JSONObject().apply {
-                put("enabled", true)
-                put("public_key", r.public_key ?: "")
-                put("short_id", r.short_id ?: "")
-            })
-        })
-        r.transport_type
-            ?.takeIf { it.isNotBlank() && !it.equals("tcp", ignoreCase = true) }
-            ?.let { type ->
-            put("transport", JSONObject().apply {
-                put("type", type)
-                r.transport_path?.takeIf { it.isNotBlank() }?.let { put("path", it) }
-                if (type == "xhttp") {
-                    r.xhttp_mode?.takeIf { it.isNotBlank() }?.let { put("mode", it) }
-                }
-            })
-        }
-    }
-
-    private fun hysteria2Outbound(r: RelayEntry) = JSONObject().apply {
-        put("type", "hysteria2"); put("tag", r.tag)
-        put("server", r.server); put("server_port", r.port)
-        put("password", r.password ?: "")
-        put("tls", JSONObject().apply {
-            put("enabled", true); put("server_name", r.sni); put("insecure", true)
-        })
-        r.obfs_password?.takeIf { it.isNotEmpty() }?.let {
-            put("obfs", JSONObject().put("type", "salamander").put("password", it))
-        }
+        return RelayStartPlan.attempts(ordered)
+            .map { attempt -> attempt.first().tag to SingBoxConfigJsonBuilder.build(attempt, LOCAL_PORT) }
     }
 
     private fun orderedRelays(base: List<RelayEntry>): List<RelayEntry> {
