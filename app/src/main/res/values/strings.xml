@@ -116,6 +116,9 @@
     <string name="recovery_copied">Copied to clipboard</string>
     <string name="recovery_note">To restore later: reinstall RCQ, tap \"Restore from phrase\" and enter these words.</string>
     <string name="recovery_legacy">This account was created before recovery phrases existed, so there is no phrase for it. New accounts get one automatically.</string>
+    <string name="recovery_pin_prompt">Enter your PIN to view the recovery phrase.</string>
+    <string name="recovery_pin_unlock">Show phrase</string>
+    <string name="recovery_pin_wrong">Wrong PIN.</string>
     <string name="restore_title">Restore account</string>
     <string name="restore_hint">Enter your 24-word recovery phrase to restore your account on this device.</string>
     <string name="restore_phrase_ph">word word word …</string>

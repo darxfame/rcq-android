@@ -103,6 +103,16 @@ object PanicPinService {
         }
     }
 
+    /** Verify [pin] opens the REAL slot, with NO unlock side effects (no dataKey
+     *  swap, no decoy/wipe routing, no attempt-state change). Used to re-gate a
+     *  sensitive surface (the recovery phrase) while the app is already unlocked.
+     *  A decoy/wipe PIN returns false here — only the real PIN reveals the real
+     *  account's phrase. */
+    fun verifyRealPin(context: Context, pin: String): Boolean {
+        val unlock = PinVault.unlock(context, pin) ?: return false
+        return unlock.payload.mode == PinVault.MODE_REAL
+    }
+
     /** Create the real PIN (no PIN currently). Returns the new vault dataKey,
      *  or null if [pin] is too short. The caller rekeys the message DBs from
      *  the device key to this one. */

@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -24,8 +25,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -34,10 +40,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.rcq.android.R
 import app.rcq.android.Session
+import app.rcq.android.security.PanicPinService
 
 /**
  * Shows the active account's 24-word recovery phrase (BIP39 over the identity
@@ -65,6 +74,17 @@ fun RecoveryPhraseScreen(session: Session, onBack: () -> Unit) {
             Box(Modifier.fillMaxSize().padding(28.dp), contentAlignment = Alignment.Center) {
                 Text(stringResource(R.string.recovery_legacy), color = c.textSecondary, fontSize = 14.sp)
             }
+            return@Column
+        }
+
+        // The phrase grants full account access forever, so re-gate it behind the
+        // PIN when one is set (the app being unlocked isn't enough — someone with
+        // a briefly-unlocked phone shouldn't grab it). No PIN = no gate.
+        var unlocked by remember {
+            mutableStateOf(!PanicPinService.isConfigured(context))
+        }
+        if (!unlocked) {
+            PinGate(onVerified = { unlocked = true })
             return@Column
         }
 
@@ -97,6 +117,40 @@ fun RecoveryPhraseScreen(session: Session, onBack: () -> Unit) {
                 Toast.makeText(context, context.getString(R.string.recovery_copied), Toast.LENGTH_SHORT).show()
             }
             Text(stringResource(R.string.recovery_note), color = c.textSecondary, fontSize = 12.sp)
+        }
+    }
+}
+
+/** PIN re-entry gate shown before the phrase when a PIN is configured. Verifies
+ *  the REAL PIN only (decoy/wipe rejected), with no unlock side effects. */
+@Composable
+private fun PinGate(onVerified: () -> Unit) {
+    val c = RcqTheme.colors
+    val context = LocalContext.current
+    var pin by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf(false) }
+    Column(
+        Modifier.fillMaxSize().padding(28.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Spacer(Modifier.height(24.dp))
+        Text(stringResource(R.string.recovery_pin_prompt), color = c.textPrimary, fontSize = 15.sp)
+        OutlinedTextField(
+            value = pin,
+            onValueChange = { v -> pin = v.filter { it.isDigit() }; error = false },
+            singleLine = true,
+            visualTransformation = PasswordVisualTransformation(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+            isError = error,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        if (error) {
+            Text(stringResource(R.string.recovery_pin_wrong), color = Color(0xFFE5484D), fontSize = 13.sp)
+        }
+        CapsuleButton(stringResource(R.string.recovery_pin_unlock), modifier = Modifier.fillMaxWidth()) {
+            if (PanicPinService.verifyRealPin(context, pin)) onVerified()
+            else { error = true; pin = "" }
         }
     }
 }

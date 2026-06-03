@@ -115,6 +115,9 @@
     <string name="recovery_copied">Скопировано в буфер обмена</string>
     <string name="recovery_note">Чтобы восстановить позже: переустановите RCQ, нажмите «Восстановить по фразе» и введите эти слова.</string>
     <string name="recovery_legacy">Этот аккаунт создан до появления фраз восстановления, поэтому фразы для него нет. Новые аккаунты получают её автоматически.</string>
+    <string name="recovery_pin_prompt">Введи PIN, чтобы увидеть фразу восстановления.</string>
+    <string name="recovery_pin_unlock">Показать фразу</string>
+    <string name="recovery_pin_wrong">Неверный PIN.</string>
     <string name="restore_title">Восстановить аккаунт</string>
     <string name="restore_hint">Введите фразу восстановления из 24 слов, чтобы восстановить аккаунт на этом устройстве.</string>
     <string name="restore_phrase_ph">слово слово слово …</string>
