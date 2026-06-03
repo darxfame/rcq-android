@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Launcher icon background (white to match ICQ logo) -->
+    <color name="ic_launcher_background">#FFFFFF</color>
+
     <!-- Primary Colors -->
     <color name="primary">#6366F1</color>
     <color name="primary_variant">#4F46E5</color>
