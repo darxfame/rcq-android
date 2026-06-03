@@ -25,7 +25,9 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.rcq.messenger.domain.model.Chat
+import com.rcq.messenger.ui.chat.inbox.InboxRow
+import com.rcq.messenger.ui.chat.inbox.InboxSearchResults
+import com.rcq.messenger.ui.chat.inbox.InboxTarget
 import com.rcq.messenger.ui.theme.*
 import java.text.SimpleDateFormat
 import java.util.*
@@ -37,29 +39,27 @@ fun ChatsScreen(
     onChatClick: (String) -> Unit,
     onCreateGroup: () -> Unit,
     onNewDirectMessage: () -> Unit = {},
-    onBrowseGroups: () -> Unit = {}
+    onBrowseGroups: () -> Unit = {},
+    onGroupClick: (String) -> Unit = onChatClick,
 ) {
-    val chats by viewModel.chats.collectAsState()
-    val isLoading by viewModel.isLoading.collectAsState()
+    val inboxState by viewModel.inboxState.collectAsState()
 
     var searchActive by remember { mutableStateOf(false) }
-    var searchQuery by remember { mutableStateOf("") }
     var menuExpanded by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
-
-    val filteredChats by remember(chats, searchQuery) {
-        derivedStateOf {
-            if (searchQuery.isBlank()) chats
-            else chats.filter { chat ->
-                chat.targetNickname.contains(searchQuery, ignoreCase = true) ||
-                    (chat.lastMessage?.content?.contains(searchQuery, ignoreCase = true) == true)
-            }
-        }
-    }
+    val searchQuery = inboxState.searchQuery
 
     LaunchedEffect(searchActive) {
         if (searchActive) focusRequester.requestFocus()
+    }
+
+    val openRow: (InboxRow) -> Unit = { row ->
+        when (val target = row.target) {
+            is InboxTarget.Chat -> onChatClick(target.chatId)
+            is InboxTarget.Contact -> viewModel.openContactChat(target.userId, onChatClick)
+            is InboxTarget.Group -> onGroupClick(target.groupId)
+        }
     }
 
     val rcq = LocalRCQColors.current
@@ -70,11 +70,11 @@ fun ChatsScreen(
                     title = {
                         OutlinedTextField(
                             value = searchQuery,
-                            onValueChange = { searchQuery = it },
+                            onValueChange = viewModel::updateSearchQuery,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .focusRequester(focusRequester),
-                            placeholder = { Text("Search chats…") },
+                            placeholder = { Text("Search chats, contacts, groups…") },
                             singleLine = true,
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                             keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
@@ -87,7 +87,7 @@ fun ChatsScreen(
                     navigationIcon = {
                         IconButton(onClick = {
                             searchActive = false
-                            searchQuery = ""
+                            viewModel.updateSearchQuery("")
                             focusManager.clearFocus()
                         }) {
                             Icon(Icons.Default.ArrowBack, contentDescription = "Close search")
@@ -99,7 +99,7 @@ fun ChatsScreen(
                 TopAppBar(
                     title = {
                         Text(
-                            text = "Chats",
+                        text = "Chats",
                             style = MaterialTheme.typography.headlineSmall,
                             fontWeight = FontWeight.Bold
                         )
@@ -149,20 +149,22 @@ fun ChatsScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
         ) {
-            if (filteredChats.isEmpty() && !isLoading) {
+            if (searchActive && searchQuery.isNotBlank()) {
+                InboxSearchList(
+                    results = inboxState.searchResults,
+                    onRowClick = openRow
+                )
+            } else if (inboxState.showEmptyState) {
                 EmptyChatsState()
             } else {
                 LazyColumn {
-                    items(filteredChats, key = { it.id }) { chat ->
-                        ChatItem(
-                            chat = chat,
-                            onClick = { onChatClick(chat.id) }
-                        )
+                    items(inboxState.rows, key = { it.id }) { row ->
+                        InboxItem(row = row, onClick = { openRow(row) })
                     }
                 }
             }
 
-            if (isLoading) {
+            if (inboxState.isLoading && inboxState.rows.isEmpty()) {
                 CircularProgressIndicator(
                     modifier = Modifier.align(Alignment.Center),
                     color = Primary
@@ -173,8 +175,59 @@ fun ChatsScreen(
 }
 
 @Composable
-fun ChatItem(
-    chat: Chat,
+private fun InboxSearchList(
+    results: InboxSearchResults,
+    onRowClick: (InboxRow) -> Unit
+) {
+    if (results.isEmpty) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            Text("Nothing found", color = LocalRCQColors.current.textSecondary)
+        }
+        return
+    }
+    LazyColumn {
+        if (results.chats.isNotEmpty()) {
+            item(key = "search_chats_header") { InboxSectionHeader("Chats") }
+            items(results.chats, key = { "search_${it.id}" }) { row ->
+                InboxItem(row = row, onClick = { onRowClick(row) })
+            }
+        }
+        if (results.contacts.isNotEmpty()) {
+            item(key = "search_contacts_header") { InboxSectionHeader("Contacts") }
+            items(results.contacts, key = { "search_${it.id}" }) { row ->
+                InboxItem(row = row, onClick = { onRowClick(row) })
+            }
+        }
+        if (results.groups.isNotEmpty()) {
+            item(key = "search_groups_header") { InboxSectionHeader("Groups") }
+            items(results.groups, key = { "search_${it.id}" }) { row ->
+                InboxItem(row = row, onClick = { onRowClick(row) })
+            }
+        }
+    }
+}
+
+@Composable
+private fun InboxSectionHeader(title: String) {
+    val rcq = LocalRCQColors.current
+    Text(
+        text = title.uppercase(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(rcq.bgSecondary.copy(alpha = 0.7f))
+            .padding(horizontal = RCQMetrics.rowHPad, vertical = 6.dp),
+        fontSize = RCQFontSize.caption,
+        fontWeight = FontWeight.Bold,
+        color = rcq.textSecondary
+    )
+}
+
+@Composable
+fun InboxItem(
+    row: InboxRow,
     onClick: () -> Unit
 ) {
     val rcq = LocalRCQColors.current
@@ -191,7 +244,7 @@ fun ChatItem(
                 modifier = Modifier
                     .size(RCQMetrics.statusDot)
                     .clip(CircleShape)
-                    .background(if (chat.isMuted) rcq.textSecondary else StatusOnline)
+                    .background(if (row.isMuted) rcq.textSecondary else StatusOnline)
             )
             Spacer(modifier = Modifier.width(8.dp))
             // Square mini-avatar
@@ -203,7 +256,7 @@ fun ChatItem(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    chat.targetNickname.firstOrNull()?.uppercase() ?: "?",
+                    row.title.firstOrNull()?.uppercase() ?: "?",
                     fontSize = RCQFontSize.nickname,
                     fontWeight = FontWeight.Bold,
                     color = rcq.accent
@@ -217,7 +270,7 @@ fun ChatItem(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        chat.targetNickname,
+                        row.title,
                         fontWeight = FontWeight.SemiBold,
                         fontSize = RCQFontSize.nickname,
                         color = rcq.textPrimary,
@@ -226,13 +279,13 @@ fun ChatItem(
                         modifier = Modifier.weight(1f)
                     )
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        chat.lastMessage?.let {
-                            Text(formatTime(it.timestamp), fontSize = RCQFontSize.timestamp, color = rcq.textSecondary)
+                        row.timestamp?.let {
+                            Text(formatTime(it), fontSize = RCQFontSize.timestamp, color = rcq.textSecondary)
                         }
-                        if (chat.unreadCount > 0) {
+                        if (row.unreadCount > 0) {
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                "(${if (chat.unreadCount > 99) "99+" else chat.unreadCount})",
+                                "(${if (row.unreadCount > 99) "99+" else row.unreadCount})",
                                 fontSize = RCQFontSize.monoSmall,
                                 color = rcq.accent,
                                 fontWeight = FontWeight.Bold
@@ -240,22 +293,13 @@ fun ChatItem(
                         }
                     }
                 }
-                chat.lastMessage?.let { msg ->
-                    Text(
-                        msg.content.ifBlank {
-                            when (msg.kind) {
-                                com.rcq.messenger.domain.model.MessageKind.PHOTO -> "[Photo]"
-                                com.rcq.messenger.domain.model.MessageKind.VOICE -> "[Voice]"
-                                com.rcq.messenger.domain.model.MessageKind.VIDEO -> "[Video]"
-                                else -> ""
-                            }
-                        },
-                        fontSize = RCQFontSize.caption,
-                        color = rcq.textSecondary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
+                Text(
+                    row.subtitle,
+                    fontSize = RCQFontSize.caption,
+                    color = rcq.textSecondary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
         }
         HorizontalDivider(thickness = RCQMetrics.dividerThick, color = rcq.divider, modifier = Modifier.padding(start = 28.dp))

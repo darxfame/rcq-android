@@ -232,7 +232,7 @@ class ProxyManager @Inject constructor(
         bypassMode == BypassMode.AUTO && isEmbeddedTransportActive()
 
     private suspend fun startEmbeddedTransport(): Boolean {
-        val relays = relayConfigRepository.currentRelays()
+        val relays = relayConfigRepository.selectedOrCurrentRelays()
         val selection = RelaySelectionPolicy.selectForEmbeddedTransport(
             base = relays,
             lastGoodTag = null,
@@ -265,15 +265,15 @@ class ProxyManager @Inject constructor(
         BypassMode.OFF -> "Выключено"
         BypassMode.MANUAL -> manualProxyUrl.ifBlank { "Ручной (не задан)" }
         BypassMode.BUILT_IN -> when {
-            xrayTransport.isActive -> "Встроенный relay: Xray активен"
-            singBoxTransport.isActive -> "Встроенный relay: активен"
+            xrayTransport.isActive -> "Встроенный relay: ${selectedRelayLabel()} · Xray"
+            singBoxTransport.isActive -> "Встроенный relay: ${selectedRelayLabel()}"
             !xrayTransport.isEngineAvailable && !singBoxTransport.isEngineAvailable ->
                 "Встроенный relay: движок не установлен"
             else -> "Встроенный relay: ожидает запуска"
         }
         BypassMode.AUTO -> when {
-            xrayTransport.isActive -> "Авто: Xray активен"
-            singBoxTransport.isActive -> "Авто: sing-box активен"
+            xrayTransport.isActive -> "Авто: ${selectedRelayLabel()} · Xray"
+            singBoxTransport.isActive -> "Авто: ${selectedRelayLabel()}"
             // Движок не собран в APK — честно сообщаем, а не «подключаю прокси…» без конца
             !xrayTransport.isEngineAvailable && !singBoxTransport.isEngineAvailable && failureCount.get() > 0 ->
                 "Авто: движки обхода не установлены"
@@ -281,6 +281,11 @@ class ProxyManager @Inject constructor(
             else -> "Авто: прямое подключение"
         }
     }
+
+    private fun selectedRelayLabel(): String =
+        relayConfigRepository.selectedRelayTag
+            .takeIf { it.isNotBlank() }
+            ?: "auto"
 
     private fun parseProxyUrl(url: String): Proxy? = runCatching {
         val uri = URI(if (url.contains("://")) url else "socks5://$url")

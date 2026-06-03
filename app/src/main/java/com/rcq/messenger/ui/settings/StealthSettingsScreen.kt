@@ -1,6 +1,7 @@
 package com.rcq.messenger.ui.settings
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -21,6 +22,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rcq.messenger.service.BypassMode
 import com.rcq.messenger.service.ProxyManager
+import com.rcq.messenger.service.RelayEntry
 import com.rcq.messenger.service.RelayConfigRepository
 import com.rcq.messenger.service.SingBoxTransport
 import com.rcq.messenger.ui.theme.*
@@ -42,6 +44,9 @@ class StealthViewModel @Inject constructor(
     val lastError = MutableStateFlow(singBox.lastStartError)
     val manualProxy = MutableStateFlow(proxyManager.manualProxyUrl)
     val refreshing = MutableStateFlow(false)
+    val relays = MutableStateFlow(relayRepo.currentRelays())
+    val selectedRelayTag = MutableStateFlow(relayRepo.selectedRelayTag)
+    val customRelayError = MutableStateFlow<String?>(null)
 
     val statusLabel: StateFlow<String> = proxyManager.statusLabel
 
@@ -80,6 +85,7 @@ class StealthViewModel @Inject constructor(
         viewModelScope.launch {
             refreshing.value = true
             relayRepo.refreshInBackground()
+            relays.value = relayRepo.currentRelays()
             refreshing.value = false
         }
     }
@@ -91,6 +97,12 @@ class StealthViewModel @Inject constructor(
             singboxEnabled.value = singBox.isEnabled
             lastError.value = singBox.lastStartError
         }
+    }
+
+    private fun restartBuiltInBypassIfNeeded() {
+        if (proxyManager.bypassMode != BypassMode.BUILT_IN) return
+        proxyManager.stopSingBox()
+        forceEnableBypass()
     }
 
     fun setSingboxEnabled(on: Boolean) {
@@ -106,6 +118,25 @@ class StealthViewModel @Inject constructor(
         proxyManager.manualProxyUrl = url
         manualProxy.value = url
     }
+
+    fun selectRelay(tag: String?) {
+        if (tag.isNullOrBlank()) relayRepo.clearRelaySelection() else relayRepo.selectRelay(tag)
+        selectedRelayTag.value = relayRepo.selectedRelayTag
+        relays.value = relayRepo.currentRelays()
+        restartBuiltInBypassIfNeeded()
+    }
+
+    fun addCustomVless(url: String) {
+        relayRepo.addCustomVless(url)
+            .onSuccess {
+                customRelayError.value = null
+                selectedRelayTag.value = relayRepo.selectedRelayTag
+                relays.value = relayRepo.currentRelays()
+                if (proxyManager.bypassMode != BypassMode.BUILT_IN) setBypassMode(BypassMode.BUILT_IN)
+                else restartBuiltInBypassIfNeeded()
+            }
+            .onFailure { customRelayError.value = it.message ?: "Не удалось разобрать VLESS URL" }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -120,9 +151,11 @@ fun StealthSettingsScreen(
     val manualProxy by viewModel.manualProxy.collectAsState()
     val statusLabel by viewModel.statusLabel.collectAsState()
     val refreshing by viewModel.refreshing.collectAsState()
+    val relays by viewModel.relays.collectAsState()
+    val selectedRelayTag by viewModel.selectedRelayTag.collectAsState()
+    val customRelayError by viewModel.customRelayError.collectAsState()
 
     var draftProxy by remember(manualProxy) { mutableStateOf(manualProxy) }
-    val relayCount = remember { viewModel.relayRepo.currentRelays().size }
 
     Scaffold(
         topBar = {
@@ -282,7 +315,7 @@ fun StealthSettingsScreen(
                     ) {
                         Column(Modifier.weight(1f)) {
                             Text("Ретрансляторы", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
-                            Text("$relayCount доступно", style = MaterialTheme.typography.bodySmall, color = TextPrimary)
+                            Text("${relays.size} доступно", style = MaterialTheme.typography.bodySmall, color = TextPrimary)
                         }
                         if (refreshing) {
                             CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp, color = Primary)
@@ -293,9 +326,112 @@ fun StealthSettingsScreen(
                         }
                     }
                 }
+
+                RelaySelectionCard(
+                    relays = relays,
+                    selectedTag = selectedRelayTag,
+                    customRelayError = customRelayError,
+                    onSelect = viewModel::selectRelay,
+                    onAddCustom = viewModel::addCustomVless
+                )
             }
         }
     }
+}
+
+@Composable
+fun RelaySelectionCard(
+    relays: List<RelayEntry>,
+    selectedTag: String,
+    customRelayError: String?,
+    onSelect: (String?) -> Unit,
+    onAddCustom: (String) -> Unit,
+) {
+    var draftVless by remember { mutableStateOf("") }
+    SettingsCard {
+        Text("Выбор обхода", style = MaterialTheme.typography.titleSmall, color = TextPrimary)
+        Spacer(Modifier.height(6.dp))
+        RelayOptionRow(
+            title = "Автоматически",
+            subtitle = "Выбрать лучший доступный relay",
+            selected = selectedTag.isBlank(),
+            onClick = { onSelect(null) }
+        )
+        relays.forEach { relay ->
+            RelayOptionRow(
+                title = relay.displayName(),
+                subtitle = relay.description(),
+                selected = selectedTag == relay.tag,
+                onClick = { onSelect(relay.tag) }
+            )
+        }
+        Spacer(Modifier.height(8.dp))
+        OutlinedTextField(
+            value = draftVless,
+            onValueChange = { draftVless = it },
+            placeholder = { Text("vless://...", color = TextSecondary) },
+            singleLine = false,
+            minLines = 2,
+            maxLines = 4,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+            modifier = Modifier.fillMaxWidth(),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = Primary,
+                unfocusedBorderColor = TextSecondary.copy(alpha = 0.3f),
+                focusedTextColor = TextPrimary,
+                unfocusedTextColor = TextPrimary
+            )
+        )
+        if (customRelayError != null) {
+            Spacer(Modifier.height(4.dp))
+            Text(customRelayError, style = MaterialTheme.typography.bodySmall, color = Error)
+        }
+        Spacer(Modifier.height(8.dp))
+        Button(
+            onClick = { onAddCustom(draftVless) },
+            enabled = draftVless.trim().startsWith("vless://", ignoreCase = true),
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = Primary)
+        ) {
+            Text("Добавить VLESS")
+        }
+    }
+}
+
+@Composable
+private fun RelayOptionRow(
+    title: String,
+    subtitle: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        RadioButton(selected = selected, onClick = onClick)
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyMedium, color = TextPrimary)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+        }
+    }
+}
+
+private fun RelayEntry.displayName(): String =
+    tag.removePrefix("relay-").removePrefix("custom-")
+        .replace('-', ' ')
+        .replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+
+private fun RelayEntry.description(): String {
+    val transport = when {
+        transport_type.equals("xhttp", ignoreCase = true) -> "xHTTP"
+        proto.equals("hysteria2", ignoreCase = true) -> "Hysteria2"
+        else -> "VLESS Reality TCP"
+    }
+    return "$transport · $server · SNI $sni"
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

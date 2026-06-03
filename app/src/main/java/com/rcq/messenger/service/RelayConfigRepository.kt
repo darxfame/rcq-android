@@ -1,10 +1,13 @@
 package com.rcq.messenger.service
 
 import android.content.Context
+import android.content.SharedPreferences
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
 import org.bouncycastle.crypto.params.Ed25519PublicKeyParameters
 import org.bouncycastle.crypto.signers.Ed25519Signer
 import org.json.JSONArray
@@ -27,8 +30,23 @@ class RelayConfigRepository @Inject constructor(
             "https://relay.rcq.app/v1/config"
         )
         private const val CACHE_FILE = "relay-config.json"
+        private const val PREFS = "rcq_relays"
+        private const val KEY_CUSTOM_RELAYS = "custom_relays"
+        private const val KEY_SELECTED_RELAY_TAG = "selected_relay_tag"
 
         private val LOCAL_PRIORITY_RELAYS = listOf(
+            RelayEntry(
+                tag = "relay-uk-google-vision", proto = "vless",
+                server = "uk.e0f.network", port = 443, sni = "www.google.com",
+                uuid = "834703d2-abf1-471a-83b5-ee87e0b6cd8e",
+                public_key = "nPcUKydxoRI66O3tT9O4QCZpLjOBvkGsiXG7pDX1BBw",
+                short_id = "6ba85179e30d4fc2",
+                flow = "xtls-rprx-vision",
+                fingerprint = "chrome",
+                allow_insecure = false,
+                transport_type = "tcp",
+                priority = -120
+            ),
             RelayEntry(
                 tag = "relay-usa-amd-xhttp", proto = "vless",
                 server = "80.209.243.23", port = 443, sni = "amd.com",
@@ -103,12 +121,47 @@ class RelayConfigRepository @Inject constructor(
 
     private val jsonCodec = Json { ignoreUnknownKeys = true; isLenient = true }
     private val cacheFile get() = context.filesDir.resolve(CACHE_FILE)
+    private val prefs: SharedPreferences =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
     private var cached: List<RelayEntry>? = null
+
+    var selectedRelayTag: String
+        get() = prefs.getString(KEY_SELECTED_RELAY_TAG, "") ?: ""
+        set(value) {
+            prefs.edit().putString(KEY_SELECTED_RELAY_TAG, value.trim()).apply()
+        }
 
     fun currentRelays(): List<RelayEntry> {
         cached?.takeIf { it.isNotEmpty() }?.let { return it }
         loadFromDisk()?.let { cached = withLocalPriorityRelays(it); return cached!! }
         return withLocalPriorityRelays(BUNDLED_FALLBACK)
+    }
+
+    fun selectedOrCurrentRelays(): List<RelayEntry> =
+        RelayPreferencePolicy.applySelection(currentRelays(), selectedRelayTag)
+
+    fun addCustomVless(url: String): Result<RelayEntry> = runCatching {
+        val relay = VlessRelayParser.parse(url).getOrThrow()
+        val relays = customRelays()
+            .filterNot { it.tag == relay.tag || (it.uuid == relay.uuid && it.server == relay.server) } + relay
+        prefs.edit().putString(KEY_CUSTOM_RELAYS, jsonCodec.encodeToString(relays)).apply()
+        cached = null
+        selectedRelayTag = relay.tag
+        relay
+    }
+
+    fun customRelays(): List<RelayEntry> = runCatching {
+        val raw = prefs.getString(KEY_CUSTOM_RELAYS, "")?.takeIf { it.isNotBlank() } ?: return emptyList()
+        jsonCodec.decodeFromString<List<RelayEntry>>(raw)
+    }.onFailure { Timber.w("RelayConfig: custom relays decode failed: ${it.message}") }.getOrDefault(emptyList())
+
+    fun selectRelay(tag: String) {
+        val exists = currentRelays().any { it.tag == tag }
+        selectedRelayTag = if (exists) tag else ""
+    }
+
+    fun clearRelaySelection() {
+        selectedRelayTag = ""
     }
 
     suspend fun refreshInBackground() = withContext(Dispatchers.IO) {
@@ -155,8 +208,9 @@ class RelayConfigRepository @Inject constructor(
     }.onFailure { Timber.w("RelayConfig: verify/decode failed: ${it.message}") }.getOrNull()
 
     private fun withLocalPriorityRelays(relays: List<RelayEntry>): List<RelayEntry> {
-        val localTags = LOCAL_PRIORITY_RELAYS.mapTo(mutableSetOf()) { it.tag }
-        return (LOCAL_PRIORITY_RELAYS + relays.filterNot { it.tag in localTags })
+        val localAndCustom = LOCAL_PRIORITY_RELAYS + customRelays()
+        val localTags = localAndCustom.mapTo(mutableSetOf()) { it.tag }
+        return (localAndCustom + relays.filterNot { it.tag in localTags })
             .sortedBy { it.priority }
     }
 

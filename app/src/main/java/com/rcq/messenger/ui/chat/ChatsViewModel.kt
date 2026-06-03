@@ -6,15 +6,21 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rcq.messenger.data.repository.ChatRepository
+import com.rcq.messenger.data.repository.ContactRepository
+import com.rcq.messenger.data.repository.GroupRepository
 import com.rcq.messenger.data.repository.UserRepository
 import com.rcq.messenger.di.PreferencesKeys
 import com.rcq.messenger.domain.model.Chat
+import com.rcq.messenger.domain.model.Contact
+import com.rcq.messenger.domain.model.Group
 import com.rcq.messenger.domain.model.Message
 import com.rcq.messenger.domain.model.MessageKind
 import com.rcq.messenger.domain.model.MessageStatus
 import com.rcq.messenger.media.MediaService
 import com.rcq.messenger.media.MediaType
 import com.rcq.messenger.media.VoiceRecorder
+import com.rcq.messenger.ui.chat.inbox.InboxMapper
+import com.rcq.messenger.ui.chat.inbox.InboxUiState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.*
@@ -24,10 +30,19 @@ import javax.inject.Inject
 
 @HiltViewModel
 class ChatsViewModel @Inject constructor(
-    private val chatRepository: ChatRepository
+    private val chatRepository: ChatRepository,
+    private val contactRepository: ContactRepository,
+    private val groupRepository: GroupRepository,
 ) : ViewModel() {
+    private val inboxMapper = InboxMapper()
 
     val chats: StateFlow<List<Chat>> = chatRepository.getChats()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    private val contacts: StateFlow<List<Contact>> = contactRepository.getContacts()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    private val groups: StateFlow<List<Group>> = groupRepository.getGroups()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val _isLoading = MutableStateFlow(false)
@@ -36,6 +51,31 @@ class ChatsViewModel @Inject constructor(
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
 
+    private val _hasLoadedOnce = MutableStateFlow(false)
+    private val _searchQuery = MutableStateFlow("")
+
+    private val inboxData = combine(chats, contacts, groups) { chats, contacts, groups ->
+        InboxData(chats = chats, contacts = contacts, groups = groups)
+    }
+
+    val inboxState: StateFlow<InboxUiState> = combine(
+        inboxData,
+        _isLoading,
+        _hasLoadedOnce,
+        _searchQuery,
+        _error
+    ) { data, isLoading, hasLoadedOnce, searchQuery, error ->
+        inboxMapper.buildState(
+            chats = data.chats,
+            contacts = data.contacts,
+            groups = data.groups,
+            isLoading = isLoading,
+            hasLoadedOnce = hasLoadedOnce,
+            searchQuery = searchQuery,
+            error = error
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), InboxUiState())
+
     init {
         refresh()
     }
@@ -43,10 +83,20 @@ class ChatsViewModel @Inject constructor(
     fun refresh() {
         viewModelScope.launch {
             _isLoading.value = true
-            chatRepository.syncChats()
-                .onFailure { _error.value = it.message }
+            _error.value = null
+            val chatResult = chatRepository.syncChats()
+            val contactResult = contactRepository.syncContacts()
+            val groupResult = groupRepository.syncGroups()
+            listOf(chatResult, contactResult, groupResult)
+                .firstOrNull { it.isFailure }
+                ?.onFailure { _error.value = it.message }
+            _hasLoadedOnce.value = true
             _isLoading.value = false
         }
+    }
+
+    fun updateSearchQuery(query: String) {
+        _searchQuery.value = query
     }
 
     fun createChat(targetId: Long) {
@@ -58,7 +108,23 @@ class ChatsViewModel @Inject constructor(
             _isLoading.value = false
         }
     }
+
+    fun openContactChat(targetId: Long, onOpened: (String) -> Unit) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            chatRepository.openOrCreateChat(targetId)
+                .onSuccess(onOpened)
+                .onFailure { _error.value = it.message }
+            _isLoading.value = false
+        }
+    }
 }
+
+private data class InboxData(
+    val chats: List<Chat>,
+    val contacts: List<Contact>,
+    val groups: List<Group>,
+)
 
 @HiltViewModel
 class ChatViewModel @Inject constructor(

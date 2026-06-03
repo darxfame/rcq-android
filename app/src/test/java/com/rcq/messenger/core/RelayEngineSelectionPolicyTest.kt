@@ -31,6 +31,21 @@ class RelayEngineSelectionPolicyTest {
         assertEquals("relay-vless", selected.relays.first().tag)
     }
 
+    @Test
+    fun `higher priority tcp relay is assigned to sing-box before xhttp relay`() {
+        val selected = RelaySelectionPolicy.selectForEmbeddedTransport(
+            base = listOf(
+                xhttpRelay().copy(priority = -100),
+                vlessRelay().copy(tag = "relay-uk-google-vision", priority = -120)
+            ),
+            lastGoodTag = null,
+            xrayAvailable = true
+        )
+
+        assertEquals("sing-box", selected.engine)
+        assertEquals("relay-uk-google-vision", selected.relays.first().tag)
+    }
+
     private fun xhttpRelay() = RelayEntry(
         tag = "relay-usa-amd-xhttp",
         proto = "vless",

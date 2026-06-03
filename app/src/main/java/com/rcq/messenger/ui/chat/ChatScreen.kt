@@ -4,6 +4,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -39,6 +40,7 @@ import com.rcq.messenger.media.RecordingState
 import com.rcq.messenger.domain.model.MessageStatus
 import com.rcq.messenger.domain.model.MessageKind
 import com.rcq.messenger.ui.chat.components.ReplyPreview
+import com.rcq.messenger.ui.common.EmoticonPicker
 import com.rcq.messenger.ui.theme.*
 import java.text.SimpleDateFormat
 import java.util.*
@@ -65,7 +67,9 @@ fun ChatScreen(
         if (messages.isNotEmpty()) listState.animateScrollToItem(messages.size - 1)
     }
     var showAttachMenu by remember { mutableStateOf(false) }
+    var showEmojiPicker by remember { mutableStateOf(false) }
     val context = LocalContext.current
+    val isGroupChat = remember(chatId) { !chatId.startsWith("direct_") }
     val locationPermissionState = rememberPermissionState(android.Manifest.permission.ACCESS_FINE_LOCATION)
     val requestLocationAndSend = {
         if (locationPermissionState.status.isGranted) {
@@ -155,6 +159,8 @@ fun ChatScreen(
                         MessageBubble(
                             message = message,
                             isOwnMessage = message.senderId == currentUserId,
+                            senderName = message.senderId.toString(),
+                            showSenderName = isGroupChat && message.senderId != currentUserId,
                             onReply = { viewModel.setReplyTo(message) },
                             onForward = { viewModel.forwardMessage(message) },
                             onEdit = { viewModel.editMessage(message, message.content) },
@@ -180,47 +186,124 @@ fun ChatScreen(
             }
 
             Box {
-                MessageInput(
-                    text = messageText,
-                    onTextChange = viewModel::updateMessageText,
-                    onSend = viewModel::sendMessage,
-                    onAttach = { showAttachMenu = true },
-                    onVoice = {
-                        if (recordingState == RecordingState.RECORDING) {
-                            viewModel.stopAndSendVoiceMessage()
-                        } else {
-                            viewModel.startVoiceRecording()
-                        }
-                    },
-                    isRecording = recordingState == RecordingState.RECORDING
-                )
-                DropdownMenu(
-                    expanded = showAttachMenu,
-                    onDismissRequest = { showAttachMenu = false }
-                ) {
-                    DropdownMenuItem(
-                        text = { Text("Photo") },
-                        leadingIcon = { Icon(Icons.Default.Image, null) },
-                        onClick = { showAttachMenu = false; photoPickerLauncher.launch("image/*") }
+                Column {
+                    if (showEmojiPicker && recordingState != RecordingState.RECORDING) {
+                        EmoticonPicker(
+                            onEmoticonSelected = { token ->
+                                viewModel.updateMessageText(messageText + token)
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                    MessageInput(
+                        text = messageText,
+                        onTextChange = viewModel::updateMessageText,
+                        onSend = viewModel::sendMessage,
+                        onAttach = { showAttachMenu = true },
+                        onEmoji = { showEmojiPicker = !showEmojiPicker },
+                        onVoice = {
+                            if (recordingState == RecordingState.RECORDING) {
+                                viewModel.stopAndSendVoiceMessage()
+                            } else {
+                                showEmojiPicker = false
+                                viewModel.startVoiceRecording()
+                            }
+                        },
+                        isRecording = recordingState == RecordingState.RECORDING
                     )
-                    DropdownMenuItem(
-                        text = { Text("Video") },
-                        leadingIcon = { Icon(Icons.Default.VideoLibrary, null) },
-                        onClick = { showAttachMenu = false; videoPickerLauncher.launch("video/*") }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("File") },
-                        leadingIcon = { Icon(Icons.Default.AttachFile, null) },
-                        onClick = { showAttachMenu = false; filePickerLauncher.launch("*/*") }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Location") },
-                        leadingIcon = { Icon(Icons.Default.LocationOn, null) },
-                        onClick = { showAttachMenu = false; requestLocationAndSend() }
+                }
+                if (showAttachMenu) {
+                    AttachmentSheet(
+                        onDismiss = { showAttachMenu = false },
+                        onPhoto = { photoPickerLauncher.launch("image/*") },
+                        onVideo = { videoPickerLauncher.launch("video/*") },
+                        onFile = { filePickerLauncher.launch("*/*") },
+                        onLocation = requestLocationAndSend
                     )
                 }
             }
         }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AttachmentSheet(
+    onDismiss: () -> Unit,
+    onPhoto: () -> Unit,
+    onVideo: () -> Unit,
+    onFile: () -> Unit,
+    onLocation: () -> Unit,
+) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(horizontal = 20.dp, vertical = 8.dp)
+        ) {
+            Text(
+                "Attach",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = LocalRCQColors.current.textPrimary
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                AttachmentAction(
+                    icon = Icons.Default.Image,
+                    label = "Photo",
+                    onClick = { onDismiss(); onPhoto() }
+                )
+                AttachmentAction(
+                    icon = Icons.Default.VideoLibrary,
+                    label = "Video",
+                    onClick = { onDismiss(); onVideo() }
+                )
+                AttachmentAction(
+                    icon = Icons.Default.AttachFile,
+                    label = "File",
+                    onClick = { onDismiss(); onFile() }
+                )
+                AttachmentAction(
+                    icon = Icons.Default.LocationOn,
+                    label = "Location",
+                    onClick = { onDismiss(); onLocation() }
+                )
+            }
+            Spacer(modifier = Modifier.height(20.dp))
+        }
+    }
+}
+
+@Composable
+private fun AttachmentAction(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    onClick: () -> Unit,
+) {
+    val rcq = LocalRCQColors.current
+    Column(
+        modifier = Modifier
+            .width(72.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(onClick = onClick)
+            .padding(vertical = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            modifier = Modifier
+                .size(48.dp)
+                .background(rcq.bgSecondary, CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(icon, contentDescription = label, tint = rcq.accent)
+        }
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(label, style = MaterialTheme.typography.labelMedium, color = rcq.textSecondary)
     }
 }
 
@@ -229,6 +312,8 @@ fun ChatScreen(
 fun MessageBubble(
     message: Message,
     isOwnMessage: Boolean,
+    senderName: String? = null,
+    showSenderName: Boolean = false,
     onReply: () -> Unit,
     onForward: () -> Unit = {},
     onEdit: () -> Unit = {},
@@ -296,6 +381,15 @@ fun MessageBubble(
                 Column(
                     horizontalAlignment = if (isOwnMessage) Alignment.End else Alignment.Start
                 ) {
+                    if (showSenderName && !senderName.isNullOrBlank()) {
+                        Text(
+                            text = senderName,
+                            modifier = Modifier.padding(start = 2.dp, bottom = 2.dp),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = rcq.accent,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
                     val isMedia = message.kind in listOf(
                         MessageKind.PHOTO, MessageKind.VIDEO, MessageKind.VOICE,
                         MessageKind.FILE, MessageKind.PREMIUM_PHOTO, MessageKind.PREMIUM_VIDEO
@@ -485,6 +579,7 @@ fun MessageInput(
     onTextChange: (String) -> Unit,
     onSend: () -> Unit,
     onAttach: () -> Unit,
+    onEmoji: () -> Unit,
     onVoice: () -> Unit,
     isRecording: Boolean = false
 ) {
@@ -500,6 +595,9 @@ fun MessageInput(
         if (!isRecording) {
             IconButton(onClick = onAttach) {
                 Icon(Icons.Default.Add, "Attach", tint = rcq.textSecondary)
+            }
+            IconButton(onClick = onEmoji) {
+                Icon(Icons.Default.InsertEmoticon, "Emoji", tint = rcq.textSecondary)
             }
         }
 
@@ -567,4 +665,3 @@ fun RetroSystemMessage(text: String) {
         )
     }
 }
-

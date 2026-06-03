@@ -28,8 +28,10 @@ fun ConnectionSettingsSheet(
     val manualProxy by viewModel.manualProxy.collectAsState()
     val statusLabel by viewModel.statusLabel.collectAsState()
     val refreshing by viewModel.refreshing.collectAsState()
+    val relays by viewModel.relays.collectAsState()
+    val selectedRelayTag by viewModel.selectedRelayTag.collectAsState()
+    val customRelayError by viewModel.customRelayError.collectAsState()
     var draftProxy by remember(manualProxy) { mutableStateOf(manualProxy) }
-    val relayCount = remember { viewModel.relayRepo.currentRelays().size }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -110,7 +112,7 @@ fun ConnectionSettingsSheet(
                     }
                     Spacer(Modifier.height(8.dp))
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("$relayCount relay", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
+                        Text("${relays.size} relay", style = MaterialTheme.typography.bodySmall, color = TextSecondary)
                         TextButton(onClick = { viewModel.refreshRelays() }, enabled = !refreshing) {
                             Text(if (refreshing) "Обновляю..." else "Обновить", color = Primary)
                         }
@@ -125,6 +127,13 @@ fun ConnectionSettingsSheet(
                         }
                     }
                 }
+                RelaySelectionCard(
+                    relays = relays,
+                    selectedTag = selectedRelayTag,
+                    customRelayError = customRelayError,
+                    onSelect = viewModel::selectRelay,
+                    onAddCustom = viewModel::addCustomVless
+                )
             }
         }
     }

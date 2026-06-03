@@ -82,10 +82,16 @@ object RelaySelectionPolicy {
         lastGoodTag: String?,
         xrayAvailable: Boolean
     ): EmbeddedRelaySelection {
+        val orderedWithXhttp = orderForAndroid(base, lastGoodTag = lastGoodTag, supportsXhttp = xrayAvailable)
+        val first = orderedWithXhttp.firstOrNull()
+        if (xrayAvailable && first?.isXhttpRelay == true) {
+            val xrayRelays = orderedWithXhttp.filter { it.isXhttpRelay }
+            return EmbeddedRelaySelection("xray", xrayRelays)
+        }
         val xrayRelays = base
             .filter { it.isXhttpRelay }
             .sortedBy { it.priority }
-        if (xrayAvailable && xrayRelays.isNotEmpty()) {
+        if (xrayAvailable && first == null && xrayRelays.isNotEmpty()) {
             return EmbeddedRelaySelection("xray", promoteLastGood(xrayRelays, lastGoodTag))
         }
         return EmbeddedRelaySelection(
@@ -292,7 +298,7 @@ class SingBoxTransport @Inject constructor(
     }
 
     private fun buildSingBoxConfig(): String? {
-        val relays = relayConfigRepository.currentRelays()
+        val relays = relayConfigRepository.selectedOrCurrentRelays()
         if (relays.isEmpty()) { Timber.w("$TAG: no relays available"); return null }
         val ordered = orderedRelays(relays)
         if (ordered.isEmpty()) {
@@ -345,7 +351,9 @@ class SingBoxTransport @Inject constructor(
                 put("short_id", r.short_id ?: "")
             })
         })
-        r.transport_type?.takeIf { it.isNotBlank() }?.let { type ->
+        r.transport_type
+            ?.takeIf { it.isNotBlank() && !it.equals("tcp", ignoreCase = true) }
+            ?.let { type ->
             put("transport", JSONObject().apply {
                 put("type", type)
                 r.transport_path?.takeIf { it.isNotBlank() }?.let { put("path", it) }
@@ -378,7 +386,7 @@ class SingBoxTransport @Inject constructor(
     }
 
     private suspend fun probeRelaysInBackground() {
-        val relays = relayConfigRepository.currentRelays()
+        val relays = relayConfigRepository.selectedOrCurrentRelays()
         val winner = RelaySelectionPolicy.tcpProbeCandidates(
             relays,
             supportsXhttp = BUNDLED_ENGINE_SUPPORTS_XHTTP

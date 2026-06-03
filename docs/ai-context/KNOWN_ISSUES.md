@@ -4,12 +4,12 @@
 
 ## Active
 
-### BUG-011: Group/contact list UI still needs visual validation
+### BUG-011: Main inbox UI still needs visual device validation
 - **Severity:** High
 - **Symptom:** user reported “No contacts yet” and missing `RCQ Beta`.
-- **Current state:** device log after Xray embedded bypass shows `/groups` HTTP 200 and `GroupRepository: syncGroups: got 1 groups: [21/RCQ Beta]`; `/contacts` and `/contacts/pending` return 200 without ViewModel timeout.
-- **Fix:** verify Compose contacts/groups UI state and filters now that backend sync succeeds; ensure `.Dev` fallback/contact row and `RCQ Beta` render.
-- **File:** `ui/contacts/ContactsScreen.kt`, `data/repository/ChatRepository.kt`
+- **Current state:** device log after Xray embedded bypass shows `/groups` HTTP 200 and `GroupRepository: syncGroups: got 1 groups: [21/RCQ Beta]`; `/contacts` and `/contacts/pending` return 200 without ViewModel timeout. Android main `ChatsScreen` now uses `InboxMapper` to combine chats, contacts, and groups.
+- **Fix:** device-verify the main inbox renders `.Dev`, `RCQ Beta`, grouped search results, emoji picker, attachment bottom sheet, relay picker, and custom VLESS flow.
+- **File:** `ui/chat/ChatsScreen.kt`, `ui/chat/ChatScreen.kt`, `ui/chat/inbox/InboxMapper.kt`, `ui/settings/ConnectionSettingsSheet.kt`, `ui/settings/StealthSettingsScreen.kt`
 
 ### BUG-006: Входящие сообщения иногда не расшифровываются
 - **Severity:** Medium
