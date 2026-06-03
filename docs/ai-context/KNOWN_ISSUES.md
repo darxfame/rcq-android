@@ -11,6 +11,13 @@
 - **Fix:** device-verify the main inbox renders `.Dev`, `RCQ Beta`, grouped search results, emoji picker, attachment bottom sheet, relay picker, and custom VLESS flow.
 - **File:** `ui/chat/ChatsScreen.kt`, `ui/chat/ChatScreen.kt`, `ui/chat/inbox/InboxMapper.kt`, `ui/settings/ConnectionSettingsSheet.kt`, `ui/settings/StealthSettingsScreen.kt`
 
+### BUG-012: Add Contact flow needs live device validation
+- **Severity:** Medium
+- **Symptom:** Add Contact code-level backend parity is fixed, but live validation cannot reach the Add request while transport is routed through a broken sing-box relay.
+- **Current state:** Android now matches iOS for `POST /contacts/request` with `{ "to_uin": ... }`, refreshes contacts after success or duplicate, and maps HTTP 409 to a duplicate-contact error. 2026-06-03 ADB validation opened Add Contact and verified the empty/error UI path, but logs showed HTTPS/WS failures through `hysteria2[relay-do-fra-yandex-hy2]`: `SOCKS server general failure`, `operation not permitted`, `connection closed`.
+- **Fix:** first force/verify direct transport or a working relay, then re-run Add Contact success, duplicate 409, empty search, and backend error states.
+- **File:** `ui/contacts/AddContactViewModel.kt`, `data/repository/ChatRepository.kt`, `data/api/RCQApiService.kt`
+
 ### BUG-006: Входящие сообщения иногда не расшифровываются
 - **Severity:** Medium
 - **Symptom:** Показывается "🔒 Зашифрованное сообщение" вместо текста
@@ -30,6 +37,8 @@
 
 | ID | Описание | Дата | Коммит |
 |----|----------|------|--------|
+| BUG-014 | Входящие control-envelope события (`read`, `reaction`, `delete`, `bounce`, `system`, `edit`, `visit`) обрабатывались как обычные сообщения | 2026-06-03 | uncommitted |
+| BUG-013 | Отправка сообщений: статус после отправки не учитывал `queued`/`delivered` и возможен NPE при пустом ответе | 2026-06-03 | uncommitted |
 | BUG-010 | Chats screen stayed in loading/error path because `syncChats()` called absent `/chats`; diagnostics also called client-only routes and stalled on large BODY logs. Fixed by syncing queue only, reporting client-only checks locally, capping relay probes, and using BASIC HTTP logging | 2026-06-03 | uncommitted |
 | BUG-005 | Embedded xHTTP bypass did not work because sing-box cannot parse `transport: xhttp`. Added process-based Xray-core engine for VLESS Reality xHTTP and kept sing-box for compatible relays; device log confirms `XrayTransport` starts `relay-usa-amd-xhttp` | 2026-06-03 | uncommitted |
 | BUG-009 | Crash after registration: `HttpUrl.Builder.scheme("wss")`; fixed by building HTTPS URL first, then converting string to `wss://` | 2026-06-03 | uncommitted |

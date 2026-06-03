@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import com.rcq.messenger.BuildConfig
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import timber.log.Timber
 import java.io.File
@@ -87,6 +88,8 @@ class XrayTransport @Inject constructor(
         private const val TAG = "XrayTransport"
         private const val PREFS = "xray"
         private const val PREF_LAST_ERROR = "rcq.xray.lastError"
+        private const val ROUTE_PROBE_ATTEMPTS = 3
+        private const val ROUTE_PROBE_RETRY_MS = 350L
     }
 
     private val prefs: SharedPreferences =
@@ -134,11 +137,8 @@ class XrayTransport @Inject constructor(
             process = started
             Thread.sleep(900)
             if (!validateProxyRoute()) {
-                val output = runCatching {
-                    started.inputStream.bufferedReader().readText().take(400)
-                }.getOrDefault("")
-                stop()
-                error("Xray запустился, но api.rcq.app через него недоступен. $output")
+                Timber.w("$TAG: started ${relay.tag}, but health route check failed")
+                throw IllegalStateException("Health route check failed")
             }
             isActive = true
             prefs.edit().remove(PREF_LAST_ERROR).apply()
@@ -167,27 +167,34 @@ class XrayTransport @Inject constructor(
         return false
     }
 
-    private fun validateProxyRoute(): Boolean {
-        val proxy = Proxy(
-            Proxy.Type.SOCKS,
-            InetSocketAddress("127.0.0.1", SingBoxTransport.LOCAL_PORT)
-        )
-        val url = URL(BuildConfig.API_BASE_URL.trimEnd('/') + "/health")
-        return runCatching {
-            val conn = (url.openConnection(proxy) as HttpURLConnection).apply {
-                connectTimeout = 6_000
-                readTimeout = 6_000
-                requestMethod = "GET"
-                setRequestProperty("Accept", "application/json")
+    private suspend fun validateProxyRoute(): Boolean {
+        repeat(ROUTE_PROBE_ATTEMPTS) { attempt ->
+            val ok = runCatching {
+                val proxy = Proxy(
+                    Proxy.Type.SOCKS,
+                    InetSocketAddress("127.0.0.1", SingBoxTransport.LOCAL_PORT)
+                )
+                val url = URL(BuildConfig.API_BASE_URL.trimEnd('/') + "/health")
+                val conn = (url.openConnection(proxy) as HttpURLConnection).apply {
+                    connectTimeout = 4_000
+                    readTimeout = 4_000
+                    requestMethod = "GET"
+                    setRequestProperty("Accept", "application/json")
+                }
+                try {
+                    val code = conn.responseCode
+                    code in 200..499
+                } finally {
+                    conn.disconnect()
+                }
+            }.onFailure {
+                Timber.w(it, "$TAG: proxy route validation failed (attempt ${attempt + 1}/$ROUTE_PROBE_ATTEMPTS)")
+            }.getOrDefault(false)
+            if (ok) return true
+            if (attempt < ROUTE_PROBE_ATTEMPTS - 1) {
+                delay(ROUTE_PROBE_RETRY_MS)
             }
-            try {
-                val code = conn.responseCode
-                code in 200..499
-            } finally {
-                conn.disconnect()
-            }
-        }.onFailure {
-            Timber.w(it, "$TAG: proxy route validation failed")
-        }.getOrDefault(false)
+        }
+        return false
     }
 }
