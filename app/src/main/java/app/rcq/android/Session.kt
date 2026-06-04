@@ -240,9 +240,30 @@ class Session(context: Context) {
      *  creating the local account slot or tearing down the current session,
      *  so an unreachable host / typo throws here with the current account
      *  left completely intact. Throws at the roster cap. */
+    /** Engage the circumvention transport (if needed) BEFORE the first network
+     *  call of registration/recovery — mirrors [start]'s engage logic. No-op
+     *  when a direct /health probe to [host] succeeds (healthy network, no
+     *  block) or the transport is already up. Blocking work (probe + sing-box
+     *  start) runs off the main thread. Best-effort: a failure to start the
+     *  transport just leaves the subsequent request to go direct (and fail as
+     *  before), so this never makes registration worse. */
+    private suspend fun ensureTransportForHost(host: String) = withContext(Dispatchers.IO) {
+        val transport = app.rcq.android.net.SingBoxTransport
+        if (transport.isActive) return@withContext
+        if (transport.isEnabled(appCtx) || !transport.probeDirect(host)) {
+            app.rcq.android.net.RelayConfigStore.prime(appCtx)
+            transport.start()
+        }
+    }
+
     suspend fun registerNewAccount(nickname: String, serverInput: String? = null, invite: String? = null): Int {
         if (AccountManager.isAtLimit) throw IllegalStateException("Account limit reached")
         val host = normalizeHost(serverInput)
+        // Engage circumvention BEFORE the first network call (registration).
+        // Without this a blocked user's very first request goes out direct,
+        // times out ("Couldn't connect"), and they have to switch on a VPN
+        // just to sign up. The RcqApi built next captures the SOCKS proxy.
+        ensureTransportForHost(host ?: RcqApi.DEFAULT_HOST)
         val regApi = RcqApi("https://${host ?: RcqApi.DEFAULT_HOST}")
         // Derive the identity from a fresh 32-byte recovery seed so the account
         // is restorable from a BIP39 phrase (the seed is persisted below).
@@ -310,6 +331,9 @@ class Session(context: Context) {
             else -> throw IllegalArgumentException("invalid_phrase")
         }
         val host = normalizeHost(serverInput)
+        // Same as registration: a blocked user must be able to RESTORE without
+        // a manual VPN, so bring up circumvention before the challenge call.
+        ensureTransportForHost(host ?: RcqApi.DEFAULT_HOST)
         val regApi = RcqApi("https://${host ?: RcqApi.DEFAULT_HOST}")
         val signingPubB64 = Base64.encodeToString(identity.signingPublic, Base64.NO_WRAP)
         val challenge = regApi.recoverChallenge(signingPubB64).challenge
