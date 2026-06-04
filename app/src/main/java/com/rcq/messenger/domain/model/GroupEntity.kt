@@ -12,6 +12,7 @@ data class GroupEntity(
     val avatarUrl: String? = null,
     val creatorId: Long,
     val memberIds: List<Long> = emptyList(),
+    val memberCount: Int = 0,
     val adminIds: List<Long> = emptyList(),
     val isPublic: Boolean = false,
     val inviteLink: String? = null,

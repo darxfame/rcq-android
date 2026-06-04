@@ -214,6 +214,12 @@ class WebSocketService @Inject constructor(
     private val _presenceEvents = MutableSharedFlow<WsEvent>(extraBufferCapacity = 16)
     val presenceEvents: SharedFlow<WsEvent> = _presenceEvents.asSharedFlow()
 
+    /** Fires once each time the WebSocket successfully opens (including reconnects).
+     *  Subscribers use this to re-publish their own presence to the server,
+     *  because the server does NOT infer "online" from the WS connection alone. */
+    private val _connectedSignal = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val connectedSignal: SharedFlow<Unit> = _connectedSignal.asSharedFlow()
+
     private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
     // ---- Public API ----
@@ -236,6 +242,14 @@ class WebSocketService @Inject constructor(
         webSocket = null
         _connectionState.value = ConnectionState.DISCONNECTED
         reconnectStrategy.reset()
+    }
+
+    fun reconnectIfNeeded() {
+        if (_connectionState.value == ConnectionState.CONNECTED) return
+        intentionalDisconnect = false
+        reconnectJob?.cancel()
+        reconnectStrategy.reset()
+        connect()
     }
 
     fun sendMessage(message: String): Boolean {
@@ -334,6 +348,7 @@ class WebSocketService @Inject constructor(
                 reconnectStrategy.reset()
                 proxyManager.reportSuccess()
                 startWatchdog()
+                scope.launch { _connectedSignal.emit(Unit) }
             }
 
             override fun onMessage(webSocket: WebSocket, text: String) {

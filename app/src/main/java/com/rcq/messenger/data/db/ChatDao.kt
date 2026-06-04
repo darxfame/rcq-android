@@ -12,6 +12,9 @@ interface ChatDao {
     @Query("SELECT * FROM chats WHERE isArchived = 1")
     fun getArchivedChats(): Flow<List<ChatEntity>>
 
+    @Query("SELECT * FROM chats")
+    suspend fun getAllChatRows(): List<ChatEntity>
+
     @Query("SELECT * FROM chats WHERE id = :id")
     suspend fun getChat(id: String): ChatEntity?
 

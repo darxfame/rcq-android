@@ -1,6 +1,6 @@
 # Known Issues
 
-> Updated: 2026-06-03
+> Updated: 2026-06-04
 
 ## Active
 
@@ -51,6 +51,7 @@
 
 | ID | Описание | Дата | Коммит |
 |----|----------|------|--------|
+| BUG-019 | Root `CODEX_FIXPLAN.md` pass: media/avatar rendering, queue/chat restoration, group member count v17 migration, lifecycle WorkManager sync, call mini-bar/permissions, deep links, status icon direct refs, AuthViewModel singleton DataStore, nickname refresh, badge counter, and dead REST message endpoint guards | 2026-06-04 | uncommitted |
 | BUG-018 | iOS-parity UI plan blocks 1-6: ChatScreen actions, ViewModel state, GroupInfo screen, group route, group join, status picker | 2026-06-03 | uncommitted |
 | BUG-016 | Backend WS/API parity plan blocks 1-9: call/room/group WsEvent fields and parsers, outgoing payloads, dead call REST removal, audio-room WS enter/leave, group preview/join/delete, GroupUpdated sync | 2026-06-03 | uncommitted |
 | BUG-014 | Входящие control-envelope события (`read`, `reaction`, `delete`, `bounce`, `system`, `edit`, `visit`) обрабатывались как обычные сообщения | 2026-06-03 | uncommitted |

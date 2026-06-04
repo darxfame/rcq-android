@@ -21,6 +21,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.rcq.messenger.BuildConfig
 import com.rcq.messenger.domain.model.Message
 import com.rcq.messenger.domain.model.MessageKind
 import com.rcq.messenger.media.PlaybackState
@@ -146,6 +147,8 @@ fun ImageMessageContent(
     isOwnMessage: Boolean,
     onImageClick: () -> Unit
 ) {
+    val imageModel = message.mediaId?.takeIf { it.isNotBlank() }?.let { mediaUrl(it) }
+        ?: message.thumbnailB64?.takeIf { it.isNotBlank() }
     Box(
         modifier = Modifier
             .size(200.dp)
@@ -153,11 +156,11 @@ fun ImageMessageContent(
             .background(if (isOwnMessage) MessageSent else MessageReceived)
             .clickable { onImageClick() }
     ) {
-        if (message.thumbnailB64?.isNotEmpty() == true) {
-            // TODO: Load image from base64 thumbnail or media URL
+        if (imageModel != null) {
             AsyncImage(
                 model = ImageRequest.Builder(LocalContext.current)
-                    .data(message.thumbnailB64)
+                    .data(imageModel)
+                    .crossfade(true)
                     .build(),
                 contentDescription = "Image",
                 modifier = Modifier.fillMaxSize(),
@@ -170,8 +173,8 @@ fun ImageMessageContent(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Default.Image,
-                    contentDescription = "Image",
+                    imageVector = Icons.Default.BrokenImage,
+                    contentDescription = "Image unavailable",
                     modifier = Modifier.size(48.dp),
                     tint = TextSecondary
                 )
@@ -206,6 +209,8 @@ fun VideoMessageContent(
     isOwnMessage: Boolean,
     onVideoClick: () -> Unit
 ) {
+    val thumbnailModel = message.mediaId?.takeIf { it.isNotBlank() }?.let { mediaUrl(it) }
+        ?: message.thumbnailB64?.takeIf { it.isNotBlank() }
     Box(
         modifier = Modifier
             .size(200.dp)
@@ -213,10 +218,11 @@ fun VideoMessageContent(
             .background(if (isOwnMessage) MessageSent else MessageReceived)
             .clickable { onVideoClick() }
     ) {
-        if (message.thumbnailB64?.isNotEmpty() == true) {
+        if (thumbnailModel != null) {
             AsyncImage(
                 model = ImageRequest.Builder(LocalContext.current)
-                    .data(message.thumbnailB64)
+                    .data(thumbnailModel)
+                    .crossfade(true)
                     .build(),
                 contentDescription = "Video thumbnail",
                 modifier = Modifier.fillMaxSize(),
@@ -228,8 +234,8 @@ fun VideoMessageContent(
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Default.VideoLibrary,
-                    contentDescription = "Video",
+                    imageVector = Icons.Default.BrokenImage,
+                    contentDescription = "Video unavailable",
                     modifier = Modifier.size(48.dp),
                     tint = TextSecondary
                 )
@@ -270,6 +276,9 @@ fun VideoMessageContent(
         }
     }
 }
+
+private fun mediaUrl(mediaId: String): String =
+    BuildConfig.API_BASE_URL.trimEnd('/') + "/media/$mediaId"
 
 @Composable
 fun VoiceMessageContent(

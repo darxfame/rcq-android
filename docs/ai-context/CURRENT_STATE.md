@@ -2,18 +2,21 @@
 
 ## Build
 - **Production Debug:** ✅ Passing via `./gradlew assembleProductionDebug`
-- **DB:** v16 · **Branch:** `ios-parity-transport-build`
+- **DB:** v17 · **Branch:** `ios-parity-transport-build`
 - CI build fix: Gradle now includes only `app/libs/libbox.aar`; stale `app.rcq.android` code and `rcqbox.aar` are moved to `reference/android-legacy` instead of being hidden by a custom source-set.
 
 ## Working ✅
 - Registration + JWT auth + ECIES key generation (iOS-compat)
 - Outgoing messages (Android → iPad confirmed working)
 - Incoming messages (with 🔒 placeholder if decrypt fails); `/messages/queue` is re-fetched on startup and every WS `CONNECTED`/opened/pong event, and undecryptable queue rows are stored + ACKed instead of silently growing the queue.
+- Background message catch-up is scheduled through WorkManager every 15 minutes on connected networks; app foreground return republishes presence and reconnects WS after background sleep.
 - Contact sync works; if `/contacts` returns an empty list and `.Dev` lookup fails, Android inserts local `.Dev` fallback at current Dev UIN `911` so Chats/Contacts are not empty. Legacy local `.Dev` fallback `84048` is removed on sync.
+- Contact sync also updates existing direct chat nicknames/avatars so renamed contacts do not stay stale in Chats.
 - Contact and group member identity fields now include `status_message`, `identity_key`, `signing_key`, and `signal_identity_key`; group sync caches member nicknames/keys into contacts for chat display and group fan-out.
 - Group sync is route/backend-sensitive: current device run still saw `/groups` timeouts, but `GroupRepository` now seeds/repairs mandatory local `RCQ Beta` id `21` before/after network sync so the group never disappears from Chats/Groups while the server route is unavailable.
 - Chat list sync: client-only `/chats` is not called; chat rows are derived from Room rows and `/messages/queue`
 - Main chats screen now uses an `InboxUiState`/`InboxMapper` hub model that combines chats, contacts, and groups. Groups such as `RCQ Beta` and default contacts such as `.Dev` can appear even before they have messages.
+- Chat rows now restore from local messages/contact cache after queue sync, update last-message previews on incoming/offline/outgoing messages, expose archived chat count, and clear notification badges when a chat is opened.
 - Miranda/Telegram polish pass is applied at compile level: chat list rows use 44dp round avatars, status overlays, unread badges, and dividers; chat headers show avatar/status/member subtitle; text bubbles show rounded Telegram-style surfaces, inline timestamps, reaction chips, and delivery ticks; contacts default to Miranda-style Online/Away/Offline/Groups sections.
 - Chat UI iOS-parity controls: call button routes to CallScreen, group header opens GroupInfo, More menu supports group info/search/mute/clear, reactions use an emoji picker, forwarding uses a target picker, in-chat search overlay is available, and group pinned text can render above messages.
 - Contact info route now uses Android `ContactInfoScreen` parity UI with avatar/status/UIN copy, Message/Call actions, block, and remove-contact actions.
@@ -27,6 +30,7 @@
 - Connection diagnostics: client-only screens are reported locally, relay probes are capped, and OkHttp debug logging is BASIC to avoid large-body stalls
 - WebSocket envelope parity: `system`, `visit`, and control envelope kinds (`read`, `reaction`, `edit`, `delete`, `bounce`) coming in `MessageNew` are now parsed from decrypted payload and applied (message state updates, delete/bounce, reactions, edits, system notices) instead of being treated as generic messages.
 - WebSocket `message_reaction` is typed as a reaction map; ChatRepository no longer reads removed/raw reaction fields.
+- Root `CODEX_FIXPLAN.md` pass is applied: Coil media/avatar loading, recovery phrase copy, ContactInfo UIN lookup, UIN-to-nickname refresh, group member count migration, lifecycle/WorkManager sync, call full-screen/mini-bar, runtime call/location permissions, deep links, direct status drawables, story rings, AuthViewModel singleton DataStore usage, REST message endpoint compile guards, local edit/delete handling, reply original sender names, and notification badge numbers.
 - Dark mode (persisted DataStore, applied at launch)
 - JIMM retro mode toggle (status-grouped contacts when ON)
 - JIMM/QIP flat UI: compact 50dp NavBar, compact typography, status-dot rows

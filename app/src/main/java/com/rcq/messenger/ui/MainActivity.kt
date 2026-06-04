@@ -15,15 +15,24 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.lifecycleScope
+import com.rcq.messenger.data.repository.UserRepository
+import com.rcq.messenger.data.websocket.WebSocketService
 import com.rcq.messenger.ui.theme.RCQTheme
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
     private val pendingChatId = MutableStateFlow<String?>(null)
     private val pendingScreen = MutableStateFlow<String?>(null)
+    private var stoppedAt: Long = 0L
+
+    @Inject lateinit var webSocketService: WebSocketService
+    @Inject lateinit var userRepository: UserRepository
 
     private val notifPermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -68,8 +77,46 @@ class MainActivity : ComponentActivity() {
         handleIntent(intent)
     }
 
+    override fun onStart() {
+        super.onStart()
+        val bgMs = System.currentTimeMillis() - stoppedAt
+        if (stoppedAt > 0L && bgMs > 4_000L) {
+            lifecycleScope.launch {
+                webSocketService.reconnectIfNeeded()
+            }
+        }
+        lifecycleScope.launch {
+            runCatching { userRepository.updatePresence("online") }
+        }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        stoppedAt = System.currentTimeMillis()
+        lifecycleScope.launch {
+            runCatching { userRepository.updatePresence("away") }
+        }
+    }
+
     private fun handleIntent(intent: Intent) {
         intent.getStringExtra("chat_id")?.let { pendingChatId.value = it }
         intent.getStringExtra("screen")?.let { pendingScreen.value = it }
+        intent.data?.let { uri ->
+            when {
+                (uri.scheme == "rcq" && uri.host == "add") ||
+                    (uri.host == "rcq.app" && uri.pathSegments.getOrNull(0) == "u") -> {
+                    uri.lastPathSegment?.toLongOrNull()?.let { uin ->
+                        pendingScreen.value = "add_contact_$uin"
+                    }
+                }
+                (uri.scheme == "rcq" && uri.host == "group") ||
+                    (uri.host == "rcq.app" && uri.pathSegments.getOrNull(0) == "g") -> {
+                    uri.lastPathSegment?.let { groupId ->
+                        pendingScreen.value = "join_group_$groupId"
+                    }
+                }
+                else -> Unit
+            }
+        }
     }
 }

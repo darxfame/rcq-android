@@ -31,6 +31,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.rcq.messenger.ui.chat.inbox.InboxRow
 import com.rcq.messenger.ui.chat.inbox.InboxSearchResults
 import com.rcq.messenger.ui.chat.inbox.InboxTarget
+import com.rcq.messenger.ui.common.AvatarImage
 import com.rcq.messenger.ui.common.StatusIndicator
 import com.rcq.messenger.ui.theme.*
 
@@ -45,6 +46,7 @@ fun ChatsScreen(
     onGroupClick: (String) -> Unit = onChatClick,
 ) {
     val inboxState by viewModel.inboxState.collectAsState()
+    val archivedCount by viewModel.archivedCount.collectAsState()
 
     var searchActive by remember { mutableStateOf(false) }
     var menuExpanded by remember { mutableStateOf(false) }
@@ -170,6 +172,20 @@ fun ChatsScreen(
                             )
                         }
                     }
+                    if (archivedCount > 0) {
+                        item(key = "archive") {
+                            TextButton(
+                                onClick = { },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp)
+                            ) {
+                                Icon(Icons.Default.Archive, contentDescription = null, tint = rcq.textSecondary)
+                                Spacer(Modifier.width(8.dp))
+                                Text("Archive ($archivedCount)", color = rcq.textSecondary)
+                            }
+                        }
+                    }
                 }
             }
 
@@ -245,20 +261,11 @@ private fun InboxItem(row: InboxRow, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(modifier = Modifier.size(44.dp)) {
-            Box(
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .background(rcq.accent),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = row.title.firstOrNull()?.uppercase() ?: "?",
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp
-                )
-            }
+            AvatarImage(
+                avatarUrl = row.avatarUrl,
+                displayName = row.title,
+                size = 44.dp
+            )
             if (row.status != null) {
                 StatusIndicator(
                     status = row.status,

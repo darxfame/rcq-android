@@ -75,7 +75,12 @@ class NotificationHelper @Inject constructor(
         }
     }
 
-    fun showMessageNotification(chatId: String, senderName: String, message: String) {
+    fun showMessageNotification(
+        chatId: String,
+        senderName: String,
+        message: String,
+        unreadCount: Int = 1
+    ) {
         soundManager.play(RcqSound.MESSAGE_INCOMING)
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
@@ -95,6 +100,7 @@ class NotificationHelper @Inject constructor(
             .setContentText(message)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setAutoCancel(true)
+            .setNumber(unreadCount)
             .setContentIntent(pendingIntent)
             .build()
 

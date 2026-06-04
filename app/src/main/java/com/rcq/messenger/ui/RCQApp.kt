@@ -15,6 +15,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -33,6 +34,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.rcq.messenger.service.CallState
 import com.rcq.messenger.ui.auth.*
 import com.rcq.messenger.ui.chat.*
 import com.rcq.messenger.ui.contacts.ContactsScreen
@@ -117,6 +119,16 @@ fun RCQApp(initialChatId: String? = null, initialScreen: String? = null) {
             initialChatId != null -> navController.navigate(Routes.chat(initialChatId))
             initialScreen == "contacts" -> navController.navigate(Screen.Contacts.route)
             initialScreen == "call" -> { /* handled via call_id extra separately */ }
+            initialScreen?.startsWith("add_contact_") == true -> {
+                initialScreen.removePrefix("add_contact_").toLongOrNull()?.let { userId ->
+                    navController.navigate(Routes.userProfile(userId))
+                }
+            }
+            initialScreen?.startsWith("join_group_") == true -> {
+                initialScreen.removePrefix("join_group_").takeIf { it.isNotBlank() }?.let { groupId ->
+                    navController.navigate(Routes.group(groupId))
+                }
+            }
         }
     }
 
@@ -134,12 +146,40 @@ fun MainScaffold(
 ) {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
+    val callViewModel: CallViewModel = hiltViewModel()
+    val callState by callViewModel.callState.collectAsState()
+    val activeCallTargetUin by callViewModel.targetUin.collectAsState()
+    val activeCallName by callViewModel.targetNickname.collectAsState()
+    val isCallRoute = currentDestination?.route?.startsWith("call/") == true
 
     val showBottomBar = bottomNavItems.any { screen ->
         currentDestination?.hierarchy?.any { it.route == screen.route } == true
+    } && !isCallRoute
+
+    val showCallMiniBar = !isCallRoute && when (callState) {
+        CallState.CONNECTING,
+        CallState.RINGING,
+        CallState.CONNECTED -> true
+        else -> false
     }
 
     Scaffold(
+        topBar = {
+            CallMiniBar(
+                calleeName = activeCallName,
+                isVisible = showCallMiniBar,
+                onTap = {
+                    if (activeCallTargetUin > 0L) {
+                        navController.navigate(
+                            Routes.call("direct_$activeCallTargetUin", activeCallTargetUin)
+                        ) {
+                            launchSingleTop = true
+                        }
+                    }
+                },
+                onHangup = { callViewModel.endCall() }
+            )
+        },
         bottomBar = {
             if (showBottomBar) {
                 BottomNavBar(
@@ -183,7 +223,7 @@ fun MainScaffold(
             }
             composable(Screen.AudioRooms.route) {
                 AudioRoomsScreen(
-                    onRoomClick = { }
+                    onRoomClick = { roomId -> navController.navigate("room/$roomId") }
                 )
             }
             composable(Screen.Stories.route) {
@@ -196,12 +236,15 @@ fun MainScaffold(
                 val nickname by authViewModel.nickname.collectAsState()
                 val recoveryPhrase by authViewModel.recoveryPhrase.collectAsState()
                 val currentStatus by authViewModel.currentStatus.collectAsState()
+                val statusError by authViewModel.statusError.collectAsState()
                 SettingsScreen(
                     currentUin = currentUin,
                     nickname = nickname,
                     recoveryPhrase = recoveryPhrase,
                     currentStatus = currentStatus,
                     onSetStatus = { status -> authViewModel.setStatus(status) },
+                    statusError = statusError,
+                    onClearStatusError = { authViewModel.clearStatusError() },
                     onLogout = { authViewModel.logout() },
                     onNavigateToStealth = { navController.navigate("settings/stealth") },
                     onNavigateToPin = { navController.navigate("settings/pin") },
@@ -295,6 +338,15 @@ fun MainScaffold(
                     onUserClick = { userId -> navController.navigate(Routes.userProfile(userId)) }
                 )
             }
+            composable("room/{roomId}") { backStackEntry ->
+                val roomId = backStackEntry.arguments?.getString("roomId") ?: return@composable
+                AudioRoomsScreen(
+                    onRoomClick = { clickedRoomId ->
+                        if (clickedRoomId == roomId) navController.popBackStack()
+                        else navController.navigate("room/$clickedRoomId")
+                    }
+                )
+            }
             composable(Routes.NEARBY) {
                 NearbyScreen(
                     onBack = { navController.popBackStack() },
@@ -340,6 +392,7 @@ fun MainScaffold(
 
 @Composable
 fun AuthNavigation(navController: NavHostController, authViewModel: AuthViewModel) {
+    val context = LocalContext.current
     val isLoading by authViewModel.isLoading.collectAsState()
     val error by authViewModel.error.collectAsState()
     val authState by authViewModel.authState.collectAsState()
@@ -364,7 +417,15 @@ fun AuthNavigation(navController: NavHostController, authViewModel: AuthViewMode
             RecoveryPhraseScreen(
                 phrase = recoveryPhrase,
                 onConfirm = { authViewModel.confirmRecoveryPhrase() },
-                onCopy = { /* TODO: Copy to clipboard */ }
+                onCopy = {
+                    val clip = android.content.ClipData.newPlainText(
+                        "Recovery Phrase",
+                        recoveryPhrase.joinToString(" ")
+                    )
+                    val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE)
+                        as android.content.ClipboardManager
+                    clipboard.setPrimaryClip(clip)
+                }
             )
         }
         else -> {

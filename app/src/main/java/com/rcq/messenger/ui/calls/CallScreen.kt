@@ -1,5 +1,6 @@
 package com.rcq.messenger.ui.calls
 
+import android.Manifest
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -13,9 +14,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.isGranted
+import com.google.accompanist.permissions.rememberPermissionState
 import com.rcq.messenger.service.CallState
 import com.rcq.messenger.ui.theme.*
 
+@OptIn(ExperimentalPermissionsApi::class)
 @Composable
 fun CallScreen(
     chatId: String,
@@ -24,14 +29,55 @@ fun CallScreen(
     onBack: () -> Unit,
     viewModel: CallViewModel = hiltViewModel()
 ) {
+    val audioPermission = rememberPermissionState(Manifest.permission.RECORD_AUDIO)
+    val rcq = LocalRCQColors.current
+
+    LaunchedEffect(Unit) {
+        if (!audioPermission.status.isGranted) {
+            audioPermission.launchPermissionRequest()
+        }
+    }
+
+    if (!audioPermission.status.isGranted) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(rcq.bgPrimary),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(RCQMetrics.rowHPad),
+                modifier = Modifier.padding(RCQMetrics.screenHPad)
+            ) {
+                Icon(
+                    Icons.Default.MicOff,
+                    contentDescription = null,
+                    modifier = Modifier.size(RCQMetrics.avatarLg),
+                    tint = rcq.textSecondary
+                )
+                Text(
+                    text = "Microphone permission required for calls",
+                    color = rcq.textPrimary,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Button(onClick = { audioPermission.launchPermissionRequest() }) {
+                    Text("Grant Permission")
+                }
+            }
+        }
+        return
+    }
+
     val callState by viewModel.callState.collectAsState()
     val isMuted by viewModel.isMuted.collectAsState()
     val isSpeakerOn by viewModel.isSpeakerOn.collectAsState()
 
     LaunchedEffect(chatId, targetUin) {
+        viewModel.setTargetNickname(targetNickname)
         if (targetUin > 0L) {
             viewModel.setTargetUin(targetUin)
-            viewModel.startCall(chatId, targetUin)
+            viewModel.startCallIfNeeded(chatId, targetUin)
         }
     }
 

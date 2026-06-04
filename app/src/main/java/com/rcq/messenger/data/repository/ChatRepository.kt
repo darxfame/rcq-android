@@ -8,6 +8,7 @@ import com.rcq.messenger.data.api.RespondContactRequestBody
 import com.rcq.messenger.data.api.SendContactRequestBody
 import com.rcq.messenger.data.api.RCQApiService
 import com.rcq.messenger.data.api.GroupApiResponse
+import com.rcq.messenger.data.api.UpdateProfileRequest
 import com.rcq.messenger.data.db.*
 import com.rcq.messenger.domain.model.*
 import com.rcq.messenger.crypto.CryptoService
@@ -22,6 +23,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.launchIn
@@ -48,12 +50,7 @@ class UserRepository @Inject constructor(
         }
     }
 
-    suspend fun getUser(userId: Long): Result<User> = runCatching {
-        api.getUser(userId).let { response ->
-            if (response.isSuccessful) response.body()!!
-            else throw Exception("User not found")
-        }
-    }
+    suspend fun getUser(userId: Long): Result<User> = getUserByUin(userId)
 
     suspend fun getUserByUin(uin: Long): Result<User> = runCatching {
         Log.d("UserRepository", "Searching UIN: $uin")
@@ -74,7 +71,13 @@ class UserRepository @Inject constructor(
     }
 
     suspend fun updateProfile(user: User): Result<User> = runCatching {
-        api.updateProfile(user).let { response ->
+        api.patchProfile(
+            UpdateProfileRequest(
+                nickname = user.nickname.takeIf { it.isNotBlank() },
+                bio = user.bio.takeIf { it.isNotBlank() },
+                statusMessage = user.statusMessage?.takeIf { it.isNotBlank() }
+            )
+        ).let { response ->
             if (response.isSuccessful) response.body()!!
             else throw Exception("Failed to update profile")
         }
@@ -92,7 +95,8 @@ class UserRepository @Inject constructor(
 @Singleton
 class ContactRepository @Inject constructor(
     private val api: RCQApiService,
-    private val contactDao: ContactDao
+    private val contactDao: ContactDao,
+    private val chatDao: ChatDao
 ) {
     companion object {
         // Dev account: auto-added to contacts without request flow (mirrors iOS .Dev badge)
@@ -121,8 +125,22 @@ class ContactRepository @Inject constructor(
                 val users = response.body()!!
                 val first = users.firstOrNull()
                 Log.d("ContactRepository", "Got ${users.size} contacts. First: ${first?.nickname} / uin=${first?.id}")
-                // Clear and insert contacts (map from User to ContactEntity)
-                contactDao.insertAll(users.map { it.toContactEntity() })
+                val contacts = users.map { it.toContactEntity() }
+                contactDao.insertAll(contacts)
+                contacts.forEach { contact ->
+                    val chatId = "direct_${contact.userId}"
+                    val displayName = contact.customNickname?.takeIf { it.isNotBlank() } ?: contact.nickname
+                    chatDao.getChat(chatId)?.let { chat ->
+                        if (chat.targetNickname != displayName || chat.targetAvatar != contact.avatarUrl) {
+                            chatDao.insertChat(
+                                chat.copy(
+                                    targetNickname = displayName,
+                                    targetAvatar = contact.avatarUrl
+                                )
+                            )
+                        }
+                    }
+                }
             } else {
                 throw Exception("getContacts failed: ${response.code()} ${response.errorBody()?.string()}")
             }
@@ -286,7 +304,10 @@ class ChatRepository @Inject constructor(
         .filter { (cid, _) -> cid == chatId }
         .map { (_, userId) -> userId != 0L }
 
-    suspend fun clearUnreadCount(chatId: String) = chatDao.clearUnreadCount(chatId)
+    suspend fun clearUnreadCount(chatId: String) {
+        chatDao.clearUnreadCount(chatId)
+        notificationHelper.cancelNotification(chatId.hashCode())
+    }
     suspend fun setPinned(chatId: String, pinned: Boolean) = chatDao.setPinned(chatId, pinned)
     suspend fun setMuted(chatId: String, muted: Boolean) = chatDao.setMuted(chatId, muted)
     suspend fun setArchived(chatId: String, archived: Boolean) = chatDao.setArchived(chatId, archived)
@@ -392,7 +413,6 @@ class ChatRepository @Inject constructor(
                             messageDao.insertMessage(msg.toEntity())
 
                             // Upsert chat row + notification
-                            val now = System.currentTimeMillis()
                             val existingChat = chatDao.getChat(chatId)
                             val senderName = existingChat?.targetNickname
                                 ?: contactDao.getContactByUserId(senderUin)?.nickname
@@ -400,24 +420,10 @@ class ChatRepository @Inject constructor(
                             notificationHelper.showMessageNotification(
                                 chatId = chatId,
                                 senderName = senderName,
-                                message = msg.content.ifBlank { "📎 Attachment" }
+                                message = msg.content.ifBlank { "📎 Attachment" },
+                                unreadCount = (existingChat?.unreadCount ?: 0) + 1
                             )
-                            if (existingChat != null) {
-                                chatDao.incrementUnreadCount(chatId, now)
-                            } else {
-                                chatDao.insertChat(ChatEntity(
-                                    id = chatId,
-                                    targetId = senderUin,
-                                    targetNickname = senderName,
-                                    targetAvatar = null,
-                                    unreadCount = 1,
-                                    isPinned = false,
-                                    isMuted = false,
-                                    isArchived = false,
-                                    createdAt = now,
-                                    updatedAt = now
-                                ))
-                            }
+                            upsertChatForMessage(chatId, senderUin, senderName, msg, incrementUnread = true)
                         } catch (e: Exception) {
                             Log.e("ChatRepository", "Failed to handle incoming message: ${e.message}")
                         }
@@ -497,7 +503,7 @@ class ChatRepository @Inject constructor(
         }
     }
 
-    private suspend fun syncOfflineQueue() {
+    suspend fun syncOfflineQueue() {
         runCatching {
             val response = api.getMessageQueue()
             if (!response.isSuccessful) {
@@ -561,27 +567,11 @@ class ChatRepository @Inject constructor(
                 receivedWhileAway = true
             )
             messageDao.insertMessage(msg.toEntity())
-            val now = System.currentTimeMillis()
             val existingChat = chatDao.getChat(chatId)
             val senderName = existingChat?.targetNickname
                 ?: contactDao.getContactByUserId(senderId)?.nickname
                 ?: senderId.toString()
-            if (existingChat != null) {
-                chatDao.incrementUnreadCount(chatId, now)
-            } else {
-                chatDao.insertChat(com.rcq.messenger.domain.model.ChatEntity(
-                    id = chatId,
-                    targetId = senderId,
-                    targetNickname = senderName,
-                    targetAvatar = null,
-                    unreadCount = 1,
-                    isPinned = false,
-                    isMuted = false,
-                    isArchived = false,
-                    createdAt = now,
-                    updatedAt = now
-                ))
-            }
+            upsertChatForMessage(chatId, senderId, senderName, msg, incrementUnread = true)
             true
         } catch (e: Exception) {
             Log.e("ChatRepository", "ingestQueueRow failed: ${e.message}")
@@ -623,11 +613,40 @@ class ChatRepository @Inject constructor(
         entities.map { it.toDomain() }
     }
 
+    fun getArchivedChats(): Flow<List<Chat>> = chatDao.getArchivedChats().map { entities ->
+        entities.map { it.toDomain() }
+    }
+
     // Chats are a client-side concept only — server has no /chats endpoint.
     // They are materialized from Room rows created by outgoing sends,
     // WebSocket events, and /messages/queue ingestion.
     suspend fun syncChats(): Result<Unit> = runCatching {
         syncOfflineQueue()
+        val existingChatIds = chatDao.getAllChatRows().map { it.id }.toSet()
+        contactDao.getAllContacts()
+            .first()
+            .forEach { contact ->
+                val chatId = "direct_${contact.userId}"
+                if (chatId in existingChatIds) return@forEach
+                val latestMsg = messageDao.getLatestMessageForChat(chatId) ?: return@forEach
+                chatDao.insertChat(
+                    ChatEntity(
+                        id = chatId,
+                        targetId = contact.userId,
+                        targetNickname = contact.customNickname ?: contact.nickname,
+                        targetAvatar = contact.avatarUrl,
+                        unreadCount = 0,
+                        isPinned = false,
+                        isMuted = false,
+                        isArchived = false,
+                        createdAt = latestMsg.timestamp,
+                        updatedAt = latestMsg.timestamp,
+                        lastMessageContent = messagePreview(latestMsg.toDomain()),
+                        lastMessageTimestamp = latestMsg.timestamp,
+                        lastMessageKind = latestMsg.kind
+                    )
+                )
+            }
     }
 
     // We derive the chatId from the target UIN and store locally.
@@ -751,6 +770,7 @@ class ChatRepository @Inject constructor(
                     isEncrypted = true, status = "SENT"
                 )
                 messageDao.insertMessage(sentEntity)
+                updateChatPreview(sentEntity.chatId, sentEntity.toDomain())
                 message.copy(id = finalId, status = MessageStatus.SENT)
             } else {
                 messageDao.updateMessage(optimisticEntity.copy(status = "PENDING"))
@@ -816,6 +836,7 @@ class ChatRepository @Inject constructor(
         return api.sendGroupSealedMessage(request).let { response ->
             if (response.isSuccessful) {
                 messageDao.updateMessage(optimisticEntity.copy(status = "SENT"))
+                updateChatPreview(chatId, message.copy(status = MessageStatus.SENT))
                 message.copy(status = MessageStatus.SENT)
             } else {
                 messageDao.updateMessage(optimisticEntity.copy(status = "FAILED"))
@@ -875,20 +896,75 @@ class ChatRepository @Inject constructor(
         return updated
     }
 
-    suspend fun editMessage(chatId: String, message: Message): Result<Message> = runCatching {
-        api.editMessage(chatId, message.id, message).let { response ->
-            if (response.isSuccessful) response.body()!!.also {
-                messageDao.updateMessage(it.toEntity())
-            }
-            else throw Exception("Failed to edit message")
+    private suspend fun upsertChatForMessage(
+        chatId: String,
+        targetId: Long,
+        targetNickname: String,
+        msg: Message,
+        incrementUnread: Boolean
+    ) {
+        val existing = chatDao.getChat(chatId)
+        if (existing != null) {
+            chatDao.insertChat(
+                existing.copy(
+                    unreadCount = existing.unreadCount + if (incrementUnread) 1 else 0,
+                    lastMessageContent = messagePreview(msg),
+                    lastMessageTimestamp = msg.timestamp,
+                    lastMessageKind = msg.kind.name,
+                    updatedAt = msg.timestamp
+                )
+            )
+        } else {
+            chatDao.insertChat(
+                ChatEntity(
+                    id = chatId,
+                    targetId = targetId,
+                    targetNickname = targetNickname,
+                    targetAvatar = null,
+                    unreadCount = if (incrementUnread) 1 else 0,
+                    isPinned = false,
+                    isMuted = false,
+                    isArchived = false,
+                    createdAt = msg.timestamp,
+                    updatedAt = msg.timestamp,
+                    lastMessageContent = messagePreview(msg),
+                    lastMessageTimestamp = msg.timestamp,
+                    lastMessageKind = msg.kind.name
+                )
+            )
         }
     }
 
+    private suspend fun updateChatPreview(chatId: String, msg: Message) {
+        val existing = chatDao.getChat(chatId) ?: return
+        chatDao.insertChat(
+            existing.copy(
+                lastMessageContent = messagePreview(msg),
+                lastMessageTimestamp = msg.timestamp,
+                lastMessageKind = msg.kind.name,
+                updatedAt = msg.timestamp
+            )
+        )
+    }
+
+    suspend fun editMessage(chatId: String, message: Message): Result<Message> = runCatching {
+        messageDao.updateMessage(message.copy(editedAt = System.currentTimeMillis()).toEntity())
+        updateChatPreview(chatId, message)
+        message
+    }
+
     suspend fun deleteMessage(chatId: String, messageId: String): Result<Unit> = runCatching {
-        api.deleteMessage(chatId, messageId).let { response ->
-            if (response.isSuccessful) {
-                messageDao.deleteMessage(messageId)
-            } else throw Exception("Failed to delete message")
+        messageDao.deleteMessage(messageId)
+        messageDao.getLatestMessageForChat(chatId)?.let { latest ->
+            updateChatPreview(chatId, latest.toDomain())
+        }
+    }
+
+    suspend fun updateChatNickname(chatId: String, nickname: String) {
+        chatDao.getChat(chatId)?.let { chat ->
+            if (chat.targetNickname != nickname) {
+                chatDao.insertChat(chat.copy(targetNickname = nickname))
+            }
         }
     }
 
@@ -902,6 +978,15 @@ class ChatRepository @Inject constructor(
 
 // Extension functions
 private val json = Json { ignoreUnknownKeys = true }
+
+private fun messagePreview(msg: Message): String = when (msg.kind) {
+    MessageKind.PHOTO, MessageKind.PREMIUM_PHOTO -> "📷 Photo"
+    MessageKind.VIDEO, MessageKind.PREMIUM_VIDEO -> "🎥 Video"
+    MessageKind.VOICE -> "🎤 Voice message"
+    MessageKind.FILE -> "📎 ${msg.fileName ?: "File"}"
+    MessageKind.LOCATION -> "📍 Location"
+    else -> msg.content.take(100)
+}
 
 private fun ContactEntity.toDomain() = Contact(
     userId = userId, nickname = nickname,

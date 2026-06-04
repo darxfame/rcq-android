@@ -41,8 +41,16 @@ class CallViewModel @Inject constructor(
         // Observe CallManager state
         viewModelScope.launch {
             callManager.currentCall.collect { callInfo ->
-                callInfo?.let {
-                    _callState.value = it.state
+                if (callInfo == null) {
+                    _callState.value = CallState.IDLE
+                    _targetUin.value = 0L
+                    _targetNickname.value = "User"
+                } else {
+                    _callState.value = callInfo.state
+                    _targetUin.value = callInfo.targetUin
+                    if (_targetNickname.value == "User") {
+                        _targetNickname.value = "User ${callInfo.targetUin}"
+                    }
                 }
             }
         }
@@ -53,6 +61,16 @@ class CallViewModel @Inject constructor(
         callManager.startCall(targetUin, isVideoCall = false)
     }
 
+    fun startCallIfNeeded(chatId: String, targetUin: Long) {
+        val current = callManager.currentCall.value
+        if (current != null && current.targetUin == targetUin && current.state.isActive()) {
+            _callState.value = current.state
+            _targetUin.value = targetUin
+            return
+        }
+        startCall(chatId, targetUin)
+    }
+
     fun startVideoCall(chatId: String, targetUin: Long) {
         _callState.value = CallState.CONNECTING
         callManager.startCall(targetUin, isVideoCall = true)
@@ -60,6 +78,12 @@ class CallViewModel @Inject constructor(
 
     fun setTargetUin(uin: Long) {
         _targetUin.value = uin
+    }
+
+    fun setTargetNickname(nickname: String) {
+        if (nickname.isNotBlank()) {
+            _targetNickname.value = nickname
+        }
     }
 
     fun acceptIncomingCall(callId: String) {
@@ -114,3 +138,6 @@ class CallViewModel @Inject constructor(
         callService = null
     }
 }
+
+private fun CallState.isActive(): Boolean =
+    this == CallState.CONNECTING || this == CallState.RINGING || this == CallState.CONNECTED

@@ -46,6 +46,7 @@ import com.rcq.messenger.domain.model.MessageKind
 import com.rcq.messenger.domain.model.UserStatus
 import com.rcq.messenger.ui.chat.components.ReplyPreview
 import com.rcq.messenger.ui.common.EmoticonPicker
+import com.rcq.messenger.ui.common.AvatarImage
 import com.rcq.messenger.ui.common.StatusIndicator
 import com.rcq.messenger.ui.theme.*
 import java.text.SimpleDateFormat
@@ -77,6 +78,8 @@ fun ChatScreen(
     val pinnedText by viewModel.pinnedText.collectAsState()
     val inChatSearchResults by viewModel.inChatSearchResults.collectAsState()
     val peerStatus by viewModel.peerStatus.collectAsState()
+    val chatAvatar by viewModel.chatAvatar.collectAsState()
+    val senderNames by viewModel.senderNames.collectAsState()
     val contacts by viewModel.contacts.collectAsState()
     val groups by viewModel.groups.collectAsState()
     val listState = rememberLazyListState()
@@ -125,20 +128,11 @@ fun ChatScreen(
                         modifier = if (isGroupChat) Modifier.clickable { onGroupInfo() } else Modifier
                     ) {
                         Box(modifier = Modifier.size(36.dp)) {
-                            Box(
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .clip(CircleShape)
-                                    .background(LocalRCQColors.current.accent),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    chatTitle.firstOrNull()?.uppercase() ?: "?",
-                                    color = Color.White,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 15.sp
-                                )
-                            }
+                            AvatarImage(
+                                avatarUrl = chatAvatar,
+                                displayName = chatTitle,
+                                size = 36.dp
+                            )
                             if (!isGroupChat && peerStatus != UserStatus.OFFLINE) {
                                 StatusIndicator(
                                     status = peerStatus,
@@ -316,7 +310,7 @@ fun ChatScreen(
                         MessageBubble(
                             message = message,
                             isOwnMessage = message.senderId == currentUserId,
-                            senderName = message.senderId.toString(),
+                            senderName = senderNames[message.senderId] ?: message.senderId.toString(),
                             showSenderName = isGroupChat && message.senderId != currentUserId,
                             onReply = { viewModel.setReplyTo(message) },
                             onForward = { showForwardPicker = message },
@@ -359,7 +353,11 @@ fun ChatScreen(
             replyTo?.let { reply ->
                 ReplyPreview(
                     originalMessage = reply.content,
-                    originalSender = "User", // TODO: Get actual sender name
+                    originalSender = if (reply.isFromMe) {
+                        "Me"
+                    } else {
+                        senderNames[reply.senderId] ?: reply.senderId.toString()
+                    },
                     onDismiss = { viewModel.setReplyTo(null) }
                 )
             }

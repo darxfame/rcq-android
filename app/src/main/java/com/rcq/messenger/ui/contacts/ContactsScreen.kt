@@ -39,6 +39,7 @@ import com.rcq.messenger.data.repository.UserRepository
 import com.rcq.messenger.domain.model.Contact
 import com.rcq.messenger.domain.model.Group
 import com.rcq.messenger.domain.model.UserStatus
+import com.rcq.messenger.ui.common.AvatarImage
 import com.rcq.messenger.service.ProxyManager
 import com.rcq.messenger.ui.common.StatusIndicator
 import com.rcq.messenger.ui.theme.*
@@ -264,6 +265,9 @@ fun ContactsScreen(
                     )
                 },
                 actions = {
+                    IconButton(onClick = onNearby) {
+                        Icon(Icons.Default.LocationOn, contentDescription = "Nearby users")
+                    }
                     Box {
                         IconButton(onClick = { showTopMenu = true }) {
                             Icon(Icons.Default.MoreVert, contentDescription = "More")
@@ -482,20 +486,7 @@ private fun ContactRow(
     ) {
         StatusIndicator(status = contact.status, size = 16)
         Spacer(Modifier.width(6.dp))
-        Box(
-            modifier = Modifier
-                .size(32.dp)
-                .clip(CircleShape)
-                .background(rcq.accent),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                displayName.firstOrNull()?.uppercase() ?: "?",
-                color = Color.White,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Bold
-            )
-        }
+        AvatarImage(avatarUrl = contact.avatarUrl, displayName = displayName, size = 32.dp)
         Spacer(Modifier.width(10.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
@@ -568,20 +559,11 @@ fun ContactItem(
                     .background(statusColor)
             )
             Spacer(modifier = Modifier.width(8.dp))
-            Box(
-                modifier = Modifier
-                    .size(RCQMetrics.avatarLg)
-                    .clip(RoundedCornerShape(3.dp))
-                    .background(rcq.bgSecondary),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = (contact.customNickname ?: contact.nickname).firstOrNull()?.uppercase() ?: "?",
-                    fontSize = RCQFontSize.nickname,
-                    fontWeight = FontWeight.Bold,
-                    color = rcq.accent
-                )
-            }
+            AvatarImage(
+                avatarUrl = contact.avatarUrl,
+                displayName = contact.customNickname ?: contact.nickname,
+                size = RCQMetrics.avatarLg
+            )
 
             Spacer(modifier = Modifier.width(RCQMetrics.rowHPad))
 

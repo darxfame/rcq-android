@@ -2,6 +2,12 @@
 
 > Non-obvious decisions and rationale. Read before architectural changes.
 
+## 2026-06-04: AuthViewModel Uses Singleton DataStore Only
+
+`AuthViewModel` now reads/writes the injected app DataStore (`rcq_prefs`) instead of declaring its own `auth_prefs` extension.
+
+**Why:** AuthInterceptor/WebSocketService already read `rcq_prefs`; split storage could leave UI auth state, token transport, and recovery/status values out of sync. Existing installs may only have `uin/token` in `rcq_prefs`, so `checkExistingAuth()` treats those two values as sufficient and loads ECIES keys through `EciesKeyStore`.
+
 ## 2026-06-04: Hysteria2 Legacy Obfs Fallback
 
 Sing-box hysteria2 relay startup now tries a normal config first and appends `-legacy` attempts that emit old v1.6-1.8 obfs fields (`obfs: "salamander"`, `obfs-password`) for relays with an obfs password.

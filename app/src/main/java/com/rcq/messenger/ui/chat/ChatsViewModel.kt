@@ -43,6 +43,10 @@ class ChatsViewModel @Inject constructor(
     val chats: StateFlow<List<Chat>> = chatRepository.getChats()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val archivedCount: StateFlow<Int> = chatRepository.getArchivedChats()
+        .map { it.size }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+
     private val contacts: StateFlow<List<Contact>> = contactRepository.getContacts()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -186,6 +190,9 @@ class ChatViewModel @Inject constructor(
     private val _pinnedText = MutableStateFlow<String?>(null)
     val pinnedText: StateFlow<String?> = _pinnedText.asStateFlow()
 
+    private val _senderNames = MutableStateFlow<Map<Long, String>>(emptyMap())
+    val senderNames: StateFlow<Map<Long, String>> = _senderNames.asStateFlow()
+
     val inChatSearchResults = MutableStateFlow<List<Message>>(emptyList())
 
     val contacts: StateFlow<List<Contact>> = contactRepository.getContacts()
@@ -201,6 +208,7 @@ class ChatViewModel @Inject constructor(
     private var chatId: String = ""
     private var messagesJob: Job? = null
     private var typingJob: Job? = null
+    private val nicknameCache = mutableMapOf<Long, String>()
     init {
         viewModelScope.launch {
             dataStore.data.collect { prefs ->
@@ -235,6 +243,7 @@ class ChatViewModel @Inject constructor(
                 }
             } else {
                 _memberCount.value = 0
+                refreshNumericTitleIfNeeded()
             }
             chatRepository.clearUnreadCount(chatId)
             chatRepository.syncMessages(chatId)
@@ -243,6 +252,9 @@ class ChatViewModel @Inject constructor(
         messagesJob = chatRepository.getMessages(chatId)
             .onEach { msgs ->
                 _messages.value = msgs.sortedBy { it.timestamp }
+                if (!chatId.startsWith("direct_")) {
+                    resolveSenderNames(msgs)
+                }
                 _isLoading.value = false
             }
             .launchIn(viewModelScope)
@@ -474,10 +486,6 @@ class ChatViewModel @Inject constructor(
         _activeVoiceId.value = null
     }
 
-    fun forwardMessage(message: Message) {
-        _sendError.value = "Forward: coming soon"
-    }
-
     fun forwardMessageTo(message: Message, targetChatId: String) {
         if (targetChatId.isBlank()) return
         viewModelScope.launch {
@@ -562,5 +570,39 @@ class ChatViewModel @Inject constructor(
             _messages.value = (_messages.value + more).distinctBy { it.id }
                 .sortedBy { it.timestamp }
         }
+    }
+
+    private suspend fun refreshNumericTitleIfNeeded() {
+        val title = _chatTitle.value
+        val uin = title.takeIf { it.isNotEmpty() && it.all(Char::isDigit) }?.toLongOrNull() ?: return
+        userRepository.getUserByUin(uin).onSuccess { user ->
+            if (user.nickname.isNotBlank()) {
+                _chatTitle.value = user.nickname
+                chatRepository.updateChatNickname(chatId, user.nickname)
+            }
+        }
+    }
+
+    private suspend fun resolveSenderNames(messages: List<Message>) {
+        val missing = messages
+            .asSequence()
+            .filterNot { it.isFromMe || it.senderId == _currentUserId.value || it.senderId == 0L }
+            .map { it.senderId }
+            .distinct()
+            .filterNot { nicknameCache.containsKey(it) }
+            .toList()
+        if (missing.isEmpty()) return
+
+        missing.forEach { senderId ->
+            val localName = contacts.value.firstOrNull { it.userId == senderId }
+                ?.let { it.customNickname ?: it.nickname }
+                ?.takeIf { it.isNotBlank() }
+            val resolved = localName ?: userRepository.getUserByUin(senderId)
+                .getOrNull()
+                ?.nickname
+                ?.takeIf { it.isNotBlank() }
+            nicknameCache[senderId] = resolved ?: senderId.toString()
+        }
+        _senderNames.value = nicknameCache.toMap()
     }
 }

@@ -58,6 +58,8 @@
 - [x] Add ContactInfoScreen, Privacy/Notifications/Blocked/About settings screens, QR code screen, and Settings navigation parity rows
 - [x] Wire GroupInfo admin settings sheet for post policy and pinned announcement
 - [x] Add sing-box hysteria2 legacy obfs config fallback attempts
+- [x] Execute root `CODEX_FIXPLAN.md` phases 1-6: media/avatar loading, chat preview/restore, group member count migration, lifecycle/WorkManager sync, call mini-bar/permissions, deep links, status icons/story ring, AuthViewModel DataStore cleanup, nickname refresh, and badge counter
+- [x] Validate root fix-plan pass with `./gradlew compileProductionDebugKotlin`, `./gradlew assembleProductionDebug`, and full `./gradlew test`
 - [ ] ADB-validate ContactInfo, Privacy, Notifications, Blocked Users, About, QR scanner, and GroupSettingsSheet flows
 
 ### This Week

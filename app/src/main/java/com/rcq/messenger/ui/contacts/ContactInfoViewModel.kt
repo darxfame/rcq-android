@@ -46,7 +46,7 @@ class ContactInfoViewModel @Inject constructor(
                 .firstOrNull { it.userId == userId }
             if (cached != null) _contact.value = cached
 
-            userRepository.getUser(userId)
+            userRepository.getUserByUin(userId)
                 .onSuccess { user -> _contact.value = user.toContact(cached, userId) }
                 .onFailure { e ->
                     if (cached == null) _error.value = e.message ?: "User not found"

@@ -175,11 +175,14 @@ fun SettingsScreen(
     onNavigateToBlocked: () -> Unit = {},
     currentStatus: String = "online",
     onSetStatus: (String) -> Unit = {},
+    statusError: String? = null,
+    onClearStatusError: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
     var showLogoutDialog by remember { mutableStateOf(false) }
     var showRecoveryPhrase by remember { mutableStateOf(false) }
     var showStatusPicker by remember { mutableStateOf(false) }
+    val snackbarHostState = remember { SnackbarHostState() }
 
     val showEditDialog by viewModel.showEditDialog.collectAsState()
     val editNickname by viewModel.editNickname.collectAsState()
@@ -202,6 +205,13 @@ fun SettingsScreen(
 
     LaunchedEffect(Unit) {
         viewModel.loadCurrentUser()
+    }
+
+    LaunchedEffect(statusError) {
+        statusError?.let {
+            snackbarHostState.showSnackbar(it)
+            onClearStatusError()
+        }
     }
 
     if (showEditDialog) {
@@ -333,6 +343,7 @@ fun SettingsScreen(
 
     val rcq = LocalRCQColors.current
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = {

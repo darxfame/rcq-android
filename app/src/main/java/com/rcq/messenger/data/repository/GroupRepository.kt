@@ -196,6 +196,7 @@ private fun com.rcq.messenger.data.api.GroupApiResponse.toGroupEntity() = GroupE
     description = description,
     creatorId = ownerUin.toLong(),
     memberIds = members.map { it.uin.toLong() },
+    memberCount = memberCount.takeIf { it > 0 } ?: members.size,
     adminIds = members.filter { it.role == "admin" || it.role == "owner" }.map { it.uin.toLong() },
     createdAt = System.currentTimeMillis(),
     pinnedText = pinnedText
@@ -209,13 +210,14 @@ private fun com.rcq.messenger.data.api.GroupApiResponse.toDomain() = toGroupEnti
 private fun GroupEntity.toDomain() = Group(
     id = id, name = name, avatarUrl = avatarUrl, description = description ?: "",
     ownerId = creatorId, adminIds = adminIds, memberIds = memberIds,
-    memberCount = memberIds.size, createdAt = createdAt, settings = GroupSettings(),
+    memberCount = memberCount.takeIf { it > 0 } ?: memberIds.size,
+    createdAt = createdAt, settings = GroupSettings(),
     pinnedText = pinnedText
 )
 
 private fun Group.toEntity() = GroupEntity(
     id = id, name = name, avatarUrl = avatarUrl, description = description,
-    creatorId = ownerId, memberIds = memberIds, adminIds = adminIds,
+    creatorId = ownerId, memberIds = memberIds, memberCount = memberCount, adminIds = adminIds,
     createdAt = createdAt,
     pinnedText = pinnedText
 )

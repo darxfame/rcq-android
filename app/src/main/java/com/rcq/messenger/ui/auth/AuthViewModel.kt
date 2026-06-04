@@ -1,12 +1,10 @@
 package com.rcq.messenger.ui.auth
 
-import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
-import androidx.datastore.preferences.preferencesDataStore
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.rcq.messenger.crypto.CryptoService
@@ -18,18 +16,14 @@ import com.rcq.messenger.data.repository.UserRepository
 import com.rcq.messenger.di.PreferencesKeys
 import com.rcq.messenger.service.ProxyManager
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
-
-private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "auth_prefs")
 
 @HiltViewModel
 class AuthViewModel @Inject constructor(
     private val api: RCQApiService,
     private val dataStore: DataStore<Preferences>,
-    @ApplicationContext private val context: Context,
     private val webSocketService: com.rcq.messenger.data.websocket.WebSocketService,
     private val cryptoService: CryptoService,
     private val eciesKeyStore: EciesKeyStore,
@@ -56,6 +50,9 @@ class AuthViewModel @Inject constructor(
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
 
+    private val _statusError = MutableStateFlow<String?>(null)
+    val statusError: StateFlow<String?> = _statusError.asStateFlow()
+
     private val _currentUin = MutableStateFlow<Long?>(null)
     val currentUin: StateFlow<Long?> = _currentUin.asStateFlow()
 
@@ -78,26 +75,39 @@ class AuthViewModel @Inject constructor(
         private val KEY_IDENTITY_KEY = stringPreferencesKey("identity_key")
         private val KEY_SIGNING_KEY = stringPreferencesKey("signing_key")
         private val KEY_RECOVERY_PHRASE = stringPreferencesKey("recovery_phrase")
+        private val KEY_STATUS = stringPreferencesKey("user_status")
     }
 
     init {
         checkExistingAuth()
+        // Re-publish presence every time WS reconnects.
+        // The server marks users offline when the socket closes and does NOT
+        // automatically restore status on reconnect — an explicit HTTP call is required.
+        viewModelScope.launch {
+            webSocketService.connectedSignal.collect {
+                if (_isAuthenticated.value) {
+                    userRepository.updatePresence(_currentStatus.value)
+                        .onFailure { e -> android.util.Log.w("AuthVM", "presence re-publish failed: ${e.message}") }
+                }
+            }
+        }
     }
 
     private fun checkExistingAuth() {
         viewModelScope.launch {
-            context.dataStore.data.first().let { prefs ->
+            dataStore.data.first().let { prefs ->
                 val uin = prefs[KEY_UIN]
                 val token = prefs[KEY_TOKEN]
                 val savedNickname = prefs[KEY_NICKNAME] ?: ""
-                val identityKey = prefs[KEY_IDENTITY_KEY]
+                val savedStatus = prefs[KEY_STATUS] ?: "online"
 
-                if (uin != null && token != null && identityKey != null) {
+                if (uin != null && token != null) {
                     // Probe connection before entering app — auto-enable bypass if needed
                     proxyManager.probeAndAutoEnable { _connectionStatus.value = it }
 
                     _nickname.value = savedNickname
                     _currentUin.value = uin
+                    _currentStatus.value = savedStatus
                     _isAuthenticated.value = true
                     _authState.value = AuthState.Authenticated
                     eciesKeyStore.loadOrGenerate(cryptoService.ecies)
@@ -151,17 +161,13 @@ class AuthViewModel @Inject constructor(
                     _recoveryPhrase.value = recoveryPhrase
                     _showRecoveryPhrase.value = true
 
-                    // Save to auth DataStore
-                    context.dataStore.edit { prefs ->
+                    dataStore.edit { prefs ->
                         prefs[KEY_UIN] = uin
                         prefs[KEY_TOKEN] = token
                         prefs[KEY_NICKNAME] = nickname
                         prefs[KEY_IDENTITY_KEY] = identityKeyB64
                         prefs[KEY_SIGNING_KEY] = signingKeyB64
                         prefs[KEY_RECOVERY_PHRASE] = recoveryPhrase.joinToString(" ")
-                    }
-                    // Also save to main DataStore for AuthInterceptor and WebSocketService
-                    dataStore.edit { prefs ->
                         prefs[PreferencesKeys.AUTH_TOKEN] = token
                         prefs[PreferencesKeys.USER_UIN] = uin
                     }
@@ -203,7 +209,6 @@ class AuthViewModel @Inject constructor(
     fun logout() {
         viewModelScope.launch {
             chatRepository.clearAllData()
-            context.dataStore.edit { prefs -> prefs.clear() }
             dataStore.edit { prefs -> prefs.clear() }
             _isAuthenticated.value = false
             _authState.value = AuthState.Onboarding
@@ -219,11 +224,17 @@ class AuthViewModel @Inject constructor(
         _error.value = null
     }
 
+    fun clearStatusError() {
+        _statusError.value = null
+    }
+
     fun setStatus(status: String) {
         viewModelScope.launch {
             _currentStatus.value = status
+            _statusError.value = null
+            dataStore.edit { it[KEY_STATUS] = status }
             userRepository.updatePresence(status).onFailure { e ->
-                _error.value = e.message ?: "Failed to update status"
+                _statusError.value = e.message ?: "Failed to update status"
             }
         }
     }

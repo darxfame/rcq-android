@@ -1,11 +1,21 @@
 package com.rcq.messenger.data.api
 
 import com.rcq.messenger.domain.model.*
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
 import retrofit2.Response
 import retrofit2.http.*
 import retrofit2.http.PATCH
 import okhttp3.MultipartBody
 import okhttp3.ResponseBody
+
+@Serializable
+data class UpdateProfileRequest(
+    val nickname: String? = null,
+    val bio: String? = null,
+    @SerialName("avatar_media_id") val avatarMediaId: String? = null,
+    @SerialName("status_message") val statusMessage: String? = null
+)
 
 interface RCQApiService {
 
@@ -19,6 +29,9 @@ interface RCQApiService {
 
     @PUT("users/me")
     suspend fun updateProfile(@Body user: User): Response<User>
+
+    @PATCH("users/me")
+    suspend fun patchProfile(@Body request: UpdateProfileRequest): Response<User>
 
     @GET("users/{id}")
     suspend fun getUser(@Path("id") userId: Long): Response<User>
@@ -68,7 +81,11 @@ interface RCQApiService {
     @POST("messages/sealed")
     suspend fun sendSealedMessage(@Body request: SealedMessageRequest): Response<SealedMessageResponse>
 
-    // Kept for compile compat; server has no GET /chats endpoint
+    // Kept for source compatibility only; server has no REST chat-message endpoints.
+    @Deprecated(
+        "Server has no REST message endpoints. Use POST /messages/sealed and WebSocket/control envelopes.",
+        level = DeprecationLevel.ERROR
+    )
     @GET("chats/{id}/messages")
     suspend fun getMessages(
         @Path("id") chatId: String,
@@ -76,12 +93,20 @@ interface RCQApiService {
         @Query("limit") limit: Int = 50
     ): Response<List<Message>>
 
+    @Deprecated(
+        "Server has no REST message endpoints. Use POST /messages/sealed.",
+        level = DeprecationLevel.ERROR
+    )
     @POST("chats/{id}/messages")
     suspend fun sendMessage(
         @Path("id") chatId: String,
         @Body message: Message
     ): Response<Message>
 
+    @Deprecated(
+        "Server has no REST message edit endpoint. Use WebSocket/control envelope when available.",
+        level = DeprecationLevel.ERROR
+    )
     @PUT("chats/{id}/messages/{msgId}")
     suspend fun editMessage(
         @Path("id") chatId: String,
@@ -89,6 +114,10 @@ interface RCQApiService {
         @Body message: Message
     ): Response<Message>
 
+    @Deprecated(
+        "Server has no REST message delete endpoint. Use WebSocket/control envelope when available.",
+        level = DeprecationLevel.ERROR
+    )
     @DELETE("chats/{id}/messages/{msgId}")
     suspend fun deleteMessage(
         @Path("id") chatId: String,
@@ -286,7 +315,8 @@ data class CreateRoomRequest(
 
 @kotlinx.serialization.Serializable
 data class PresenceUpdateRequest(
-    @kotlinx.serialization.SerialName("status") val status: String
+    @kotlinx.serialization.SerialName("status") val status: String,
+    @kotlinx.serialization.SerialName("status_message") val statusMessage: String? = null
 )
 
 @kotlinx.serialization.Serializable
@@ -452,6 +482,7 @@ data class GroupApiResponse(
     @kotlinx.serialization.SerialName("avatar_media_id") val avatarMediaId: String? = null,
     @kotlinx.serialization.SerialName("avatar_media_key") val avatarMediaKey: String? = null,
     @kotlinx.serialization.SerialName("created_at") val createdAt: String = "",
+    @kotlinx.serialization.SerialName("member_count") val memberCount: Int = 0,
     val members: List<GroupMemberApi> = emptyList()
 )
 
