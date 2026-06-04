@@ -43,6 +43,7 @@ import com.rcq.messenger.ui.contacts.GroupBrowseScreen
 import com.rcq.messenger.ui.contacts.GroupInfoScreen
 import com.rcq.messenger.ui.contacts.NearbyScreen
 import com.rcq.messenger.ui.contacts.ContactInfoScreen
+import com.rcq.messenger.ui.contacts.QRCodeScreen
 import com.rcq.messenger.ui.common.BottomNavBar
 import com.rcq.messenger.ui.stories.*
 import com.rcq.messenger.ui.calls.*
@@ -86,12 +87,14 @@ object Routes {
     const val STORY_VIEWER = "story/{userId}"
     const val USER_PROFILE = "profile/{userId}"
     const val NEARBY = "nearby"
+    const val QR = "qr/{uin}"
 
     fun chat(chatId: String) = "chat/$chatId"
     fun call(chatId: String, targetUin: Long) = "call/$chatId/$targetUin"
     fun group(groupId: String) = "group/$groupId"
     fun storyViewer(userId: Long) = "story/$userId"
     fun userProfile(userId: Long) = "profile/$userId"
+    fun qr(uin: Long) = "qr/$uin"
 }
 
 val bottomNavItems = listOf(
@@ -205,7 +208,19 @@ fun MainScaffold(
                     onNavigateToDiagnostics = { navController.navigate("settings/diagnostics") },
                     onNavigateToPrivacy = { navController.navigate("settings/privacy") },
                     onNavigateToNotifications = { navController.navigate("settings/notifications") },
-                    onNavigateToAbout = { navController.navigate("settings/about") }
+                    onNavigateToAbout = { navController.navigate("settings/about") },
+                    onNavigateToQr = { uin -> navController.navigate(Routes.qr(uin)) }
+                )
+            }
+            composable(
+                route = Routes.QR,
+                arguments = listOf(navArgument("uin") { type = NavType.LongType })
+            ) { backStackEntry ->
+                val ownUin = backStackEntry.arguments?.getLong("uin") ?: 0L
+                QRCodeScreen(
+                    ownUin = ownUin,
+                    onBack = { navController.popBackStack() },
+                    onUserScanned = { userId -> navController.navigate(Routes.userProfile(userId)) }
                 )
             }
             composable("settings/about") {

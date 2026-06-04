@@ -171,6 +171,7 @@ fun SettingsScreen(
     onNavigateToPrivacy: () -> Unit = {},
     onNavigateToNotifications: () -> Unit = {},
     onNavigateToAbout: () -> Unit = {},
+    onNavigateToQr: (Long) -> Unit = {},
     currentStatus: String = "online",
     onSetStatus: (String) -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel()
@@ -390,6 +391,12 @@ fun SettingsScreen(
                         title = "Profile",
                         subtitle = "Manage your profile",
                         onClick = { }
+                    )
+                    SettingsItem(
+                        icon = Icons.Default.QrCode,
+                        title = "My QR Code",
+                        subtitle = "Share your UIN",
+                        onClick = { currentUin?.let(onNavigateToQr) }
                     )
                     SettingsItem(
                         icon = Icons.Default.Key,

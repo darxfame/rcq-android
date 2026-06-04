@@ -154,6 +154,12 @@ dependencies {
     // Location
     implementation("com.google.android.gms:play-services-location:21.1.0")
 
+    // QR scanning
+    implementation("com.google.zxing:core:3.5.2")
+    implementation("androidx.camera:camera-camera2:1.3.0")
+    implementation("androidx.camera:camera-lifecycle:1.3.0")
+    implementation("androidx.camera:camera-view:1.3.0")
+
     // Accompanist
     implementation("com.google.accompanist:accompanist-permissions:0.34.0")
 
