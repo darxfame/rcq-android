@@ -50,6 +50,7 @@ import com.rcq.messenger.ui.audio.AudioRoomsScreen
 import com.rcq.messenger.ui.settings.SettingsScreen
 import com.rcq.messenger.ui.settings.PrivacySettingsScreen
 import com.rcq.messenger.ui.settings.NotificationsSettingsScreen
+import com.rcq.messenger.ui.settings.BlockedUsersScreen
 import com.rcq.messenger.ui.settings.StealthSettingsScreen
 import com.rcq.messenger.ui.settings.PINSettingsScreen
 import com.rcq.messenger.ui.settings.ConnectionDiagnosticsScreen
@@ -213,6 +214,9 @@ fun MainScaffold(
                     onBack = { navController.popBackStack() },
                     onBlockedUsers = { navController.navigate("settings/blocked") }
                 )
+            }
+            composable("settings/blocked") {
+                BlockedUsersScreen(onBack = { navController.popBackStack() })
             }
             composable("settings/stealth") {
                 StealthSettingsScreen(onBack = { navController.popBackStack() })
