@@ -145,7 +145,17 @@ object RelaySelectionPolicy {
 }
 
 internal object SingBoxConfigJsonBuilder {
-    fun build(ordered: List<RelayEntry>, localPort: Int): String {
+    fun build(ordered: List<RelayEntry>, localPort: Int): String =
+        build(ordered, localPort, legacyHysteria2Obfs = false)
+
+    fun buildLegacy(relay: RelayEntry, localPort: Int): String =
+        build(listOf(relay), localPort, legacyHysteria2Obfs = true)
+
+    private fun build(
+        ordered: List<RelayEntry>,
+        localPort: Int,
+        legacyHysteria2Obfs: Boolean
+    ): String {
         val healthUrl = BuildConfig.API_BASE_URL.trimEnd('/') + "/health"
         return buildJsonObject {
             putJsonObject("log") { put("level", "warn") }
@@ -179,7 +189,15 @@ internal object SingBoxConfigJsonBuilder {
                     put("interval", "5m")
                     put("tolerance", 50)
                 })
-                ordered.forEach { add(if (it.proto == "vless") vlessOutbound(it) else hysteria2Outbound(it)) }
+                ordered.forEach {
+                    add(
+                        if (it.proto == "vless") {
+                            vlessOutbound(it)
+                        } else {
+                            hysteria2Outbound(it, legacyHysteria2Obfs)
+                        }
+                    )
+                }
             }
         }.toString()
     }
@@ -215,21 +233,23 @@ internal object SingBoxConfigJsonBuilder {
             }
     }
 
-    private fun hysteria2Outbound(r: RelayEntry) = buildJsonObject {
+    private fun hysteria2Outbound(r: RelayEntry, legacyObfs: Boolean) = buildJsonObject {
         put("type", "hysteria2"); put("tag", r.tag)
         put("server", r.server); put("server_port", r.port)
         put("password", r.password ?: "")
         putJsonObject("tls") {
             put("enabled", true); put("server_name", r.sni); put("insecure", true)
         }
-        // Support both sing-box obfs formats:
-        // v1.9+: {"obfs": {"type": "salamander", "password": "..."}}
-        // v1.6-1.8: {"obfs": "salamander", "obfs-password": "..."}
-        // We use the v1.9+ format; if it fails, the attempt loop tries next relay.
         r.obfs_password?.takeIf { it.isNotEmpty() }?.let { obfsPwd ->
-            putJsonObject("obfs") {
-                put("type", "salamander")
-                put("password", obfsPwd)
+            if (legacyObfs) {
+                put("obfs", "salamander")
+                put("obfs-password", obfsPwd)
+            } else {
+                putJsonObject("obfs") {
+                    put("type", "salamander")
+                    put("password", obfsPwd)
+                }
+                put("obfs-password", obfsPwd)
             }
         }
     }
@@ -457,9 +477,15 @@ class SingBoxTransport @Inject constructor(
         }
         // Each attempt uses ONE relay only — avoids a single bad relay breaking the whole config.
         // urltest with all relays means a parse error in ANY outbound kills the entire attempt.
-        return ordered.map { relay ->
+        val normalAttempts = ordered.map { relay ->
             relay.tag to SingBoxConfigJsonBuilder.build(listOf(relay), LOCAL_PORT)
         }
+        val legacyAttempts = ordered
+            .filter { it.proto.equals("hysteria2", ignoreCase = true) && !it.obfs_password.isNullOrBlank() }
+            .map { relay ->
+                "${relay.tag}-legacy" to SingBoxConfigJsonBuilder.buildLegacy(relay, LOCAL_PORT)
+            }
+        return normalAttempts + legacyAttempts
     }
 
     private fun orderedRelays(base: List<RelayEntry>): List<RelayEntry> {
