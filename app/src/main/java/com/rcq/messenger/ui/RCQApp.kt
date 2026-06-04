@@ -48,6 +48,7 @@ import com.rcq.messenger.ui.stories.*
 import com.rcq.messenger.ui.calls.*
 import com.rcq.messenger.ui.audio.AudioRoomsScreen
 import com.rcq.messenger.ui.settings.SettingsScreen
+import com.rcq.messenger.ui.settings.PrivacySettingsScreen
 import com.rcq.messenger.ui.settings.StealthSettingsScreen
 import com.rcq.messenger.ui.settings.PINSettingsScreen
 import com.rcq.messenger.ui.settings.ConnectionDiagnosticsScreen
@@ -198,7 +199,14 @@ fun MainScaffold(
                     onLogout = { authViewModel.logout() },
                     onNavigateToStealth = { navController.navigate("settings/stealth") },
                     onNavigateToPin = { navController.navigate("settings/pin") },
-                    onNavigateToDiagnostics = { navController.navigate("settings/diagnostics") }
+                    onNavigateToDiagnostics = { navController.navigate("settings/diagnostics") },
+                    onNavigateToPrivacy = { navController.navigate("settings/privacy") }
+                )
+            }
+            composable("settings/privacy") {
+                PrivacySettingsScreen(
+                    onBack = { navController.popBackStack() },
+                    onBlockedUsers = { navController.navigate("settings/blocked") }
                 )
             }
             composable("settings/stealth") {

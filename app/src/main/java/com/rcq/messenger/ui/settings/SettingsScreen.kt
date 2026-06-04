@@ -168,6 +168,7 @@ fun SettingsScreen(
     onNavigateToStealth: () -> Unit = {},
     onNavigateToPin: () -> Unit = {},
     onNavigateToDiagnostics: () -> Unit = {},
+    onNavigateToPrivacy: () -> Unit = {},
     currentStatus: String = "online",
     onSetStatus: (String) -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel()
@@ -398,7 +399,7 @@ fun SettingsScreen(
                         icon = Icons.Default.Security,
                         title = "Privacy",
                         subtitle = "Last seen, read receipts",
-                        onClick = { }
+                        onClick = onNavigateToPrivacy
                     )
                 }
             }

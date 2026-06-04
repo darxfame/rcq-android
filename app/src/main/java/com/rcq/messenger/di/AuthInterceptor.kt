@@ -32,8 +32,14 @@ object PreferencesKeys {
     val SOUND_ENABLED = booleanPreferencesKey("pref_sound_enabled")
     val VIBRATION_ENABLED = booleanPreferencesKey("pref_vibration_enabled")
     val READ_RECEIPTS = booleanPreferencesKey("pref_read_receipts")
+    val TYPING_INDICATOR = booleanPreferencesKey("typing_indicator")
     val LAST_SEEN_VISIBLE = booleanPreferencesKey("pref_last_seen_visible")
     val ONLINE_VISIBLE = booleanPreferencesKey("pref_online_visible")
+    val LAST_SEEN_VISIBILITY = stringPreferencesKey("last_seen_visibility")
+    val ONLINE_VISIBILITY = stringPreferencesKey("online_visibility")
+    val PROFILE_PHOTO_VISIBILITY = stringPreferencesKey("profile_photo_visibility")
+    val GROUP_INVITE_POLICY = stringPreferencesKey("group_invite_policy")
+    val GENDER_VISIBILITY = stringPreferencesKey("gender_visibility")
 }
 
 @Singleton
