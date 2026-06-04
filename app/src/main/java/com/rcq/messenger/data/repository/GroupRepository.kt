@@ -81,7 +81,7 @@ class GroupRepository @Inject constructor(
                 val group = response.body()!!
                 groupDao.insertGroup(group.toGroupEntity())
                 cacheGroupMembers(listOf(group))
-                group.toGroupEntity().toDomain()
+                group.toDomain()
             }
             else throw Exception("Group not found")
         }
@@ -106,10 +106,12 @@ class GroupRepository @Inject constructor(
     suspend fun updateGroup(group: Group): Result<Group> = runCatching {
         val payload = GroupPatchRequest(
             name = group.name,
-            description = group.description.ifBlank { null }
+            description = group.description.ifBlank { null },
+            postPolicy = if (group.settings.anyoneCanSend) "all" else "owner_only",
+            pinnedText = group.pinnedText
         )
         api.patchGroup(group.id, payload).let { response ->
-            if (response.isSuccessful) response.body()!!.toGroupEntity().toDomain()
+            if (response.isSuccessful) response.body()!!.toDomain()
             else throw Exception("Failed to update group")
         }
     }
@@ -196,6 +198,11 @@ private fun com.rcq.messenger.data.api.GroupApiResponse.toGroupEntity() = GroupE
     memberIds = members.map { it.uin.toLong() },
     adminIds = members.filter { it.role == "admin" || it.role == "owner" }.map { it.uin.toLong() },
     createdAt = System.currentTimeMillis(),
+    pinnedText = pinnedText
+)
+
+private fun com.rcq.messenger.data.api.GroupApiResponse.toDomain() = toGroupEntity().toDomain().copy(
+    settings = GroupSettings(anyoneCanSend = postPolicy != "owner_only"),
     pinnedText = pinnedText
 )
 

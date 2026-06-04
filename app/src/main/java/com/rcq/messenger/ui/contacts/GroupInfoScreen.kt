@@ -18,6 +18,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.rcq.messenger.ui.theme.LocalRCQColors
+import com.rcq.messenger.ui.theme.RCQMetrics
+import com.rcq.messenger.domain.model.Group
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -32,6 +34,7 @@ fun GroupInfoScreen(
     var showLeaveDialog by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showRenameDialog by remember { mutableStateOf(false) }
+    var showSettingsSheet by remember { mutableStateOf(false) }
     var newName by remember { mutableStateOf("") }
     val rcq = LocalRCQColors.current
 
@@ -48,6 +51,9 @@ fun GroupInfoScreen(
                 },
                 actions = {
                     if (isOwnerOrAdmin) {
+                        IconButton(onClick = { showSettingsSheet = true }) {
+                            Icon(Icons.Default.Settings, "Settings")
+                        }
                         IconButton(onClick = {
                             newName = group?.name.orEmpty()
                             showRenameDialog = true
@@ -273,4 +279,92 @@ fun GroupInfoScreen(
             }
         )
     }
+
+    if (showSettingsSheet && group != null) {
+        GroupSettingsSheet(
+            group = group!!,
+            onDismiss = { showSettingsSheet = false },
+            viewModel = viewModel
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun GroupSettingsSheet(
+    group: Group,
+    onDismiss: () -> Unit,
+    viewModel: GroupInfoViewModel
+) {
+    val rcq = LocalRCQColors.current
+    var pinnedText by remember(group.id, group.pinnedText) { mutableStateOf(group.pinnedText ?: "") }
+    var postPolicy by remember(group.id, group.settings.anyoneCanSend) { mutableStateOf(group.settings.anyoneCanSend) }
+
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = rcq.bgPrimary) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(RCQMetrics.screenHPad * 2)
+                .navigationBarsPadding()
+        ) {
+            Text(
+                "Group Settings",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = rcq.textPrimary
+            )
+            Spacer(Modifier.height(RCQMetrics.rowHPad * 2))
+            GroupSwitchListTile(
+                title = "Anyone can post",
+                subtitle = "Allow all members to send messages",
+                checked = postPolicy,
+                onCheckedChange = {
+                    postPolicy = it
+                    viewModel.setPostPolicy(if (it) "all" else "owner_only")
+                }
+            )
+            HorizontalDivider(color = rcq.divider, thickness = RCQMetrics.dividerThick)
+            OutlinedTextField(
+                value = pinnedText,
+                onValueChange = { pinnedText = it },
+                label = { Text("Pinned announcement") },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = RCQMetrics.rowHPad),
+                maxLines = 3
+            )
+            Button(
+                onClick = {
+                    viewModel.setPinnedText(pinnedText)
+                    onDismiss()
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Save")
+            }
+            Spacer(Modifier.height(RCQMetrics.rowHPad))
+        }
+    }
+}
+
+@Composable
+private fun GroupSwitchListTile(
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    val rcq = LocalRCQColors.current
+    ListItem(
+        headlineContent = { Text(title, color = rcq.textPrimary) },
+        supportingContent = { Text(subtitle, color = rcq.textSecondary) },
+        trailingContent = {
+            Switch(
+                checked = checked,
+                onCheckedChange = onCheckedChange,
+                colors = SwitchDefaults.colors(checkedThumbColor = rcq.accent, checkedTrackColor = rcq.accent.copy(alpha = 0.3f))
+            )
+        },
+        colors = ListItemDefaults.colors(containerColor = rcq.bgPrimary)
+    )
 }

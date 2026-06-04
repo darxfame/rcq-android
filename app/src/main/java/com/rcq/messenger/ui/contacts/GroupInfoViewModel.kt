@@ -48,6 +48,26 @@ class GroupInfoViewModel @Inject constructor(
         }
     }
 
+    fun setPostPolicy(policy: String) {
+        val group = _group.value ?: return
+        viewModelScope.launch {
+            groupRepository.updateGroup(
+                group.copy(settings = group.settings.copy(anyoneCanSend = policy == "all"))
+            ).onSuccess { updated ->
+                _group.value = updated
+            }
+        }
+    }
+
+    fun setPinnedText(text: String) {
+        val group = _group.value ?: return
+        viewModelScope.launch {
+            groupRepository.updateGroup(group.copy(pinnedText = text)).onSuccess { updated ->
+                _group.value = updated
+            }
+        }
+    }
+
     fun removeMember(memberUin: Long) {
         val group = _group.value ?: return
         viewModelScope.launch {
