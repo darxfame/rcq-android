@@ -118,10 +118,10 @@ fun NearbyScreen(session: Session, onBack: () -> Unit) {
                 is NearbyController.State.Active -> {
                     val exp = (state as NearbyController.State.Active).expiresAtMs
                     CountdownLabel(exp)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        CapsuleButton(stringResource(R.string.hood_title), modifier = Modifier.weight(1f)) { hoodChatBucket = activeBucket }
-                        CapsuleButton(stringResource(R.string.banners_title), modifier = Modifier.weight(1f)) { bannersBucket = activeBucket }
-                    }
+                    // Full-width stacked (was a 2-up Row where "Announcements"
+                    // overflowed the half-width capsule) so both labels fit.
+                    CapsuleButton(stringResource(R.string.hood_title), modifier = Modifier.fillMaxWidth()) { hoodChatBucket = activeBucket }
+                    CapsuleButton(stringResource(R.string.banners_title), modifier = Modifier.fillMaxWidth()) { bannersBucket = activeBucket }
                     CapsuleButton(stringResource(R.string.nearby_stop), modifier = Modifier.fillMaxWidth()) { controller.stop() }
                 }
                 is NearbyController.State.Pending -> {

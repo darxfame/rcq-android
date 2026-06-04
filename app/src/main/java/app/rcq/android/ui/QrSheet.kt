@@ -1,14 +1,24 @@
 package app.rcq.android.ui
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.content.Intent
 import android.graphics.Bitmap
+import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -19,6 +29,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -51,7 +62,9 @@ private fun qrBitmap(content: String, size: Int = 512): Bitmap? = runCatching {
 @Composable
 fun QrDialog(uin: Int, onDismiss: () -> Unit) {
     val c = RcqTheme.colors
+    val context = LocalContext.current
     val bmp = remember(uin) { qrBitmap("rcq://add/$uin") }
+    val shareLink = "https://rcq.app/u/$uin"
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = c.bgSecondary,
@@ -78,6 +91,27 @@ fun QrDialog(uin: Int, onDismiss: () -> Unit) {
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Bold,
                 )
+                // Copy the UIN, or share a Telegram-style https link anyone can tap.
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = {
+                        val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        cm.setPrimaryClip(ClipData.newPlainText("UIN", "$uin"))
+                        Toast.makeText(context, context.getString(R.string.common_uin_copied), Toast.LENGTH_SHORT).show()
+                    }) {
+                        Icon(Icons.Filled.ContentCopy, null, tint = c.accent, modifier = Modifier.size(16.dp))
+                        Text(" " + stringResource(R.string.qr_copy_uin), color = c.accent, fontSize = 13.sp)
+                    }
+                    TextButton(onClick = {
+                        val send = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_TEXT, context.getString(R.string.qr_share_text, "$uin", shareLink))
+                        }
+                        context.startActivity(Intent.createChooser(send, context.getString(R.string.qr_share)))
+                    }) {
+                        Icon(Icons.Filled.Share, null, tint = c.accent, modifier = Modifier.size(16.dp))
+                        Text(" " + stringResource(R.string.qr_share), color = c.accent, fontSize = 13.sp)
+                    }
+                }
                 Text(
                     stringResource(R.string.qr_hint),
                     color = c.textSecondary,

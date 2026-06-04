@@ -83,6 +83,8 @@
     <string name="home_decline">Отклонить</string>
     <string name="home_empty_title">Пока нет контактов</string>
     <string name="home_empty_body">Добавьте друга по UIN или поделитесь своим QR кодом, чтобы начать.</string>
+    <string name="home_connecting_title">Соединение с сервером</string>
+    <string name="home_connecting_body">Загружаем ваши чаты…</string>
     <string name="home_empty_cta">Добавить контакт</string>
     <string name="home_coming_soon_body">%1$s скоро появится в приложении на Android.</string>
 
@@ -92,6 +94,11 @@
     <string name="update_now">Обновить</string>
     <string name="update_later">Позже</string>
     <string name="update_downloading">Загрузка…</string>
+    <string name="update_downloading_pct">Загрузка… %1$d%%</string>
+    <string name="update_check">Проверить обновления</string>
+    <string name="update_checking">Проверяем…</string>
+    <string name="update_uptodate">У вас последняя версия.</string>
+    <string name="update_available_short">Доступно обновление: %1$s</string>
     <string name="join_server_title">Подключиться к серверу</string>
     <string name="join_server_body">Создать новый аккаунт на %1$s?</string>
     <string name="join_server_invite">По ссылке-приглашению</string>
@@ -299,6 +306,35 @@
     <string name="settings_row_about">О RCQ</string>
     <string name="settings_row_move_uin">Сменить UIN</string>
     <string name="settings_row_burn">Сжечь аккаунт</string>
+
+    <!-- UIN shop -->
+    <string name="settings_row_uin_shop">Магазин UIN</string>
+    <string name="settings_foot_uin_shop">Любой свободный UIN от 3 до 9 цифр. Чем короче, тем дороже.</string>
+    <string name="uin_shop_title">UIN</string>
+    <string name="uin_shop_plate_hint">Коснись чтобы ввести</string>
+    <string name="uin_shop_plate_digits">%1$d цифр</string>
+    <string name="uin_shop_status_idle">Выбери UIN из 3-9 цифр</string>
+    <string name="uin_shop_status_available">Свободен</string>
+    <string name="uin_shop_status_checking">Проверяем</string>
+    <string name="uin_shop_status_taken">Занят</string>
+    <string name="uin_shop_status_too_short">Слишком короткий</string>
+    <string name="uin_shop_status_too_long">Слишком длинный</string>
+    <string name="uin_shop_status_self">Твой текущий UIN</string>
+    <string name="uin_shop_status_unavailable">Недоступен</string>
+    <string name="uin_shop_hint_too_short">Минимум 3 цифры</string>
+    <string name="uin_shop_info_what_title">Что такое UIN</string>
+    <string name="uin_shop_info_what_body">UIN это твой ник в RCQ. Номер не привязан к телефону или почте, по нему тебя находят другие. Чем короче, тем он реже, поэтому стоит дороже.</string>
+    <string name="uin_shop_info_migrate_title">Покупка переносит аккаунт</string>
+    <string name="uin_shop_info_migrate_body">Контакты, группы, профиль и аудио-комнаты переедут на новый UIN. Старый освободится и однажды может достаться кому-то ещё. Локальная история чатов останется на этом устройстве.</string>
+    <string name="uin_shop_info_current">Твой сейчас · %1$s</string>
+    <string name="uin_shop_buy_cta">Купить за %1$s</string>
+    <string name="uin_shop_buy_processing">Покупаем…</string>
+    <string name="uin_shop_confirm_title">Подтвердить покупку</string>
+    <string name="uin_shop_confirm_title_priced">Купить UIN %1$s за %2$s?</string>
+    <string name="uin_shop_confirm_body">Перенесём аккаунт на этот UIN. Контакты, группы и история чатов переедут с тобой, старый UIN освободится.</string>
+    <string name="uin_shop_confirm_cta">Купить</string>
+    <string name="uin_shop_error_taken">Кто-то перехватил. Попробуй другой UIN.</string>
+    <string name="uin_shop_error_generic">Не удалось купить. Попробуй ещё раз.</string>
     <string name="settings_foot_appearance">Светлая, тёмная или как в системе.</string>
     <string name="settings_foot_privacy">Кто вас видит, кто может с вами связаться и на каком вы сервере.</string>
     <string name="settings_foot_history">Удаляет сообщения только с этого устройства. Аккаунт и контакты остаются.</string>
@@ -587,6 +623,9 @@
     <!-- QR -->
     <string name="qr_title">Мой QR код</string>
     <string name="qr_hint">Покажите его другу, чтобы он вас добавил.</string>
+    <string name="qr_copy_uin">Копировать UIN</string>
+    <string name="qr_share">Поделиться</string>
+    <string name="qr_share_text">Добавь меня в RCQ. Мой UIN: %1$s\n%2$s</string>
 
     <!-- Home: dialogs + context actions -->
     <string name="home_send_message">Написать</string>

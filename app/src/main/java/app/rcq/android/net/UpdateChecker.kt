@@ -70,16 +70,48 @@ object UpdateChecker {
     }
 
     /** Download the APK to cacheDir/files/ and launch the system installer.
-     *  Returns false on any failure (network, write, no installer). */
-    suspend fun downloadAndInstall(context: Context, update: Update): Boolean = withContext(Dispatchers.IO) {
+     *  Returns false on any failure (network, write, no installer).
+     *  [onProgress] reports 0f..1f as bytes arrive (-1f = indeterminate, when the
+     *  server sends no Content-Length) so the UI can show a real download bar
+     *  instead of a bare spinner. */
+    suspend fun downloadAndInstall(
+        context: Context,
+        update: Update,
+        onProgress: (Float) -> Unit = {},
+    ): Boolean = withContext(Dispatchers.IO) {
         runCatching {
             val dir = File(context.cacheDir, "files").apply { mkdirs() }
             val apk = File(dir, "rcq-update-${update.versionCode}.apk")
             val req = Request.Builder().url(update.apkUrl).build()
             client().newCall(req).execute().use { resp ->
                 if (!resp.isSuccessful) return@withContext false
-                apk.outputStream().use { out -> resp.body!!.byteStream().copyTo(out) }
+                val body = resp.body!!
+                val total = body.contentLength()
+                body.byteStream().use { input ->
+                    apk.outputStream().use { out ->
+                        val buf = ByteArray(64 * 1024)
+                        var read = 0L
+                        var lastReported = -1
+                        onProgress(if (total > 0) 0f else -1f)
+                        while (true) {
+                            val n = input.read(buf)
+                            if (n < 0) break
+                            out.write(buf, 0, n)
+                            read += n
+                            if (total > 0) {
+                                // Throttle to whole-percent steps to avoid
+                                // hammering recomposition on every 64KB chunk.
+                                val pct = ((read * 100) / total).toInt()
+                                if (pct != lastReported) {
+                                    lastReported = pct
+                                    onProgress(pct / 100f)
+                                }
+                            }
+                        }
+                    }
+                }
             }
+            onProgress(1f)
             val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", apk)
             val intent = Intent(Intent.ACTION_VIEW).apply {
                 setDataAndType(uri, "application/vnd.android.package-archive")

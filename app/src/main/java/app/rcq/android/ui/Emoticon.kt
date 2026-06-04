@@ -153,10 +153,10 @@ internal fun ReactionChip(asset: String) {
  *  GIFs (iOS EmoticonText parity). Falls back to a plain [Text] when the body
  *  has no emoticon codes (the common path — no inline-content overhead). */
 @Composable
-internal fun EmoticonText(body: String, color: Color, fontSize: TextUnit, modifier: Modifier = Modifier) {
+internal fun EmoticonText(body: String, color: Color, fontSize: TextUnit, modifier: Modifier = Modifier, lineHeight: TextUnit = TextUnit.Unspecified) {
     val tokens = remember(body) { Emoticons.tokenize(body) }
     if (tokens.size == 1 && tokens[0] is Emoticons.Token.Text) {
-        Text(body, color = color, fontSize = fontSize, modifier = modifier)
+        Text(body, color = color, fontSize = fontSize, lineHeight = lineHeight, modifier = modifier)
         return
     }
     val inline = HashMap<String, InlineTextContent>()
@@ -174,7 +174,7 @@ internal fun EmoticonText(body: String, color: Color, fontSize: TextUnit, modifi
             }
         }
     }
-    Text(annotated, color = color, fontSize = fontSize, inlineContent = inline, modifier = modifier)
+    Text(annotated, color = color, fontSize = fontSize, lineHeight = lineHeight, inlineContent = inline, modifier = modifier)
 }
 
 /** The composer smiley panel: a scrollable grid of the palette emoticons.

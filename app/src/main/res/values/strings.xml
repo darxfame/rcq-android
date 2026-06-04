@@ -84,6 +84,8 @@
     <string name="home_decline">Decline</string>
     <string name="home_empty_title">No contacts yet</string>
     <string name="home_empty_body">Add a friend by their UIN, or share your QR code to get started.</string>
+    <string name="home_connecting_title">Connecting to server</string>
+    <string name="home_connecting_body">Loading your chats…</string>
     <string name="home_empty_cta">Add a contact</string>
     <string name="home_coming_soon_body">%1$s is coming to the Android app soon.</string>
 
@@ -93,6 +95,11 @@
     <string name="update_now">Update</string>
     <string name="update_later">Later</string>
     <string name="update_downloading">Downloading…</string>
+    <string name="update_downloading_pct">Downloading… %1$d%%</string>
+    <string name="update_check">Check for updates</string>
+    <string name="update_checking">Checking…</string>
+    <string name="update_uptodate">You\'re on the latest version.</string>
+    <string name="update_available_short">Update available: %1$s</string>
     <string name="join_server_title">Join server</string>
     <string name="join_server_body">Create a new account on %1$s?</string>
     <string name="join_server_invite">Using an invite link</string>
@@ -300,6 +307,35 @@
     <string name="settings_row_about">About RCQ</string>
     <string name="settings_row_move_uin">Move to a new UIN</string>
     <string name="settings_row_burn">Burn account</string>
+
+    <!-- UIN shop -->
+    <string name="settings_row_uin_shop">UIN shop</string>
+    <string name="settings_foot_uin_shop">Pick any free 3-9 digit UIN. Shorter UINs are rarer and pricier.</string>
+    <string name="uin_shop_title">UIN</string>
+    <string name="uin_shop_plate_hint">Tap to type</string>
+    <string name="uin_shop_plate_digits">%1$d digits</string>
+    <string name="uin_shop_status_idle">Pick a 3-9 digit UIN</string>
+    <string name="uin_shop_status_available">Available</string>
+    <string name="uin_shop_status_checking">Checking</string>
+    <string name="uin_shop_status_taken">Taken</string>
+    <string name="uin_shop_status_too_short">Too short</string>
+    <string name="uin_shop_status_too_long">Too long</string>
+    <string name="uin_shop_status_self">Your current UIN</string>
+    <string name="uin_shop_status_unavailable">Unavailable</string>
+    <string name="uin_shop_hint_too_short">Need at least 3 digits</string>
+    <string name="uin_shop_info_what_title">What is a UIN</string>
+    <string name="uin_shop_info_what_body">Your UIN is your handle in RCQ, a number tied to no phone or email. Other users find you by it; shorter UINs are scarcer, so they cost more.</string>
+    <string name="uin_shop_info_migrate_title">Buying migrates your account</string>
+    <string name="uin_shop_info_migrate_body">Contacts, groups, profile and audio rooms move with you onto the new UIN. The old UIN returns to the shared pool and may be claimed by someone else later. Your local chat history stays on this device.</string>
+    <string name="uin_shop_info_current">Your current UIN · %1$s</string>
+    <string name="uin_shop_buy_cta">Buy for %1$s</string>
+    <string name="uin_shop_buy_processing">Processing…</string>
+    <string name="uin_shop_confirm_title">Confirm purchase</string>
+    <string name="uin_shop_confirm_title_priced">Buy UIN %1$s for %2$s?</string>
+    <string name="uin_shop_confirm_body">We\'ll migrate your account onto this UIN. Contacts, groups and your chat history move with you; the old UIN frees up.</string>
+    <string name="uin_shop_confirm_cta">Buy</string>
+    <string name="uin_shop_error_taken">Someone grabbed it first. Try a different UIN.</string>
+    <string name="uin_shop_error_generic">Purchase failed. Try again.</string>
     <string name="settings_foot_appearance">Choose light, dark, or follow the system theme.</string>
     <string name="settings_foot_privacy">Control who can see you, who can reach you, and which server you\'re on.</string>
     <string name="settings_foot_history">Removes messages from this device only. Your account and contacts stay.</string>
@@ -588,6 +624,9 @@
     <!-- QR -->
     <string name="qr_title">My QR code</string>
     <string name="qr_hint">Have a friend scan this to add you.</string>
+    <string name="qr_copy_uin">Copy UIN</string>
+    <string name="qr_share">Share link</string>
+    <string name="qr_share_text">Add me on RCQ. My UIN: %1$s\n%2$s</string>
 
     <!-- Home: dialogs + context actions -->
     <string name="home_send_message">Send message</string>

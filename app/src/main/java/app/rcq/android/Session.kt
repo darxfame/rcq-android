@@ -173,6 +173,14 @@ class Session(context: Context) {
     private val _status = MutableStateFlow(UserStatus.ONLINE)
     val status: StateFlow<UserStatus> = _status.asStateFlow()
 
+    /** Whether the active account's server advertises the UIN shop
+     *  (GET /server/info → capabilities.uin_shop). Permissive default (true,
+     *  matching iOS defaultLegacy + every pre-/server/info backend); refreshed
+     *  on each start(). Self-host rcq-server-ref returns false → the Settings
+     *  shop row hides. */
+    private val _uinShopEnabled = MutableStateFlow(true)
+    val uinShopEnabled: StateFlow<Boolean> = _uinShopEnabled.asStateFlow()
+
     val nickname: String get() = store.nickname ?: "—"
 
     // uin -> recipient X25519 identity public (raw), from contacts or lookup.
@@ -480,6 +488,9 @@ class Session(context: Context) {
         scope.launch { runCatching { withRetry { refreshGroups() } } }
         scope.launch { runCatching { withRetry { loadOwnReadReceiptSetting() } } }
         scope.launch { runCatching { refreshStories() } }
+        // Optional-surface flags for this server (UIN shop). Best-effort:
+        // failure keeps the permissive default so the shop stays reachable.
+        scope.launch { runCatching { _uinShopEnabled.value = api.serverInfo().capabilities.uin_shop } }
         // Ensure our libsignal prekey bundle is published so peers can start
         // v=2 sessions with us. Best-effort: failure leaves us on v=1.
         scope.launch { runCatching { store.uin?.let { SignalBootstrap.ensureBootstrapped(signalStores, api, it) } }.onFailure { android.util.Log.w("RCQsignal", "bootstrap failed: ${it.javaClass.simpleName}: ${it.message}") } }
@@ -1244,11 +1255,45 @@ class Session(context: Context) {
      *  the new UIN. Throws on server refusal (e.g. cooldown). */
     suspend fun migrateToNewUin(): Int {
         val resp = api.migrateAccount()
+        applyMigration(resp)
+        return resp.new_uin
+    }
+
+    /** Buy [uin] from the UIN shop (mock IAP receipt) and migrate the account
+     *  onto it. Server-side this is the SAME migration as [migrateToNewUin], so
+     *  local handling is identical — history survives (peer-keyed),
+     *  contacts/groups re-sync. A 409 (someone grabbed it first between quote
+     *  and purchase) maps to [PurchaseResult.Taken] so the shop can prompt for
+     *  a different number; other failures bubble up as [PurchaseResult.Other]. */
+    suspend fun purchaseUin(uin: Int, receipt: String): PurchaseResult {
+        val resp = try {
+            api.purchaseUin(uin, receipt)
+        } catch (e: Exception) {
+            val msg = e.message ?: ""
+            return if (msg.contains("HTTP 409")) PurchaseResult.Taken else PurchaseResult.Other(msg)
+        }
+        applyMigration(resp)
+        return PurchaseResult.Success(resp.new_uin)
+    }
+
+    sealed class PurchaseResult {
+        data class Success(val newUin: Int) : PurchaseResult()
+        object Taken : PurchaseResult()
+        data class Other(val message: String?) : PurchaseResult()
+    }
+
+    /** Live availability + price preview for a candidate UIN (POST /uin/quote). */
+    suspend fun quoteUin(uin: Int): RcqApi.QuoteResponse = api.uinQuote(uin)
+
+    /** Swap uin+token locally (keys/nickname/server stay) and reboot the
+     *  session under the new UIN. **Local chat history is PRESERVED** — it's
+     *  keyed by the peer's UIN (which doesn't change; only ours does), so it
+     *  stays valid; start() reloads it from the intact db. Contacts/groups
+     *  re-sync from the server. Shared by the free migrate + the shop purchase. */
+    private fun applyMigration(resp: RcqApi.MigrateResponse) {
         socket.disconnect()
         store.updateAccount(resp.new_uin, resp.token)
         api.setToken(resp.token)
-        // No db.wipe(): history is peer-keyed and survives the UIN change.
-        // start() below reloads it from the (intact) db.
         peerIdentityCache.clear()
         noV2Peers.clear()
         ackedReads.clear()
@@ -1260,7 +1305,6 @@ class Session(context: Context) {
         everConnected = false
         socket = newSocket()
         start()
-        return resp.new_uin
     }
 
     // NOTE: the old destructive `switchServer` (which wiped the active
@@ -1855,8 +1899,12 @@ class Session(context: Context) {
      *  messages never count. */
     private fun bumpUnreadIfInbound(msg: ChatMessage, thread: String) {
         if (msg.fromMe) return
-        if (thread == activeThread) { LocalStores.clearUnread(thread); return }
-        LocalStores.bumpUnread(thread)
+        // Badge only counts for threads you're NOT looking at; the receive
+        // SOUND plays for any inbound non-muted message — including the open
+        // chat (iOS/Telegram behaviour). The old code returned early for the
+        // active thread, so a tester sitting inside a chat heard nothing.
+        if (thread == activeThread) LocalStores.clearUnread(thread)
+        else LocalStores.bumpUnread(thread)
         if (!LocalStores.isMuted(thread)) app.rcq.android.media.SoundService.message()
     }
 

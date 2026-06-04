@@ -36,6 +36,7 @@ import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Password
+import androidx.compose.material.icons.filled.Sell
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.NetworkCheck
 import androidx.compose.material.icons.filled.Info
@@ -89,7 +90,7 @@ import app.rcq.android.net.RcqApi
 import kotlinx.coroutines.launch
 
 /** Sub-screens inside Settings (kept self-contained, no nav graph). */
-private enum class SettingsRoute { ROOT, PROFILE, PRIVACY, NOTIFICATIONS, BLOCKED, CUSTOM_SERVER, SOUNDS, LANGUAGE, PIN_CODES, DIAGNOSTICS, RECOVERY_PHRASE }
+private enum class SettingsRoute { ROOT, PROFILE, PRIVACY, NOTIFICATIONS, BLOCKED, CUSTOM_SERVER, SOUNDS, LANGUAGE, PIN_CODES, DIAGNOSTICS, RECOVERY_PHRASE, UIN_SHOP }
 
 @Composable
 internal fun SettingsScreen(session: Session, uin: Int, onBack: () -> Unit, onBurned: (Int?) -> Unit, onMigrated: (Int) -> Unit) {
@@ -108,7 +109,9 @@ internal fun SettingsScreen(session: Session, uin: Int, onBack: () -> Unit, onBu
             onOpenCustomServer = { route = SettingsRoute.CUSTOM_SERVER },
             onOpenDiagnostics = { route = SettingsRoute.DIAGNOSTICS },
         ) { route = SettingsRoute.ROOT }
-        SettingsRoute.DIAGNOSTICS -> DiagnosticsScreen(session) { route = SettingsRoute.ROOT }
+        // Back from Diagnostics returns to Privacy (where it was opened from),
+        // not the Settings root (tester #1).
+        SettingsRoute.DIAGNOSTICS -> DiagnosticsScreen(session) { route = SettingsRoute.PRIVACY }
         SettingsRoute.NOTIFICATIONS -> NotificationsScreen { route = SettingsRoute.ROOT }
         SettingsRoute.SOUNDS -> SoundsScreen { route = SettingsRoute.ROOT }
         SettingsRoute.LANGUAGE -> LanguageScreen { route = SettingsRoute.ROOT }
@@ -117,8 +120,16 @@ internal fun SettingsScreen(session: Session, uin: Int, onBack: () -> Unit, onBu
         SettingsRoute.RECOVERY_PHRASE -> RecoveryPhraseScreen(session) { route = SettingsRoute.ROOT }
         SettingsRoute.CUSTOM_SERVER -> CustomServerScreen(
             session,
-            onBack = { route = SettingsRoute.ROOT },
+            // Back returns to Privacy (its parent), not the Settings root (tester #1).
+            onBack = { route = SettingsRoute.PRIVACY },
             onSwitched = { newUin -> onMigrated(newUin); onBack() },
+        )
+        SettingsRoute.UIN_SHOP -> UinShopScreen(
+            session,
+            onBack = { route = SettingsRoute.ROOT },
+            // A purchase migrates the account; bubble the new UIN up + close
+            // Settings (same flow as the free move / a server switch).
+            onMigrated = { newUin -> onMigrated(newUin); onBack() },
         )
     }
 }
@@ -138,11 +149,19 @@ private fun SettingsRoot(
     val ownStatus by session.status.collectAsState()
     val themeMode by LocalStores.themeMode.collectAsState()
     val contacts by session.contacts.collectAsState()
+    val uinShopEnabled by session.uinShopEnabled.collectAsState()
     var confirmBurn by remember { mutableStateOf(false) }
     var confirmClear by remember { mutableStateOf(false) }
     var confirmMigrate by remember { mutableStateOf(false) }
     var migrating by remember { mutableStateOf(false) }
     var showAbout by remember { mutableStateOf(false) }
+    // Manual update check from the About sheet (so a "Later"-dismissed update is
+    // still reachable, tester #2).
+    var updChecking by remember { mutableStateOf(false) }
+    var updCheckedEmpty by remember { mutableStateOf(false) }
+    var updResult by remember { mutableStateOf<app.rcq.android.net.UpdateChecker.Update?>(null) }
+    var updBusy by remember { mutableStateOf(false) }
+    var updProgress by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
     val blockedCount = contacts.count { it.blocked }
 
     fun copyUin() {
@@ -224,6 +243,19 @@ private fun SettingsRoot(
 
             Spacer(Modifier.height(22.dp))
             SectionLabel(stringResource(R.string.settings_sec_account))
+            // UIN shop — only on servers that advertise it (api.rcq.app);
+            // self-host backends report uin_shop=false and the row hides.
+            if (uinShopEnabled) {
+                SettingsGroup {
+                    SettingsRow(Icons.Filled.Sell, stringResource(R.string.settings_row_uin_shop)) { onOpen(SettingsRoute.UIN_SHOP) }
+                }
+                Text(
+                    stringResource(R.string.settings_foot_uin_shop),
+                    color = c.textSecondary, fontSize = 11.sp,
+                    modifier = Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 14.dp),
+                    textAlign = TextAlign.Center,
+                )
+            }
             SettingsGroup {
                 SettingsRow(Icons.Filled.Autorenew, stringResource(R.string.settings_row_move_uin)) { if (!migrating) confirmMigrate = true }
             }
@@ -297,6 +329,35 @@ private fun SettingsRoot(
                     Text(stringResource(R.string.cs_about_tagline), color = c.textSecondary, fontSize = 14.sp)
                     Text(stringResource(R.string.cs_about_version, appVersion(context)), color = c.textMono, fontSize = 13.sp, fontFamily = FontFamily.Monospace)
                     Text(stringResource(R.string.cs_about_features), color = c.textSecondary, fontSize = 12.sp)
+                    Divider()
+                    when {
+                        updBusy -> Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            if (updProgress < 0f) androidx.compose.material3.LinearProgressIndicator(color = c.accent, modifier = Modifier.fillMaxWidth())
+                            else androidx.compose.material3.LinearProgressIndicator(progress = { updProgress }, color = c.accent, modifier = Modifier.fillMaxWidth())
+                            Text(stringResource(R.string.update_downloading_pct, (updProgress.coerceAtLeast(0f) * 100).toInt()), color = c.textSecondary, fontSize = 13.sp)
+                        }
+                        updResult != null -> Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(stringResource(R.string.update_available_short, updResult!!.versionName), color = c.accent, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                            if (updResult!!.notes.isNotBlank()) Text(updResult!!.notes, color = c.textSecondary, fontSize = 12.sp)
+                            TextButton(contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp), onClick = {
+                                val up = updResult!!
+                                updBusy = true; updProgress = 0f
+                                scope.launch { app.rcq.android.net.UpdateChecker.downloadAndInstall(context, up, onProgress = { updProgress = it }); updBusy = false }
+                            }) { Text(stringResource(R.string.update_now), color = c.accent) }
+                        }
+                        updChecking -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            androidx.compose.material3.CircularProgressIndicator(color = c.accent, modifier = Modifier.size(16.dp))
+                            Text(stringResource(R.string.update_checking), color = c.textSecondary, fontSize = 13.sp)
+                        }
+                        updCheckedEmpty -> Text(stringResource(R.string.update_uptodate), color = c.textSecondary, fontSize = 13.sp)
+                        else -> TextButton(contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp), onClick = {
+                            updChecking = true; updCheckedEmpty = false
+                            scope.launch {
+                                val u = app.rcq.android.net.UpdateChecker.check()
+                                updResult = u; updCheckedEmpty = (u == null); updChecking = false
+                            }
+                        }) { Text(stringResource(R.string.update_check), color = c.accent) }
+                    }
                 }
             },
         )

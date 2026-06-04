@@ -24,6 +24,17 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.rememberTransformableState
+import androidx.compose.foundation.gestures.transformable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -118,6 +129,14 @@ sealed interface ChatTarget {
     data class Group(val id: Int) : ChatTarget
 }
 
+/** Process-lifetime composer drafts, keyed by thread ("p:<uin>" / "g:<id>").
+ *  A typed-but-unsent message survives navigating to a profile or back to the
+ *  chat list and returning (a fresh ChatScreen composition reads its draft
+ *  back). Cleared on send. */
+private object ChatDrafts {
+    val byThread = mutableMapOf<String, String>()
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit, onOpenGroupInfo: (Int) -> Unit = {}, onOpenPeerInfo: (Int) -> Unit = {}, onOpenGroup: (Int) -> Unit = {}) {
@@ -147,7 +166,10 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
     val canPost = group?.canPost(ownUin) ?: true
     val isTyping = !isGroup && typingFrom == peer
 
-    var draft by remember { mutableStateOf("") }
+    // Draft survives leaving + re-entering the chat (tester #6): held per-thread
+    // in a process-level map, not just transient composable state.
+    val threadKey = if (isGroup) "g:$groupId" else "p:$peer"
+    var draft by remember(threadKey) { mutableStateOf(ChatDrafts.byThread[threadKey] ?: "") }
     var actionMsg by remember { mutableStateOf<ChatMessage?>(null) }
     var editMsg by remember { mutableStateOf<ChatMessage?>(null) }
     var replyTarget by remember { mutableStateOf<ChatMessage?>(null) }
@@ -157,6 +179,8 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
     // A picked photo/video waiting in the pre-send preview (tap to blur).
     var pendingSend by remember { mutableStateOf<PendingSend?>(null) }
     var showGroupPicker by remember { mutableStateOf(false) }
+    // Decrypted bytes of a photo opened for fullscreen viewing (tester #10).
+    var fullscreenImage by remember { mutableStateOf<ByteArray?>(null) }
     val listState = rememberLazyListState()
 
     fun authorName(m: ChatMessage): String = when {
@@ -392,6 +416,7 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
                                 onRetry = { scope.launch { runCatching { session.resend(m) } } },
                                 onLongPress = { actionMsg = m },
                                 onOpenGroup = onOpenGroup,
+                                onViewImage = { fullscreenImage = it },
                             )
                         }
                     }
@@ -426,11 +451,12 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
                 accentColor = c.accent,
                 onDraftChange = {
                     draft = it
+                    if (it.isBlank()) ChatDrafts.byThread.remove(threadKey) else ChatDrafts.byThread[threadKey] = it
                     if (!isGroup && !isSelf && peer != null) session.sendTyping(peer, it.isNotBlank())
                 },
                 onAttach = { attachMenu = true },
                 onSend = {
-                    val body = draft.trim(); draft = ""
+                    val body = draft.trim(); draft = ""; ChatDrafts.byThread.remove(threadKey)
                     val reply = replyTarget?.let { Reply(it.id, previewOf(it, context), authorName(it)) }
                     replyTarget = null
                     if (!isGroup && !isSelf && peer != null) session.sendTyping(peer, false)
@@ -448,6 +474,10 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
                 onCancelVoice = { cancelRecording() },
             )
         }
+    }
+
+    fullscreenImage?.let { bytes ->
+        FullscreenImageViewer(bytes) { fullscreenImage = null }
     }
 
     actionMsg?.let { m ->
@@ -695,6 +725,8 @@ private fun Composer(
                     onValueChange = onDraftChange,
                     textStyle = TextStyle(color = c.textPrimary, fontSize = 15.sp),
                     cursorBrush = SolidColor(accentColor),
+                    // Auto-capitalize the first letter of each sentence (tester #8).
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                     modifier = Modifier.fillMaxWidth().onFocusChanged { if (it.isFocused) showEmoji = false },
                 )
             }
@@ -1070,9 +1102,12 @@ private fun AlbumTile(session: Session, m: ChatMessage, w: Dp, h: Dp, onLongPres
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun MessageBubble(session: Session, m: ChatMessage, senderName: String?, onRetry: () -> Unit, onLongPress: () -> Unit, onOpenGroup: (Int) -> Unit = {}) {
+private fun MessageBubble(session: Session, m: ChatMessage, senderName: String?, onRetry: () -> Unit, onLongPress: () -> Unit, onOpenGroup: (Int) -> Unit = {}, onViewImage: (ByteArray) -> Unit = {}) {
     val c = RcqTheme.colors
     val failed = m.state == DeliveryState.FAILED
+    // Cap a bubble so a long message leaves a gap to the far edge — keeps the
+    // L/R alignment (mine vs theirs) readable, not just the colour (tester #7).
+    val maxW = (LocalConfiguration.current.screenWidthDp * 0.78f).dp
     // A text body that is just a group-invite URL renders as a join card.
     val groupLinkId = if (m.kind == "text") GroupLinkParser.parse(m.body) else null
     Column(Modifier.fillMaxWidth(), horizontalAlignment = if (m.fromMe) Alignment.End else Alignment.Start) {
@@ -1082,7 +1117,7 @@ private fun MessageBubble(session: Session, m: ChatMessage, senderName: String?,
         if (groupLinkId != null) {
             GroupLinkBubble(session, groupLinkId, onOpenGroup, onLongPress)
         } else if (m.kind == "photo") {
-            PhotoBubble(session, m, onLongPress)
+            PhotoBubble(session, m, onLongPress, onViewImage)
             if (m.body.isNotEmpty()) {
                 EmoticonText(
                     m.body, color = c.textPrimary, fontSize = 14.sp,
@@ -1108,6 +1143,7 @@ private fun MessageBubble(session: Session, m: ChatMessage, senderName: String?,
         } else {
             Column(
                 Modifier
+                    .widthIn(max = maxW)
                     .clip(RoundedCornerShape(14.dp))
                     .background(if (m.fromMe) c.bubbleSelf else c.bubbleOther)
                     .combinedClickable(onClick = { if (failed) onRetry() }, onLongClick = onLongPress)
@@ -1121,7 +1157,7 @@ private fun MessageBubble(session: Session, m: ChatMessage, senderName: String?,
                         Text(m.replyToSnippet, color = c.textSecondary, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
-                EmoticonText(m.body, color = c.textPrimary, fontSize = 15.sp)
+                EmoticonText(m.body, color = c.textPrimary, fontSize = 15.sp, lineHeight = 19.sp)
             }
         }
         if (m.reactions.isNotEmpty()) {
@@ -1149,7 +1185,7 @@ private fun MessageBubble(session: Session, m: ChatMessage, senderName: String?,
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun PhotoBubble(session: Session, m: ChatMessage, onLongPress: () -> Unit) {
+private fun PhotoBubble(session: Session, m: ChatMessage, onLongPress: () -> Unit, onView: (ByteArray) -> Unit = {}) {
     val c = RcqTheme.colors
     var revealed by remember(m.id) { mutableStateOf(false) }
     val hidden = m.spoiler && !revealed
@@ -1162,7 +1198,7 @@ private fun PhotoBubble(session: Session, m: ChatMessage, onLongPress: () -> Uni
             .size(220.dp)
             .clip(RoundedCornerShape(14.dp))
             .background(c.bgSecondary)
-            .combinedClickable(onClick = { if (hidden) revealed = true }, onLongClick = onLongPress),
+            .combinedClickable(onClick = { if (hidden) revealed = true else b?.let(onView) }, onLongClick = onLongPress),
         contentAlignment = Alignment.Center,
     ) {
         when {
@@ -1219,6 +1255,52 @@ private fun blurForSpoiler(src: Bitmap): Bitmap {
     val outW = w.coerceAtMost(360)
     val outH = (outW * h / w).coerceAtLeast(1)
     return Bitmap.createScaledBitmap(small, outW, outH, true)
+}
+
+/** Fullscreen photo viewer (tester #10): tap anywhere or the X to close, pinch
+ *  to zoom, drag while zoomed to pan. */
+@Composable
+private fun FullscreenImageViewer(bytes: ByteArray, onDismiss: () -> Unit) {
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        var scale by remember { mutableStateOf(1f) }
+        var offset by remember { mutableStateOf(Offset.Zero) }
+        val transform = rememberTransformableState { zoomChange, panChange, _ ->
+            scale = (scale * zoomChange).coerceIn(1f, 5f)
+            offset = if (scale > 1f) offset + panChange else Offset.Zero
+        }
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(Color.Black)
+                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onDismiss),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (bytes.isGif() && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                AnimatedGif(bytes, Modifier.fillMaxWidth())
+            } else {
+                val image = remember(bytes) {
+                    runCatching { BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap() }.getOrNull()
+                }
+                if (image != null) {
+                    Image(
+                        bitmap = image,
+                        contentDescription = null,
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .transformable(transform)
+                            .graphicsLayer(scaleX = scale, scaleY = scale, translationX = offset.x, translationY = offset.y),
+                    )
+                }
+            }
+            Icon(
+                Icons.Filled.Close,
+                stringResource(R.string.common_close),
+                tint = Color.White,
+                modifier = Modifier.align(Alignment.TopEnd).padding(16.dp).size(28.dp).clickable(onClick = onDismiss),
+            )
+        }
+    }
 }
 
 @OptIn(ExperimentalFoundationApi::class)

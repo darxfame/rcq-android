@@ -146,6 +146,7 @@ internal fun HomeScreen(
     val pending by session.pending.collectAsState()
     val messages by session.messages.collectAsState()
     val ownStatus by session.status.collectAsState()
+    val connected by session.connected.collectAsState()
     val favorites by LocalStores.favorites.collectAsState()
     val archived by LocalStores.archived.collectAsState()
     val unread by LocalStores.unread.collectAsState()
@@ -265,29 +266,40 @@ internal fun HomeScreen(
                     }
                 }
 
+                // All-empty either because we genuinely have nothing, OR because
+                // the first connect/sync hasn't landed yet (tester #4/#9/#13). In
+                // the latter case show a "connecting" state with the petal loader
+                // instead of the misleading "no contacts" prompt.
+                val connecting = !connected && contacts.isEmpty() && groups.isEmpty() && pending.isEmpty()
                 if (contacts.isEmpty() && groups.isEmpty() && pending.isEmpty()) {
-                    item(key = "empty") { EmptyState(onAdd = { showAdd = true }) }
+                    item(key = "empty") {
+                        if (connecting) ConnectingState() else EmptyState(onAdd = { showAdd = true })
+                    }
                 }
 
                 contactSection(secFavorites, favContacts, collapsedFavorites, "fav", unread, { collapsedFavorites = !collapsedFavorites }, onOpenChat, onLongPress = { previewContact = it })
 
-                // Groups — header always shows a "+" to create, like iOS.
-                item(key = "grp-h") {
-                    SectionHeader(stringResource(R.string.home_sec_groups), visibleGroups.size, collapsedGroups, { collapsedGroups = !collapsedGroups }) {
-                        Icon(Icons.Filled.Add, "New group", tint = c.accent, modifier = Modifier.size(20.dp).clip(CircleShape).clickable { showCreateGroup = true })
-                    }
-                }
-                if (!collapsedGroups) {
-                    if (visibleGroups.isEmpty()) {
-                        item(key = "grp-empty") {
-                            Row(Modifier.fillMaxWidth().clickable { showCreateGroup = true }.padding(horizontal = 10.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Icon(Icons.Filled.Add, null, tint = c.accent, modifier = Modifier.size(18.dp))
-                                Text(stringResource(R.string.home_create_group), color = c.textPrimary, fontSize = 13.sp)
-                            }
+                // Groups — header always shows a "+" to create, like iOS. Hidden
+                // while connecting so the "create a group" prompt doesn't flash
+                // before the real groups arrive (tester #13).
+                if (!connecting) {
+                    item(key = "grp-h") {
+                        SectionHeader(stringResource(R.string.home_sec_groups), visibleGroups.size, collapsedGroups, { collapsedGroups = !collapsedGroups }) {
+                            Icon(Icons.Filled.Add, "New group", tint = c.accent, modifier = Modifier.size(20.dp).clip(CircleShape).clickable { showCreateGroup = true })
                         }
-                    } else {
-                        items(items = visibleGroups, key = { it.id }) { g: RcqGroup ->
-                            GroupRow(group = g, ownUin = uin, session = session, unread = unread[LocalStores.groupThread(g.id)] ?: 0, onClick = { onOpenGroup(g.id) }, onLongPress = { previewGroup = g })
+                    }
+                    if (!collapsedGroups) {
+                        if (visibleGroups.isEmpty()) {
+                            item(key = "grp-empty") {
+                                Row(Modifier.fillMaxWidth().clickable { showCreateGroup = true }.padding(horizontal = 10.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Icon(Icons.Filled.Add, null, tint = c.accent, modifier = Modifier.size(18.dp))
+                                    Text(stringResource(R.string.home_create_group), color = c.textPrimary, fontSize = 13.sp)
+                                }
+                            }
+                        } else {
+                            items(items = visibleGroups, key = { it.id }) { g: RcqGroup ->
+                                GroupRow(group = g, ownUin = uin, session = session, unread = unread[LocalStores.groupThread(g.id)] ?: 0, onClick = { onOpenGroup(g.id) }, onLongPress = { previewGroup = g })
+                            }
                         }
                     }
                 }
@@ -573,7 +585,8 @@ private fun HomeHeader(
         // add / manage local accounts (iOS AccountManager parity).
         Box(Modifier.align(Alignment.CenterStart)) {
             Icon(
-                Icons.Outlined.AccountCircle, "Accounts", tint = c.accent,
+                // Black (textPrimary), not accent green, per founder.
+                Icons.Outlined.AccountCircle, "Accounts", tint = c.textPrimary,
                 modifier = Modifier.size(28.dp).clip(CircleShape).clickable { accountMenu = true },
             )
             DropdownMenu(expanded = accountMenu, onDismissRequest = { accountMenu = false }) {
@@ -608,11 +621,13 @@ private fun HomeHeader(
             }
         }
 
-        // Centre — status picker + identity.
+        // Centre — status picker + identity. Nick and UIN sit on ONE line
+        // (not stacked/centred) and hug the status icon a little closer, per
+        // founder.
         Row(
             Modifier.align(Alignment.Center).padding(horizontal = 44.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Box {
                 StatusIcon(ownStatus, size = 30.dp, modifier = Modifier.clip(CircleShape).clickable { statusMenu = true })
@@ -626,12 +641,13 @@ private fun HomeHeader(
                     }
                 }
             }
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = onOpenProfile).padding(horizontal = 8.dp, vertical = 2.dp),
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = onOpenProfile).padding(horizontal = 6.dp, vertical = 4.dp),
             ) {
                 Text(nickname, color = c.textPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text("$uin", color = c.textMono, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+                Text("$uin", color = c.textMono, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
             }
         }
 
@@ -831,6 +847,23 @@ private fun EmptyState(onAdd: () -> Unit) {
         Text(stringResource(R.string.home_empty_title), color = c.textPrimary, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
         Text(stringResource(R.string.home_empty_body), color = c.textSecondary, fontSize = 13.sp, textAlign = TextAlign.Center)
         CapsuleButton(stringResource(R.string.home_empty_cta), onClick = onAdd)
+    }
+}
+
+/** Shown on the home list while the first connect/sync is still in flight, so we
+ *  don't claim "no contacts" before the roster has had a chance to load
+ *  (tester #4/#9/#13). The petal loader is the branded busy indicator. */
+@Composable
+private fun ConnectingState() {
+    val c = RcqTheme.colors
+    Column(
+        Modifier.fillMaxWidth().padding(vertical = 70.dp, horizontal = 32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(18.dp),
+    ) {
+        PetalLoader(size = 72.dp)
+        Text(stringResource(R.string.home_connecting_title), color = c.textPrimary, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+        Text(stringResource(R.string.home_connecting_body), color = c.textSecondary, fontSize = 13.sp, textAlign = TextAlign.Center)
     }
 }
 

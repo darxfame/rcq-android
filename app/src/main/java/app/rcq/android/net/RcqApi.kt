@@ -510,6 +510,47 @@ class RcqApi(private val baseUrl: String = DEFAULT_BASE_URL) {
         post("/account/migrate", "{}", authed = true, MigrateResponse::class.java)
     }
 
+    // ── UIN shop (buy any free 3-9 digit UIN, then migrate) ──────────
+    // Backend app/routers/uin_shop.py. /quote previews availability+price;
+    // /purchase reuses the same migration as /account/migrate (returns
+    // {new_uin, token}). Mock IAP for now: any non-empty receipt is accepted.
+
+    /** Availability + tier price for a candidate UIN. `available=false` comes
+     *  with a `reason` ("taken"|"too_short"|"too_long"|"self"); price fields
+     *  are null when unavailable / out of bounds. */
+    data class QuoteResponse(
+        val uin: Int = 0,
+        val length: Int = 0,
+        val available: Boolean = false,
+        val price_cents: Int? = null,
+        val price_display: String? = null,
+        val reason: String? = null,
+    )
+
+    /** POST /uin/quote — does this UIN exist + what would it cost. */
+    suspend fun uinQuote(uin: Int): QuoteResponse = withContext(Dispatchers.IO) {
+        post("/uin/quote", "{\"uin\":$uin}", authed = true, QuoteResponse::class.java)
+    }
+
+    /** POST /uin/purchase — buy the UIN (mock receipt) and migrate the
+     *  account onto it. Same {new_uin, token} shape as /account/migrate; a
+     *  409 means someone grabbed it first (surfaced as "HTTP 409" upstream). */
+    suspend fun purchaseUin(uin: Int, receipt: String): MigrateResponse = withContext(Dispatchers.IO) {
+        post("/uin/purchase", gson.toJson(mapOf("uin" to uin, "receipt" to receipt)), authed = true, MigrateResponse::class.java)
+    }
+
+    // ── server capability discovery (GET /server/info, unauthenticated) ──
+
+    data class ServerCapabilities(val uin_shop: Boolean = false, val registration_policy: String = "open")
+    data class ServerInfoResponse(val name: String = "", val capabilities: ServerCapabilities = ServerCapabilities())
+
+    /** Server metadata + optional-surface flags. api.rcq.app advertises
+     *  uin_shop=true; self-host rcq-server-ref defaults to false so the shop
+     *  surface hides. Unauthenticated + stable across versions. */
+    suspend fun serverInfo(): ServerInfoResponse = withContext(Dispatchers.IO) {
+        get("/server/info", authed = false, ServerInfoResponse::class.java)
+    }
+
     // ── own profile + privacy (GET /users/{uin}/info, PUT /me) ───────
 
     /** Own profile + privacy mirror. Visibility/policy fields are only

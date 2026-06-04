@@ -36,7 +36,7 @@ object SoundService {
     }
 
     private fun play(id: Int) {
-        pool?.play(id, 0.7f, 0.7f, 1, 0, 1f)
+        pool?.play(id, 1f, 1f, 1, 0, 1f)
     }
 
     /** Inbound message to a non-active, non-muted thread. */
