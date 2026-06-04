@@ -172,6 +172,7 @@ fun SettingsScreen(
     onNavigateToNotifications: () -> Unit = {},
     onNavigateToAbout: () -> Unit = {},
     onNavigateToQr: (Long) -> Unit = {},
+    onNavigateToBlocked: () -> Unit = {},
     currentStatus: String = "online",
     onSetStatus: (String) -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel()
@@ -473,6 +474,23 @@ fun SettingsScreen(
             }
 
             item {
+                SettingsSection(title = "Security") {
+                    SettingsItem(
+                        icon = Icons.Default.Pin,
+                        title = "PIN Lock",
+                        subtitle = "App lock, decoy and wipe PIN codes",
+                        onClick = onNavigateToPin
+                    )
+                    SettingsItem(
+                        icon = Icons.Default.Block,
+                        title = "Blocked users",
+                        subtitle = "Manage blocked contacts",
+                        onClick = onNavigateToBlocked
+                    )
+                }
+            }
+
+            item {
                 SettingsSection(title = "Appearance") {
                     SettingsToggleItem(
                         icon = Icons.Default.DarkMode,
@@ -532,7 +550,7 @@ fun SettingsScreen(
                 SettingsSection(title = "Support") {
                     SettingsItem(
                         icon = Icons.Default.Info,
-                        title = "About",
+                        title = "About RCQ",
                         subtitle = "Version 1.0.0",
                         onClick = onNavigateToAbout
                     )

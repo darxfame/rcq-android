@@ -209,7 +209,8 @@ fun MainScaffold(
                     onNavigateToPrivacy = { navController.navigate("settings/privacy") },
                     onNavigateToNotifications = { navController.navigate("settings/notifications") },
                     onNavigateToAbout = { navController.navigate("settings/about") },
-                    onNavigateToQr = { uin -> navController.navigate(Routes.qr(uin)) }
+                    onNavigateToQr = { uin -> navController.navigate(Routes.qr(uin)) },
+                    onNavigateToBlocked = { navController.navigate("settings/blocked") }
                 )
             }
             composable(
