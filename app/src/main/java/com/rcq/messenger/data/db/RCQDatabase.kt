@@ -27,7 +27,7 @@ import com.rcq.messenger.data.db.PendingOutboxDao
         SignalKeyEntity::class,
         PendingOutboxEntity::class
     ],
-    version = 17,
+    version = 18,
     exportSchema = false
 )
 @TypeConverters(RoomTypeConverters::class)
@@ -201,6 +201,14 @@ abstract class RCQDatabase : RoomDatabase() {
         val MIGRATION_16_17 = object : Migration(16, 17) {
             override fun migrate(database: SupportSQLiteDatabase) {
                 database.execSQL("ALTER TABLE groups ADD COLUMN memberCount INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
+        val MIGRATION_17_18 = object : Migration(17, 18) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL("ALTER TABLE contacts ADD COLUMN isContact INTEGER NOT NULL DEFAULT 0")
+                // Не ставим isContact=1 всем — таблица содержала и групповых участников.
+                // syncContacts() при следующем запуске проставит isContact=1 только реальным друзьям.
             }
         }
     }

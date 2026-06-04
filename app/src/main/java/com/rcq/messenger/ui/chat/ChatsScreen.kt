@@ -264,6 +264,7 @@ private fun InboxItem(row: InboxRow, onClick: () -> Unit) {
             AvatarImage(
                 avatarUrl = row.avatarUrl,
                 displayName = row.title,
+                uin = row.avatarSeed(),
                 size = 44.dp
             )
             if (row.status != null) {
@@ -321,6 +322,12 @@ private fun InboxItem(row: InboxRow, onClick: () -> Unit) {
             }
         }
     }
+}
+
+private fun InboxRow.avatarSeed(): Long = when (val target = target) {
+    is InboxTarget.Chat -> target.chatId.removePrefix("direct_").toLongOrNull() ?: target.chatId.hashCode().toLong()
+    is InboxTarget.Contact -> target.userId
+    is InboxTarget.Group -> target.groupId.toLongOrNull() ?: target.groupId.hashCode().toLong()
 }
 
 @Composable

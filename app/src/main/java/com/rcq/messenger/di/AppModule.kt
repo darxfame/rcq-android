@@ -100,7 +100,8 @@ object AppModule {
             RCQDatabase.MIGRATION_13_14,
             RCQDatabase.MIGRATION_14_15,
             RCQDatabase.MIGRATION_15_16,
-            RCQDatabase.MIGRATION_16_17
+            RCQDatabase.MIGRATION_16_17,
+            RCQDatabase.MIGRATION_17_18
         ).build()
     }
 

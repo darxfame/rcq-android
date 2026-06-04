@@ -63,6 +63,14 @@ class SoundManager @Inject constructor(
         pool.play(id, 1f, 1f, 1, 0, 1f)
     }
 
+    fun playMessageReceived() = play(RcqSound.MESSAGE_INCOMING)
+
+    fun playMessageSent() = play(RcqSound.MESSAGE_SENT)
+
+    fun playCallRingtone() = startRinging()
+
+    fun stopCallRingtone() = stopRinging()
+
     fun startRinging() {
         if (!enabled) return
         stopRinging()

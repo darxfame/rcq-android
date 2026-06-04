@@ -6,6 +6,7 @@ import com.rcq.messenger.data.websocket.WebSocketService
 import com.rcq.messenger.data.websocket.WsEvent
 import com.rcq.messenger.service.CallService
 import com.rcq.messenger.service.CallState
+import com.rcq.messenger.service.SoundManager
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
@@ -23,6 +24,7 @@ import javax.inject.Singleton
 class CallManager @Inject constructor(
     @ApplicationContext private val context: Context,
     private val webSocketService: WebSocketService,
+    private val soundManager: SoundManager,
     private val json: Json
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -83,6 +85,7 @@ class CallManager @Inject constructor(
         )
         _currentCall.value = callInfo
         _incomingCall.value = null
+        soundManager.stopCallRingtone()
         context.startService(Intent(context, CallService::class.java))
         webSocketService.sendCallAnswer(
             toUin = incoming.callerUin,
@@ -94,6 +97,7 @@ class CallManager @Inject constructor(
     fun declineCall(callId: String) {
         val incoming = _incomingCall.value
         _incomingCall.value = null
+        soundManager.stopCallRingtone()
         if (incoming?.callId == callId) {
             webSocketService.sendCallEnd(
                 toUin = incoming.callerUin,
@@ -111,10 +115,12 @@ class CallManager @Inject constructor(
             reason = "user_hangup"
         )
         context.stopService(Intent(context, CallService::class.java))
+        soundManager.stopCallRingtone()
         _currentCall.value = null
     }
 
     private fun handleCallOffer(event: WsEvent.CallOffer) {
+        soundManager.playCallRingtone()
         _incomingCall.value = IncomingCallInfo(
             callId = event.callId,
             callerUin = event.fromUin,
@@ -127,6 +133,7 @@ class CallManager @Inject constructor(
     private fun handleCallAnswer(event: WsEvent.CallAnswer) {
         val call = _currentCall.value ?: return
         if (call.callId != event.callId) return
+        soundManager.stopCallRingtone()
         _currentCall.value = call.copy(state = CallState.CONNECTED)
     }
 
@@ -141,9 +148,11 @@ class CallManager @Inject constructor(
     private fun handleCallEnd(event: WsEvent.CallEnd) {
         if (_currentCall.value?.callId == event.callId) {
             context.stopService(Intent(context, CallService::class.java))
+            soundManager.stopCallRingtone()
             _currentCall.value = null
         }
         if (_incomingCall.value?.callId == event.callId) {
+            soundManager.stopCallRingtone()
             _incomingCall.value = null
         }
     }

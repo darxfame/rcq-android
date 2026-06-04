@@ -29,8 +29,8 @@ object DarkColors {
     val textMono        = Color(0xFFB8B8B8)
     val accent          = Color(0xFF84C32C)
     val accentPressed   = Color(0xFF6BB12C)
-    val bubbleSelf      = Color(0xFF2E3A4A)   // dark blue-gray — own
-    val bubbleOther     = Color(0xFF222222)   // dark — incoming
+    val bubbleSelf      = Color(0xFF1B3A5C)   // iOS dark blue — own messages
+    val bubbleOther     = Color(0xFF2A2A2A)   // iOS dark gray — incoming
     val divider         = Color(0xFF303030)
     val inputBg         = Color(0xFF2A2A2A)
     val navBar          = Color(0xFF1A1A1A)

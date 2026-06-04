@@ -241,15 +241,12 @@ internal object SingBoxConfigJsonBuilder {
             put("enabled", true); put("server_name", r.sni); put("insecure", true)
         }
         r.obfs_password?.takeIf { it.isNotEmpty() }?.let { obfsPwd ->
-            if (legacyObfs) {
-                put("obfs", "salamander")
-                put("obfs-password", obfsPwd)
-            } else {
-                putJsonObject("obfs") {
-                    put("type", "salamander")
-                    put("password", obfsPwd)
-                }
-                put("obfs-password", obfsPwd)
+            // SingBox ≥1.8: obfs must be an object {type, password}.
+            // The legacy flat-string form ("obfs":"salamander") is rejected:
+            // "cannot unmarshal string into Go value of type option.Hysteria2Obfs".
+            putJsonObject("obfs") {
+                put("type", "salamander")
+                put("password", obfsPwd)
             }
         }
     }

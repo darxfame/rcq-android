@@ -1,6 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!--
+      Adaptive icon foreground: 108dp canvas, safe zone = center 72dp.
+      20dp inset on each side → logo at 68dp (63% canvas) — inside safe zone
+      on all launcher mask shapes (circle, squircle, square, rounded square).
+      Replaces broken android:gravity="center" which caused stretch/crop artifacts.
+    -->
     <item
-        android:gravity="center"
+        android:top="20dp"
+        android:bottom="20dp"
+        android:left="20dp"
+        android:right="20dp"
         android:drawable="@drawable/rcq_logo" />
 </layer-list>

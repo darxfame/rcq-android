@@ -11,8 +11,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -21,10 +23,26 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.rcq.messenger.ui.theme.LocalRCQColors
 
+private val AVATAR_PALETTE = listOf(
+    Color(0xFF4FA3E3),
+    Color(0xFFF26B6B),
+    Color(0xFF6BBE6B),
+    Color(0xFFE0A53A),
+    Color(0xFFA479D9),
+    Color(0xFF57C7BC),
+    Color(0xFFE2769B)
+)
+
+fun avatarColor(uin: Long): Color {
+    val index = (uin % AVATAR_PALETTE.size).toInt().let { if (it < 0) it + AVATAR_PALETTE.size else it }
+    return AVATAR_PALETTE[index]
+}
+
 @Composable
 fun AvatarImage(
     avatarUrl: String?,
     displayName: String,
+    uin: Long = 0L,
     size: Dp = 40.dp,
     hasStory: Boolean = false,
     modifier: Modifier = Modifier
@@ -69,14 +87,15 @@ fun AvatarImage(
                     modifier = Modifier
                         .size(size)
                         .clip(CircleShape)
-                        .background(rcq.accent),
+                        .background(avatarColor(uin)),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = initial,
                         color = rcq.bgPrimary,
+                        fontFamily = FontFamily.SansSerif,
                         fontWeight = FontWeight.Bold,
-                        fontSize = (size.value * 0.4f).sp
+                        fontSize = (size.value * 0.45f).sp
                     )
                 }
             }

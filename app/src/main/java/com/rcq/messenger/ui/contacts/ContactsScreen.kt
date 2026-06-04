@@ -486,7 +486,12 @@ private fun ContactRow(
     ) {
         StatusIndicator(status = contact.status, size = 16)
         Spacer(Modifier.width(6.dp))
-        AvatarImage(avatarUrl = contact.avatarUrl, displayName = displayName, size = 32.dp)
+        AvatarImage(
+            avatarUrl = contact.avatarUrl,
+            displayName = displayName,
+            uin = contact.userId,
+            size = 32.dp
+        )
         Spacer(Modifier.width(10.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
@@ -562,6 +567,7 @@ fun ContactItem(
             AvatarImage(
                 avatarUrl = contact.avatarUrl,
                 displayName = contact.customNickname ?: contact.nickname,
+                uin = contact.userId,
                 size = RCQMetrics.avatarLg
             )
 

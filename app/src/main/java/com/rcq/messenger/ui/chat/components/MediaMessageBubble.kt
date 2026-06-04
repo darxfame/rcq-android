@@ -12,19 +12,20 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import com.rcq.messenger.ui.theme.IMAGE
-import com.rcq.messenger.ui.theme.TextOnPrimary
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import coil.ImageLoader
 import coil.compose.AsyncImage
+import coil.decode.GifDecoder
 import coil.request.ImageRequest
 import com.rcq.messenger.BuildConfig
 import com.rcq.messenger.domain.model.Message
 import com.rcq.messenger.domain.model.MessageKind
+import com.rcq.messenger.domain.model.MessageStatus
 import com.rcq.messenger.media.PlaybackState
+import com.rcq.messenger.ui.common.EmoticonText
 import com.rcq.messenger.ui.theme.*
 import java.text.SimpleDateFormat
 import java.util.*
@@ -39,6 +40,7 @@ fun MediaMessageBubble(
     playbackState: PlaybackState = PlaybackState.IDLE,
     modifier: Modifier = Modifier
 ) {
+    val rcq = LocalRCQColors.current
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -54,10 +56,10 @@ fun MediaMessageBubble(
                     modifier = Modifier
                         .size(32.dp)
                         .clip(CircleShape)
-                        .background(SurfaceVariant),
+                        .background(rcq.bgSecondary),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("U", color = Primary, style = MaterialTheme.typography.labelMedium)
+                    Text("U", color = rcq.accent, style = MaterialTheme.typography.labelMedium)
                 }
                 Spacer(modifier = Modifier.width(8.dp))
             }
@@ -101,15 +103,16 @@ fun MediaMessageBubble(
                         Box(
                             modifier = Modifier
                                 .background(
-                                    if (isOwnMessage) MessageSent else MessageReceived,
+                                    if (isOwnMessage) rcq.bubbleSelf else rcq.bubbleOther,
                                     RoundedCornerShape(16.dp)
                                 )
                                 .padding(12.dp)
                         ) {
-                            Text(
+                            EmoticonText(
                                 text = message.content,
-                                color = if (isOwnMessage) TextOnPrimary else TextPrimary,
-                                style = MaterialTheme.typography.bodyMedium
+                                color = rcq.textPrimary,
+                                fontSize = MaterialTheme.typography.bodyMedium.fontSize,
+                                lineHeight = MaterialTheme.typography.bodyMedium.lineHeight
                             )
                         }
                     }
@@ -131,10 +134,10 @@ fun MediaMessageBubble(
                     modifier = Modifier
                         .size(32.dp)
                         .clip(CircleShape)
-                        .background(Primary),
+                        .background(rcq.accent),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("M", color = TextOnPrimary, style = MaterialTheme.typography.labelMedium)
+                    Text("M", color = rcq.bgPrimary, style = MaterialTheme.typography.labelMedium)
                 }
             }
         }
@@ -147,38 +150,32 @@ fun ImageMessageContent(
     isOwnMessage: Boolean,
     onImageClick: () -> Unit
 ) {
+    val rcq = LocalRCQColors.current
+    val context = LocalContext.current
+    val imageLoader = rememberGifImageLoader()
     val imageModel = message.mediaId?.takeIf { it.isNotBlank() }?.let { mediaUrl(it) }
         ?: message.thumbnailB64?.takeIf { it.isNotBlank() }
     Box(
         modifier = Modifier
-            .size(200.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .background(if (isOwnMessage) MessageSent else MessageReceived)
+            .width(240.dp)
+            .height(180.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(rcq.bgSecondary)
             .clickable { onImageClick() }
     ) {
         if (imageModel != null) {
             AsyncImage(
-                model = ImageRequest.Builder(LocalContext.current)
+                model = ImageRequest.Builder(context)
                     .data(imageModel)
                     .crossfade(true)
                     .build(),
-                contentDescription = "Image",
+                imageLoader = imageLoader,
+                contentDescription = "Photo",
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop
             )
         } else {
-            // Placeholder
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.BrokenImage,
-                    contentDescription = "Image unavailable",
-                    modifier = Modifier.size(48.dp),
-                    tint = TextSecondary
-                )
-            }
+            MediaPlaceholder(status = message.status, contentDescription = "Image unavailable")
         }
 
         // Caption overlay if present
@@ -188,15 +185,16 @@ fun ImageMessageContent(
                     .fillMaxWidth()
                     .align(Alignment.BottomCenter)
                     .background(
-                        Color.Black.copy(alpha = 0.7f),
-                        RoundedCornerShape(bottomStart = 16.dp, bottomEnd = 16.dp)
+                        rcq.textPrimary.copy(alpha = 0.7f),
+                        RoundedCornerShape(bottomStart = 8.dp, bottomEnd = 8.dp)
                     )
                     .padding(8.dp)
             ) {
-                Text(
+                EmoticonText(
                     text = message.content,
-                    color = Color.White,
-                    style = MaterialTheme.typography.bodySmall
+                    color = rcq.bgPrimary,
+                    fontSize = MaterialTheme.typography.bodySmall.fontSize,
+                    lineHeight = MaterialTheme.typography.bodySmall.lineHeight
                 )
             }
         }
@@ -209,37 +207,32 @@ fun VideoMessageContent(
     isOwnMessage: Boolean,
     onVideoClick: () -> Unit
 ) {
+    val rcq = LocalRCQColors.current
+    val context = LocalContext.current
+    val imageLoader = rememberGifImageLoader()
     val thumbnailModel = message.mediaId?.takeIf { it.isNotBlank() }?.let { mediaUrl(it) }
         ?: message.thumbnailB64?.takeIf { it.isNotBlank() }
     Box(
         modifier = Modifier
-            .size(200.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .background(if (isOwnMessage) MessageSent else MessageReceived)
+            .width(240.dp)
+            .height(180.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(rcq.bgSecondary)
             .clickable { onVideoClick() }
     ) {
         if (thumbnailModel != null) {
             AsyncImage(
-                model = ImageRequest.Builder(LocalContext.current)
+                model = ImageRequest.Builder(context)
                     .data(thumbnailModel)
                     .crossfade(true)
                     .build(),
+                imageLoader = imageLoader,
                 contentDescription = "Video thumbnail",
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop
             )
         } else {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.BrokenImage,
-                    contentDescription = "Video unavailable",
-                    modifier = Modifier.size(48.dp),
-                    tint = TextSecondary
-                )
-            }
+            MediaPlaceholder(status = message.status, contentDescription = "Video unavailable")
         }
 
         // Play button overlay
@@ -247,13 +240,13 @@ fun VideoMessageContent(
             modifier = Modifier
                 .size(48.dp)
                 .align(Alignment.Center)
-                .background(Color.Black.copy(alpha = 0.7f), CircleShape),
+                .background(rcq.textPrimary.copy(alpha = 0.7f), CircleShape),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = Icons.Default.PlayArrow,
                 contentDescription = "Play",
-                tint = Color.White,
+                tint = rcq.bgPrimary,
                 modifier = Modifier.size(24.dp)
             )
         }
@@ -264,12 +257,12 @@ fun VideoMessageContent(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .padding(8.dp)
-                    .background(Color.Black.copy(alpha = 0.7f), RoundedCornerShape(4.dp))
+                    .background(rcq.textPrimary.copy(alpha = 0.7f), RoundedCornerShape(4.dp))
                     .padding(horizontal = 6.dp, vertical = 2.dp)
             ) {
                 Text(
                     text = formatDuration(message.durationSec.toLong()),
-                    color = Color.White,
+                    color = rcq.bgPrimary,
                     style = MaterialTheme.typography.labelSmall
                 )
             }
@@ -281,6 +274,40 @@ private fun mediaUrl(mediaId: String): String =
     BuildConfig.API_BASE_URL.trimEnd('/') + "/media/$mediaId"
 
 @Composable
+private fun rememberGifImageLoader(): ImageLoader {
+    val context = LocalContext.current
+    return remember(context) {
+        ImageLoader.Builder(context)
+            .components { add(GifDecoder.Factory()) }
+            .build()
+    }
+}
+
+@Composable
+private fun MediaPlaceholder(status: MessageStatus, contentDescription: String) {
+    val rcq = LocalRCQColors.current
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        if (status == MessageStatus.SENDING) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(36.dp),
+                color = rcq.accent,
+                strokeWidth = 3.dp
+            )
+        } else {
+            Icon(
+                imageVector = Icons.Default.BrokenImage,
+                contentDescription = contentDescription,
+                modifier = Modifier.size(32.dp),
+                tint = rcq.textSecondary
+            )
+        }
+    }
+}
+
+@Composable
 fun VoiceMessageContent(
     message: Message,
     isOwnMessage: Boolean,
@@ -288,13 +315,24 @@ fun VoiceMessageContent(
     onVoicePause: () -> Unit,
     playbackState: PlaybackState
 ) {
+    val rcq = LocalRCQColors.current
+    val activeProgress = when (playbackState) {
+        PlaybackState.PLAYING, PlaybackState.PAUSED -> 0.35f
+        else -> 0f
+    }
     Row(
         modifier = Modifier
+            .width(190.dp)
             .background(
-                if (isOwnMessage) MessageSent else MessageReceived,
-                RoundedCornerShape(16.dp)
+                if (isOwnMessage) rcq.bubbleSelf else rcq.bubbleOther,
+                RoundedCornerShape(
+                    topStart = 18.dp,
+                    topEnd = 18.dp,
+                    bottomStart = if (isOwnMessage) 18.dp else 4.dp,
+                    bottomEnd = if (isOwnMessage) 4.dp else 18.dp
+                )
             )
-            .padding(12.dp),
+            .padding(horizontal = 10.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         IconButton(
@@ -312,40 +350,47 @@ fun VoiceMessageContent(
                     else -> Icons.Default.PlayArrow
                 },
                 contentDescription = if (playbackState == PlaybackState.PLAYING) "Pause" else "Play",
-                tint = if (isOwnMessage) TextOnPrimary else Primary
+                tint = rcq.accent
             )
         }
 
-        Spacer(modifier = Modifier.width(8.dp))
+        Spacer(modifier = Modifier.width(6.dp))
 
-        Column {
-            // Waveform placeholder
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(2.dp),
-                verticalAlignment = Alignment.CenterVertically
+        Column(modifier = Modifier.weight(1f)) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(3.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(rcq.textSecondary.copy(alpha = 0.28f))
             ) {
-                repeat(20) { index ->
-                    val height = (8..24).random().dp
-                    Box(
-                        modifier = Modifier
-                            .width(2.dp)
-                            .height(height)
-                            .background(
-                                if (isOwnMessage) TextOnPrimary.copy(alpha = 0.7f)
-                                else TextSecondary,
-                                RoundedCornerShape(1.dp)
-                            )
-                    )
-                }
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(activeProgress)
+                        .fillMaxHeight()
+                        .background(rcq.accent)
+                )
             }
 
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(7.dp))
 
-            Text(
-                text = formatDuration(message.durationSec.toLong()),
-                style = MaterialTheme.typography.labelSmall,
-                color = if (isOwnMessage) TextOnPrimary else TextSecondary
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = formatDuration(message.durationSec.toLong()),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = rcq.textSecondary
+                )
+                Icon(
+                    imageVector = Icons.Default.GraphicEq,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = rcq.textSecondary
+                )
+            }
         }
     }
 }

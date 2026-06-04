@@ -79,9 +79,10 @@ class NotificationHelper @Inject constructor(
         chatId: String,
         senderName: String,
         message: String,
-        unreadCount: Int = 1
+        unreadCount: Int = 1,
+        playSound: Boolean = true
     ) {
-        soundManager.play(RcqSound.MESSAGE_INCOMING)
+        if (playSound) soundManager.playMessageReceived()
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
             putExtra("chat_id", chatId)

@@ -6,6 +6,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -27,10 +28,12 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -40,12 +43,17 @@ import com.google.accompanist.permissions.rememberPermissionState
 import com.rcq.messenger.domain.model.Contact
 import com.rcq.messenger.domain.model.Group
 import com.rcq.messenger.domain.model.Message
+import com.rcq.messenger.media.PlaybackState
 import com.rcq.messenger.media.RecordingState
 import com.rcq.messenger.domain.model.MessageStatus
 import com.rcq.messenger.domain.model.MessageKind
 import com.rcq.messenger.domain.model.UserStatus
 import com.rcq.messenger.ui.chat.components.ReplyPreview
+import com.rcq.messenger.ui.chat.components.ImageMessageContent
+import com.rcq.messenger.ui.chat.components.VideoMessageContent
+import com.rcq.messenger.ui.chat.components.VoiceMessageContent
 import com.rcq.messenger.ui.common.EmoticonPicker
+import com.rcq.messenger.ui.common.EmoticonText
 import com.rcq.messenger.ui.common.AvatarImage
 import com.rcq.messenger.ui.common.StatusIndicator
 import com.rcq.messenger.ui.theme.*
@@ -53,6 +61,7 @@ import java.text.SimpleDateFormat
 import java.util.*
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.sp
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
@@ -131,6 +140,7 @@ fun ChatScreen(
                             AvatarImage(
                                 avatarUrl = chatAvatar,
                                 displayName = chatTitle,
+                                uin = if (isGroupChat) stableAvatarSeed(chatId) else targetUin,
                                 size = 36.dp
                             )
                             if (!isGroupChat && peerStatus != UserStatus.OFFLINE) {
@@ -571,25 +581,51 @@ fun MessageBubble(
     onVoicePlay: (String) -> Unit = {},
     onVoicePause: () -> Unit = {},
     isVoicePlaying: Boolean = false,
-    playbackState: Any? = null
+    playbackState: PlaybackState = PlaybackState.IDLE
 ) {
     val rcq = LocalRCQColors.current
     var showMenu by remember { mutableStateOf(false) }
     val bubbleColor = if (isOwnMessage) rcq.bubbleSelf else rcq.bubbleOther
     val textColor = rcq.textPrimary
+    var dragOffsetPx by remember(message.id) { mutableStateOf(0f) }
+    val animatedDragOffsetPx by animateFloatAsState(
+        targetValue = dragOffsetPx,
+        animationSpec = tween(durationMillis = 140),
+        label = "replyDragOffset"
+    )
+    val isVisualMedia = message.kind == MessageKind.PHOTO ||
+        message.kind == MessageKind.PREMIUM_PHOTO ||
+        message.kind == MessageKind.VIDEO ||
+        message.kind == MessageKind.PREMIUM_VIDEO
+    val bubbleShape = when {
+        isVisualMedia -> RoundedCornerShape(8.dp)
+        isOwnMessage -> RoundedCornerShape(
+            topStart = 18.dp,
+            topEnd = 18.dp,
+            bottomStart = 18.dp,
+            bottomEnd = 4.dp
+        )
+        else -> RoundedCornerShape(
+            topStart = 18.dp,
+            topEnd = 18.dp,
+            bottomStart = 4.dp,
+            bottomEnd = 18.dp
+        )
+    }
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .padding(
-                start = if (isOwnMessage) 64.dp else 8.dp,
-                end = if (isOwnMessage) 8.dp else 64.dp,
+                start = 8.dp,
+                end = 8.dp,
                 top = 2.dp,
                 bottom = 2.dp
             ),
         contentAlignment = if (isOwnMessage) Alignment.CenterEnd else Alignment.CenterStart
     ) {
         Column(
+            modifier = Modifier.fillMaxWidth(0.75f),
             horizontalAlignment = if (isOwnMessage) Alignment.End else Alignment.Start
         ) {
             if (showSenderName) {
@@ -602,20 +638,54 @@ fun MessageBubble(
                 )
             }
             Box {
-                Surface(
-                    shape = RoundedCornerShape(
-                        topStart = if (isOwnMessage) 18.dp else 4.dp,
-                        topEnd = if (isOwnMessage) 4.dp else 18.dp,
-                        bottomStart = 18.dp,
-                        bottomEnd = 18.dp
-                    ),
-                    color = bubbleColor,
-                    modifier = Modifier.combinedClickable(
-                        onClick = {},
-                        onLongClick = { showMenu = true }
+                if (animatedDragOffsetPx > 6f) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.Reply,
+                        contentDescription = null,
+                        modifier = Modifier
+                            .align(Alignment.CenterStart)
+                            .size(18.dp),
+                        tint = rcq.accent.copy(alpha = (animatedDragOffsetPx / 48f).coerceIn(0.35f, 1f))
                     )
+                }
+                Surface(
+                    shape = bubbleShape,
+                    color = bubbleColor,
+                    modifier = Modifier
+                        .offset { IntOffset(animatedDragOffsetPx.roundToInt(), 0) }
+                        .pointerInput(message.id) {
+                            var totalDrag = 0f
+                            val replyThresholdPx = 25.dp.toPx()
+                            val maxDragPx = 48.dp.toPx()
+                            detectHorizontalDragGestures(
+                                onDragCancel = {
+                                    totalDrag = 0f
+                                    dragOffsetPx = 0f
+                                },
+                                onDragEnd = {
+                                    if (totalDrag >= replyThresholdPx) onReply()
+                                    totalDrag = 0f
+                                    dragOffsetPx = 0f
+                                }
+                            ) { change, dragAmount ->
+                                totalDrag = (totalDrag + dragAmount).coerceAtLeast(0f)
+                                dragOffsetPx = totalDrag.coerceIn(0f, maxDragPx)
+                                if (dragOffsetPx > 0f) change.consume()
+                            }
+                        }
+                        .combinedClickable(
+                            onClick = {},
+                            onDoubleClick = { onReact() },
+                            onLongClick = { showMenu = true }
+                        )
                 ) {
-                    Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)) {
+                    Column(
+                        modifier = if (isVisualMedia) {
+                            Modifier.padding(0.dp)
+                        } else {
+                            Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
+                        }
+                    ) {
                         message.replyToId?.let {
                             Surface(
                                 color = rcq.accent.copy(alpha = 0.15f),
@@ -672,22 +742,27 @@ fun MessageBubble(
                                 )
                             }
                             message.kind == MessageKind.VOICE -> {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    IconButton(
-                                        onClick = {
-                                            if (isVoicePlaying) onVoicePause()
-                                            else onVoicePlay(message.mediaId ?: message.id)
-                                        },
-                                        modifier = Modifier.size(32.dp)
-                                    ) {
-                                        Icon(
-                                            if (isVoicePlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                                            contentDescription = null,
-                                            tint = rcq.accent
-                                        )
-                                    }
-                                    Text("Voice message", color = textColor, fontSize = RCQFontSize.bubble)
-                                }
+                                VoiceMessageContent(
+                                    message = message,
+                                    isOwnMessage = isOwnMessage,
+                                    onVoicePlay = { onVoicePlay(message.mediaId ?: message.id) },
+                                    onVoicePause = onVoicePause,
+                                    playbackState = if (isVoicePlaying) playbackState else PlaybackState.IDLE
+                                )
+                            }
+                            message.kind == MessageKind.PHOTO || message.kind == MessageKind.PREMIUM_PHOTO -> {
+                                ImageMessageContent(
+                                    message = message,
+                                    isOwnMessage = isOwnMessage,
+                                    onImageClick = {}
+                                )
+                            }
+                            message.kind == MessageKind.VIDEO || message.kind == MessageKind.PREMIUM_VIDEO -> {
+                                VideoMessageContent(
+                                    message = message,
+                                    isOwnMessage = isOwnMessage,
+                                    onVideoClick = {}
+                                )
                             }
                             message.kind != MessageKind.TEXT && message.content.isBlank() -> {
                                 val label = when (message.kind) {
@@ -705,7 +780,7 @@ fun MessageBubble(
                                 )
                             }
                             else -> {
-                                Text(
+                                EmoticonText(
                                     text = message.content,
                                     color = textColor,
                                     fontSize = RCQFontSize.bubble,
@@ -737,7 +812,12 @@ fun MessageBubble(
                             horizontalArrangement = Arrangement.End,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(top = 2.dp)
+                                .padding(
+                                    start = if (isVisualMedia) 8.dp else 0.dp,
+                                    end = if (isVisualMedia) 8.dp else 0.dp,
+                                    top = 2.dp,
+                                    bottom = if (isVisualMedia) 6.dp else 0.dp
+                                )
                         ) {
                             val timeStr = remember(message.timestamp) {
                                 SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(message.timestamp))
@@ -804,6 +884,9 @@ fun MessageBubble(
 
 private fun formatTimestamp(timestamp: Long): String =
     SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(timestamp))
+
+private fun stableAvatarSeed(value: String): Long =
+    value.removePrefix("direct_").toLongOrNull() ?: value.hashCode().toLong()
 
 @Composable
 fun MessageStatusIcon(status: MessageStatus) {

@@ -19,5 +19,8 @@ data class ContactEntity(
     val identityKey: String? = null,
     val signingKey: String? = null,
     val signalIdentityKey: String? = null,
-    val statusMessage: String? = null
+    val statusMessage: String? = null,
+    // true  = явно добавлен в друзья (из GET /contacts или ContactResponse accepted).
+    // false = участник группы, кэшированный только для Signal E2EE — не показывается в UI.
+    val isContact: Boolean = false
 )

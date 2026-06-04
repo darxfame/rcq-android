@@ -20,6 +20,7 @@ import com.rcq.messenger.domain.model.UserStatus
 import com.rcq.messenger.media.MediaService
 import com.rcq.messenger.media.MediaType
 import com.rcq.messenger.media.VoiceRecorder
+import com.rcq.messenger.service.SoundManager
 import com.rcq.messenger.ui.chat.inbox.InboxMapper
 import com.rcq.messenger.ui.chat.inbox.InboxUiState
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -148,6 +149,7 @@ class ChatViewModel @Inject constructor(
     private val userRepository: UserRepository,
     private val mediaService: MediaService,
     private val voiceRecorder: VoiceRecorder,
+    private val soundManager: SoundManager,
     private val dataStore: DataStore<Preferences>
 ) : ViewModel() {
     private val _messages = MutableStateFlow<List<Message>>(emptyList())
@@ -238,7 +240,7 @@ class ChatViewModel @Inject constructor(
             if (!chatId.startsWith("direct_")) {
                 groupRepository.getGroup(chatId).onSuccess { group ->
                     _chatTitle.value = group.name
-                    _memberCount.value = group.memberCount
+                    _memberCount.value = maxOf(group.memberCount, group.memberIds.size)
                     _pinnedText.value = group.pinnedText
                 }
             } else {
@@ -305,6 +307,7 @@ class ChatViewModel @Inject constructor(
             _replyTo.value = null
 
             chatRepository.sendMessage(chatId, message)
+                .onSuccess { soundManager.playMessageSent() }
                 .onFailure { _sendError.value = "Send failed: ${it.message}" }
         }
     }
@@ -336,6 +339,7 @@ class ChatViewModel @Inject constructor(
                     status = MessageStatus.SENDING
                 )
                 chatRepository.sendMessage(chatId, message)
+                    .onSuccess { soundManager.playMessageSent() }
                     .onFailure { _sendError.value = "Failed to send photo: ${it.message}" }
             }.onFailure { _sendError.value = "Upload failed: ${it.message}" }
         }
@@ -367,6 +371,7 @@ class ChatViewModel @Inject constructor(
                         status = MessageStatus.SENDING
                     )
                     chatRepository.sendMessage(chatId, message)
+                        .onSuccess { soundManager.playMessageSent() }
                         .onFailure { _sendError.value = "Failed to send voice: ${it.message}" }
                 }.onFailure { _sendError.value = "Upload failed: ${it.message}" }
             }.onFailure { _sendError.value = "Recording failed: ${it.message}" }
@@ -397,6 +402,7 @@ class ChatViewModel @Inject constructor(
                     status = MessageStatus.SENDING
                 )
                 chatRepository.sendMessage(chatId, message)
+                    .onSuccess { soundManager.playMessageSent() }
                     .onFailure { _sendError.value = "Failed to send video: ${it.message}" }
             }.onFailure { _sendError.value = "Upload failed: ${it.message}" }
         }
@@ -427,6 +433,7 @@ class ChatViewModel @Inject constructor(
                     status = MessageStatus.SENDING
                 )
                 chatRepository.sendMessage(chatId, message)
+                    .onSuccess { soundManager.playMessageSent() }
                     .onFailure { _sendError.value = "Failed to send location: ${it.message}" }
             } catch (e: SecurityException) {
                 _sendError.value = "Location permission required"
@@ -456,6 +463,7 @@ class ChatViewModel @Inject constructor(
                     status = MessageStatus.SENDING
                 )
                 chatRepository.sendMessage(chatId, message)
+                    .onSuccess { soundManager.playMessageSent() }
                     .onFailure { _sendError.value = "Failed to send file: ${it.message}" }
             }.onFailure { _sendError.value = "Upload failed: ${it.message}" }
         }
@@ -498,6 +506,7 @@ class ChatViewModel @Inject constructor(
                 status = MessageStatus.SENDING
             )
             chatRepository.sendMessage(targetChatId, forwarded)
+                .onSuccess { soundManager.playMessageSent() }
                 .onFailure { _sendError.value = "Forward failed: ${it.message}" }
         }
     }

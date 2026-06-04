@@ -99,9 +99,9 @@ object Routes {
     fun qr(uin: Long) = "qr/$uin"
 }
 
+// Contacts shown inline in ChatsScreen — matches iOS single-screen pattern.
 val bottomNavItems = listOf(
     Screen.Chats,
-    Screen.Contacts,
     Screen.AudioRooms,
     Screen.Stories,
     Screen.Settings

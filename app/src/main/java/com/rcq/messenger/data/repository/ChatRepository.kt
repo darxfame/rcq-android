@@ -37,6 +37,7 @@ import javax.inject.Singleton
 import com.rcq.messenger.data.websocket.ConnectionState
 import com.rcq.messenger.data.websocket.WebSocketService
 import com.rcq.messenger.data.websocket.WsEvent
+import com.rcq.messenger.service.SoundManager
 
 @Singleton
 class UserRepository @Inject constructor(
@@ -178,12 +179,19 @@ class ContactRepository @Inject constructor(
     }
 
     private suspend fun ensureDevContact() {
-        if (contactDao.getContactByUserId(DEV_UIN) != null) return
+        val existing = contactDao.getContactByUserId(DEV_UIN)
+        // If already present AND marked as a real contact — nothing to do.
+        if (existing != null && existing.isContact) return
+        // If present but isContact=0 (e.g. after migration reset) — force-update the flag.
+        if (existing != null) {
+            contactDao.insertContact(existing.copy(isContact = true))
+            return
+        }
         val insertedFromServer = runCatching {
             api.getUserByUin(DEV_UIN).let { resp ->
                 if (resp.isSuccessful) {
                     resp.body()?.let { user ->
-                        contactDao.insertContact(user.toContactEntity())
+                        contactDao.insertContact(user.toContactEntity()) // toContactEntity sets isContact=true
                         Log.d("ContactRepository", "Dev contact ($DEV_UIN) auto-added")
                         return@runCatching true
                     }
@@ -200,7 +208,8 @@ class ContactRepository @Inject constructor(
                 ContactEntity(
                     userId = DEV_UIN,
                     nickname = ".Dev",
-                    status = UserStatus.ONLINE.name
+                    status = UserStatus.ONLINE.name,
+                    isContact = true
                 )
             )
             Log.w("ContactRepository", "Dev contact ($DEV_UIN) inserted from local fallback")
@@ -294,6 +303,7 @@ class ChatRepository @Inject constructor(
     private val webSocketService: WebSocketService,
     private val cryptoService: CryptoService,
     private val notificationHelper: com.rcq.messenger.service.NotificationHelper,
+    private val soundManager: SoundManager,
     private val outboxDao: PendingOutboxDao
 ) {
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
@@ -414,6 +424,9 @@ class ChatRepository @Inject constructor(
 
                             // Upsert chat row + notification
                             val existingChat = chatDao.getChat(chatId)
+                            if (existingChat?.isMuted != true) {
+                                soundManager.playMessageReceived()
+                            }
                             val senderName = existingChat?.targetNickname
                                 ?: contactDao.getContactByUserId(senderUin)?.nickname
                                 ?: senderUin.toString()
@@ -421,7 +434,8 @@ class ChatRepository @Inject constructor(
                                 chatId = chatId,
                                 senderName = senderName,
                                 message = msg.content.ifBlank { "📎 Attachment" },
-                                unreadCount = (existingChat?.unreadCount ?: 0) + 1
+                                unreadCount = (existingChat?.unreadCount ?: 0) + 1,
+                                playSound = false
                             )
                             upsertChatForMessage(chatId, senderUin, senderName, msg, incrementUnread = true)
                         } catch (e: Exception) {
@@ -1004,6 +1018,8 @@ private fun Contact.toEntity() = ContactEntity(
     statusMessage = statusMessage
 )
 
+// isContact=true → явно добавленный друг (из GET /contacts).
+// Участники групп вставляются с isContact=false (дефолт) — Signal-кэш, не отображается в UI.
 private fun User.toContactEntity() = ContactEntity(
     userId = id,
     nickname = nickname,
@@ -1017,7 +1033,8 @@ private fun User.toContactEntity() = ContactEntity(
     identityKey = identityKey,
     signingKey = signingKey,
     signalIdentityKey = signalIdentityKey,
-    statusMessage = statusMessage
+    statusMessage = statusMessage,
+    isContact = true
 )
 
 private fun ChatEntity.toDomain() = Chat(
@@ -1049,10 +1066,11 @@ private fun GroupApiResponse.toGroupEntity() = GroupEntity(
     id = id.toString(),
     name = name,
     avatarUrl = null,
-    description = description,
+    description = description ?: "",
     creatorId = ownerUin.toLong(),
     memberIds = members.map { it.uin.toLong() },
     adminIds = members.filter { it.role == "admin" || it.role == "owner" }.map { it.uin.toLong() },
+    memberCount = memberCount.takeIf { it > 0 } ?: members.size,
     createdAt = System.currentTimeMillis(),
     pinnedText = pinnedText
 )

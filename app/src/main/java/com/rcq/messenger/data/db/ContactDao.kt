@@ -6,7 +6,9 @@ import com.rcq.messenger.domain.model.ContactEntity
 
 @Dao
 interface ContactDao {
-    @Query("SELECT * FROM contacts WHERE isBlocked = 0 ORDER BY nickname ASC")
+    // Только явно добавленные контакты (isContact = 1). Участники групп (isContact = 0)
+    // хранятся в той же таблице для Signal E2EE, но в UI не появляются.
+    @Query("SELECT * FROM contacts WHERE isContact = 1 AND isBlocked = 0 ORDER BY nickname ASC")
     fun getContacts(): Flow<List<ContactEntity>>
 
     @Query("SELECT * FROM contacts")
