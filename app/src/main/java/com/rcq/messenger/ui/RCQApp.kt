@@ -42,6 +42,7 @@ import com.rcq.messenger.ui.contacts.CreateGroupScreen
 import com.rcq.messenger.ui.contacts.GroupBrowseScreen
 import com.rcq.messenger.ui.contacts.GroupInfoScreen
 import com.rcq.messenger.ui.contacts.NearbyScreen
+import com.rcq.messenger.ui.contacts.ContactInfoScreen
 import com.rcq.messenger.ui.common.BottomNavBar
 import com.rcq.messenger.ui.stories.*
 import com.rcq.messenger.ui.calls.*
@@ -51,7 +52,6 @@ import com.rcq.messenger.ui.settings.StealthSettingsScreen
 import com.rcq.messenger.ui.settings.PINSettingsScreen
 import com.rcq.messenger.ui.settings.ConnectionDiagnosticsScreen
 import com.rcq.messenger.ui.settings.ConnectionSettingsSheet
-import com.rcq.messenger.ui.profile.ProfileScreen
 import com.rcq.messenger.ui.calls.CallScreen
 
 sealed class Screen(
@@ -263,16 +263,17 @@ fun MainScaffold(
                     onUserClick = { userId -> navController.navigate(Routes.userProfile(userId)) }
                 )
             }
-            composable("profile/{userId}") { backStackEntry ->
+            composable(Routes.USER_PROFILE) { backStackEntry ->
                 val userId = backStackEntry.arguments?.getString("userId")?.toLongOrNull() ?: return@composable
-                ProfileScreen(
+                ContactInfoScreen(
                     userId = userId,
                     onBack = { navController.popBackStack() },
-                    onOpenChat = { chatId ->
+                    onChat = { chatId ->
                         navController.navigate(Routes.chat(chatId)) {
-                            popUpTo("profile/{userId}") { inclusive = true }
+                            popUpTo(Routes.USER_PROFILE) { inclusive = true }
                         }
-                    }
+                    },
+                    onCall = { uin -> navController.navigate(Routes.call("direct_$uin", uin)) }
                 )
             }
             composable(
