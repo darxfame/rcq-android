@@ -170,6 +170,7 @@ fun SettingsScreen(
     onNavigateToDiagnostics: () -> Unit = {},
     onNavigateToPrivacy: () -> Unit = {},
     onNavigateToNotifications: () -> Unit = {},
+    onNavigateToAbout: () -> Unit = {},
     currentStatus: String = "online",
     onSetStatus: (String) -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel()
@@ -526,7 +527,7 @@ fun SettingsScreen(
                         icon = Icons.Default.Info,
                         title = "About",
                         subtitle = "Version 1.0.0",
-                        onClick = { }
+                        onClick = onNavigateToAbout
                     )
                     SettingsItem(
                         icon = Icons.Default.Help,

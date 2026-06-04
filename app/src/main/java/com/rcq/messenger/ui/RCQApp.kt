@@ -51,6 +51,7 @@ import com.rcq.messenger.ui.settings.SettingsScreen
 import com.rcq.messenger.ui.settings.PrivacySettingsScreen
 import com.rcq.messenger.ui.settings.NotificationsSettingsScreen
 import com.rcq.messenger.ui.settings.BlockedUsersScreen
+import com.rcq.messenger.ui.settings.AboutScreen
 import com.rcq.messenger.ui.settings.StealthSettingsScreen
 import com.rcq.messenger.ui.settings.PINSettingsScreen
 import com.rcq.messenger.ui.settings.ConnectionDiagnosticsScreen
@@ -203,8 +204,12 @@ fun MainScaffold(
                     onNavigateToPin = { navController.navigate("settings/pin") },
                     onNavigateToDiagnostics = { navController.navigate("settings/diagnostics") },
                     onNavigateToPrivacy = { navController.navigate("settings/privacy") },
-                    onNavigateToNotifications = { navController.navigate("settings/notifications") }
+                    onNavigateToNotifications = { navController.navigate("settings/notifications") },
+                    onNavigateToAbout = { navController.navigate("settings/about") }
                 )
+            }
+            composable("settings/about") {
+                AboutScreen(onBack = { navController.popBackStack() })
             }
             composable("settings/notifications") {
                 NotificationsSettingsScreen(onBack = { navController.popBackStack() })
