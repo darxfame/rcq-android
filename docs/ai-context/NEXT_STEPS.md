@@ -55,10 +55,14 @@
 - [ ] ADB-validate Chat More menu, ReactionPicker, ForwardPicker, InChatSearch, polished bubbles/ticks, grouped contacts, GroupInfoScreen, group Join, room Join, and Settings status picker
 - [ ] ADB-validate Britain relay (`relay-uk-google-vision`) with contacts/groups/messages queue
 - [ ] ADB-validate explicit relay selection and custom VLESS add/select flow
+- [x] Add ContactInfoScreen, Privacy/Notifications/Blocked/About settings screens, QR code screen, and Settings navigation parity rows
+- [x] Wire GroupInfo admin settings sheet for post policy and pinned announcement
+- [x] Add sing-box hysteria2 legacy obfs config fallback attempts
+- [ ] ADB-validate ContactInfo, Privacy, Notifications, Blocked Users, About, QR scanner, and GroupSettingsSheet flows
 
 ### This Week
 - [ ] Align root app shell with iOS boot/PIN/privacy/call/audio-room overlay behavior
-- [ ] Implement iOS-backed settings screens: privacy, notifications, sounds, blocked users, server picker, accounts, about/help
+- [ ] Implement remaining iOS-backed settings gaps: sounds, server picker, accounts, help/bug report
 - [ ] Implement chat UI parity for message actions, media picker, albums, polls, link/location/voice/video/file bubbles, in-chat search
 - [ ] Crypto/message envelope parity audit and tests
 - [ ] Auth/account/recovery parity audit

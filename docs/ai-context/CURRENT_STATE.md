@@ -1,4 +1,4 @@
-# Current State — 2026-06-03
+# Current State — 2026-06-04
 
 ## Build
 - **Production Debug:** ✅ Passing via `./gradlew assembleProductionDebug`
@@ -16,7 +16,9 @@
 - Main chats screen now uses an `InboxUiState`/`InboxMapper` hub model that combines chats, contacts, and groups. Groups such as `RCQ Beta` and default contacts such as `.Dev` can appear even before they have messages.
 - Miranda/Telegram polish pass is applied at compile level: chat list rows use 44dp round avatars, status overlays, unread badges, and dividers; chat headers show avatar/status/member subtitle; text bubbles show rounded Telegram-style surfaces, inline timestamps, reaction chips, and delivery ticks; contacts default to Miranda-style Online/Away/Offline/Groups sections.
 - Chat UI iOS-parity controls: call button routes to CallScreen, group header opens GroupInfo, More menu supports group info/search/mute/clear, reactions use an emoji picker, forwarding uses a target picker, in-chat search overlay is available, and group pinned text can render above messages.
-- Group info UI exists with members, rename, leave/delete actions, and pinned text display. Group browse has a Join action. Settings has an online/away/dnd/invisible status picker.
+- Contact info route now uses Android `ContactInfoScreen` parity UI with avatar/status/UIN copy, Message/Call actions, block, and remove-contact actions.
+- Group info UI exists with members, rename, leave/delete actions, pinned text display, and owner/admin settings bottom sheet for post policy plus pinned announcement updates. Group browse has a Join action.
+- Settings has an online/away/dnd/invisible status picker plus iOS-parity navigation for Privacy, Notifications, Blocked Users, About RCQ, and My QR Code.
 - Nearby users UI exists under Contacts and calls server `GET /nearby` after fine-location permission is granted.
 - Add Contact request parity: Android sends `POST /contacts/request` with iOS-compatible `{ "to_uin": ... }`, refreshes contacts after success/duplicate, and maps HTTP 409 to a duplicate-contact error.
 - WebSocket: connect, send, receive, reconnect with backoff; Android WS URL builds `wss://` safely after OkHttp `HttpUrl` construction
@@ -33,6 +35,7 @@
 - Message send parity: `/messages/sealed` and `/messages/group-sealed` responses now mirror iOS (`delivered/queued`) status semantics in local message state, with safe handling of empty response bodies
 - Group sealed send refreshes empty/stale group membership before send, builds Signal sessions for each recipient, caches fetched signal identities, and emits one encrypted payload per non-self member.
 - Embedded bypass is dual-engine on Android: sing-box remains for compatible relays; Xray-core executable handles VLESS Reality xHTTP. Local priority relays now prefer `relay-uk-google-vision` (VLESS Reality TCP Vision via sing-box) before the xHTTP USA relay. If sing-box validation fails, fallback now passes only Xray-compatible xHTTP relays to Xray; device log confirms fallback to `relay-usa-amd-xhttp` starts successfully. HTTP body-read timeouts now count toward AUTO failover.
+- Sing-box hysteria2 config attempts now include both current obfs JSON and legacy v1.6-1.8 `obfs` / `obfs-password` fallback attempts per relay, so a single unsupported obfs format no longer prevents relay rotation.
 - PanicPIN / Biometric unlock
 - Delivery states SENT/DELIVERED/READ, typing indicators, presence
 - Edit/delete/reactions, pin/mute/archive, message search

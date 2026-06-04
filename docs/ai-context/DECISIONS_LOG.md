@@ -2,6 +2,12 @@
 
 > Non-obvious decisions and rationale. Read before architectural changes.
 
+## 2026-06-04: Hysteria2 Legacy Obfs Fallback
+
+Sing-box hysteria2 relay startup now tries a normal config first and appends `-legacy` attempts that emit old v1.6-1.8 obfs fields (`obfs: "salamander"`, `obfs-password`) for relays with an obfs password.
+
+**Why:** Bundled libbox/sing-box versions may reject the newer nested obfs object before relay rotation can prove a working key. One relay per config plus legacy attempts keeps fallback deterministic.
+
 ## 2026-05-29: Deleted WebSocketManager + WebSocketEvent
 
 Removed `WebSocketManager.kt` and `WebSocketEvent.kt`. Migrated `CallManager` to `WebSocketService`/`WsEvent`.
