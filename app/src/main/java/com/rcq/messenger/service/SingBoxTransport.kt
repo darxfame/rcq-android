@@ -198,6 +198,12 @@ internal object SingBoxConfigJsonBuilder {
                         }
                     )
                 }
+                // DNS servers use detour="direct" — must be declared as explicit outbound.
+                // Without this SingBox panics: SIGABRT "outbound detour not found: direct".
+                add(buildJsonObject {
+                    put("type", "direct")
+                    put("tag", "direct")
+                })
             }
         }.toString()
     }
