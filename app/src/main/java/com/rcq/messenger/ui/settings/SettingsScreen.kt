@@ -169,6 +169,7 @@ fun SettingsScreen(
     onNavigateToPin: () -> Unit = {},
     onNavigateToDiagnostics: () -> Unit = {},
     onNavigateToPrivacy: () -> Unit = {},
+    onNavigateToNotifications: () -> Unit = {},
     currentStatus: String = "online",
     onSetStatus: (String) -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel()
@@ -394,6 +395,12 @@ fun SettingsScreen(
                         title = "Recovery Phrase",
                         subtitle = "View your recovery phrase",
                         onClick = { showRecoveryPhrase = true }
+                    )
+                    SettingsItem(
+                        icon = Icons.Default.Notifications,
+                        title = "Notifications",
+                        subtitle = "Message, group, sound and preview alerts",
+                        onClick = onNavigateToNotifications
                     )
                     SettingsItem(
                         icon = Icons.Default.Security,

@@ -49,6 +49,7 @@ import com.rcq.messenger.ui.calls.*
 import com.rcq.messenger.ui.audio.AudioRoomsScreen
 import com.rcq.messenger.ui.settings.SettingsScreen
 import com.rcq.messenger.ui.settings.PrivacySettingsScreen
+import com.rcq.messenger.ui.settings.NotificationsSettingsScreen
 import com.rcq.messenger.ui.settings.StealthSettingsScreen
 import com.rcq.messenger.ui.settings.PINSettingsScreen
 import com.rcq.messenger.ui.settings.ConnectionDiagnosticsScreen
@@ -200,8 +201,12 @@ fun MainScaffold(
                     onNavigateToStealth = { navController.navigate("settings/stealth") },
                     onNavigateToPin = { navController.navigate("settings/pin") },
                     onNavigateToDiagnostics = { navController.navigate("settings/diagnostics") },
-                    onNavigateToPrivacy = { navController.navigate("settings/privacy") }
+                    onNavigateToPrivacy = { navController.navigate("settings/privacy") },
+                    onNavigateToNotifications = { navController.navigate("settings/notifications") }
                 )
+            }
+            composable("settings/notifications") {
+                NotificationsSettingsScreen(onBack = { navController.popBackStack() })
             }
             composable("settings/privacy") {
                 PrivacySettingsScreen(
