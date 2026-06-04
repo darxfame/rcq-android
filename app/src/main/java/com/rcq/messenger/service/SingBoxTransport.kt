@@ -82,13 +82,6 @@ object RelaySelectionPolicy {
         orderForAndroid(base, lastGoodTag = null, supportsXhttp = supportsXhttp)
             .filter { it.isTcpRelay }
 
-    /** Returns ordered relays for a specific engine type (used by ProxyManager fallback). */
-    fun selectForEngine(engine: String, base: List<RelayEntry>, lastGoodTag: String?): EmbeddedRelaySelection {
-        val supportsXhttp = engine == "xray"
-        val ordered = orderForAndroid(base, lastGoodTag = lastGoodTag, supportsXhttp = supportsXhttp)
-        return EmbeddedRelaySelection(engine, ordered)
-    }
-
     fun selectForEmbeddedTransport(
         base: List<RelayEntry>,
         lastGoodTag: String?,

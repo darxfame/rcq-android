@@ -7,7 +7,6 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
-import java.net.Socket
 import timber.log.Timber
 import java.io.File
 import java.net.HttpURLConnection
