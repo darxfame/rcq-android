@@ -18,7 +18,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
@@ -37,6 +36,7 @@ fun NearbyScreen(
     val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()
     val locationPermissionState = rememberPermissionState(Manifest.permission.ACCESS_FINE_LOCATION)
+    val rcq = LocalRCQColors.current
 
     LaunchedEffect(locationPermissionState.status.isGranted) {
         if (locationPermissionState.status.isGranted) {
@@ -66,13 +66,14 @@ fun NearbyScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Background,
-                    titleContentColor = TextPrimary,
-                    actionIconContentColor = Primary
+                    containerColor = rcq.bgPrimary,
+                    titleContentColor = rcq.textPrimary,
+                    navigationIconContentColor = rcq.textPrimary,
+                    actionIconContentColor = rcq.accent
                 )
             )
         },
-        containerColor = Background
+        containerColor = rcq.bgPrimary
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -82,15 +83,15 @@ fun NearbyScreen(
             if (isLoading) {
                 LinearProgressIndicator(
                     modifier = Modifier.fillMaxWidth(),
-                    color = Primary,
-                    trackColor = SurfaceVariant
+                    color = rcq.accent,
+                    trackColor = rcq.bgSecondary
                 )
             }
             error?.let {
                 Text(
                     text = it,
                     color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                    modifier = Modifier.padding(horizontal = RCQMetrics.screenHPad, vertical = RCQMetrics.rowHPad)
                 )
             }
             if (!locationPermissionState.status.isGranted) {
@@ -102,9 +103,9 @@ fun NearbyScreen(
                     items(users, key = { it.id }) { user ->
                         NearbyUserRow(user = user, onClick = { onUserClick(user.id) })
                         HorizontalDivider(
-                            modifier = Modifier.padding(start = 72.dp),
-                            thickness = 0.5.dp,
-                            color = SurfaceVariant.copy(alpha = 0.5f)
+                            modifier = Modifier.padding(start = RCQMetrics.screenHPad + RCQMetrics.avatarLg + RCQMetrics.rowHPad + RCQMetrics.rowHPad),
+                            thickness = RCQMetrics.dividerThick,
+                            color = rcq.divider
                         )
                     }
                 }
@@ -115,10 +116,11 @@ fun NearbyScreen(
 
 @Composable
 private fun PermissionPrompt(onRequestPermission: () -> Unit) {
+    val rcq = LocalRCQColors.current
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Button(onClick = onRequestPermission) {
-            Icon(Icons.Default.LocationOn, contentDescription = null)
-            Spacer(Modifier.width(8.dp))
+            Icon(Icons.Default.LocationOn, contentDescription = null, tint = rcq.textPrimary)
+            Spacer(Modifier.width(RCQMetrics.rowHPad))
             Text("Allow location")
         }
     }
@@ -126,47 +128,60 @@ private fun PermissionPrompt(onRequestPermission: () -> Unit) {
 
 @Composable
 private fun EmptyNearbyState() {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text("No nearby users", color = TextSecondary)
+    val rcq = LocalRCQColors.current
+    Column(
+        Modifier.fillMaxSize(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Icon(
+            Icons.Default.LocationOn,
+            contentDescription = null,
+            tint = rcq.textSecondary,
+            modifier = Modifier.size(RCQMetrics.avatarLg)
+        )
+        Spacer(Modifier.height(RCQMetrics.rowHPad))
+        Text("No one nearby", color = rcq.textSecondary)
     }
 }
 
 @Composable
 private fun NearbyUserRow(user: User, onClick: () -> Unit) {
+    val rcq = LocalRCQColors.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = RCQMetrics.screenHPad, vertical = RCQMetrics.rowHPad),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
             modifier = Modifier
-                .size(44.dp)
+                .size(RCQMetrics.avatarLg + RCQMetrics.rowHPad)
                 .clip(CircleShape)
-                .background(Primary.copy(alpha = 0.15f)),
+                .background(rcq.bgSecondary),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 text = user.nickname.firstOrNull()?.uppercase() ?: "?",
-                color = Primary,
+                color = rcq.accent,
                 fontWeight = FontWeight.Bold
             )
         }
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(RCQMetrics.rowHPad))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = user.nickname.ifBlank { user.id.toString() },
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.Medium,
-                color = TextPrimary,
+                color = rcq.textPrimary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
             Text(
-                text = user.statusMessage?.takeIf { it.isNotBlank() } ?: "Nearby",
+                text = "UIN: ${user.id}",
                 style = MaterialTheme.typography.bodySmall,
-                color = TextSecondary,
+                color = rcq.textSecondary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )

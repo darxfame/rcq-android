@@ -191,6 +191,7 @@ fun ContactsScreen(
     var searchQuery by remember { mutableStateOf("") }
     var nicknameInput by remember { mutableStateOf("") }
     var offlineCollapsed by remember { mutableStateOf(true) }
+    var showTopMenu by remember { mutableStateOf(false) }
 
     // Navigate to chat as soon as VM resolves the chatId
     LaunchedEffect(pendingChatId) {
@@ -252,17 +253,34 @@ fun ContactsScreen(
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
+            val rcq = LocalRCQColors.current
             TopAppBar(
                 title = {
                     Text(
                         text = "Contacts",
                         style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        color = rcq.textPrimary
                     )
                 },
                 actions = {
-                    IconButton(onClick = onNearby) {
-                        Icon(Icons.Default.LocationOn, contentDescription = "Nearby")
+                    Box {
+                        IconButton(onClick = { showTopMenu = true }) {
+                            Icon(Icons.Default.MoreVert, contentDescription = "More")
+                        }
+                        DropdownMenu(
+                            expanded = showTopMenu,
+                            onDismissRequest = { showTopMenu = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Nearby users", color = rcq.textPrimary) },
+                                leadingIcon = { Icon(Icons.Default.NearMe, contentDescription = null, tint = rcq.accent) },
+                                onClick = {
+                                    showTopMenu = false
+                                    onNearby()
+                                }
+                            )
+                        }
                     }
                     BadgedBox(
                         badge = {
@@ -280,9 +298,9 @@ fun ContactsScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Background,
-                    titleContentColor = TextPrimary,
-                    actionIconContentColor = Primary
+                    containerColor = rcq.bgPrimary,
+                    titleContentColor = rcq.textPrimary,
+                    actionIconContentColor = rcq.accent
                 )
             )
         },
