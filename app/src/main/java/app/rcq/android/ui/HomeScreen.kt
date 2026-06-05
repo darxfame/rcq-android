@@ -82,7 +82,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
@@ -674,10 +673,15 @@ private fun HomeHeader(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            PresenceCountdownChip(onClick = { showPresenceInfo = true })
             Box {
                 StatusIcon(ownStatus, size = 30.dp, modifier = Modifier.clip(CircleShape).clickable { statusMenu = true })
                 DropdownMenu(expanded = statusMenu, onDismissRequest = { statusMenu = false }) {
+                    // "Stay visible after you leave" countdown, top-right of the
+                    // status menu (moved here from the home header).
+                    PresenceCountdownChip(
+                        modifier = Modifier.align(Alignment.End).padding(end = 10.dp, top = 4.dp, bottom = 2.dp),
+                        onClick = { statusMenu = false; showPresenceInfo = true },
+                    )
                     listOf(UserStatus.ONLINE, UserStatus.AWAY, UserStatus.DND, UserStatus.INVISIBLE, UserStatus.OFFLINE).forEach { st ->
                         DropdownMenuItem(
                             text = { Text(stringResource(st.labelRes), color = c.textPrimary) },
@@ -695,24 +699,18 @@ private fun HomeHeader(
                 Text("$uin", color = c.textMono, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
             }
             // Right of the nick/UIN: a status-width slot holding the stealth
-            // eye when the censorship bypass is engaged (iOS StealthHeaderBadge
-            // parity) + an invisible chip mirror. The slot also balances the
-            // leading status icon + chip so the nick/UIN stays dead-centred.
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                Box(Modifier.size(30.dp), contentAlignment = Alignment.Center) {
-                    if (stealthActive) {
-                        Icon(
-                            Icons.Filled.Shield,
-                            stringResource(R.string.stealth_info_title),
-                            tint = c.accent,
-                            modifier = Modifier.size(22.dp).clip(CircleShape).clickable { showStealthInfo = true },
-                        )
-                    }
+            // shield when the censorship bypass is engaged (iOS StealthHeaderBadge
+            // parity). The 30dp slot balances the leading status icon so the
+            // nick/UIN stays dead-centred.
+            Box(Modifier.size(30.dp), contentAlignment = Alignment.Center) {
+                if (stealthActive) {
+                    Icon(
+                        Icons.Filled.Shield,
+                        stringResource(R.string.stealth_info_title),
+                        tint = c.accent,
+                        modifier = Modifier.size(22.dp).clip(CircleShape).clickable { showStealthInfo = true },
+                    )
                 }
-                PresenceCountdownChip(invisible = true)
             }
         }
 
@@ -778,7 +776,7 @@ private fun HomeHeader(
  *  window is anchored in Privacy settings (LocalStores.presenceWindow) and
  *  re-anchored whenever the user changes it; hidden when off or elapsed. */
 @Composable
-private fun PresenceCountdownChip(invisible: Boolean = false, onClick: (() -> Unit)? = null) {
+private fun PresenceCountdownChip(modifier: Modifier = Modifier, onClick: (() -> Unit)? = null) {
     val c = RcqTheme.colors
     val window by app.rcq.android.data.LocalStores.presenceWindow.collectAsState()
     val remaining by produceState<Long?>(
@@ -795,11 +793,10 @@ private fun PresenceCountdownChip(invisible: Boolean = false, onClick: (() -> Un
         }
     }
     val r = remaining ?: return
-    val mod = Modifier
-        .then(if (invisible) Modifier.alpha(0f) else Modifier)
+    val mod = modifier
         .clip(RoundedCornerShape(50))
         .background(c.bgSecondary)
-        .then(if (onClick != null && !invisible) Modifier.clickable(onClick = onClick) else Modifier)
+        .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
         .padding(horizontal = 7.dp, vertical = 3.dp)
     Row(
         verticalAlignment = Alignment.CenterVertically,
