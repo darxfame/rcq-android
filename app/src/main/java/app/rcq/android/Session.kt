@@ -1767,6 +1767,7 @@ class Session(context: Context) {
                 blocked = it.blocked,
                 gender = it.gender,
                 lastSeen = parseIso(it.last_seen),
+                callable = it.callable,
             )
         }
         if (prevPresence.isNotEmpty()) {

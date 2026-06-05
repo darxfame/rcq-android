@@ -11,6 +11,7 @@ data class Contact(
     val blocked: Boolean = false,
     val gender: String? = null,     // "m" | "f" | null (visibility-gated)
     val lastSeen: Long? = null,     // epoch millis, null when hidden/online
+    val callable: Boolean = true,   // false = peer's call_policy is "nobody" (hide call buttons)
 ) {
     /** Presence as a typed enum (server never sends `invisible` for peers). */
     val presence: UserStatus get() = UserStatus.from(status)

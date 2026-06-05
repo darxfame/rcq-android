@@ -326,6 +326,7 @@ class RcqApi(private val baseUrl: String = DEFAULT_BASE_URL) {
         val blocked: Boolean = false,
         val gender: String? = null,
         val last_seen: String? = null,   // ISO-8601, null when hidden/online
+        val callable: Boolean = true,    // false = peer's call_policy is "nobody"
         val identity_key: String?,
         val signing_key: String?,
     )

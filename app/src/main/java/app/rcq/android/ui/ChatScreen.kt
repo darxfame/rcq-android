@@ -372,8 +372,10 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
                 Text(sub, color = if (isTyping) c.accent else c.textSecondary, fontSize = 12.sp)
             }
             // 1:1 call buttons (own clicks consume the tap so the header's
-            // open-info click doesn't also fire).
-            if (!isGroup && !isSelf && peer != null) {
+            // open-info click doesn't also fire). Hidden when the peer's
+            // call_policy is "nobody" (callable=false); the server enforces it
+            // on the offer too.
+            if (!isGroup && !isSelf && peer != null && peerContact?.callable != false) {
                 Icon(
                     Icons.Filled.Call, stringResource(R.string.call_voice_cd), tint = c.accent,
                     modifier = Modifier.size(24.dp).clip(CircleShape).clickable { placeCall(app.rcq.android.call.CallController.Media.AUDIO) },
