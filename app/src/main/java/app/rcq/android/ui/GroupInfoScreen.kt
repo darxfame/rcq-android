@@ -171,8 +171,12 @@ internal fun GroupInfoScreen(session: Session, groupId: Int, onBack: () -> Unit,
             }
         }
 
+        // Owner first, then admins, then everyone else (stable within a rank).
+        val sortedMembers = remember(group.members) {
+            group.members.sortedBy { when (it.role) { "owner" -> 0; "admin" -> 1; else -> 2 } }
+        }
         LazyColumn(Modifier.weight(1f).fillMaxWidth()) {
-            items(group.members, key = { it.uin }) { m ->
+            items(sortedMembers, key = { it.uin }) { m ->
                 Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     StatusIcon(m.presence, size = 26.dp)
                     Column(Modifier.weight(1f)) {

@@ -202,6 +202,17 @@ class Session(context: Context) {
     // re-probing /keys/{uin}/bundle on every message. Cleared on account
     // switch (a peer may publish a bundle later; we re-probe next session).
     private val noV2Peers = java.util.concurrent.ConcurrentHashMap.newKeySet<Int>()
+
+    // v=2 (libsignal Double Ratchet) OUTBOUND is disabled: Android's libsignal
+    // (0.86.5) and iOS's (0.93.1) don't interop on the v=2 wire yet, so a v=2
+    // message sent to an iOS peer can't be decrypted there — it surfaces as a
+    // generic "Message" push, never lands in the chat, and the sender stays on
+    // one checkmark (no delivery ack). Until the cross-device path is verified
+    // we send v=1 (sealed sender, ECIES) for every 1:1 — still E2E, the same
+    // crypto groups already use. INBOUND v=2 is still decrypted (a peer that
+    // sends us v=2 keeps working). Flip back to true to re-enable v=2 sending
+    // once Android↔iOS v=2 is confirmed on a real device.
+    private val v2OutboundEnabled = false
     // media_id -> decrypted plaintext bytes (sender seeds it; receiver caches).
     private val imageCache = java.util.concurrent.ConcurrentHashMap<String, ByteArray>()
 
@@ -469,6 +480,34 @@ class Session(context: Context) {
         }
     }
 
+    /** Quick toggle for the obfuscated transport (the home "censorship bypass"
+     *  control). Unlike the Settings switch — which only persists the pref and
+     *  applies on next launch — this engages/drops sing-box LIVE: rebuild the
+     *  API + socket so they capture (or release) the SOCKS proxy, then
+     *  reconnect. Lets a user who's being blocked turn the tunnel on and have
+     *  messages start flowing without restarting the app. */
+    fun setObfuscation(on: Boolean) {
+        val transport = app.rcq.android.net.SingBoxTransport
+        transport.setEnabled(appCtx, on)
+        val uin = store.uin ?: return
+        val token = store.token ?: return
+        scope.launch {
+            if (on && !transport.isActive) {
+                app.rcq.android.net.RelayConfigStore.prime(appCtx)
+                transport.start()
+            } else if (!on && transport.isActive) {
+                transport.stop()
+            }
+            // Rebuild so the captured proxy matches the new transport state,
+            // then reconnect the live channel.
+            socket.disconnect()
+            api = newApi()
+            socket = newSocket()
+            _stealthActive.value = transport.isActive
+            connectAndSync(uin, token)
+        }
+    }
+
     /** Open the WebSocket + pull the contact graph. Split out of [start] so the
      *  transport engage can run first on a background coroutine. */
     private fun connectAndSync(uin: Int, token: String) {
@@ -648,6 +687,16 @@ class Session(context: Context) {
     }
 
     suspend fun removeDecoyPin(): Boolean = withContext(Dispatchers.IO) { PanicPinService.removeDecoyPin(appCtx) }
+
+    /** File a bug report — rides the /reports queue with context=bug_bounty
+     *  (iOS parity; target is self, which the backend allows for bug_bounty).
+     *  The platform + app version are tagged into the text so the admin queue
+     *  shows which client a report came from. */
+    suspend fun submitBugReport(text: String): Boolean {
+        val me = store.uin ?: return false
+        val tag = "[Android ${app.rcq.android.BuildConfig.VERSION_NAME}]"
+        return runCatching { api.report(me, "$tag $text", "bug_bounty") }.isSuccess
+    }
 
     // ── biometric unlock (panic-PIN phase 4) ─────────────────────────
 
@@ -1124,31 +1173,39 @@ class Session(context: Context) {
 
     /** Encrypt [env] once per member (skipping self) and POST the fan-out;
      *  flips the local bubble's delivery state. Shared by send + resend. */
-    private suspend fun fanOutGroup(groupId: Int, env: Envelope, id: String) {
-        val me = store.uin ?: return
-        val group = group(groupId) ?: return
+    private suspend fun fanOutGroup(groupId: Int, env: Envelope, id: String) = withContext(Dispatchers.IO) {
+        val me = store.uin ?: return@withContext
+        val group = group(groupId) ?: return@withContext
+        // Encrypt once per member, off the main thread (a big group's fan-out is
+        // hundreds of X25519 ops + a large POST — on the UI thread it froze the
+        // chat and the retry's pool-evict even threw NetworkOnMainThread). A
+        // single member whose identity key isn't a valid X25519 point (a legacy
+        // or other-client key) must NOT sink the whole send: skip it and deliver
+        // to everyone else, instead of failing the message for the whole group.
+        var skipped = 0
+        val payloads = group.members
+            .filter { it.uin != me && it.identityKey.isNotEmpty() }
+            .mapNotNull { m ->
+                runCatching {
+                    RcqApi.GroupPayload(
+                        to_uin = m.uin,
+                        payload = SealedSender.encryptV1(
+                            envelope = env,
+                            recipientIdentityPub = Base64.decode(m.identityKey, Base64.NO_WRAP),
+                            ownUin = me,
+                            signingPriv = signingPriv(),
+                            signingPub = signingPub(),
+                        ),
+                    )
+                }.getOrElse { skipped++; null }
+            }
+        if (skipped > 0) android.util.Log.w("RCQgroup", "group $groupId: skipped $skipped member(s) with an unusable identity key")
         try {
-            val resp = withRetry {
-                val payloads = group.members
-                    .filter { it.uin != me && it.identityKey.isNotEmpty() }
-                    .map { m ->
-                        RcqApi.GroupPayload(
-                            to_uin = m.uin,
-                            payload = SealedSender.encryptV1(
-                                envelope = env,
-                                recipientIdentityPub = Base64.decode(m.identityKey, Base64.NO_WRAP),
-                                ownUin = me,
-                                signingPriv = signingPriv(),
-                                signingPub = signingPub(),
-                            ),
-                        )
-                    }
-                if (payloads.isEmpty()) {
-                    // Lone member (everyone else left) — nothing to send, treat as sent.
-                    RcqApi.SendResponse(delivered = false)
-                } else {
-                    api.sendGroupSealed(groupId, payloads)
-                }
+            val resp = if (payloads.isEmpty()) {
+                // Lone member, or every other key is unusable — nothing to send.
+                RcqApi.SendResponse(delivered = false)
+            } else {
+                withRetry { api.sendGroupSealed(groupId, payloads) }
             }
             updateGroupMsgState(groupId, id, if (resp.delivered) DeliveryState.DELIVERED else DeliveryState.SENT)
         } catch (e: Exception) {
@@ -1501,7 +1558,7 @@ class Session(context: Context) {
     private suspend fun encryptFor(toUin: Int, env: Envelope): String {
         val me = store.uin ?: error("not registered")
         val recipientPub = recipientKey(toUin)
-        if (signalStores.hasLocalIdentity() && toUin !in noV2Peers) {
+        if (v2OutboundEnabled && signalStores.hasLocalIdentity() && toUin !in noV2Peers) {
             if (SignalSession.ensureSession(signalStores, api, toUin)) {
                 runCatching {
                     return SignalSession.encrypt(signalStores, env, recipientPub, toUin, me)
@@ -1641,23 +1698,27 @@ class Session(context: Context) {
     }
 
     /** Fan a control envelope out to every other group member, best effort. */
-    private suspend fun fanOutControl(groupId: Int, env: Envelope) {
-        val me = store.uin ?: return
-        val group = group(groupId) ?: return
+    private suspend fun fanOutControl(groupId: Int, env: Envelope) = withContext(Dispatchers.IO) {
+        val me = store.uin ?: return@withContext
+        val group = group(groupId) ?: return@withContext
         runCatching {
+            // Same per-member isolation as fanOutGroup: one unusable key must not
+            // drop the reaction/edit/delete for the whole group.
             val payloads = group.members
                 .filter { it.uin != me && it.identityKey.isNotEmpty() }
-                .map { m ->
-                    RcqApi.GroupPayload(
-                        to_uin = m.uin,
-                        payload = SealedSender.encryptV1(
-                            envelope = env,
-                            recipientIdentityPub = Base64.decode(m.identityKey, Base64.NO_WRAP),
-                            ownUin = me,
-                            signingPriv = signingPriv(),
-                            signingPub = signingPub(),
-                        ),
-                    )
+                .mapNotNull { m ->
+                    runCatching {
+                        RcqApi.GroupPayload(
+                            to_uin = m.uin,
+                            payload = SealedSender.encryptV1(
+                                envelope = env,
+                                recipientIdentityPub = Base64.decode(m.identityKey, Base64.NO_WRAP),
+                                ownUin = me,
+                                signingPriv = signingPriv(),
+                                signingPub = signingPub(),
+                            ),
+                        )
+                    }.getOrNull()
                 }
             if (payloads.isNotEmpty()) withRetry { api.sendGroupSealed(groupId, payloads) }
         }

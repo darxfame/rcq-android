@@ -51,13 +51,14 @@ import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.PersonRemove
 import androidx.compose.material.icons.filled.QrCode2
+import androidx.activity.compose.BackHandler
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.filled.Unarchive
-import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.Block
 import androidx.compose.material.icons.outlined.Schedule
@@ -247,6 +248,7 @@ internal fun HomeScreen(
                 onOpenAudioRooms = onOpenAudioRooms,
                 onOpenRadio = onOpenRadio,
                 onPostStory = { storyPicker.launch("image/*") },
+                onToggleBypass = { session.setObfuscation(it) },
                 onComingSoon = { comingSoon = it },
                 onSwitchAccount = onSwitchAccount,
                 onAddAccount = { showAddAccount = true },
@@ -332,6 +334,7 @@ internal fun HomeScreen(
         }
 
         if (showSearch) {
+            BackHandler { showSearch = false }
             SearchOverlay(
                 contacts = contacts,
                 onClose = { showSearch = false },
@@ -581,6 +584,7 @@ private fun HomeHeader(
     onOpenAudioRooms: () -> Unit,
     onOpenRadio: () -> Unit,
     onPostStory: () -> Unit,
+    onToggleBypass: (Boolean) -> Unit,
     onComingSoon: (String) -> Unit,
     onSwitchAccount: (String) -> Unit,
     onAddAccount: () -> Unit,
@@ -701,7 +705,7 @@ private fun HomeHeader(
                 Box(Modifier.size(30.dp), contentAlignment = Alignment.Center) {
                     if (stealthActive) {
                         Icon(
-                            Icons.Filled.VisibilityOff,
+                            Icons.Filled.Shield,
                             stringResource(R.string.stealth_info_title),
                             tint = c.accent,
                             modifier = Modifier.size(22.dp).clip(CircleShape).clickable { showStealthInfo = true },
@@ -719,6 +723,11 @@ private fun HomeHeader(
                 modifier = Modifier.size(26.dp).clip(CircleShape).clickable { overflowMenu = true },
             )
             DropdownMenu(expanded = overflowMenu, onDismissRequest = { overflowMenu = false }) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(if (stealthActive) R.string.home_menu_bypass_disable else R.string.home_menu_bypass_enable), color = c.textPrimary) },
+                    leadingIcon = { Icon(Icons.Filled.Shield, null, tint = if (stealthActive) c.accent else c.textSecondary) },
+                    onClick = { overflowMenu = false; onToggleBypass(!stealthActive) },
+                )
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.home_menu_add_contact), color = c.textPrimary) },
                     leadingIcon = { Icon(Icons.Filled.PersonAdd, null, tint = c.accent) },
@@ -985,7 +994,7 @@ private fun ConnectingState(stealth: Boolean = false) {
         // stealth" parity) instead of silently looking stuck.
         if (stealth) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Icon(Icons.Filled.VisibilityOff, null, tint = c.accent, modifier = Modifier.size(15.dp))
+                Icon(Icons.Filled.Shield, null, tint = c.accent, modifier = Modifier.size(15.dp))
                 Text(stringResource(R.string.connecting_stealth), color = c.accent, fontSize = 12.sp)
             }
         }

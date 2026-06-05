@@ -39,6 +39,7 @@ import androidx.compose.material.icons.filled.Password
 import androidx.compose.material.icons.filled.Sell
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.NetworkCheck
+import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.Lock
@@ -155,6 +156,10 @@ private fun SettingsRoot(
     var confirmMigrate by remember { mutableStateOf(false) }
     var migrating by remember { mutableStateOf(false) }
     var showAbout by remember { mutableStateOf(false) }
+    var showBugReport by remember { mutableStateOf(false) }
+    var bugText by remember { mutableStateOf("") }
+    var bugSending by remember { mutableStateOf(false) }
+    var bugSent by remember { mutableStateOf(false) }
     // Manual update check from the About sheet (so a "Later"-dismissed update is
     // still reachable, tester #2).
     var updChecking by remember { mutableStateOf(false) }
@@ -239,6 +244,7 @@ private fun SettingsRoot(
             SectionLabel(stringResource(R.string.settings_sec_about))
             SettingsGroup {
                 SettingsRow(Icons.Filled.Info, stringResource(R.string.settings_row_about), value = appVersion(context)) { showAbout = true }
+                SettingsRow(Icons.Filled.BugReport, stringResource(R.string.settings_row_report_bug)) { bugText = ""; bugSent = false; showBugReport = true }
             }
 
             Spacer(Modifier.height(22.dp))
@@ -316,6 +322,48 @@ private fun SettingsRoot(
             confirm = stringResource(R.string.cs_burn_cta), destructive = true,
             onConfirm = { confirmBurn = false; scope.launch { onBurned(session.burnAccount()) } },
             onDismiss = { confirmBurn = false },
+        )
+    }
+    if (showBugReport) {
+        AlertDialog(
+            onDismissRequest = { showBugReport = false },
+            containerColor = c.bgSecondary,
+            confirmButton = {
+                if (bugSent) {
+                    TextButton(onClick = { showBugReport = false }) { Text(stringResource(R.string.common_done), color = c.accent) }
+                } else {
+                    TextButton(
+                        enabled = bugText.trim().length >= 5 && !bugSending,
+                        onClick = {
+                            bugSending = true
+                            scope.launch {
+                                val ok = session.submitBugReport(bugText.trim())
+                                bugSending = false
+                                if (ok) bugSent = true
+                            }
+                        },
+                    ) { Text(stringResource(if (bugSending) R.string.bug_report_sending else R.string.bug_report_send), color = c.accent) }
+                }
+            },
+            dismissButton = { if (!bugSent) TextButton(onClick = { showBugReport = false }) { Text(stringResource(R.string.common_cancel), color = c.textSecondary) } },
+            icon = { Icon(Icons.Filled.BugReport, null, tint = c.accent) },
+            title = { Text(stringResource(R.string.settings_row_report_bug), color = c.textPrimary) },
+            text = {
+                if (bugSent) {
+                    Text(stringResource(R.string.bug_report_sent), color = c.textSecondary, fontSize = 14.sp)
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(stringResource(R.string.bug_report_hint), color = c.textSecondary, fontSize = 12.sp)
+                        OutlinedTextField(
+                            value = bugText,
+                            onValueChange = { if (it.length <= 1000) bugText = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            minLines = 3,
+                            placeholder = { Text(stringResource(R.string.bug_report_placeholder), color = c.textSecondary) },
+                        )
+                    }
+                }
+            },
         )
     }
     if (showAbout) {

@@ -22,6 +22,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Mood
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -54,6 +55,7 @@ fun HoodChatScreen(session: Session, bucket: String, onBack: () -> Unit) {
     val count by hood.bucketCount.collectAsState()
     val ownUin = session.uin
     var draft by remember { mutableStateOf("") }
+    var showEmoji by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
 
     DisposableEffect(bucket) {
@@ -90,10 +92,11 @@ fun HoodChatScreen(session: Session, bucket: String, onBack: () -> Unit) {
                         .background(if (mine) c.accent.copy(alpha = 0.14f) else c.bgSecondary).padding(10.dp),
                 ) {
                     Text(m.nickname, color = c.accent, fontSize = 12.sp, fontWeight = FontWeight.Medium)
-                    Text(
-                        if (m.deleted) stringResource(R.string.hood_deleted) else m.body,
-                        color = if (m.deleted) c.textSecondary else c.textPrimary, fontSize = 15.sp,
-                    )
+                    if (m.deleted) {
+                        Text(stringResource(R.string.hood_deleted), color = c.textSecondary, fontSize = 15.sp)
+                    } else {
+                        EmoticonText(m.body, color = c.textPrimary, fontSize = 15.sp)
+                    }
                     if (m.reactions.isNotEmpty()) {
                         Text(m.reactions.keys.joinToString(" "), fontSize = 13.sp, modifier = Modifier.padding(top = 2.dp))
                     }
@@ -101,7 +104,15 @@ fun HoodChatScreen(session: Session, bucket: String, onBack: () -> Unit) {
             }
         }
 
+        if (showEmoji) EmoticonPanel(onPick = { draft = (draft + it).take(500) })
         Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                Icons.Filled.Mood,
+                stringResource(R.string.chat_emoticons),
+                tint = if (showEmoji) c.accent else c.textSecondary,
+                modifier = Modifier.size(28.dp).clip(CircleShape).clickable { showEmoji = !showEmoji },
+            )
+            Spacer(Modifier.width(8.dp))
             OutlinedTextField(
                 value = draft, onValueChange = { draft = it.take(500) },
                 placeholder = { Text(stringResource(R.string.hood_hint)) },

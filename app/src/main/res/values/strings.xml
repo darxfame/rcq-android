@@ -219,6 +219,8 @@
     <!-- Audio rooms -->
     <string name="home_menu_audio_rooms">Audio rooms</string>
     <string name="home_menu_radio">Radio</string>
+    <string name="home_menu_bypass_enable">Turn on censorship bypass</string>
+    <string name="home_menu_bypass_disable">Turn off censorship bypass</string>
 
     <!-- Radio (offline BLE + Wi-Fi Direct) -->
     <string name="radio_title">Radio</string>
@@ -312,6 +314,12 @@
     <string name="settings_row_blocked">Blocked users</string>
     <string name="settings_row_clear_history">Clear chat history</string>
     <string name="settings_row_about">About RCQ</string>
+    <string name="settings_row_report_bug">Report a bug</string>
+    <string name="bug_report_hint">Describe what went wrong. Your platform and app version are attached automatically.</string>
+    <string name="bug_report_placeholder">What happened?</string>
+    <string name="bug_report_send">Send</string>
+    <string name="bug_report_sending">Sending…</string>
+    <string name="bug_report_sent">Thanks. Your report was sent.</string>
     <string name="settings_row_move_uin">Move to a new UIN</string>
     <string name="settings_row_burn">Burn account</string>
 
@@ -628,7 +636,9 @@
     <string name="chat_spoiler_off_hint">Tap the preview to hide it as a spoiler.</string>
     <string name="chat_spoiler_on_hint">Hidden. The recipient taps to reveal it.</string>
     <string name="chat_spoiler_reveal">Tap to view</string>
-    <string name="chat_record_voice">Record voice</string>
+    <string name="chat_record_voice">Hold to record</string>
+    <string name="chat_voice_slide_cancel">Slide up to cancel</string>
+    <string name="chat_voice_release_cancel">Release to cancel</string>
     <string name="chat_input_hint">Message</string>
     <string name="chat_play_voice">Play voice</string>
     <string name="chat_play_video">Play video</string>

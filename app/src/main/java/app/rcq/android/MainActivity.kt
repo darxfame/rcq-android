@@ -1,6 +1,7 @@
 package app.rcq.android
 
 import android.os.Bundle
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.Image
@@ -203,6 +204,31 @@ private fun RcqApp(session: Session) {
         val target = chatTarget
         val infoId = groupInfoId
         val peerInfo = peerInfoUin
+        // Hardware/system Back pops the topmost in-app screen (same precedence
+        // as the `when` below) instead of finishing the Activity. On Home with
+        // nothing open it's disabled, so Back exits the app as usual.
+        val backPopsOverlay = (s is UiState.Registered && !locked && (
+            groupInfoId != null || peerInfoUin != null || chatTarget != null ||
+                showManageAccounts || showNews || showOutgoing || showRandom ||
+                showAudioRooms || showNearby || showRadio || showProfile || showSettings
+            )) || (s is UiState.Onboarding && showRestore)
+        BackHandler(enabled = backPopsOverlay) {
+            when {
+                groupInfoId != null -> groupInfoId = null
+                peerInfoUin != null -> peerInfoUin = null
+                chatTarget != null -> chatTarget = null
+                showManageAccounts -> showManageAccounts = false
+                showNews -> showNews = false
+                showOutgoing -> showOutgoing = false
+                showRandom -> showRandom = false
+                showAudioRooms -> showAudioRooms = false
+                showNearby -> showNearby = false
+                showRadio -> showRadio = false
+                showProfile -> showProfile = false
+                showSettings -> showSettings = false
+                showRestore -> showRestore = false
+            }
+        }
         when {
             s is UiState.Registered && locked -> app.rcq.android.ui.PinLockScreen(
                 session,

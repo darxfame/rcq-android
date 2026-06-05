@@ -218,6 +218,8 @@
     <!-- Audio rooms -->
     <string name="home_menu_audio_rooms">Аудиокомнаты</string>
     <string name="home_menu_radio">Рация</string>
+    <string name="home_menu_bypass_enable">Включить обход блокировок</string>
+    <string name="home_menu_bypass_disable">Выключить обход блокировок</string>
 
     <!-- Radio (офлайн BLE + Wi-Fi Direct) -->
     <string name="radio_title">Рация</string>
@@ -311,6 +313,12 @@
     <string name="settings_row_blocked">Заблокированные</string>
     <string name="settings_row_clear_history">Очистить историю чатов</string>
     <string name="settings_row_about">О RCQ</string>
+    <string name="settings_row_report_bug">Сообщить о баге</string>
+    <string name="bug_report_hint">Опишите, что пошло не так. Платформа и версия приложения добавятся автоматически.</string>
+    <string name="bug_report_placeholder">Что случилось?</string>
+    <string name="bug_report_send">Отправить</string>
+    <string name="bug_report_sending">Отправка…</string>
+    <string name="bug_report_sent">Спасибо. Репорт отправлен.</string>
     <string name="settings_row_move_uin">Сменить UIN</string>
     <string name="settings_row_burn">Сжечь аккаунт</string>
 
@@ -627,7 +635,9 @@
     <string name="chat_spoiler_off_hint">Нажмите на превью, чтобы скрыть его под спойлером.</string>
     <string name="chat_spoiler_on_hint">Скрыто. Получатель нажмёт, чтобы открыть.</string>
     <string name="chat_spoiler_reveal">Нажмите, чтобы открыть</string>
-    <string name="chat_record_voice">Записать голос</string>
+    <string name="chat_record_voice">Удерживайте для записи</string>
+    <string name="chat_voice_slide_cancel">Вверх, чтобы отменить</string>
+    <string name="chat_voice_release_cancel">Отпустите для отмены</string>
     <string name="chat_input_hint">Сообщение</string>
     <string name="chat_play_voice">Воспроизвести голос</string>
     <string name="chat_play_video">Воспроизвести видео</string>

@@ -43,7 +43,7 @@ class RcqApi(private val baseUrl: String = DEFAULT_BASE_URL) {
      *  keep-alive often dies silently, and reusing it is exactly why a
      *  message sometimes "needs to be sent 3 times". Forcing a fresh
      *  connection on retry automates that manual resend. */
-    fun evictConnections() {
+    suspend fun evictConnections() = withContext(Dispatchers.IO) {
         client.connectionPool.evictAll()
     }
 

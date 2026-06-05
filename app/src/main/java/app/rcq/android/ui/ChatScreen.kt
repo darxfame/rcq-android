@@ -24,8 +24,11 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.rememberTransformableState
 import androidx.compose.foundation.gestures.transformable
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.text.KeyboardOptions
@@ -50,6 +53,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -192,6 +196,8 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
     var showGroupPicker by remember { mutableStateOf(false) }
     // Decrypted bytes of a photo opened for fullscreen viewing (tester #10).
     var fullscreenImage by remember { mutableStateOf<ByteArray?>(null) }
+    // Tapping the (2-line, truncated) pinned banner opens the full text.
+    var showPinSheet by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
 
     fun authorName(m: ChatMessage): String = when {
@@ -438,8 +444,41 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
                             if (mUin != ownUin) onOpenPeerInfo(mUin)
                             return@ClickableText
                         }
-                        annotated.getStringAnnotations("URL", offset, offset).firstOrNull()?.let { runCatching { uriHandler.openUri(it.item) } }
+                        annotated.getStringAnnotations("URL", offset, offset).firstOrNull()?.let {
+                            runCatching { uriHandler.openUri(it.item) }
+                            return@ClickableText
+                        }
+                        // Tapping the banner anywhere else expands the full pin
+                        // (the banner is clipped to two lines).
+                        showPinSheet = true
                     },
+                )
+            }
+            if (showPinSheet) {
+                AlertDialog(
+                    onDismissRequest = { showPinSheet = false },
+                    confirmButton = {
+                        TextButton(onClick = { showPinSheet = false }) {
+                            Text(stringResource(R.string.common_close), color = c.accent)
+                        }
+                    },
+                    icon = { Icon(Icons.Filled.PushPin, null, tint = c.accent) },
+                    title = { Text(stringResource(R.string.gi_pinned), color = c.textPrimary) },
+                    text = {
+                        ClickableText(
+                            text = annotated,
+                            style = TextStyle(color = c.textPrimary, fontSize = 14.sp),
+                            onClick = { offset ->
+                                annotated.getStringAnnotations("MENTION", offset, offset).firstOrNull()?.let {
+                                    val mUin = it.item.toInt()
+                                    if (mUin != ownUin) { showPinSheet = false; onOpenPeerInfo(mUin) }
+                                    return@ClickableText
+                                }
+                                annotated.getStringAnnotations("URL", offset, offset).firstOrNull()?.let { runCatching { uriHandler.openUri(it.item) } }
+                            },
+                        )
+                    },
+                    containerColor = c.bgSecondary,
                 )
             }
         }
@@ -686,6 +725,7 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
     // In-chat message search — stacks over the thread (it's a later child of
     // the host Box). Tapping a hit scrolls the list to that message.
     if (showSearch) {
+        BackHandler { showSearch = false }
         InChatSearchOverlay(
             messages = messages,
             onClose = { showSearch = false },
@@ -714,75 +754,100 @@ private fun Composer(
     onCancelVoice: () -> Unit,
 ) {
     val c = RcqTheme.colors
-    if (recording) {
-        // Recording bar: cancel · ● rec timer · send.
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Icon(
-                Icons.Filled.Close, stringResource(R.string.common_cancel), tint = c.textSecondary,
-                modifier = Modifier.size(40.dp).clip(CircleShape).clickable(onClick = onCancelVoice).padding(8.dp),
-            )
-            Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Box(Modifier.size(10.dp).clip(CircleShape).background(Color(0xFFE5484D)))
-                Text(stringResource(R.string.chat_recording, formatDuration(recElapsed)), color = c.textPrimary, fontSize = 15.sp)
-            }
-            Box(
-                Modifier.size(40.dp).clip(CircleShape).background(c.accent).clickable(onClick = onStopVoice),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(Icons.AutoMirrored.Filled.Send, stringResource(R.string.chat_send), tint = Color.White, modifier = Modifier.size(20.dp))
-            }
-        }
-        return
-    }
     val keyboard = LocalSoftwareKeyboardController.current
     var showEmoji by remember { mutableStateOf(false) }
+    // Hold-to-record: holding the mic records, releasing sends, sliding up past
+    // the threshold cancels (WhatsApp/Telegram-style). The trailing button
+    // stays mounted across the `recording` state so the pointer gesture isn't
+    // torn out from under the finger mid-hold.
+    var cancelArmed by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth()) {
-        if (showEmoji) EmoticonPanel(onPick = { onDraftChange(draft + it) })
+        if (showEmoji && !recording) EmoticonPanel(onPick = { onDraftChange(draft + it) })
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
             verticalAlignment = Alignment.Bottom,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            Icon(
-                Icons.Filled.AddPhotoAlternate, stringResource(R.string.chat_attach), tint = c.textSecondary,
-                modifier = Modifier.size(40.dp).clip(CircleShape).clickable(onClick = onAttach).padding(8.dp),
-            )
-            Icon(
-                Icons.Filled.Mood, stringResource(R.string.chat_emoticons), tint = if (showEmoji) c.accent else c.textSecondary,
-                modifier = Modifier.size(40.dp).clip(CircleShape).clickable {
-                    showEmoji = !showEmoji
-                    if (showEmoji) keyboard?.hide()
-                }.padding(8.dp),
-            )
-            Box(
-                Modifier.weight(1f).heightIn(min = 40.dp).clip(RoundedCornerShape(20.dp)).background(c.bgSecondary).padding(horizontal = 14.dp, vertical = 10.dp),
-                contentAlignment = Alignment.CenterStart,
-            ) {
-                if (draft.isEmpty()) Text(stringResource(R.string.chat_input_hint), color = c.textSecondary, fontSize = 15.sp)
-                BasicTextField(
-                    value = draft,
-                    onValueChange = onDraftChange,
-                    textStyle = TextStyle(color = c.textPrimary, fontSize = 15.sp),
-                    cursorBrush = SolidColor(accentColor),
-                    // Auto-capitalize the first letter of each sentence (tester #8).
-                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-                    modifier = Modifier.fillMaxWidth().onFocusChanged { if (it.isFocused) showEmoji = false },
+            if (recording) {
+                Row(
+                    Modifier.weight(1f).heightIn(min = 40.dp).clip(RoundedCornerShape(20.dp))
+                        .background(c.bgSecondary).padding(horizontal = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Box(Modifier.size(10.dp).clip(CircleShape).background(Color(0xFFE5484D)))
+                    Text(formatDuration(recElapsed), color = c.textPrimary, fontSize = 15.sp)
+                    Spacer(Modifier.weight(1f))
+                    Text(
+                        stringResource(if (cancelArmed) R.string.chat_voice_release_cancel else R.string.chat_voice_slide_cancel),
+                        color = if (cancelArmed) Color(0xFFE5484D) else c.textSecondary, fontSize = 12.sp,
+                    )
+                }
+            } else {
+                Icon(
+                    Icons.Filled.AddPhotoAlternate, stringResource(R.string.chat_attach), tint = c.textSecondary,
+                    modifier = Modifier.size(40.dp).clip(CircleShape).clickable(onClick = onAttach).padding(8.dp),
                 )
+                Icon(
+                    Icons.Filled.Mood, stringResource(R.string.chat_emoticons), tint = if (showEmoji) c.accent else c.textSecondary,
+                    modifier = Modifier.size(40.dp).clip(CircleShape).clickable {
+                        showEmoji = !showEmoji
+                        if (showEmoji) keyboard?.hide()
+                    }.padding(8.dp),
+                )
+                Box(
+                    Modifier.weight(1f).heightIn(min = 40.dp).clip(RoundedCornerShape(20.dp)).background(c.bgSecondary).padding(horizontal = 14.dp, vertical = 10.dp),
+                    contentAlignment = Alignment.CenterStart,
+                ) {
+                    if (draft.isEmpty()) Text(stringResource(R.string.chat_input_hint), color = c.textSecondary, fontSize = 15.sp)
+                    BasicTextField(
+                        value = draft,
+                        onValueChange = onDraftChange,
+                        textStyle = TextStyle(color = c.textPrimary, fontSize = 15.sp),
+                        cursorBrush = SolidColor(accentColor),
+                        // Auto-capitalize the first letter of each sentence (tester #8).
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                        modifier = Modifier.fillMaxWidth().onFocusChanged { if (it.isFocused) showEmoji = false },
+                    )
+                }
             }
-            val canSend = draft.isNotBlank()
+            val canSend = draft.isNotBlank() && !recording
+            val trailingBg = when {
+                recording && cancelArmed -> Color(0xFFE5484D)
+                canSend || recording -> c.accent
+                else -> c.bgSecondary
+            }
             Box(
-                Modifier.size(40.dp).clip(CircleShape).background(if (canSend) c.accent else c.bgSecondary)
-                    .clickable(onClick = { if (canSend) onSend() else onMic() }),
+                Modifier.size(40.dp).clip(CircleShape).background(trailingBg)
+                    .then(
+                        if (canSend) {
+                            Modifier.clickable(onClick = onSend)
+                        } else {
+                            // Hold the mic to record; release sends, slide up cancels.
+                            Modifier.pointerInput(Unit) {
+                                awaitEachGesture {
+                                    val down = awaitFirstDown(requireUnconsumed = false)
+                                    val cancelPx = 80.dp.toPx()
+                                    cancelArmed = false
+                                    onMic()
+                                    while (true) {
+                                        val event = awaitPointerEvent()
+                                        val change = event.changes.firstOrNull() ?: break
+                                        if (!change.pressed) { change.consume(); break }
+                                        cancelArmed = down.position.y - change.position.y > cancelPx
+                                    }
+                                    if (cancelArmed) onCancelVoice() else onStopVoice()
+                                    cancelArmed = false
+                                }
+                            }
+                        },
+                    ),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     if (canSend) Icons.AutoMirrored.Filled.Send else Icons.Filled.Mic,
                     stringResource(if (canSend) R.string.chat_send else R.string.chat_record_voice),
-                    tint = if (canSend) Color.White else c.textSecondary,
+                    tint = if (canSend || recording) Color.White else c.textSecondary,
                     modifier = Modifier.size(20.dp),
                 )
             }
