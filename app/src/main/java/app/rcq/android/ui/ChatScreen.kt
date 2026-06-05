@@ -71,6 +71,7 @@ import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.PlayArrow
@@ -78,6 +79,8 @@ import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -176,6 +179,7 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
     var attachMenu by remember { mutableStateOf(false) }
     var showPollComposer by remember { mutableStateOf(false) }
     var showSearch by remember { mutableStateOf(false) }
+    var chatMenu by remember { mutableStateOf(false) }
     // A picked photo/video waiting in the pre-send preview (tap to blur).
     var pendingSend by remember { mutableStateOf<PendingSend?>(null) }
     var showGroupPicker by remember { mutableStateOf(false) }
@@ -371,28 +375,36 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
                 }
                 Text(sub, color = if (isTyping) c.accent else c.textSecondary, fontSize = 12.sp)
             }
-            // 1:1 call buttons (own clicks consume the tap so the header's
-            // open-info click doesn't also fire). Hidden when the peer's
-            // call_policy is "nobody" (callable=false); the server enforces it
-            // on the offer too.
-            if (!isGroup && !isSelf && peer != null && peerContact?.callable != false) {
+            // Chat actions live in an overflow menu (iOS parity) instead of
+            // loose header icons: calls (1:1, gated on the peer's call_policy)
+            // + search. Own click consumes the tap so the header's open-info
+            // click doesn't also fire.
+            val canCall = !isGroup && !isSelf && peer != null && peerContact?.callable != false
+            Box {
                 Icon(
-                    Icons.Filled.Call, stringResource(R.string.call_voice_cd), tint = c.accent,
-                    modifier = Modifier.size(24.dp).clip(CircleShape).clickable { placeCall(app.rcq.android.call.CallController.Media.AUDIO) },
+                    Icons.Filled.MoreVert, stringResource(R.string.chat_menu_cd), tint = c.accent,
+                    modifier = Modifier.size(24.dp).clip(CircleShape).clickable { chatMenu = true },
                 )
-                Spacer(Modifier.width(16.dp))
-                Icon(
-                    Icons.Filled.Videocam, stringResource(R.string.call_video_cd), tint = c.accent,
-                    modifier = Modifier.size(24.dp).clip(CircleShape).clickable { placeCall(app.rcq.android.call.CallController.Media.VIDEO) },
-                )
-                Spacer(Modifier.width(16.dp))
+                DropdownMenu(expanded = chatMenu, onDismissRequest = { chatMenu = false }) {
+                    if (canCall) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.call_voice_cd), color = c.textPrimary) },
+                            leadingIcon = { Icon(Icons.Filled.Call, null, tint = c.accent) },
+                            onClick = { chatMenu = false; placeCall(app.rcq.android.call.CallController.Media.AUDIO) },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.call_video_cd), color = c.textPrimary) },
+                            leadingIcon = { Icon(Icons.Filled.Videocam, null, tint = c.accent) },
+                            onClick = { chatMenu = false; placeCall(app.rcq.android.call.CallController.Media.VIDEO) },
+                        )
+                    }
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.chat_search_hint), color = c.textPrimary) },
+                        leadingIcon = { Icon(Icons.Filled.Search, null, tint = c.accent) },
+                        onClick = { chatMenu = false; showSearch = true },
+                    )
+                }
             }
-            // Search within this thread (own click consumes the tap so the
-            // header's open-info click doesn't also fire).
-            Icon(
-                Icons.Filled.Search, stringResource(R.string.chat_search_hint), tint = c.accent,
-                modifier = Modifier.size(24.dp).clip(CircleShape).clickable { showSearch = true },
-            )
         }
 
         // Pinned banner (groups).
