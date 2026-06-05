@@ -430,7 +430,14 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                     onClick = { offset ->
-                        annotated.getStringAnnotations("MENTION", offset, offset).firstOrNull()?.let { onOpenPeerInfo(it.item.toInt()); return@ClickableText }
+                        // A mention of yourself isn't actionable (opening your
+                        // own profile in the peer view would offer add/block/
+                        // report against yourself).
+                        annotated.getStringAnnotations("MENTION", offset, offset).firstOrNull()?.let {
+                            val mUin = it.item.toInt()
+                            if (mUin != ownUin) onOpenPeerInfo(mUin)
+                            return@ClickableText
+                        }
                         annotated.getStringAnnotations("URL", offset, offset).firstOrNull()?.let { runCatching { uriHandler.openUri(it.item) } }
                     },
                 )
