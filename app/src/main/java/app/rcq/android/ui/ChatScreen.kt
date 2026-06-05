@@ -1007,7 +1007,8 @@ private fun buildPinnedAnnotated(
     accent: androidx.compose.ui.graphics.Color,
 ): AnnotatedString {
     val nickByUin = members.associate { it.uin to it.nickname }
-    val mentionRe = Regex("#(\\d{3,})")
+    // Matches both `#<uin>` and `UIN <uin>` (the format used in real pins).
+    val mentionRe = Regex("(?:#|UIN\\s+)(\\d{3,})", RegexOption.IGNORE_CASE)
     return buildAnnotatedString {
         var cursor = 0
         for (m in mentionRe.findAll(text)) {
