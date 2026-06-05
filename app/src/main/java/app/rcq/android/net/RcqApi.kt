@@ -345,6 +345,23 @@ class RcqApi(private val baseUrl: String = DEFAULT_BASE_URL) {
         get("/contacts/pending", authed = true, Array<PendingRow>::class.java).toList()
     }
 
+    data class OutgoingRow(
+        val id: Int = 0,
+        val to_uin: Int = 0,
+        val nickname: String? = null,
+        val state: String? = null,
+    )
+
+    /** Requests WE sent that are still pending or were declined. */
+    suspend fun outgoing(): List<OutgoingRow> = withContext(Dispatchers.IO) {
+        get("/contacts/outgoing", authed = true, Array<OutgoingRow>::class.java).toList()
+    }
+
+    /** Cancel/revoke a sent request, or dismiss a declined one (DELETE, 204). */
+    suspend fun cancelOutgoing(toUin: Int) = withContext(Dispatchers.IO) {
+        sendNoResult("DELETE", "/contacts/outgoing/$toUin", null, authed = true)
+    }
+
     data class ContactRequestBody(val to_uin: Int)
     data class ContactRequestResponse(val id: Int = 0, val state: String? = null, val auto: Boolean = false)
 

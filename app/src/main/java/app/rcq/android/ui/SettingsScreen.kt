@@ -500,6 +500,13 @@ private fun PrivacyScreen(session: Session, onOpenCustomServer: () -> Unit, onOp
             receipts = p.read_receipts_visibility ?: "everyone"
             presencePersistent = p.presence_persistent ?: false
             presenceTtl = p.presence_ttl_minutes ?: 1440
+            // Seed the local countdown anchor if the feature is on but we have
+            // no window yet (enabled on another device, or before this feature
+            // existed). Active changes below re-anchor it; passive load never
+            // overrides an existing anchor.
+            if (presencePersistent && app.rcq.android.data.LocalStores.presenceWindow.value == null) {
+                app.rcq.android.data.LocalStores.setPresenceWindow(presenceTtl)
+            }
         }
     }
 
@@ -519,7 +526,12 @@ private fun PrivacyScreen(session: Session, onOpenCustomServer: () -> Unit, onOp
                     }
                     Switch(
                         checked = presencePersistent,
-                        onCheckedChange = { presencePersistent = it; save(RcqApi.UpdateMeBody(presence_persistent = it)) },
+                        onCheckedChange = {
+                            presencePersistent = it
+                            save(RcqApi.UpdateMeBody(presence_persistent = it))
+                            if (it) app.rcq.android.data.LocalStores.setPresenceWindow(presenceTtl)
+                            else app.rcq.android.data.LocalStores.clearPresenceWindow()
+                        },
                         colors = SwitchDefaults.colors(checkedTrackColor = c.accent),
                     )
                 }
@@ -530,7 +542,7 @@ private fun PrivacyScreen(session: Session, onOpenCustomServer: () -> Unit, onOp
                             val sel = presenceTtl == mins
                             Box(
                                 Modifier.weight(1f).clip(RoundedCornerShape(percent = 50)).background(if (sel) c.accent else Color.Transparent)
-                                    .clickable { presenceTtl = mins; save(RcqApi.UpdateMeBody(presence_ttl_minutes = mins)) }.padding(vertical = 8.dp),
+                                    .clickable { presenceTtl = mins; save(RcqApi.UpdateMeBody(presence_ttl_minutes = mins)); app.rcq.android.data.LocalStores.setPresenceWindow(mins) }.padding(vertical = 8.dp),
                                 contentAlignment = Alignment.Center,
                             ) { Text(label, color = if (sel) Color.White else c.textSecondary, fontSize = 12.sp) }
                         }

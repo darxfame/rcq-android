@@ -61,6 +61,13 @@
     <string name="home_menu_search">Поиск</string>
     <string name="home_menu_post_story">Опубликовать историю</string>
     <string name="home_menu_news">Новости</string>
+    <string name="home_menu_outgoing">Исходящие заявки</string>
+    <string name="outgoing_title">Исходящие заявки</string>
+    <string name="outgoing_empty">Вы не отправляли заявок.</string>
+    <string name="outgoing_state_pending">Ожидает</string>
+    <string name="outgoing_state_declined">Отклонена</string>
+    <string name="outgoing_cancel">Отменить</string>
+    <string name="outgoing_dismiss">Убрать</string>
     <string name="news_title">Новости</string>
     <string name="news_empty">Пока новостей нет.</string>
     <string name="news_has_media">С вложением</string>
@@ -409,6 +416,10 @@
     <string name="pv_last_seen_desc">Кто видит, когда вы были в сети.</string>
     <string name="pv_stay_visible">Оставаться видимым после выхода</string>
     <string name="pv_stay_visible_desc">Показывать вас как недавно онлайн некоторое время после закрытия приложения.</string>
+    <string name="presence_countdown_hm">%1$dч %2$dм</string>
+    <string name="presence_countdown_h">%1$dч</string>
+    <string name="presence_countdown_m">%1$dм</string>
+    <string name="presence_countdown_lt1m">&lt;1м</string>
     <string name="pv_profile_card">Карточка профиля</string>
     <string name="pv_profile_card_desc">Кто может открыть ваш полный профиль (город, возраст, о себе).</string>
     <string name="pv_gender_desc">Кто видит ваш пол в профиле.</string>

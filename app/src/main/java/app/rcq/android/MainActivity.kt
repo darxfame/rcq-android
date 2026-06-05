@@ -148,6 +148,7 @@ private fun RcqApp(session: Session) {
     var showNearby by remember { mutableStateOf(false) }
     var showRadio by remember { mutableStateOf(false) }
     var showRestore by remember { mutableStateOf(false) }
+    var showOutgoing by remember { mutableStateOf(false) }
 
     LaunchedEffect(state, locked) {
         // Only start (which opens the message DB) once unlocked.
@@ -157,7 +158,7 @@ private fun RcqApp(session: Session) {
     // Clear every secondary screen so a switch/add lands on a clean Home.
     fun resetNav() {
         chatTarget = null; groupInfoId = null; peerInfoUin = null
-        showSettings = false; showProfile = false; showManageAccounts = false; showNews = false; showRandom = false; showAudioRooms = false; showNearby = false; showRadio = false; showRestore = false
+        showSettings = false; showProfile = false; showManageAccounts = false; showNews = false; showRandom = false; showAudioRooms = false; showNearby = false; showRadio = false; showRestore = false; showOutgoing = false
     }
 
     fun register(server: String? = null, invite: String? = null) {
@@ -233,6 +234,10 @@ private fun RcqApp(session: Session) {
                 session,
                 onBack = { showNews = false },
             )
+            s is UiState.Registered && showOutgoing -> app.rcq.android.ui.OutgoingRequestsScreen(
+                session,
+                onBack = { showOutgoing = false },
+            )
             s is UiState.Registered && showRandom -> app.rcq.android.ui.RandomScreen(
                 session,
                 onBack = { showRandom = false },
@@ -266,6 +271,7 @@ private fun RcqApp(session: Session) {
                 onOpenSettings = { showSettings = true },
                 onOpenProfile = { showProfile = true },
                 onOpenNews = { showNews = true },
+                onOpenOutgoing = { showOutgoing = true },
                 onOpenSaved = { session.uin?.let { chatTarget = ChatTarget.Peer(it) } },
                 onOpenAudioRooms = { showAudioRooms = true },
                 onOpenNearby = { showNearby = true },

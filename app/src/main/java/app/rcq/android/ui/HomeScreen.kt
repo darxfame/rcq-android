@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyRow
@@ -58,6 +59,7 @@ import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.filled.Unarchive
 import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.Block
+import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
@@ -71,6 +73,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -129,6 +132,7 @@ internal fun HomeScreen(
     onOpenSettings: () -> Unit,
     onOpenProfile: () -> Unit = {},
     onOpenNews: () -> Unit = {},
+    onOpenOutgoing: () -> Unit = {},
     onOpenSaved: () -> Unit = {},
     onOpenAudioRooms: () -> Unit = {},
     onOpenRandom: () -> Unit = {},
@@ -234,6 +238,7 @@ internal fun HomeScreen(
                 onOpenSettings = onOpenSettings,
                 onOpenProfile = onOpenProfile,
                 onOpenNews = onOpenNews,
+                onOpenOutgoing = onOpenOutgoing,
                 onOpenSaved = onOpenSaved,
                 onOpenAudioRooms = onOpenAudioRooms,
                 onOpenRadio = onOpenRadio,
@@ -566,6 +571,7 @@ private fun HomeHeader(
     onOpenSettings: () -> Unit,
     onOpenProfile: () -> Unit,
     onOpenNews: () -> Unit,
+    onOpenOutgoing: () -> Unit,
     onOpenSaved: () -> Unit,
     onOpenAudioRooms: () -> Unit,
     onOpenRadio: () -> Unit,
@@ -621,14 +627,15 @@ private fun HomeHeader(
             }
         }
 
-        // Centre — status picker + identity. Nick and UIN sit on ONE line
-        // (not stacked/centred) and hug the status icon a little closer, per
-        // founder.
+        // Centre — stay-online countdown + status picker + identity. The UIN
+        // sits UNDER the nick (one column, iOS ContactListView parity), and the
+        // "stay visible" countdown chip hugs the left of the status icon.
         Row(
             Modifier.align(Alignment.Center).padding(horizontal = 44.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
+            PresenceCountdownChip()
             Box {
                 StatusIcon(ownStatus, size = 30.dp, modifier = Modifier.clip(CircleShape).clickable { statusMenu = true })
                 DropdownMenu(expanded = statusMenu, onDismissRequest = { statusMenu = false }) {
@@ -641,12 +648,11 @@ private fun HomeHeader(
                     }
                 }
             }
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = onOpenProfile).padding(horizontal = 6.dp, vertical = 4.dp),
             ) {
-                Text(nickname, color = c.textPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(nickname, color = c.textPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 150.dp))
                 Text("$uin", color = c.textMono, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
             }
         }
@@ -662,6 +668,11 @@ private fun HomeHeader(
                     text = { Text(stringResource(R.string.home_menu_add_contact), color = c.textPrimary) },
                     leadingIcon = { Icon(Icons.Filled.PersonAdd, null, tint = c.accent) },
                     onClick = { overflowMenu = false; onAddContact() },
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.home_menu_outgoing), color = c.textPrimary) },
+                    leadingIcon = { Icon(Icons.Outlined.Schedule, null, tint = c.accent) },
+                    onClick = { overflowMenu = false; onOpenOutgoing() },
                 )
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.home_menu_search), color = c.textPrimary) },
@@ -695,6 +706,51 @@ private fun HomeHeader(
                 )
             }
         }
+    }
+}
+
+/** Compact "stay visible" countdown shown left of the home status icon:
+ *  how long until presence drops back to offline after the user leaves. The
+ *  window is anchored in Privacy settings (LocalStores.presenceWindow) and
+ *  re-anchored whenever the user changes it; hidden when off or elapsed. */
+@Composable
+private fun PresenceCountdownChip() {
+    val c = RcqTheme.colors
+    val window by app.rcq.android.data.LocalStores.presenceWindow.collectAsState()
+    val remaining by produceState<Long?>(
+        initialValue = window?.minus(System.currentTimeMillis())?.takeIf { it > 0 },
+        window,
+    ) {
+        val w = window
+        if (w == null) { value = null; return@produceState }
+        while (true) {
+            val r = w - System.currentTimeMillis()
+            value = if (r > 0) r else null
+            if (r <= 0) return@produceState
+            kotlinx.coroutines.delay(15_000L)
+        }
+    }
+    val r = remaining ?: return
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(3.dp),
+        modifier = Modifier.clip(RoundedCornerShape(50)).background(c.bgSecondary).padding(horizontal = 7.dp, vertical = 3.dp),
+    ) {
+        Icon(Icons.Outlined.Schedule, contentDescription = null, tint = c.accent, modifier = Modifier.size(12.dp))
+        Text(presenceCountdownLabel(r), color = c.textSecondary, fontSize = 11.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+    }
+}
+
+@Composable
+private fun presenceCountdownLabel(ms: Long): String {
+    val totalMin = (ms / 60_000L).toInt()
+    val h = totalMin / 60
+    val m = totalMin % 60
+    return when {
+        h > 0 && m > 0 -> stringResource(R.string.presence_countdown_hm, h, m)
+        h > 0 -> stringResource(R.string.presence_countdown_h, h)
+        totalMin > 0 -> stringResource(R.string.presence_countdown_m, m)
+        else -> stringResource(R.string.presence_countdown_lt1m)
     }
 }
 

@@ -20,6 +20,7 @@ import app.rcq.android.model.ChatMessage
 import app.rcq.android.model.Contact
 import app.rcq.android.model.DeliveryState
 import app.rcq.android.model.GroupMember
+import app.rcq.android.model.OutgoingRequest
 import app.rcq.android.model.PendingRequest
 import app.rcq.android.model.RcqGroup
 import app.rcq.android.model.UserStatus
@@ -134,6 +135,10 @@ class Session(context: Context) {
 
     private val _pending = MutableStateFlow<List<PendingRequest>>(emptyList())
     val pending: StateFlow<List<PendingRequest>> = _pending.asStateFlow()
+
+    /** Requests WE sent (pending + declined), for the "Sent requests" screen. */
+    private val _outgoing = MutableStateFlow<List<OutgoingRequest>>(emptyList())
+    val outgoing: StateFlow<List<OutgoingRequest>> = _outgoing.asStateFlow()
 
     private val _messages = MutableStateFlow<Map<Int, List<ChatMessage>>>(emptyMap())
     val messages: StateFlow<Map<Int, List<ChatMessage>>> = _messages.asStateFlow()
@@ -401,6 +406,7 @@ class Session(context: Context) {
         lastVisitAt.clear()
         _contacts.value = emptyList()
         _pending.value = emptyList()
+        _outgoing.value = emptyList()
         _messages.value = emptyMap()
         _groups.value = emptyList()
         _groupMessages.value = emptyMap()
@@ -485,6 +491,7 @@ class Session(context: Context) {
         scope.launch { runCatching { withRetry { drainQueue() } } }
         scope.launch { runCatching { withRetry { refreshContacts() } } }
         scope.launch { runCatching { withRetry { refreshPending() } } }
+        scope.launch { runCatching { withRetry { refreshOutgoing() } } }
         scope.launch { runCatching { withRetry { refreshGroups() } } }
         scope.launch { runCatching { withRetry { loadOwnReadReceiptSetting() } } }
         scope.launch { runCatching { refreshStories() } }
@@ -618,7 +625,7 @@ class Session(context: Context) {
         }
         PanicPinService.removePin(appCtx)   // destroys the vault, clears the lock + dataKey
         peerIdentityCache.clear(); noV2Peers.clear(); ackedReads.clear()
-        _contacts.value = emptyList(); _pending.value = emptyList(); _messages.value = emptyMap()
+        _contacts.value = emptyList(); _pending.value = emptyList(); _outgoing.value = emptyList(); _messages.value = emptyMap()
         _groups.value = emptyList(); _groupMessages.value = emptyMap(); _stories.value = emptyList()
         activeRandomPeer = null; activeRandomPairId = null; _randomMessages.value = emptyList(); _random.value = RandomState.Idle
     }
@@ -1210,6 +1217,7 @@ class Session(context: Context) {
         ackedReads.clear()
         _contacts.value = emptyList()
         _pending.value = emptyList()
+        _outgoing.value = emptyList()
         _messages.value = emptyMap()
         _groups.value = emptyList()
         _groupMessages.value = emptyMap()
@@ -1299,6 +1307,7 @@ class Session(context: Context) {
         ackedReads.clear()
         _contacts.value = emptyList()
         _pending.value = emptyList()
+        _outgoing.value = emptyList()
         _groups.value = emptyList()
         _typingFrom.value = null
         started = false
@@ -1725,6 +1734,7 @@ class Session(context: Context) {
         api.requestContact(uin)
         runCatching { refreshContacts() }
         runCatching { refreshPending() }
+        runCatching { refreshOutgoing() }
     }
 
     suspend fun respond(requestId: Int, accept: Boolean) {
@@ -1772,6 +1782,21 @@ class Session(context: Context) {
         _pending.value = api.pending().map {
             PendingRequest(it.id, it.from_uin, it.nickname ?: "#${it.from_uin}")
         }
+    }
+
+    private suspend fun refreshOutgoing() {
+        _outgoing.value = api.outgoing().map {
+            OutgoingRequest(it.to_uin, it.nickname ?: "#${it.to_uin}", it.state ?: "pending")
+        }
+    }
+
+    /** Pull the latest sent-requests list (call when opening the screen). */
+    suspend fun loadOutgoing() { runCatching { refreshOutgoing() } }
+
+    /** Cancel/revoke a sent request, or dismiss a declined one, then refresh. */
+    suspend fun cancelOutgoing(toUin: Int) {
+        runCatching { api.cancelOutgoing(toUin) }
+        runCatching { refreshOutgoing() }
     }
 
     fun contactName(uin: Int): String =
@@ -1832,7 +1857,12 @@ class Session(context: Context) {
                 obj.get("group_id")?.asInt?.let { gid -> _groups.value = _groups.value.filterNot { it.id == gid } }
             }
             "contact_request", "contact_response", "contact_removed" -> {
-                scope.launch { runCatching { refreshContacts() }; runCatching { refreshPending() } }
+                scope.launch { runCatching { refreshContacts() }; runCatching { refreshPending() }; runCatching { refreshOutgoing() } }
+            }
+            // A request we received was revoked by its sender — drop it from
+            // our incoming list (the row is already gone server-side).
+            "contact_request_cancelled" -> {
+                scope.launch { runCatching { refreshPending() } }
             }
             "typing" -> {
                 val from = obj.get("from_uin")?.asInt

@@ -62,6 +62,13 @@
     <string name="home_menu_search">Search</string>
     <string name="home_menu_post_story">Post story</string>
     <string name="home_menu_news">News</string>
+    <string name="home_menu_outgoing">Sent requests</string>
+    <string name="outgoing_title">Sent requests</string>
+    <string name="outgoing_empty">You haven\'t sent any requests.</string>
+    <string name="outgoing_state_pending">Pending</string>
+    <string name="outgoing_state_declined">Declined</string>
+    <string name="outgoing_cancel">Cancel</string>
+    <string name="outgoing_dismiss">Dismiss</string>
     <string name="news_title">News</string>
     <string name="news_empty">No news yet.</string>
     <string name="news_has_media">Includes media</string>
@@ -410,6 +417,10 @@
     <string name="pv_last_seen_desc">Who can see when you were last online.</string>
     <string name="pv_stay_visible">Stay visible after you leave</string>
     <string name="pv_stay_visible_desc">Keep showing as recently online for a while after the app closes.</string>
+    <string name="presence_countdown_hm">%1$dh %2$dm</string>
+    <string name="presence_countdown_h">%1$dh</string>
+    <string name="presence_countdown_m">%1$dm</string>
+    <string name="presence_countdown_lt1m">&lt;1m</string>
     <string name="pv_profile_card">Profile card</string>
     <string name="pv_profile_card_desc">Who can open your full profile (city, age, about).</string>
     <string name="pv_gender_desc">Who can see your gender on your profile.</string>

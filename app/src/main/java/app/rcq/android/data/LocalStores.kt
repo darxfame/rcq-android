@@ -55,6 +55,14 @@ object LocalStores {
     private val _unread = MutableStateFlow<Map<String, Int>>(emptyMap())
     val unread: StateFlow<Map<String, Int>> = _unread.asStateFlow()
 
+    /** Presence "stay online for N hours after exit" window: the epoch-millis
+     *  moment that window EXPIRES, or null when the feature is off. Local-only
+     *  affordance anchored when the user enables/changes it in Privacy
+     *  settings, so the home header can show a live countdown of when they
+     *  drop back to offline. Reset (re-anchored) on every active change. */
+    private val _presenceWindow = MutableStateFlow<Long?>(null)
+    val presenceWindow: StateFlow<Long?> = _presenceWindow.asStateFlow()
+
     // ── global flows ─────────────────────────────────────────────────────
     private val _themeMode = MutableStateFlow(ThemeMode.SYSTEM)
     val themeMode: StateFlow<ThemeMode> = _themeMode.asStateFlow()
@@ -93,6 +101,7 @@ object LocalStores {
             _archived.value = emptySet()
             _removed.value = emptySet()
             _unread.value = emptyMap()
+            _presenceWindow.value = null
             return
         }
         _favorites.value = prefs.getStringSet(pk(K_FAV), emptySet())!!.toSet()
@@ -100,6 +109,7 @@ object LocalStores {
         _archived.value = prefs.getStringSet(pk(K_ARCH), emptySet())!!.toSet()
         _removed.value = prefs.getStringSet(pk(K_REMOVED), emptySet())!!.mapNotNull { it.toIntOrNull() }.toSet()
         _unread.value = loadUnread(pk(K_UNREAD))
+        _presenceWindow.value = prefs.getLong(pk(K_PRES_WIN), 0L).takeIf { it > 0L }
     }
 
     /** Per-account key for the currently-bound account. */
@@ -138,6 +148,23 @@ object LocalStores {
 
     fun screenSecurityOn() = _screenSecurity.value
     fun setScreenSecurity(on: Boolean) { _screenSecurity.value = on; prefs.edit().putBoolean(K_SCREEN_SEC, on).apply() }
+
+    // ── presence stay-online window ──────────────────────────────────
+    /** (Re)anchor the stay-online window to now + [ttlMinutes], so the home
+     *  countdown restarts from the full duration. Called whenever the user
+     *  enables the feature or changes the duration in Privacy settings. */
+    fun setPresenceWindow(ttlMinutes: Int) {
+        if (acct == null) return
+        val expires = System.currentTimeMillis() + ttlMinutes.toLong() * 60_000L
+        _presenceWindow.value = expires
+        prefs.edit().putLong(pk(K_PRES_WIN), expires).apply()
+    }
+
+    /** Clear the window (the feature was turned off). */
+    fun clearPresenceWindow() {
+        _presenceWindow.value = null
+        if (acct != null) prefs.edit().remove(pk(K_PRES_WIN)).apply()
+    }
 
     // ── unread counters ──────────────────────────────────────────────
     fun unreadOf(thread: String): Int = _unread.value[thread] ?: 0
@@ -213,4 +240,5 @@ object LocalStores {
     private const val K_SND_MSG = "sound_messages"
     private const val K_SND_PRES = "sound_presence"
     private const val K_SCREEN_SEC = "screen_security"
+    private const val K_PRES_WIN = "presence_window"
 }

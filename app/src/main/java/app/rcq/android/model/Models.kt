@@ -23,6 +23,14 @@ data class PendingRequest(
     val fromNickname: String,
 )
 
+/** A contact request WE sent: still pending, or declined by the recipient
+ *  (surfaced so the sender learns the outcome — there's no push for it). */
+data class OutgoingRequest(
+    val toUin: Int,
+    val toNickname: String,
+    val state: String,   // "pending" | "declined"
+)
+
 /** Delivery state of an outgoing message. Incoming messages are always
  *  DELIVERED. READ is set when the peer sends back a read receipt. */
 enum class DeliveryState { SENDING, SENT, DELIVERED, FAILED, READ }
