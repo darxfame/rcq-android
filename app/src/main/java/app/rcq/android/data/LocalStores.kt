@@ -80,6 +80,13 @@ object LocalStores {
     private val _screenSecurity = MutableStateFlow(false)
     val screenSecurity: StateFlow<Boolean> = _screenSecurity.asStateFlow()
 
+    /** Per-account, per-thread "screen-secure" chats (peer:UIN keys). When a
+     *  secure chat is open, ChatScreen adds FLAG_SECURE so screenshots/recording
+     *  of THAT chat are blocked; the flag is propagated to the peer so both
+     *  sides enforce it (iOS parity). */
+    private val _secureThreads = MutableStateFlow<Set<String>>(emptySet())
+    val secureThreads: StateFlow<Set<String>> = _secureThreads.asStateFlow()
+
     fun init(context: Context) {
         if (::prefs.isInitialized) return
         prefs = context.applicationContext.getSharedPreferences("rcq_local", Context.MODE_PRIVATE)
@@ -102,6 +109,7 @@ object LocalStores {
             _removed.value = emptySet()
             _unread.value = emptyMap()
             _presenceWindow.value = null
+            _secureThreads.value = emptySet()
             return
         }
         _favorites.value = prefs.getStringSet(pk(K_FAV), emptySet())!!.toSet()
@@ -110,6 +118,17 @@ object LocalStores {
         _removed.value = prefs.getStringSet(pk(K_REMOVED), emptySet())!!.mapNotNull { it.toIntOrNull() }.toSet()
         _unread.value = loadUnread(pk(K_UNREAD))
         _presenceWindow.value = prefs.getLong(pk(K_PRES_WIN), 0L).takeIf { it > 0L }
+        _secureThreads.value = prefs.getStringSet(pk(K_SECURE), emptySet())!!.toSet()
+    }
+
+    fun isThreadSecure(thread: String) = thread in _secureThreads.value
+
+    /** Set/clear screen-secure mode for a thread (local store only — the caller
+     *  propagates to the peer via a SecureScreen envelope). */
+    fun setThreadSecure(thread: String, on: Boolean) {
+        if (acct == null) return
+        _secureThreads.value = if (on) _secureThreads.value + thread else _secureThreads.value - thread
+        prefs.edit().putStringSet(pk(K_SECURE), _secureThreads.value).apply()
     }
 
     /** Per-account key for the currently-bound account. */
@@ -241,4 +260,5 @@ object LocalStores {
     private const val K_SND_PRES = "sound_presence"
     private const val K_SCREEN_SEC = "screen_security"
     private const val K_PRES_WIN = "presence_window"
+    private const val K_SECURE = "secure_threads"
 }

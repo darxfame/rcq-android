@@ -95,6 +95,14 @@ sealed interface Envelope {
         val singleChoice: Boolean,
         val anonymous: Boolean,
     ) : Envelope
+    /** Per-conversation screen-secure toggle, propagated to the peer so BOTH
+     *  sides enforce it (iOS wire "secscreen"). Control only — no bubble. */
+    data class SecureScreen(val on: Boolean) : Envelope
+
+    /** Sent when the sender took a screenshot in a secure chat (iOS wire
+     *  "shot"). The receiver shows "<name> took a screenshot". Control only. */
+    data class ScreenshotTaken(val id: String) : Envelope
+
     data class Unknown(val kind: String) : Envelope
 
     /** Serialize to the exact JSON bytes that get signed and shipped.
@@ -187,6 +195,14 @@ sealed interface Envelope {
             addProperty("sc", singleChoice)
             addProperty("anon", anonymous)
         }.toString().toByteArray(Charsets.UTF_8)
+        is SecureScreen -> JsonObject().apply {
+            addProperty("kind", "secscreen")
+            addProperty("on", on)
+        }.toString().toByteArray(Charsets.UTF_8)
+        is ScreenshotTaken -> JsonObject().apply {
+            addProperty("kind", "shot")
+            addProperty("id", id)
+        }.toString().toByteArray(Charsets.UTF_8)
         is Unknown -> JsonObject().apply { addProperty("kind", kind) }
             .toString().toByteArray(Charsets.UTF_8)
     }
@@ -225,6 +241,11 @@ sealed interface Envelope {
 
         fun location(lat: Double, lng: Double, caption: String?): Location =
             Location(UUID.randomUUID().toString().uppercase(), lat, lng, caption)
+
+        fun secureScreen(on: Boolean): SecureScreen = SecureScreen(on)
+
+        fun screenshotTaken(): ScreenshotTaken =
+            ScreenshotTaken(UUID.randomUUID().toString().uppercase())
 
         fun fromJsonBytes(bytes: ByteArray): Envelope {
             val obj = JsonParser.parseString(String(bytes, Charsets.UTF_8)).asJsonObject
@@ -298,6 +319,8 @@ sealed interface Envelope {
                     singleChoice = obj.get("sc")?.asBoolean ?: true,
                     anonymous = obj.get("anon")?.asBoolean ?: false,
                 )
+                "secscreen" -> SecureScreen(obj.get("on")?.asBoolean ?: false)
+                "shot" -> ScreenshotTaken(obj.get("id")?.asString ?: id)
                 else -> Unknown(kind ?: "unknown")
             }
         }

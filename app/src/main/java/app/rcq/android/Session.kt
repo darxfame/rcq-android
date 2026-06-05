@@ -698,6 +698,15 @@ class Session(context: Context) {
         return runCatching { api.report(me, "$tag $text", "bug_bounty") }.isSuccess
     }
 
+    /** Toggle per-conversation screen-secure mode for a 1:1 chat: set it
+     *  locally and propagate to the peer so BOTH sides enforce it (iOS parity).
+     *  While such a chat is open, ChatScreen adds FLAG_SECURE (Android blanks
+     *  the screenshot); a screenshot by the peer arrives as a system notice. */
+    fun setChatSecure(peerUin: Int, on: Boolean) {
+        LocalStores.setThreadSecure(LocalStores.peerThread(peerUin), on)
+        scope.launch { sendControl(peerUin, Envelope.secureScreen(on)) }
+    }
+
     // ── biometric unlock (panic-PIN phase 4) ─────────────────────────
 
     /** Can biometric unlock be offered now (hardware present, no duress PIN)? */
@@ -1252,6 +1261,8 @@ class Session(context: Context) {
                 }
                 is Envelope.ReadReceipt -> Unit  // group read receipts not surfaced per-message
                 is Envelope.Visit -> Unit        // visits are 1:1 only
+                is Envelope.SecureScreen -> Unit // secure mode is 1:1 only
+                is Envelope.ScreenshotTaken -> Unit
                 is Envelope.Unknown -> Unit
             }
         }.onFailure { logDecryptFailure(payloadB64, it) }
@@ -1784,6 +1795,16 @@ class Session(context: Context) {
                 }
                 is Envelope.ReadReceipt -> applyReadReceipt(dec.senderUin, env.targetIds)
                 is Envelope.Visit -> app.rcq.android.data.VisitStore.record(dec.senderUin, env.atEpochMillis())
+                is Envelope.SecureScreen ->
+                    // Peer toggled per-conversation secure mode — mirror it so
+                    // OUR side also enforces FLAG_SECURE for this chat.
+                    LocalStores.setThreadSecure(LocalStores.peerThread(dec.senderUin), env.on)
+                is Envelope.ScreenshotTaken -> {
+                    // Peer took a screenshot in a secure chat — post a notice
+                    // with their name (resolved + localized on our side).
+                    val name = _contacts.value.firstOrNull { it.uin == dec.senderUin }?.nickname ?: "#${dec.senderUin}"
+                    store(ChatMessage(env.id, dec.senderUin, fromMe = false, body = appCtx.getString(app.rcq.android.R.string.secscreen_peer_screenshot, name), sentAt = now, kind = "system"))
+                }
                 is Envelope.Poll -> Unit       // polls are group-only; ignore in 1:1
                 is Envelope.Unknown -> Unit
             }

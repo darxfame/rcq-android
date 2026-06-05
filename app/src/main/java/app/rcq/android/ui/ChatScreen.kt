@@ -77,6 +77,7 @@ import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Visibility
@@ -199,6 +200,23 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
     // Tapping the (2-line, truncated) pinned banner opens the full text.
     var showPinSheet by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
+
+    // Per-conversation screen-secure mode (1:1 only). When on, FLAG_SECURE is
+    // applied while this chat is open so screenshots/recording of it are blocked
+    // (Android genuinely blanks them); the flag is mirrored on both sides.
+    val secureThreads by app.rcq.android.data.LocalStores.secureThreads.collectAsState()
+    val chatSecure = !isGroup && !isSelf && peer != null &&
+        app.rcq.android.data.LocalStores.peerThread(peer) in secureThreads
+    val activity = LocalContext.current as? android.app.Activity
+    DisposableEffect(chatSecure) {
+        if (chatSecure) activity?.window?.addFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
+        onDispose {
+            // Leave the global screenshot-block flag alone if it's on.
+            if (!app.rcq.android.data.LocalStores.screenSecurityOn()) {
+                activity?.window?.clearFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE)
+            }
+        }
+    }
 
     fun authorName(m: ChatMessage): String = when {
         m.fromMe -> "You"
@@ -416,6 +434,13 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
                         leadingIcon = { Icon(Icons.Filled.Search, null, tint = c.accent) },
                         onClick = { chatMenu = false; showSearch = true },
                     )
+                    if (!isGroup && !isSelf && peer != null) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(if (chatSecure) R.string.chat_secure_off else R.string.chat_secure_on), color = c.textPrimary) },
+                            leadingIcon = { Icon(Icons.Filled.Shield, null, tint = if (chatSecure) c.accent else c.textSecondary) },
+                            onClick = { chatMenu = false; session.setChatSecure(peer, !chatSecure) },
+                        )
+                    }
                 }
             }
         }
@@ -491,6 +516,8 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
                         val m = row.m
                         if (m.kind == "call") {
                             CallHistoryRow(m)
+                        } else if (m.kind == "system") {
+                            SystemNoticeRow(m)
                         } else {
                             MessageBubble(
                                 session, m,
@@ -892,6 +919,21 @@ private fun CallHistoryRow(m: ChatMessage) {
         Icon(Icons.Filled.Call, null, tint = c.textSecondary, modifier = Modifier.size(13.dp))
         Spacer(Modifier.width(6.dp))
         Text(m.body, color = c.textSecondary, fontSize = 12.sp)
+    }
+}
+
+/** Centered system notice (kind == "system"), e.g. "X took a screenshot". */
+@Composable
+private fun SystemNoticeRow(m: ChatMessage) {
+    val c = RcqTheme.colors
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = 2.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.Filled.Shield, null, tint = c.textSecondary, modifier = Modifier.size(13.dp))
+        Spacer(Modifier.width(6.dp))
+        Text(m.body, color = c.textSecondary, fontSize = 12.sp, textAlign = TextAlign.Center)
     }
 }
 
