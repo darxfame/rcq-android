@@ -47,6 +47,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -110,6 +112,7 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -350,6 +353,8 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) listState.animateScrollToItem(messages.size - 1)
     }
+    // Keep the latest message visible when the keyboard opens (report #29).
+    KeyboardScrollEffect(listState, messages.size)
     // Mark this thread active+read while open; clear again on a new
     // message arriving here is handled in Session.bumpUnreadIfInbound.
     val thisThread = if (isGroup) app.rcq.android.data.LocalStores.groupThread(groupId!!) else app.rcq.android.data.LocalStores.peerThread(peer!!)
@@ -904,6 +909,22 @@ private fun previewOf(m: ChatMessage, context: android.content.Context): String 
     "poll" -> app.rcq.android.model.PollContent.fromJson(m.body)?.question?.take(100)
         ?: context.getString(R.string.poll_create)
     else -> m.body.take(100)
+}
+
+/** Scrolls [listState] to the last item when the soft keyboard opens, so the
+ *  latest message stays visible above the composer instead of being hidden as
+ *  the chat area shrinks (report #29). Isolated in its own composable so reading
+ *  the per-frame IME inset doesn't recompose the whole ChatScreen. */
+@Composable
+private fun KeyboardScrollEffect(
+    listState: androidx.compose.foundation.lazy.LazyListState,
+    itemCount: Int,
+) {
+    val density = LocalDensity.current
+    val imeVisible = WindowInsets.ime.getBottom(density) > 0
+    LaunchedEffect(imeVisible) {
+        if (imeVisible && itemCount > 0) listState.animateScrollToItem(itemCount - 1)
+    }
 }
 
 /** Centered call-summary line (kind == "call"): a phone glyph + the localized
