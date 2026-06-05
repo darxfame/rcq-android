@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -328,26 +329,25 @@ private fun RcqApp(session: Session) {
         // In-app update prompt: the APK ships from the website, so we self-check
         // a version manifest once per launch and offer a one-tap update.
         var update by remember { mutableStateOf<app.rcq.android.net.UpdateChecker.Update?>(null) }
-        var updateBusy by remember { mutableStateOf(false) }
-        var updateProgress by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+        val updateDownload by app.rcq.android.net.UpdateChecker.downloadState.collectAsState()
         LaunchedEffect(s is UiState.Registered) {
             if (s is UiState.Registered) update = app.rcq.android.net.UpdateChecker.check()
         }
         update?.let { up ->
             if (s is UiState.Registered && !locked) UpdateDialog(
                 update = up,
-                busy = updateBusy,
-                progress = updateProgress,
-                onUpdate = {
-                    updateBusy = true
-                    updateProgress = 0f
-                    scope.launch {
-                        app.rcq.android.net.UpdateChecker.downloadAndInstall(context, up, onProgress = { updateProgress = it })
-                        updateBusy = false
-                    }
-                },
+                downloadState = updateDownload,
+                onUpdate = { app.rcq.android.net.UpdateChecker.startDownload(context, up) },
                 onDismiss = { update = null },
             )
+        }
+
+        // Thin progress strip at the very top while an update downloads — so
+        // closing the dialog "minimizes" the download here instead of blocking.
+        (updateDownload as? app.rcq.android.net.UpdateChecker.DownloadState.Active)?.let { a ->
+            val barMod = Modifier.align(Alignment.TopCenter).fillMaxWidth().height(2.dp)
+            if (a.progress < 0f) androidx.compose.material3.LinearProgressIndicator(color = RcqTheme.colors.accent, modifier = barMod)
+            else androidx.compose.material3.LinearProgressIndicator(progress = { a.progress }, color = RcqTheme.colors.accent, modifier = barMod)
         }
 
         // Server-join from a scanned rcq://server/<host>?invite=<code> deep link:
@@ -386,30 +386,40 @@ private fun ServerJoinDialog(host: String, hasInvite: Boolean, onConfirm: () -> 
 }
 
 @Composable
-private fun UpdateDialog(update: app.rcq.android.net.UpdateChecker.Update, busy: Boolean, progress: Float, onUpdate: () -> Unit, onDismiss: () -> Unit) {
+private fun UpdateDialog(
+    update: app.rcq.android.net.UpdateChecker.Update,
+    downloadState: app.rcq.android.net.UpdateChecker.DownloadState,
+    onUpdate: () -> Unit,
+    onDismiss: () -> Unit,
+) {
     val c = RcqTheme.colors
+    val active = downloadState as? app.rcq.android.net.UpdateChecker.DownloadState.Active
     AlertDialog(
-        onDismissRequest = { if (!busy) onDismiss() },
+        // Always dismissible: the download is process-level and keeps going.
+        onDismissRequest = onDismiss,
         containerColor = c.bgSecondary,
         title = { Text(stringResource(R.string.update_title, update.versionName), color = c.textPrimary) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 if (update.notes.isNotBlank()) Text(update.notes, color = c.textSecondary, fontSize = 14.sp)
-                if (busy) {
+                if (active != null) {
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        if (progress < 0f) {
-                            androidx.compose.material3.LinearProgressIndicator(color = c.accent, modifier = Modifier.fillMaxWidth())
-                            Text(stringResource(R.string.update_downloading), color = c.textSecondary, fontSize = 13.sp)
-                        } else {
-                            androidx.compose.material3.LinearProgressIndicator(progress = { progress }, color = c.accent, modifier = Modifier.fillMaxWidth())
-                            Text(stringResource(R.string.update_downloading_pct, (progress * 100).toInt()), color = c.textSecondary, fontSize = 13.sp)
-                        }
+                        if (active.progress < 0f) androidx.compose.material3.LinearProgressIndicator(color = c.accent, modifier = Modifier.fillMaxWidth())
+                        else androidx.compose.material3.LinearProgressIndicator(progress = { active.progress }, color = c.accent, modifier = Modifier.fillMaxWidth())
+                        Text(stringResource(R.string.update_downloading_pct, (active.progress.coerceAtLeast(0f) * 100).toInt()), color = c.textSecondary, fontSize = 13.sp)
+                        Text(stringResource(R.string.update_bg_hint), color = c.textSecondary, fontSize = 11.sp)
                     }
                 }
             }
         },
-        confirmButton = { TextButton(enabled = !busy, onClick = onUpdate) { Text(stringResource(R.string.update_now), color = c.accent) } },
-        dismissButton = { TextButton(enabled = !busy, onClick = onDismiss) { Text(stringResource(R.string.update_later), color = c.textSecondary) } },
+        confirmButton = {
+            if (active == null) TextButton(onClick = onUpdate) { Text(stringResource(R.string.update_install), color = c.accent) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(if (active != null) R.string.common_close else R.string.update_later), color = c.textSecondary)
+            }
+        },
     )
 }
 

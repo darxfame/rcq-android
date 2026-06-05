@@ -165,8 +165,8 @@ private fun SettingsRoot(
     var updChecking by remember { mutableStateOf(false) }
     var updCheckedEmpty by remember { mutableStateOf(false) }
     var updResult by remember { mutableStateOf<app.rcq.android.net.UpdateChecker.Update?>(null) }
-    var updBusy by remember { mutableStateOf(false) }
-    var updProgress by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+    // Download runs at the process level so it survives closing this dialog.
+    val downloadState by app.rcq.android.net.UpdateChecker.downloadState.collectAsState()
     val blockedCount = contacts.count { it.blocked }
 
     fun copyUin() {
@@ -378,20 +378,31 @@ private fun SettingsRoot(
                     Text(stringResource(R.string.cs_about_version, appVersion(context)), color = c.textMono, fontSize = 13.sp, fontFamily = FontFamily.Monospace)
                     Text(stringResource(R.string.cs_about_features), color = c.textSecondary, fontSize = 12.sp)
                     Divider()
+                    val active = downloadState as? app.rcq.android.net.UpdateChecker.DownloadState.Active
                     when {
-                        updBusy -> Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            if (updProgress < 0f) androidx.compose.material3.LinearProgressIndicator(color = c.accent, modifier = Modifier.fillMaxWidth())
-                            else androidx.compose.material3.LinearProgressIndicator(progress = { updProgress }, color = c.accent, modifier = Modifier.fillMaxWidth())
-                            Text(stringResource(R.string.update_downloading_pct, (updProgress.coerceAtLeast(0f) * 100).toInt()), color = c.textSecondary, fontSize = 13.sp)
+                        active != null -> Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            if (active.progress < 0f) androidx.compose.material3.LinearProgressIndicator(color = c.accent, modifier = Modifier.fillMaxWidth())
+                            else androidx.compose.material3.LinearProgressIndicator(progress = { active.progress }, color = c.accent, modifier = Modifier.fillMaxWidth())
+                            Text(stringResource(R.string.update_downloading_pct, (active.progress.coerceAtLeast(0f) * 100).toInt()), color = c.textSecondary, fontSize = 13.sp)
+                            Text(stringResource(R.string.update_bg_hint), color = c.textSecondary, fontSize = 11.sp)
                         }
-                        updResult != null -> Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        downloadState is app.rcq.android.net.UpdateChecker.DownloadState.Failed -> Text(
+                            stringResource(R.string.update_failed),
+                            color = Color(0xFFE5484D), fontSize = 13.sp,
+                            modifier = updResult?.let { up -> Modifier.clickable { app.rcq.android.net.UpdateChecker.startDownload(context, up) } } ?: Modifier,
+                        )
+                        updResult != null -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text(stringResource(R.string.update_available_short, updResult!!.versionName), color = c.accent, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                             if (updResult!!.notes.isNotBlank()) Text(updResult!!.notes, color = c.textSecondary, fontSize = 12.sp)
-                            TextButton(contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp), onClick = {
-                                val up = updResult!!
-                                updBusy = true; updProgress = 0f
-                                scope.launch { app.rcq.android.net.UpdateChecker.downloadAndInstall(context, up, onProgress = { updProgress = it }); updBusy = false }
-                            }) { Text(stringResource(R.string.update_now), color = c.accent) }
+                            // Prominent primary action (tester #28: "where do I download?").
+                            Box(
+                                Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(c.accent)
+                                    .clickable { app.rcq.android.net.UpdateChecker.startDownload(context, updResult!!) }
+                                    .padding(vertical = 11.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text(stringResource(R.string.update_install), color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                            }
                         }
                         updChecking -> Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             androidx.compose.material3.CircularProgressIndicator(color = c.accent, modifier = Modifier.size(16.dp))

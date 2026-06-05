@@ -6,7 +6,14 @@ import android.os.Build
 import androidx.core.content.FileProvider
 import app.rcq.android.BuildConfig
 import com.google.gson.JsonParser
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -42,6 +49,39 @@ object UpdateChecker {
     private const val MANIFEST_URL = "https://rcq.app/android/latest.json"
 
     data class Update(val versionCode: Int, val versionName: String, val notes: String, val apkUrl: String)
+
+    /** Process-level download state so the download survives navigating away /
+     *  closing the dialog and the UI can show a non-blocking progress bar. */
+    sealed interface DownloadState {
+        data object Idle : DownloadState
+        /** 0f..1f, or -1f while the total size is unknown (no Content-Length). */
+        data class Active(val progress: Float) : DownloadState
+        data object Failed : DownloadState
+    }
+
+    private val downloadScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var downloadJob: Job? = null
+    private val _downloadState = MutableStateFlow<DownloadState>(DownloadState.Idle)
+    val downloadState: StateFlow<DownloadState> = _downloadState.asStateFlow()
+
+    /** Start a process-level download (no-op if one is already running). It
+     *  keeps going if the user closes the dialog or leaves Settings, and the
+     *  system installer launches automatically when it finishes. The UI just
+     *  observes [downloadState]. */
+    fun startDownload(context: Context, update: Update) {
+        if (downloadJob?.isActive == true) return
+        val appCtx = context.applicationContext
+        _downloadState.value = DownloadState.Active(-1f)
+        downloadJob = downloadScope.launch {
+            val ok = downloadAndInstall(appCtx, update) { _downloadState.value = DownloadState.Active(it) }
+            _downloadState.value = if (ok) DownloadState.Idle else DownloadState.Failed
+        }
+    }
+
+    /** Reset a failed state (e.g. when the user dismisses the error). */
+    fun clearDownloadError() {
+        if (_downloadState.value is DownloadState.Failed) _downloadState.value = DownloadState.Idle
+    }
 
     // Route through the censorship transport when it's engaged (the site may be
     // blocked on the same networks the transport exists to pierce).

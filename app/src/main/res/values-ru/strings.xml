@@ -106,6 +106,9 @@
     <string name="update_checking">Проверяем…</string>
     <string name="update_uptodate">У вас последняя версия.</string>
     <string name="update_available_short">Доступно обновление: %1$s</string>
+    <string name="update_install">Скачать и установить</string>
+    <string name="update_bg_hint">Можно закрыть, загрузка продолжится в фоне. Установщик откроется, когда всё скачается.</string>
+    <string name="update_failed">Не удалось скачать. Нажмите, чтобы повторить.</string>
     <string name="join_server_title">Подключиться к серверу</string>
     <string name="join_server_body">Создать новый аккаунт на %1$s?</string>
     <string name="join_server_invite">По ссылке-приглашению</string>
