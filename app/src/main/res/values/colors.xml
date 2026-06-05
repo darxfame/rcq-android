@@ -2,4 +2,6 @@
 <resources>
     <!-- Matches the Compose Background so there's no light flash on launch. -->
     <color name="rcq_background">#FF0F1115</color>
+    <!-- Launcher adaptive-icon background (RCQ flower sits on white, matching iOS). -->
+    <color name="ic_launcher_bg">#FFFFFFFF</color>
 </resources>
