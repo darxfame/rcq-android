@@ -114,14 +114,20 @@ internal fun GroupAvatar(group: RcqGroup?, session: Session, size: Dp, glyphSize
     val bytes by produceState<ByteArray?>(initialValue = null, id, key) {
         value = if (!id.isNullOrEmpty() && !key.isNullOrEmpty()) session.fetchImage(id, key) else null
     }
-    val image = remember(bytes) {
-        bytes?.let { runCatching { BitmapFactory.decodeByteArray(it, 0, it.size)?.asImageBitmap() }.getOrNull() }
-    }
     Box(Modifier.size(size).clip(CircleShape).background(c.accent), contentAlignment = Alignment.Center) {
-        if (image != null) {
-            Image(bitmap = image, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-        } else {
-            Icon(Icons.Filled.Groups, null, tint = Color.White, modifier = Modifier.size(glyphSize))
+        val b = bytes
+        when {
+            // Animated GIF avatar (kept raw on upload) — render it animated.
+            b != null && b.isGif() && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P ->
+                AnimatedGif(b, Modifier.fillMaxSize())
+            else -> {
+                val image = remember(b) { b?.let { runCatching { BitmapFactory.decodeByteArray(it, 0, it.size)?.asImageBitmap() }.getOrNull() } }
+                if (image != null) {
+                    Image(bitmap = image, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                } else {
+                    Icon(Icons.Filled.Groups, null, tint = Color.White, modifier = Modifier.size(glyphSize))
+                }
+            }
         }
     }
 }

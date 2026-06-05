@@ -328,9 +328,16 @@ private fun GroupToggleRow(title: String, subtitle: String, checked: Boolean, on
     }
 }
 
-/** Shared JPEG downscale+compress for picked images (avatars). */
+/** Shared downscale+compress for picked images (avatars). A small animated GIF
+ *  is kept as-is so it still animates instead of being flattened to a static
+ *  JPEG; everything else is downscaled + JPEG-compressed. */
 internal fun compressImageFor(context: android.content.Context, uri: android.net.Uri): ByteArray? {
-    val src = context.contentResolver.openInputStream(uri)?.use { android.graphics.BitmapFactory.decodeStream(it) } ?: return null
+    val raw = context.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: return null
+    // "GIF8" magic — keep an animated GIF raw (capped) so it animates.
+    val isGif = raw.size >= 4 && raw[0] == 0x47.toByte() && raw[1] == 0x49.toByte() &&
+        raw[2] == 0x46.toByte() && raw[3] == 0x38.toByte()
+    if (isGif && raw.size <= 2 * 1024 * 1024) return raw
+    val src = android.graphics.BitmapFactory.decodeByteArray(raw, 0, raw.size) ?: return null
     val maxSide = 640
     val longest = maxOf(src.width, src.height)
     val scaled = if (longest > maxSide) {

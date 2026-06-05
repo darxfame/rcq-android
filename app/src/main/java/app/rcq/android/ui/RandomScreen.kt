@@ -109,8 +109,8 @@ private fun Idle(onStart: () -> Unit) {
         modifier = Modifier.padding(32.dp),
     ) {
         Icon(Icons.Filled.Casino, null, tint = c.accent, modifier = Modifier.size(64.dp))
-        Text(stringResource(R.string.random_intro_title), color = c.textPrimary, fontSize = 20.sp, fontWeight = FontWeight.SemiBold)
-        Text(stringResource(R.string.random_intro_body), color = c.textSecondary, fontSize = 14.sp)
+        Text(stringResource(R.string.random_intro_title), color = c.textPrimary, fontSize = 20.sp, fontWeight = FontWeight.SemiBold, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+        Text(stringResource(R.string.random_intro_body), color = c.textSecondary, fontSize = 14.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
         Spacer(Modifier.height(8.dp))
         CapsuleButton(stringResource(R.string.random_start), onClick = onStart)
     }
