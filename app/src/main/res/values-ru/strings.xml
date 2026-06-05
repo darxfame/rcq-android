@@ -420,6 +420,8 @@
     <string name="presence_countdown_h">%1$dч</string>
     <string name="presence_countdown_m">%1$dм</string>
     <string name="presence_countdown_lt1m">&lt;1м</string>
+    <string name="presence_info_title">Видимость после выхода</string>
+    <string name="presence_info_body">Вас показывают онлайн ещё столько времени после закрытия приложения. Изменить можно в Настройки, Приватность и сеть.</string>
     <string name="pv_profile_card">Карточка профиля</string>
     <string name="pv_profile_card_desc">Кто может открыть ваш полный профиль (город, возраст, о себе).</string>
     <string name="pv_gender_desc">Кто видит ваш пол в профиле.</string>

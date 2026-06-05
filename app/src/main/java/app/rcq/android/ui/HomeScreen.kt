@@ -80,6 +80,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
@@ -585,6 +586,21 @@ private fun HomeHeader(
     var statusMenu by remember { mutableStateOf(false) }
     var accountMenu by remember { mutableStateOf(false) }
     var overflowMenu by remember { mutableStateOf(false) }
+    var showPresenceInfo by remember { mutableStateOf(false) }
+
+    if (showPresenceInfo) {
+        AlertDialog(
+            onDismissRequest = { showPresenceInfo = false },
+            confirmButton = {
+                TextButton(onClick = { showPresenceInfo = false }) {
+                    Text(stringResource(R.string.common_ok), color = c.accent)
+                }
+            },
+            title = { Text(stringResource(R.string.presence_info_title), color = c.textPrimary) },
+            text = { Text(stringResource(R.string.presence_info_body), color = c.textSecondary) },
+            containerColor = c.bgSecondary,
+        )
+    }
 
     Box(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 10.dp)) {
         // Left — account switcher: tap a row to hot-swap identities, or
@@ -627,15 +643,16 @@ private fun HomeHeader(
             }
         }
 
-        // Centre — stay-online countdown + status picker + identity. The UIN
-        // sits UNDER the nick (one column, iOS ContactListView parity), and the
-        // "stay visible" countdown chip hugs the left of the status icon.
+        // Centre — status picker + identity, with the "stay visible" countdown
+        // chip hugging the left of the status icon. The chip is balanced by an
+        // invisible copy on the right so it never shifts the centred nick/UIN
+        // block (the UIN sits UNDER the nick, iOS ContactListView parity).
         Row(
             Modifier.align(Alignment.Center).padding(horizontal = 44.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            PresenceCountdownChip()
+            PresenceCountdownChip(onClick = { showPresenceInfo = true })
             Box {
                 StatusIcon(ownStatus, size = 30.dp, modifier = Modifier.clip(CircleShape).clickable { statusMenu = true })
                 DropdownMenu(expanded = statusMenu, onDismissRequest = { statusMenu = false }) {
@@ -654,6 +671,16 @@ private fun HomeHeader(
             ) {
                 Text(nickname, color = c.textPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 150.dp))
                 Text("$uin", color = c.textMono, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+            }
+            // Invisible mirror of the leading chip + status icon — same width
+            // on the right, so neither the chip nor the status pushes the
+            // nick/UIN off dead-centre.
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Box(Modifier.size(30.dp))
+                PresenceCountdownChip(invisible = true)
             }
         }
 
@@ -714,7 +741,7 @@ private fun HomeHeader(
  *  window is anchored in Privacy settings (LocalStores.presenceWindow) and
  *  re-anchored whenever the user changes it; hidden when off or elapsed. */
 @Composable
-private fun PresenceCountdownChip() {
+private fun PresenceCountdownChip(invisible: Boolean = false, onClick: (() -> Unit)? = null) {
     val c = RcqTheme.colors
     val window by app.rcq.android.data.LocalStores.presenceWindow.collectAsState()
     val remaining by produceState<Long?>(
@@ -731,10 +758,16 @@ private fun PresenceCountdownChip() {
         }
     }
     val r = remaining ?: return
+    val mod = Modifier
+        .then(if (invisible) Modifier.alpha(0f) else Modifier)
+        .clip(RoundedCornerShape(50))
+        .background(c.bgSecondary)
+        .then(if (onClick != null && !invisible) Modifier.clickable(onClick = onClick) else Modifier)
+        .padding(horizontal = 7.dp, vertical = 3.dp)
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(3.dp),
-        modifier = Modifier.clip(RoundedCornerShape(50)).background(c.bgSecondary).padding(horizontal = 7.dp, vertical = 3.dp),
+        modifier = mod,
     ) {
         Icon(Icons.Outlined.Schedule, contentDescription = null, tint = c.accent, modifier = Modifier.size(12.dp))
         Text(presenceCountdownLabel(r), color = c.textSecondary, fontSize = 11.sp, fontWeight = FontWeight.Medium, maxLines = 1)
