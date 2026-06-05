@@ -181,7 +181,7 @@ internal fun GroupInfoScreen(session: Session, groupId: Int, onBack: () -> Unit,
                     StatusIcon(m.presence, size = 26.dp)
                     Column(Modifier.weight(1f)) {
                         Text(m.nickname + if (m.uin == ownUin) stringResource(R.string.gi_you) else "", color = c.textPrimary, fontSize = 15.sp)
-                        Text("${m.uin}", color = c.textMono, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+                        Text("#${m.uin}", color = c.textMono, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
                     }
                     if (m.role == "owner") {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {

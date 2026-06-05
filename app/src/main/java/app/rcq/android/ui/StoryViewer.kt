@@ -208,7 +208,7 @@ internal fun StoryViewer(session: Session, group: RcqApi.StoryGroupOut, onClose:
                     list == null -> Box(Modifier.fillMaxWidth().height(60.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = c.accent) }
                     list.isEmpty() -> Text(stringResource(R.string.story_no_viewers), color = c.textSecondary)
                     else -> LazyColumn { items(list, key = { it.viewer_uin }) { v ->
-                        Text(v.viewer_nickname ?: "${v.viewer_uin}", color = c.textPrimary, fontSize = 15.sp, modifier = Modifier.padding(vertical = 8.dp))
+                        Text(v.viewer_nickname ?: "#${v.viewer_uin}", color = c.textPrimary, fontSize = 15.sp, modifier = Modifier.padding(vertical = 8.dp))
                     } }
                 }
             },

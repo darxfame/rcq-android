@@ -136,7 +136,7 @@ internal fun ContactInfoScreen(session: Session, uin: Int, onBack: () -> Unit, o
             ) {
                 Column(Modifier.weight(1f)) {
                     Text("UIN", color = c.textSecondary, fontSize = 12.sp)
-                    Text("$uin", color = c.textMono, fontSize = 15.sp, fontFamily = FontFamily.Monospace)
+                    Text("#$uin", color = c.textMono, fontSize = 15.sp, fontFamily = FontFamily.Monospace)
                 }
                 Icon(Icons.Filled.ContentCopy, stringResource(R.string.common_copy_uin), tint = c.textSecondary, modifier = Modifier.size(18.dp))
             }

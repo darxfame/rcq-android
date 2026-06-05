@@ -194,7 +194,7 @@ private fun SettingsRoot(
                 Column(Modifier.weight(1f)) {
                     Text(session.nickname, color = c.textPrimary, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("$uin", color = c.textMono, fontSize = 13.sp, fontFamily = FontFamily.Monospace)
+                        Text("#$uin", color = c.textMono, fontSize = 13.sp, fontFamily = FontFamily.Monospace)
                         Icon(Icons.Filled.ContentCopy, stringResource(R.string.common_copy_uin), tint = c.textSecondary,
                             modifier = Modifier.size(15.dp).clickable { copyUin() })
                     }
@@ -493,7 +493,7 @@ internal fun ProfileEditScreen(session: Session, onBack: () -> Unit) {
                 StatusIcon(ownStatus, size = 48.dp)
                 Column {
                     Text(nickname.ifBlank { "—" }, color = c.textPrimary, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-                    Text("$ownUin", color = c.textMono, fontSize = 13.sp, fontFamily = FontFamily.Monospace)
+                    Text("#$ownUin", color = c.textMono, fontSize = 13.sp, fontFamily = FontFamily.Monospace)
                 }
             }
             // Profile views (own-profile only; tallied locally from sealed visit pings).
@@ -840,7 +840,7 @@ private fun BlockedUsersScreen(session: Session, onBack: () -> Unit) {
                         StatusIcon(ct.presence, size = 26.dp)
                         Column(Modifier.weight(1f)) {
                             Text(ct.nickname, color = c.textPrimary, fontSize = 15.sp)
-                            Text("${ct.uin}", color = c.textMono, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+                            Text("#${ct.uin}", color = c.textMono, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
                         }
                         TextButton(onClick = { scope.launch { runCatching { session.toggleBlock(ct.uin) } } }) {
                             Text(stringResource(R.string.blocked_unblock), color = c.accent)
@@ -1117,7 +1117,7 @@ private fun PinCodesScreen(session: Session, onBack: () -> Unit) {
                                 null, tint = if (decoyAccount == a.id) c.accent else c.textSecondary, modifier = Modifier.size(20.dp),
                             )
                             Spacer(Modifier.width(10.dp))
-                            Column { Text(nick, color = c.textPrimary, fontSize = 14.sp); uin?.let { Text("$it", color = c.textSecondary, fontSize = 12.sp) } }
+                            Column { Text(nick, color = c.textPrimary, fontSize = 14.sp); uin?.let { Text("#$it", color = c.textSecondary, fontSize = 12.sp) } }
                         }
                     }
                 }

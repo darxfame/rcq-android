@@ -344,7 +344,7 @@ internal fun HomeScreen(
         previewContact?.let { ct ->
             PreviewOverlay(
                 title = ct.nickname,
-                subtitle = "${ct.uin}",
+                subtitle = "#${ct.uin}",
                 avatar = { StatusIcon(ct.presence, size = 36.dp) },
                 actions = contactActions(ct, session, scope, context, onOpenChat, onReport = { reportTarget = it }),
                 onDismiss = { previewContact = null },
@@ -639,7 +639,7 @@ private fun HomeHeader(
                             Column {
                                 Text(a.nickname, color = c.textPrimary, fontWeight = FontWeight.SemiBold)
                                 Text(a.host, color = c.textSecondary, fontSize = 12.sp)
-                                a.uin?.let { Text("$it", color = c.textMono, fontSize = 12.sp, fontFamily = FontFamily.Monospace) }
+                                a.uin?.let { Text("#$it", color = c.textMono, fontSize = 12.sp, fontFamily = FontFamily.Monospace) }
                             }
                         },
                         leadingIcon = {
@@ -696,7 +696,7 @@ private fun HomeHeader(
                 modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = onOpenProfile).padding(horizontal = 6.dp, vertical = 4.dp),
             ) {
                 Text(nickname, color = c.textPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 150.dp))
-                Text("$uin", color = c.textMono, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+                Text("#$uin", color = c.textMono, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
             }
             // Right of the nick/UIN: a status-width slot holding the stealth
             // shield when the censorship bypass is engaged (iOS StealthHeaderBadge
@@ -919,7 +919,7 @@ private fun ContactRowItem(contact: Contact, unread: Int, onClick: () -> Unit, o
                 if (muted) Icon(Icons.Filled.NotificationsOff, null, tint = c.textSecondary, modifier = Modifier.size(11.dp))
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("${contact.uin}", color = c.textMono, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+                Text("#${contact.uin}", color = c.textMono, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
                 val ctx = LocalContext.current
                 val sub = when {
                     !contact.statusMessage.isNullOrEmpty() -> contact.statusMessage
@@ -1120,7 +1120,7 @@ private fun SearchOverlay(contacts: List<Contact>, onClose: () -> Unit, onSelect
                     StatusIcon(ct.presence, size = 26.dp)
                     Column {
                         Text(ct.nickname, color = c.textPrimary, fontSize = 15.sp)
-                        Text("${ct.uin}", color = c.textMono, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+                        Text("#${ct.uin}", color = c.textMono, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
                     }
                 }
             }
