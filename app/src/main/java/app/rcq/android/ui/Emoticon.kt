@@ -100,6 +100,12 @@ internal object Emoticons {
      *  resolver is supplied to [EmoticonText]. */
     val MENTION_RE = Regex("#(\\d{3,})")
 
+    /** An `@nickname` mention in a message body. Resolved against the group
+     *  roster (case-insensitive) by [EmoticonText]; an unmatched `@foo` (or an
+     *  email's `@domain`) stays plain text. Mirrors the iOS MentionParser
+     *  pattern: letters/digits/underscore/dot/hyphen (so ".Dev" resolves). */
+    val MENTION_AT_RE = Regex("@([\\p{L}\\p{N}_.\\-]+)")
+
     /** Split [text] into text runs + known `:asset:` emoticons. Returns a single
      *  Text token when there are no emoticons (the common case). */
     fun tokenize(text: String): List<Token> {
@@ -174,10 +180,15 @@ internal fun EmoticonText(
     // digits. Null = no mention handling (the default for non-message text).
     mentionNick: ((Int) -> String?)? = null,
     onMentionClick: ((Int) -> Unit)? = null,
+    // When supplied, an `@nickname` whose nick resolves to a group member's uin
+    // renders as the clickable accent nick (tap → [onMentionClick]); else plain.
+    mentionUin: ((String) -> Int?)? = null,
 ) {
     val tokens = remember(body) { Emoticons.tokenize(body) }
     val accent = RcqTheme.colors.accent
-    val hasMention = mentionNick != null && body.contains('#') && Emoticons.MENTION_RE.containsMatchIn(body)
+    val hasMention =
+        (mentionNick != null && body.contains('#') && Emoticons.MENTION_RE.containsMatchIn(body)) ||
+        (mentionUin != null && body.contains('@') && Emoticons.MENTION_AT_RE.containsMatchIn(body))
     // Fast path: a pure-text body with no resolvable mentions.
     if (tokens.size == 1 && tokens[0] is Emoticons.Token.Text && !hasMention) {
         Text(body, color = color, fontSize = fontSize, lineHeight = lineHeight, modifier = modifier)
@@ -186,7 +197,7 @@ internal fun EmoticonText(
     val inline = HashMap<String, InlineTextContent>()
     val annotated = buildAnnotatedString {
         for (t in tokens) when (t) {
-            is Emoticons.Token.Text -> appendWithMentions(t.text, mentionNick, onMentionClick, accent)
+            is Emoticons.Token.Text -> appendWithMentions(t.text, mentionNick, mentionUin, onMentionClick, accent)
             is Emoticons.Token.Emo -> {
                 appendInlineContent(t.asset, t.code)
                 if (t.asset !in inline) {
@@ -201,26 +212,43 @@ internal fun EmoticonText(
     Text(annotated, color = color, fontSize = fontSize, lineHeight = lineHeight, inlineContent = inline, modifier = modifier)
 }
 
-/** Append [text], turning each `#<uin>` whose uin resolves to a nick into a
- *  clickable accent-coloured nick (tap → [onMentionClick]); unresolved or
- *  no-resolver mentions stay as plain text. */
+/** Append [text], turning each resolvable mention into a clickable accent nick
+ *  (tap → [onMentionClick]): `#<uin>` via [mentionNick] (renders the nick), and
+ *  `@nickname` via [mentionUin] (renders the typed `@nick`). Unresolved or
+ *  no-resolver tokens stay plain. Both kinds are merged in source order. */
 private fun AnnotatedString.Builder.appendWithMentions(
     text: String,
     mentionNick: ((Int) -> String?)?,
+    mentionUin: ((String) -> Int?)?,
     onMentionClick: ((Int) -> Unit)?,
     accent: Color,
 ) {
-    if (mentionNick == null) { append(text); return }
-    var cursor = 0
-    for (m in Emoticons.MENTION_RE.findAll(text)) {
-        val uin = m.groupValues[1].toIntOrNull()
-        val nick = uin?.let { mentionNick(it) }
-        if (uin == null || nick == null) continue
-        if (m.range.first > cursor) append(text.substring(cursor, m.range.first))
-        withLink(LinkAnnotation.Clickable(tag = "m$uin", linkInteractionListener = { onMentionClick?.invoke(uin) })) {
-            withStyle(SpanStyle(color = accent)) { append(nick) }
+    if (mentionNick == null && mentionUin == null) { append(text); return }
+    data class Hit(val range: IntRange, val uin: Int, val display: String)
+    val hits = ArrayList<Hit>()
+    if (mentionNick != null) {
+        for (m in Emoticons.MENTION_RE.findAll(text)) {
+            val uin = m.groupValues[1].toIntOrNull() ?: continue
+            val nick = mentionNick(uin) ?: continue
+            hits.add(Hit(m.range, uin, nick))
         }
-        cursor = m.range.last + 1
+    }
+    if (mentionUin != null) {
+        for (m in Emoticons.MENTION_AT_RE.findAll(text)) {
+            val uin = mentionUin(m.groupValues[1]) ?: continue
+            hits.add(Hit(m.range, uin, m.value)) // keep the typed "@nick"
+        }
+    }
+    if (hits.isEmpty()) { append(text); return }
+    hits.sortBy { it.range.first }
+    var cursor = 0
+    for (h in hits) {
+        if (h.range.first < cursor) continue // skip overlaps
+        if (h.range.first > cursor) append(text.substring(cursor, h.range.first))
+        withLink(LinkAnnotation.Clickable(tag = "m${h.uin}", linkInteractionListener = { onMentionClick?.invoke(h.uin) })) {
+            withStyle(SpanStyle(color = accent)) { append(h.display) }
+        }
+        cursor = h.range.last + 1
     }
     if (cursor < text.length) append(text.substring(cursor))
 }

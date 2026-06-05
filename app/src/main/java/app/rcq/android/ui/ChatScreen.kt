@@ -121,6 +121,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
 import androidx.compose.foundation.text.ClickableText
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -191,6 +192,13 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
         }
     }
     val onMentionClick: (Int) -> Unit = { uin -> if (uin != ownUin) onOpenPeerInfo(uin) }
+    // Resolve an `@nickname` to a group member's uin (case-insensitive), for
+    // clickable @-mentions in the bubble + the composer autocomplete. Groups only.
+    val mentionUin = remember(group, isGroup) {
+        { nick: String ->
+            if (isGroup) group?.members?.firstOrNull { it.nickname.equals(nick, ignoreCase = true) }?.uin else null
+        }
+    }
     val isTyping = !isGroup && typingFrom == peer
 
     // Draft survives leaving + re-entering the chat (tester #6): held per-thread
@@ -542,6 +550,7 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
                                 onViewImage = { fullscreenImage = it },
                                 mentionNick = mentionNick,
                                 onMentionClick = onMentionClick,
+                                mentionUin = mentionUin,
                             )
                         }
                     }
@@ -563,6 +572,53 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
                     Text(previewOf(rt, context), color = c.textSecondary, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 Icon(Icons.Filled.Close, stringResource(R.string.chat_cancel_reply), tint = c.textSecondary, modifier = Modifier.clickable { replyTarget = null }.padding(8.dp).size(18.dp))
+            }
+        }
+
+        // @-mention autocomplete (groups): an "@partial" at the input tail pops a
+        // member picker; tapping inserts "@nick ". iOS parity (activeMentionQuery).
+        if (isGroup && canPost) {
+            val members = group?.members ?: emptyList()
+            val q: Pair<Int, String>? = run {
+                var i = draft.length
+                while (i > 0) {
+                    val ch = draft[i - 1]
+                    if (ch == '@') {
+                        val partial = draft.substring(i)
+                        return@run if (partial.isNotEmpty()) (i - 1) to partial else null
+                    }
+                    if (ch.isWhitespace()) return@run null
+                    i--
+                }
+                null
+            }
+            val candidates = q?.let { (_, partial) ->
+                val p = partial.lowercase()
+                members.filter { it.uin != ownUin && it.nickname.lowercase().contains(p) }.take(8)
+            } ?: emptyList()
+            if (q != null && candidates.isNotEmpty()) {
+                val (mStart, mPartial) = q
+                Column(
+                    Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp)
+                        .heightIn(max = 220.dp).clip(RoundedCornerShape(12.dp)).background(c.bgSecondary),
+                ) {
+                    LazyColumn {
+                        items(candidates, key = { it.uin }) { mbr ->
+                            Row(
+                                Modifier.fillMaxWidth().clickable {
+                                    val newText = draft.substring(0, mStart) + "@" + mbr.nickname + " " +
+                                        draft.substring(mStart + 1 + mPartial.length)
+                                    draft = newText
+                                    ChatDrafts.byThread[threadKey] = newText
+                                }.padding(horizontal = 12.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(mbr.nickname, color = c.textPrimary, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                                Text("#${mbr.uin}", color = c.textMono, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+                            }
+                        }
+                    }
+                }
             }
         }
 
@@ -1331,7 +1387,7 @@ private fun AlbumTile(session: Session, m: ChatMessage, w: Dp, h: Dp, onLongPres
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun MessageBubble(session: Session, m: ChatMessage, senderName: String?, onRetry: () -> Unit, onLongPress: () -> Unit, onOpenGroup: (Int) -> Unit = {}, onViewImage: (ByteArray) -> Unit = {}, mentionNick: ((Int) -> String?)? = null, onMentionClick: ((Int) -> Unit)? = null) {
+private fun MessageBubble(session: Session, m: ChatMessage, senderName: String?, onRetry: () -> Unit, onLongPress: () -> Unit, onOpenGroup: (Int) -> Unit = {}, onViewImage: (ByteArray) -> Unit = {}, mentionNick: ((Int) -> String?)? = null, onMentionClick: ((Int) -> Unit)? = null, mentionUin: ((String) -> Int?)? = null) {
     val c = RcqTheme.colors
     val failed = m.state == DeliveryState.FAILED
     // Cap a bubble so a long message leaves a gap to the far edge — keeps the
@@ -1386,7 +1442,7 @@ private fun MessageBubble(session: Session, m: ChatMessage, senderName: String?,
                         Text(m.replyToSnippet, color = c.textSecondary, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
-                EmoticonText(m.body, color = c.textPrimary, fontSize = 15.sp, lineHeight = 19.sp, mentionNick = mentionNick, onMentionClick = onMentionClick)
+                EmoticonText(m.body, color = c.textPrimary, fontSize = 15.sp, lineHeight = 19.sp, mentionNick = mentionNick, onMentionClick = onMentionClick, mentionUin = mentionUin)
             }
         }
         if (m.reactions.isNotEmpty()) {
