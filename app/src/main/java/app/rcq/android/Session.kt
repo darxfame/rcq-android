@@ -561,6 +561,12 @@ class Session(context: Context) {
             onState = { up ->
                 _connected.value = up
                 if (up) {
+                    // The server replays messages missed while we were offline as
+                    // a burst right after connect. Those must NOT play the receive
+                    // sound (the sound is only for messages that arrive live while
+                    // the app is open, iOS parity). Mute the sound for a short
+                    // window covering the backfill burst.
+                    soundsSuppressedUntil = System.currentTimeMillis() + 5000L
                     // A reconnect (after an offline gap) re-pulls the graph so
                     // a roster that failed to load earlier recovers without a
                     // cold start. The first connect is skipped — start() below
@@ -2069,8 +2075,16 @@ class Session(context: Context) {
         // active thread, so a tester sitting inside a chat heard nothing.
         if (thread == activeThread) LocalStores.clearUnread(thread)
         else LocalStores.bumpUnread(thread)
-        if (!LocalStores.isMuted(thread)) app.rcq.android.media.SoundService.message()
+        // Skip the receive sound during the post-connect backfill window so a
+        // pile of messages missed while away doesn't ring N times on open.
+        val live = System.currentTimeMillis() >= soundsSuppressedUntil
+        if (live && !LocalStores.isMuted(thread)) app.rcq.android.media.SoundService.message()
     }
+
+    /** Wall-clock until which inbound receive sounds are muted — set on every
+     *  WS connect to cover the offline-message backfill burst (see onState). */
+    @Volatile
+    private var soundsSuppressedUntil = 0L
 
     /** The thread the user currently has open (or null). Set by the UI so
      *  inbound messages to it don't raise a badge, and so a message that
