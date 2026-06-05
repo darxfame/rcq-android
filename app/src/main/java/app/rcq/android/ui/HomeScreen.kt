@@ -690,34 +690,30 @@ private fun HomeHeader(
                 Text(nickname, color = c.textPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 150.dp))
                 Text("$uin", color = c.textMono, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
             }
-            // Invisible mirror of the leading chip + status icon — same width
-            // on the right, so neither the chip nor the status pushes the
-            // nick/UIN off dead-centre.
+            // Right of the nick/UIN: a status-width slot holding the stealth
+            // eye when the censorship bypass is engaged (iOS StealthHeaderBadge
+            // parity) + an invisible chip mirror. The slot also balances the
+            // leading status icon + chip so the nick/UIN stays dead-centred.
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                Box(Modifier.size(30.dp))
+                Box(Modifier.size(30.dp), contentAlignment = Alignment.Center) {
+                    if (stealthActive) {
+                        Icon(
+                            Icons.Filled.VisibilityOff,
+                            stringResource(R.string.stealth_info_title),
+                            tint = c.accent,
+                            modifier = Modifier.size(22.dp).clip(CircleShape).clickable { showStealthInfo = true },
+                        )
+                    }
+                }
                 PresenceCountdownChip(invisible = true)
             }
         }
 
-        // Right — stealth indicator (shown when the censorship bypass is
-        // engaged, iOS StealthHeaderBadge parity) + overflow menu.
-        Row(
-            Modifier.align(Alignment.CenterEnd),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            if (stealthActive) {
-                Icon(
-                    Icons.Filled.VisibilityOff,
-                    stringResource(R.string.stealth_info_title),
-                    tint = c.accent,
-                    modifier = Modifier.size(22.dp).clip(CircleShape).clickable { showStealthInfo = true },
-                )
-            }
-            Box {
+        // Right — overflow menu.
+        Box(Modifier.align(Alignment.CenterEnd)) {
             Icon(
                 Icons.Filled.MoreVert, "Menu", tint = c.textPrimary,
                 modifier = Modifier.size(26.dp).clip(CircleShape).clickable { overflowMenu = true },
@@ -763,7 +759,6 @@ private fun HomeHeader(
                     leadingIcon = { Icon(Icons.Filled.Sensors, null, tint = c.accent) },
                     onClick = { overflowMenu = false; onOpenRadio() },
                 )
-            }
             }
         }
     }
