@@ -1,5 +1,6 @@
 package app.rcq.android.ui
 
+import android.graphics.BitmapFactory
 import android.graphics.ImageDecoder
 import android.graphics.drawable.AnimatedImageDrawable
 import android.os.Build
@@ -28,11 +29,26 @@ internal fun AnimatedGif(bytes: ByteArray, modifier: Modifier) {
             ImageDecoder.decodeDrawable(ImageDecoder.createSource(ByteBuffer.wrap(bytes)))
         }.getOrNull()
     }
+    // If the animated decode failed (some OEM/OS ImageDecoder builds choke on
+    // particular GIFs), fall back to a static first frame. A bad emoticon must
+    // never take down a whole chat.
+    val staticFrame = remember(bytes, drawable) {
+        if (drawable != null) null
+        else runCatching { BitmapFactory.decodeByteArray(bytes, 0, bytes.size) }.getOrNull()
+    }
     AndroidView(
         factory = { ctx -> ImageView(ctx).apply { scaleType = ImageView.ScaleType.CENTER_CROP } },
         update = { iv ->
-            iv.setImageDrawable(drawable)
-            (drawable as? AnimatedImageDrawable)?.start()
+            runCatching {
+                when {
+                    drawable != null -> {
+                        iv.setImageDrawable(drawable)
+                        (drawable as? AnimatedImageDrawable)?.start()
+                    }
+                    staticFrame != null -> iv.setImageBitmap(staticFrame)
+                    else -> iv.setImageDrawable(null)
+                }
+            }
         },
         modifier = modifier,
     )
