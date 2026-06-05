@@ -135,6 +135,14 @@
     <string name="recovery_pin_prompt">Введи PIN, чтобы увидеть фразу восстановления.</string>
     <string name="recovery_pin_unlock">Показать фразу</string>
     <string name="recovery_pin_wrong">Неверный PIN.</string>
+    <string name="reissue_title">Перевыпуск ключей</string>
+    <string name="reissue_explain">Создать новую личность и фразу восстановления, сохранив тот же UIN. Используйте, только если думаете, что ваши ключи могли быть скомпрометированы.</string>
+    <string name="reissue_cta">Перевыпустить ключи</string>
+    <string name="reissue_working">Перевыпускаю…</string>
+    <string name="reissue_confirm_title">Перевыпустить ключи?</string>
+    <string name="reissue_confirm_body">Старая фраза восстановления перестанет работать, её заменит новая, запишите новую. Контакты увидят предупреждение о смене кода безопасности, а сообщения, отправленные вам во время смены, могут не дойти. UIN останется прежним.</string>
+    <string name="reissue_done">Ключи перевыпущены. Запишите новую фразу восстановления.</string>
+    <string name="reissue_failed">Не удалось перевыпустить ключи. Проверьте соединение и повторите.</string>
     <string name="restore_title">Восстановить аккаунт</string>
     <string name="restore_hint">Введите фразу восстановления (24 слова, или 48 для старого аккаунта), чтобы восстановить аккаунт на этом устройстве.</string>
     <string name="restore_phrase_ph">слово слово слово …</string>

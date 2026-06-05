@@ -70,6 +70,9 @@ class RcqApi(private val baseUrl: String = DEFAULT_BASE_URL) {
     data class RecoverChallengeRequest(val signing_key: String)
     data class RecoverChallengeResponse(val challenge: String)
     data class RecoverRequest(val signing_key: String, val challenge: String, val signature: String)
+    // In-place identity key rotation for the current (authed) account: replaces
+    // the long-term X25519 identity + Ed25519 signing keys; the UIN is unchanged.
+    data class ReissueRequest(val identity_key: String, val signing_key: String)
 
     // ── libsignal prekey bundle (v=2 forward secrecy) ─────────────────
     // JSON key is "public" (a Kotlin keyword) → @SerializedName.
@@ -127,6 +130,12 @@ class RcqApi(private val baseUrl: String = DEFAULT_BASE_URL) {
 
     suspend fun recover(req: RecoverRequest): RegisterResponse = withContext(Dispatchers.IO) {
         post("/auth/recover", gson.toJson(req), authed = false, RegisterResponse::class.java)
+    }
+
+    /** Rotate the long-term identity keys for the current (authed) account in
+     *  place (POST /auth/reissue). UIN unchanged; returns a fresh token. */
+    suspend fun reissue(req: ReissueRequest): RegisterResponse = withContext(Dispatchers.IO) {
+        post("/auth/reissue", gson.toJson(req), authed = true, RegisterResponse::class.java)
     }
 
     // ── peer lookup (rcq-spec 3.1) ───────────────────────────────────

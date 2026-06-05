@@ -23,15 +23,19 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -59,7 +63,8 @@ fun RecoveryPhraseScreen(session: Session, onBack: () -> Unit) {
     val context = LocalContext.current
     // Seed accounts get a 24-word phrase; legacy (pre-seed) accounts fall back
     // to a 48-word raw-key export. Only truly keyless accounts show nothing.
-    val phrase = remember { session.recoveryPhrase() ?: session.legacyExportPhrase() }
+    // Mutable so a key re-issue can swap in the freshly-minted 24-word phrase.
+    var phrase by remember { mutableStateOf(session.recoveryPhrase() ?: session.legacyExportPhrase()) }
 
     Column(Modifier.fillMaxSize().background(c.bgPrimary)) {
         Row(
@@ -90,6 +95,12 @@ fun RecoveryPhraseScreen(session: Session, onBack: () -> Unit) {
             return@Column
         }
 
+        // Non-null capture (guarded above) — a delegated `var` doesn't smart-cast.
+        val words = phrase ?: return@Column
+        val scope = rememberCoroutineScope()
+        var confirmReissue by remember { mutableStateOf(false) }
+        var rotating by remember { mutableStateOf(false) }
+
         Column(
             Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -97,9 +108,9 @@ fun RecoveryPhraseScreen(session: Session, onBack: () -> Unit) {
             Text(stringResource(R.string.recovery_warn), color = Color(0xFFE5A50A), fontSize = 13.sp)
 
             // Two-column numbered grid of the words (24 for seed, 48 for legacy).
-            val mid = phrase.size / 2
+            val mid = words.size / 2
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                listOf(phrase.subList(0, mid), phrase.subList(mid, phrase.size)).forEachIndexed { col, half ->
+                listOf(words.subList(0, mid), words.subList(mid, words.size)).forEachIndexed { col, half ->
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         half.forEachIndexed { i, w ->
                             val n = col * mid + i + 1
@@ -115,11 +126,48 @@ fun RecoveryPhraseScreen(session: Session, onBack: () -> Unit) {
                 }
             }
 
-            CapsuleButton(stringResource(R.string.recovery_copy), modifier = Modifier.fillMaxWidth()) {
-                copyToClipboard(context, phrase.joinToString(" "))
+            CapsuleButton(stringResource(R.string.recovery_copy), enabled = !rotating, modifier = Modifier.fillMaxWidth()) {
+                copyToClipboard(context, words.joinToString(" "))
                 Toast.makeText(context, context.getString(R.string.recovery_copied), Toast.LENGTH_SHORT).show()
             }
             Text(stringResource(R.string.recovery_note), color = c.textSecondary, fontSize = 12.sp)
+
+            // ── Key re-issue (rotation) ──────────────────────────────────
+            Spacer(Modifier.height(4.dp))
+            Text(stringResource(R.string.reissue_title), color = c.textPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.reissue_explain), color = c.textSecondary, fontSize = 12.sp)
+            CapsuleButton(
+                if (rotating) stringResource(R.string.reissue_working) else stringResource(R.string.reissue_cta),
+                enabled = !rotating,
+                modifier = Modifier.fillMaxWidth(),
+            ) { confirmReissue = true }
+        }
+
+        if (confirmReissue) {
+            AlertDialog(
+                onDismissRequest = { confirmReissue = false },
+                containerColor = c.bgSecondary,
+                title = { Text(stringResource(R.string.reissue_confirm_title), color = c.textPrimary) },
+                text = { Text(stringResource(R.string.reissue_confirm_body), color = c.textSecondary) },
+                confirmButton = {
+                    TextButton(onClick = {
+                        confirmReissue = false
+                        rotating = true
+                        scope.launch {
+                            runCatching { session.reissueKeys() }
+                                .onSuccess { newPhrase ->
+                                    phrase = newPhrase
+                                    Toast.makeText(context, context.getString(R.string.reissue_done), Toast.LENGTH_LONG).show()
+                                }
+                                .onFailure {
+                                    Toast.makeText(context, context.getString(R.string.reissue_failed), Toast.LENGTH_LONG).show()
+                                }
+                            rotating = false
+                        }
+                    }) { Text(stringResource(R.string.reissue_cta), color = Color(0xFFE5484D)) }
+                },
+                dismissButton = { TextButton(onClick = { confirmReissue = false }) { Text(stringResource(R.string.common_cancel), color = c.textSecondary) } },
+            )
         }
     }
 }

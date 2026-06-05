@@ -79,6 +79,50 @@ object SignalBootstrap {
         )
     }
 
+    /**
+     * Rotate the libsignal identity in place: mint a brand-new identity + prekey
+     * bundle and re-upload it, REPLACING the old one. Upload-FIRST so a failed
+     * network call leaves the existing (working) identity untouched instead of
+     * desyncing local vs server. Used by account key re-issue — a new libsignal
+     * identity changes our safety number, so contacts get a "safety number
+     * changed" warning the next time they establish a session with us.
+     */
+    suspend fun rebootstrap(stores: SignalStores, api: RcqApi, ownUin: Int) {
+        val identity = IdentityKeyPair.generate()
+        val registrationId = (1..16380).random()
+        val nowMs = System.currentTimeMillis()
+
+        val signedId = (1..MAX_ID).random()
+        val signedKp = ECKeyPair.generate()
+        val signedPub = signedKp.publicKey.serialize()
+        val signedSig = identity.privateKey.calculateSignature(signedPub)
+
+        val kyberId = (1..MAX_ID).random()
+        val kyberKp = KEMKeyPair.generate(KEMKeyType.KYBER_1024)
+        val kyberPub = kyberKp.publicKey.serialize()
+        val kyberSig = identity.privateKey.calculateSignature(kyberPub)
+
+        val opks = ArrayList<Pair<Int, ECKeyPair>>(TARGET_OPK)
+        repeat(TARGET_OPK) { opks.add((1..MAX_ID).random() to ECKeyPair.generate()) }
+
+        // Upload BEFORE touching local state.
+        api.uploadKeysBundle(
+            RcqApi.KeysBundleBody(
+                signal_identity_key = b64(identity.publicKey.serialize()),
+                registration_id = registrationId,
+                signed_prekey = RcqApi.SignedPreKeyDto(signedId, b64(signedPub), b64(signedSig)),
+                kyber_prekey = RcqApi.KyberPreKeyDto(kyberId, b64(kyberPub), b64(kyberSig)),
+                one_time_prekeys = opks.map { (id, kp) -> RcqApi.OneTimePreKeyDto(id, b64(kp.publicKey.serialize())) },
+            )
+        )
+        // Server accepted the new bundle: swap local state to match.
+        stores.wipe()
+        stores.storeLocalIdentity(ownUin, identity, registrationId)
+        stores.storeSignedPreKey(signedId, SignedPreKeyRecord(signedId, nowMs, signedKp, signedSig))
+        stores.storeKyberPreKey(kyberId, KyberPreKeyRecord(kyberId, nowMs, kyberKp, kyberSig))
+        opks.forEach { (id, kp) -> stores.storePreKey(id, PreKeyRecord(id, kp)) }
+    }
+
     private suspend fun topUpIfNeeded(stores: SignalStores, api: RcqApi) {
         val status = runCatching { api.keysStatus() }.getOrNull() ?: return
         if (!status.has_bundle) {

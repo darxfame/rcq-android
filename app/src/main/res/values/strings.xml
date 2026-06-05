@@ -136,6 +136,14 @@
     <string name="recovery_pin_prompt">Enter your PIN to view the recovery phrase.</string>
     <string name="recovery_pin_unlock">Show phrase</string>
     <string name="recovery_pin_wrong">Wrong PIN.</string>
+    <string name="reissue_title">Re-issue keys</string>
+    <string name="reissue_explain">Generate a brand-new identity and recovery phrase while keeping the same UIN. Use this only if you think your keys may have been compromised.</string>
+    <string name="reissue_cta">Re-issue keys</string>
+    <string name="reissue_working">Re-issuing…</string>
+    <string name="reissue_confirm_title">Re-issue keys?</string>
+    <string name="reissue_confirm_body">Your old recovery phrase stops working and is replaced by a new one, so write the new one down. Your contacts will see a \"security code changed\" warning, and messages sent to you during the switch may not arrive. Your UIN stays the same.</string>
+    <string name="reissue_done">Keys re-issued. Write down your new recovery phrase.</string>
+    <string name="reissue_failed">Couldn\'t re-issue keys. Check your connection and try again.</string>
     <string name="restore_title">Restore account</string>
     <string name="restore_hint">Enter your recovery phrase (24 words, or 48 for an older account) to restore your account on this device.</string>
     <string name="restore_phrase_ph">word word word …</string>

@@ -391,6 +391,49 @@ class Session(context: Context) {
         return resp.uin
     }
 
+    /** Rotate the active account's long-term identity to a fresh seed/keypair
+     *  while KEEPING the same UIN. Derives new X25519 + Ed25519 keys from a new
+     *  recovery seed (so the recovery phrase changes), pushes the new public
+     *  keys to the server via /auth/reissue, persists them locally, and rebuilds
+     *  the libsignal bundle (new safety number → contacts get a "safety number
+     *  changed" warning on their next key sync). Returns the NEW 24-word phrase.
+     *  For users who fear key compromise or just want a fresh phrase.
+     *  Throws IllegalStateException("not_registered") with no active identity. */
+    suspend fun reissueKeys(): List<String> = withContext(Dispatchers.IO) {
+        val uin = store.uin ?: throw IllegalStateException("not_registered")
+        val nick = store.nickname ?: "user-$uin"
+        val host = store.serverHost
+        val seed = IdentityKeys.newSeed()
+        val identity = IdentityKeys.fromSeed(seed)
+        // Push the new long-term public keys (the bearer token already authorises
+        // the change; UIN unchanged). Returns a fresh-but-equivalent token.
+        val resp = api.reissue(
+            RcqApi.ReissueRequest(
+                identity_key = Base64.encodeToString(identity.identityPublic, Base64.NO_WRAP),
+                signing_key = Base64.encodeToString(identity.signingPublic, Base64.NO_WRAP),
+            )
+        )
+        // Persist the new identity + seed under the active account (same UIN /
+        // nick / server). store reads prefs live, so this takes effect at once.
+        store.saveIdentity(
+            uin = resp.uin,
+            token = resp.token,
+            nickname = nick,
+            identityPrivate = identity.identityPrivate,
+            signingPrivate = identity.signingPrivate,
+            serverHost = host,
+            seed = seed,
+        )
+        api.setToken(resp.token)
+        // Rotate the libsignal identity too (upload-first; throws on failure so
+        // the UI can ask the user to retry). This is what changes the safety
+        // number that warns contacts.
+        SignalBootstrap.rebootstrap(signalStores, api, resp.uin)
+        // Old sessions/cache referenced the previous identity — drop them.
+        peerIdentityCache.clear()
+        app.rcq.android.crypto.RecoveryPhrase.encode(seed, appCtx)
+    }
+
     /** Switch the running session to an already-registered account
      *  (iOS-parity hot swap). Returns its UIN. A self-switch is a no-op. */
     suspend fun switchToAccount(accountId: String): Int {
