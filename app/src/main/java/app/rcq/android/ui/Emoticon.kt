@@ -30,9 +30,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.Placeholder
 import androidx.compose.ui.text.PlaceholderVerticalAlign
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withLink
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
@@ -89,6 +94,11 @@ internal object Emoticons {
     // `:asset:` codes only (iOS parity — short shortcuts like :) are NOT parsed,
     // they collide with URLs/math). Asset names use [A-Za-z0-9_!-].
     private val TOKEN_RE = Regex(":([A-Za-z0-9_!-]+):")
+
+    /** A `#<uin>` mention in a message body (3+ digits to avoid matching `#1`
+     *  or `#ff0000`-style tokens). Rendered as the user's clickable nick when a
+     *  resolver is supplied to [EmoticonText]. */
+    val MENTION_RE = Regex("#(\\d{3,})")
 
     /** Split [text] into text runs + known `:asset:` emoticons. Returns a single
      *  Text token when there are no emoticons (the common case). */
@@ -153,16 +163,30 @@ internal fun ReactionChip(asset: String) {
  *  GIFs (iOS EmoticonText parity). Falls back to a plain [Text] when the body
  *  has no emoticon codes (the common path — no inline-content overhead). */
 @Composable
-internal fun EmoticonText(body: String, color: Color, fontSize: TextUnit, modifier: Modifier = Modifier, lineHeight: TextUnit = TextUnit.Unspecified) {
+internal fun EmoticonText(
+    body: String,
+    color: Color,
+    fontSize: TextUnit,
+    modifier: Modifier = Modifier,
+    lineHeight: TextUnit = TextUnit.Unspecified,
+    // When supplied, a `#<uin>` in the body whose uin resolves to a nick renders
+    // as the clickable accent nick (tap → [onMentionClick]); else it stays plain
+    // digits. Null = no mention handling (the default for non-message text).
+    mentionNick: ((Int) -> String?)? = null,
+    onMentionClick: ((Int) -> Unit)? = null,
+) {
     val tokens = remember(body) { Emoticons.tokenize(body) }
-    if (tokens.size == 1 && tokens[0] is Emoticons.Token.Text) {
+    val accent = RcqTheme.colors.accent
+    val hasMention = mentionNick != null && body.contains('#') && Emoticons.MENTION_RE.containsMatchIn(body)
+    // Fast path: a pure-text body with no resolvable mentions.
+    if (tokens.size == 1 && tokens[0] is Emoticons.Token.Text && !hasMention) {
         Text(body, color = color, fontSize = fontSize, lineHeight = lineHeight, modifier = modifier)
         return
     }
     val inline = HashMap<String, InlineTextContent>()
     val annotated = buildAnnotatedString {
         for (t in tokens) when (t) {
-            is Emoticons.Token.Text -> append(t.text)
+            is Emoticons.Token.Text -> appendWithMentions(t.text, mentionNick, onMentionClick, accent)
             is Emoticons.Token.Emo -> {
                 appendInlineContent(t.asset, t.code)
                 if (t.asset !in inline) {
@@ -175,6 +199,30 @@ internal fun EmoticonText(body: String, color: Color, fontSize: TextUnit, modifi
         }
     }
     Text(annotated, color = color, fontSize = fontSize, lineHeight = lineHeight, inlineContent = inline, modifier = modifier)
+}
+
+/** Append [text], turning each `#<uin>` whose uin resolves to a nick into a
+ *  clickable accent-coloured nick (tap → [onMentionClick]); unresolved or
+ *  no-resolver mentions stay as plain text. */
+private fun AnnotatedString.Builder.appendWithMentions(
+    text: String,
+    mentionNick: ((Int) -> String?)?,
+    onMentionClick: ((Int) -> Unit)?,
+    accent: Color,
+) {
+    if (mentionNick == null) { append(text); return }
+    var cursor = 0
+    for (m in Emoticons.MENTION_RE.findAll(text)) {
+        val uin = m.groupValues[1].toIntOrNull()
+        val nick = uin?.let { mentionNick(it) }
+        if (uin == null || nick == null) continue
+        if (m.range.first > cursor) append(text.substring(cursor, m.range.first))
+        withLink(LinkAnnotation.Clickable(tag = "m$uin", linkInteractionListener = { onMentionClick?.invoke(uin) })) {
+            withStyle(SpanStyle(color = accent)) { append(nick) }
+        }
+        cursor = m.range.last + 1
+    }
+    if (cursor < text.length) append(text.substring(cursor))
 }
 
 /** The composer smiley panel: a scrollable grid of the palette emoticons.

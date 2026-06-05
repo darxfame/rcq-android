@@ -182,6 +182,15 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
     val peerContact = peer?.let { p -> contacts.firstOrNull { it.uin == p } }
     val group = groupId?.let { gid -> groups.firstOrNull { it.id == gid } }
     val canPost = group?.canPost(ownUin) ?: true
+    // Resolve a `#<uin>` mention in a message body to a nick (group member or
+    // contact), for clickable mentions in the bubble — like the pinned banner.
+    val mentionNick = remember(contacts, group, isGroup) {
+        { uin: Int ->
+            (if (isGroup) group?.members?.firstOrNull { it.uin == uin }?.nickname else null)
+                ?: contacts.firstOrNull { it.uin == uin }?.nickname
+        }
+    }
+    val onMentionClick: (Int) -> Unit = { uin -> if (uin != ownUin) onOpenPeerInfo(uin) }
     val isTyping = !isGroup && typingFrom == peer
 
     // Draft survives leaving + re-entering the chat (tester #6): held per-thread
@@ -531,6 +540,8 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
                                 onLongPress = { actionMsg = m },
                                 onOpenGroup = onOpenGroup,
                                 onViewImage = { fullscreenImage = it },
+                                mentionNick = mentionNick,
+                                onMentionClick = onMentionClick,
                             )
                         }
                     }
@@ -1320,7 +1331,7 @@ private fun AlbumTile(session: Session, m: ChatMessage, w: Dp, h: Dp, onLongPres
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun MessageBubble(session: Session, m: ChatMessage, senderName: String?, onRetry: () -> Unit, onLongPress: () -> Unit, onOpenGroup: (Int) -> Unit = {}, onViewImage: (ByteArray) -> Unit = {}) {
+private fun MessageBubble(session: Session, m: ChatMessage, senderName: String?, onRetry: () -> Unit, onLongPress: () -> Unit, onOpenGroup: (Int) -> Unit = {}, onViewImage: (ByteArray) -> Unit = {}, mentionNick: ((Int) -> String?)? = null, onMentionClick: ((Int) -> Unit)? = null) {
     val c = RcqTheme.colors
     val failed = m.state == DeliveryState.FAILED
     // Cap a bubble so a long message leaves a gap to the far edge — keeps the
@@ -1375,7 +1386,7 @@ private fun MessageBubble(session: Session, m: ChatMessage, senderName: String?,
                         Text(m.replyToSnippet, color = c.textSecondary, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
-                EmoticonText(m.body, color = c.textPrimary, fontSize = 15.sp, lineHeight = 19.sp)
+                EmoticonText(m.body, color = c.textPrimary, fontSize = 15.sp, lineHeight = 19.sp, mentionNick = mentionNick, onMentionClick = onMentionClick)
             }
         }
         if (m.reactions.isNotEmpty()) {
