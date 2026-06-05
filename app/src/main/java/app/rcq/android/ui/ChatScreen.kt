@@ -105,7 +105,14 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.withStyle
+import androidx.compose.foundation.text.ClickableText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -407,11 +414,26 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
             }
         }
 
-        // Pinned banner (groups).
+        // Pinned banner (groups). Links are tappable, and a #<uin> that's a
+        // CURRENT member renders as their clickable nick (tap → their profile);
+        // a #<uin> NOT in the group stays plain digits so the announcement
+        // can't point the group at an outsider.
         group?.pinnedText?.takeIf { it.isNotBlank() }?.let { pin ->
-            Row(Modifier.fillMaxWidth().background(c.bgSecondary).padding(horizontal = 12.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            val members = group?.members ?: emptyList()
+            val annotated = remember(pin, members) { buildPinnedAnnotated(pin, members, c.accent) }
+            val uriHandler = LocalUriHandler.current
+            Row(Modifier.fillMaxWidth().background(c.bgSecondary).padding(horizontal = 12.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Filled.PushPin, null, tint = c.textSecondary, modifier = Modifier.size(14.dp))
-                Text(pin, color = c.textSecondary, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                ClickableText(
+                    text = annotated,
+                    style = TextStyle(color = c.textSecondary, fontSize = 12.sp),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    onClick = { offset ->
+                        annotated.getStringAnnotations("MENTION", offset, offset).firstOrNull()?.let { onOpenPeerInfo(it.item.toInt()); return@ClickableText }
+                        annotated.getStringAnnotations("URL", offset, offset).firstOrNull()?.let { runCatching { uriHandler.openUri(it.item) } }
+                    },
+                )
             }
         }
 
@@ -972,6 +994,52 @@ private fun MediaPreviewDialog(pending: PendingSend, onCancel: () -> Unit, onSen
 private sealed interface ChatRow {
     data class Single(val m: ChatMessage) : ChatRow
     data class Album(val id: String, val items: List<ChatMessage>) : ChatRow
+}
+
+/** Pinned text -> AnnotatedString with tappable URLs + `#<uin>` member
+ *  mentions. A `#<uin>` whose UIN is a CURRENT group member becomes that
+ *  member's nickname, tagged "MENTION"=uin (tap -> their profile); a `#<uin>`
+ *  not in the group stays inert plain digits, so the pin can't point the
+ *  group at an outsider. URLs are tagged "URL"=url. */
+private fun buildPinnedAnnotated(
+    text: String,
+    members: List<app.rcq.android.model.GroupMember>,
+    accent: androidx.compose.ui.graphics.Color,
+): AnnotatedString {
+    val nickByUin = members.associate { it.uin to it.nickname }
+    val mentionRe = Regex("#(\\d{3,})")
+    return buildAnnotatedString {
+        var cursor = 0
+        for (m in mentionRe.findAll(text)) {
+            if (m.range.first > cursor) appendWithUrls(text.substring(cursor, m.range.first), accent)
+            val uin = m.groupValues[1].toIntOrNull()
+            val nick = uin?.let { nickByUin[it] }
+            if (uin != null && nick != null) {
+                pushStringAnnotation("MENTION", uin.toString())
+                withStyle(SpanStyle(color = accent)) { append(nick) }
+                pop()
+            } else {
+                append(m.value)  // inert "#digits"
+            }
+            cursor = m.range.last + 1
+        }
+        if (cursor < text.length) appendWithUrls(text.substring(cursor), accent)
+    }
+}
+
+/** Append a plain segment, turning http(s) URLs into tappable "URL"-tagged
+ *  spans. */
+private fun AnnotatedString.Builder.appendWithUrls(segment: String, accent: androidx.compose.ui.graphics.Color) {
+    val urlRe = Regex("https?://\\S+")
+    var cursor = 0
+    for (m in urlRe.findAll(segment)) {
+        if (m.range.first > cursor) append(segment.substring(cursor, m.range.first))
+        pushStringAnnotation("URL", m.value)
+        withStyle(SpanStyle(color = accent, textDecoration = TextDecoration.Underline)) { append(m.value) }
+        pop()
+        cursor = m.range.last + 1
+    }
+    if (cursor < segment.length) append(segment.substring(cursor))
 }
 
 /** Collapse runs of consecutive same-album, same-sender photo/video messages
