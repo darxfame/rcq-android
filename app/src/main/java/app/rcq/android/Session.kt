@@ -153,6 +153,13 @@ class Session(context: Context) {
     private val _connected = MutableStateFlow(false)
     val connected: StateFlow<Boolean> = _connected.asStateFlow()
 
+    /** True once the obfuscated transport (censorship bypass) is engaged, so
+     *  the home header can show a stealth indicator (iOS StealthHeaderBadge
+     *  parity). The tunnel persists for the process once up, so this only
+     *  flips on. */
+    private val _stealthActive = MutableStateFlow(false)
+    val stealthActive: StateFlow<Boolean> = _stealthActive.asStateFlow()
+
     private val _typingFrom = MutableStateFlow<Int?>(null)
     val typingFrom: StateFlow<Int?> = _typingFrom.asStateFlow()
     private var typingSeq = 0
@@ -262,11 +269,11 @@ class Session(context: Context) {
      *  before), so this never makes registration worse. */
     private suspend fun ensureTransportForHost(host: String) = withContext(Dispatchers.IO) {
         val transport = app.rcq.android.net.SingBoxTransport
-        if (transport.isActive) return@withContext
-        if (transport.isEnabled(appCtx) || !transport.probeDirect(host)) {
+        if (!transport.isActive && (transport.isEnabled(appCtx) || !transport.probeDirect(host))) {
             app.rcq.android.net.RelayConfigStore.prime(appCtx)
             transport.start()
         }
+        _stealthActive.value = transport.isActive
     }
 
     suspend fun registerNewAccount(nickname: String, serverInput: String? = null, invite: String? = null): Int {
@@ -453,6 +460,7 @@ class Session(context: Context) {
                     socket = newSocket()
                 }
             }
+            _stealthActive.value = transport.isActive
             connectAndSync(uin, token)
             // Pull a fresh signed relay list (direct mirrors) for NEXT launch —
             // best-effort, never blocks the connect. So a rotated relay is

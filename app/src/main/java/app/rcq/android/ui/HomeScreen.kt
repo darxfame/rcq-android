@@ -57,6 +57,7 @@ import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material.icons.filled.Unarchive
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.Block
 import androidx.compose.material.icons.outlined.Schedule
@@ -152,6 +153,7 @@ internal fun HomeScreen(
     val messages by session.messages.collectAsState()
     val ownStatus by session.status.collectAsState()
     val connected by session.connected.collectAsState()
+    val stealthActive by session.stealthActive.collectAsState()
     val favorites by LocalStores.favorites.collectAsState()
     val archived by LocalStores.archived.collectAsState()
     val unread by LocalStores.unread.collectAsState()
@@ -231,6 +233,7 @@ internal fun HomeScreen(
                 uin = uin,
                 serverHost = session.currentServer,
                 ownStatus = ownStatus,
+                stealthActive = stealthActive,
                 accounts = accountRows,
                 canAddAccount = accountList.size < app.rcq.android.data.AccountManager.MAX_ACCOUNTS,
                 onPickStatus = { scope.launch { session.setStatus(it) } },
@@ -279,7 +282,7 @@ internal fun HomeScreen(
                 val connecting = !connected && contacts.isEmpty() && groups.isEmpty() && pending.isEmpty()
                 if (contacts.isEmpty() && groups.isEmpty() && pending.isEmpty()) {
                     item(key = "empty") {
-                        if (connecting) ConnectingState() else EmptyState(onAdd = { showAdd = true })
+                        if (connecting) ConnectingState(stealth = stealthActive) else EmptyState(onAdd = { showAdd = true })
                     }
                 }
 
@@ -564,6 +567,7 @@ private fun HomeHeader(
     uin: Int,
     serverHost: String,
     ownStatus: UserStatus,
+    stealthActive: Boolean,
     accounts: List<AccountRow>,
     canAddAccount: Boolean,
     onPickStatus: (UserStatus) -> Unit,
@@ -587,6 +591,7 @@ private fun HomeHeader(
     var accountMenu by remember { mutableStateOf(false) }
     var overflowMenu by remember { mutableStateOf(false) }
     var showPresenceInfo by remember { mutableStateOf(false) }
+    var showStealthInfo by remember { mutableStateOf(false) }
 
     if (showPresenceInfo) {
         AlertDialog(
@@ -598,6 +603,19 @@ private fun HomeHeader(
             },
             title = { Text(stringResource(R.string.presence_info_title), color = c.textPrimary) },
             text = { Text(stringResource(R.string.presence_info_body), color = c.textSecondary) },
+            containerColor = c.bgSecondary,
+        )
+    }
+    if (showStealthInfo) {
+        AlertDialog(
+            onDismissRequest = { showStealthInfo = false },
+            confirmButton = {
+                TextButton(onClick = { showStealthInfo = false }) {
+                    Text(stringResource(R.string.common_ok), color = c.accent)
+                }
+            },
+            title = { Text(stringResource(R.string.stealth_info_title), color = c.textPrimary) },
+            text = { Text(stringResource(R.string.stealth_info_body), color = c.textSecondary) },
             containerColor = c.bgSecondary,
         )
     }
@@ -684,8 +702,22 @@ private fun HomeHeader(
             }
         }
 
-        // Right — overflow menu.
-        Box(Modifier.align(Alignment.CenterEnd)) {
+        // Right — stealth indicator (shown when the censorship bypass is
+        // engaged, iOS StealthHeaderBadge parity) + overflow menu.
+        Row(
+            Modifier.align(Alignment.CenterEnd),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            if (stealthActive) {
+                Icon(
+                    Icons.Filled.VisibilityOff,
+                    stringResource(R.string.stealth_info_title),
+                    tint = c.accent,
+                    modifier = Modifier.size(22.dp).clip(CircleShape).clickable { showStealthInfo = true },
+                )
+            }
+            Box {
             Icon(
                 Icons.Filled.MoreVert, "Menu", tint = c.textPrimary,
                 modifier = Modifier.size(26.dp).clip(CircleShape).clickable { overflowMenu = true },
@@ -731,6 +763,7 @@ private fun HomeHeader(
                     leadingIcon = { Icon(Icons.Filled.Sensors, null, tint = c.accent) },
                     onClick = { overflowMenu = false; onOpenRadio() },
                 )
+            }
             }
         }
     }
@@ -943,7 +976,7 @@ private fun EmptyState(onAdd: () -> Unit) {
  *  don't claim "no contacts" before the roster has had a chance to load
  *  (tester #4/#9/#13). The petal loader is the branded busy indicator. */
 @Composable
-private fun ConnectingState() {
+private fun ConnectingState(stealth: Boolean = false) {
     val c = RcqTheme.colors
     Column(
         Modifier.fillMaxWidth().padding(vertical = 70.dp, horizontal = 32.dp),
@@ -953,6 +986,14 @@ private fun ConnectingState() {
         PetalLoader(size = 72.dp)
         Text(stringResource(R.string.home_connecting_title), color = c.textPrimary, fontSize = 16.sp, fontWeight = FontWeight.Medium)
         Text(stringResource(R.string.home_connecting_body), color = c.textSecondary, fontSize = 13.sp, textAlign = TextAlign.Center)
+        // When the censorship bypass had to engage, say so (iOS "engaging
+        // stealth" parity) instead of silently looking stuck.
+        if (stealth) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Icon(Icons.Filled.VisibilityOff, null, tint = c.accent, modifier = Modifier.size(15.dp))
+                Text(stringResource(R.string.connecting_stealth), color = c.accent, fontSize = 12.sp)
+            }
+        }
     }
 }
 

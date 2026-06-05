@@ -422,6 +422,9 @@
     <string name="presence_countdown_lt1m">&lt;1м</string>
     <string name="presence_info_title">Видимость после выхода</string>
     <string name="presence_info_body">Вас показывают онлайн ещё столько времени после закрытия приложения. Изменить можно в Настройки, Приватность и сеть.</string>
+    <string name="stealth_info_title">Обход блокировок включён</string>
+    <string name="stealth_info_body">Сеть выглядела заблокированной, поэтому RCQ подключается через встроенный шифрованный обход. Настраивать ничего не нужно, он включается сам, когда прямое соединение не проходит.</string>
+    <string name="connecting_stealth">Обхожу блокировку…</string>
     <string name="pv_profile_card">Карточка профиля</string>
     <string name="pv_profile_card_desc">Кто может открыть ваш полный профиль (город, возраст, о себе).</string>
     <string name="pv_gender_desc">Кто видит ваш пол в профиле.</string>

@@ -423,6 +423,9 @@
     <string name="presence_countdown_lt1m">&lt;1m</string>
     <string name="presence_info_title">Stay visible after you leave</string>
     <string name="presence_info_body">You keep showing as online for this long after you close the app. Change it in Settings, Privacy &amp; Network.</string>
+    <string name="stealth_info_title">Censorship bypass active</string>
+    <string name="stealth_info_body">Your network looked blocked, so RCQ is connecting through its built-in encrypted bypass. No setup needed, this turns on automatically when the direct connection fails.</string>
+    <string name="connecting_stealth">Bypassing the block…</string>
     <string name="pv_profile_card">Profile card</string>
     <string name="pv_profile_card_desc">Who can open your full profile (city, age, about).</string>
     <string name="pv_gender_desc">Who can see your gender on your profile.</string>
