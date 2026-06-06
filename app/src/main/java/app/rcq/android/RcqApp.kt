@@ -17,6 +17,8 @@ import app.rcq.android.security.PanicPinService
 class RcqApp : Application() {
     override fun onCreate() {
         super.onCreate()
+        // First, so it captures crashes from the rest of init too.
+        CrashReporter.install(this)
         PanicPinService.initLockState(this)
         ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
             override fun onStop(owner: LifecycleOwner) {
