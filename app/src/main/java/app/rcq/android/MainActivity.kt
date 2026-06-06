@@ -345,6 +345,27 @@ private fun RcqApp(session: Session) {
             )
         }
 
+        // A crash captured on the previous run (CrashReporter). Offered to the
+        // user with EXPLICIT consent — RCQ never uploads it silently (privacy
+        // posture). The report is technical only (stack + device), no content.
+        var crashReport by remember { mutableStateOf<String?>(null) }
+        LaunchedEffect(s is UiState.Registered) {
+            if (s is UiState.Registered) crashReport = CrashReporter.pending(context)
+        }
+        crashReport?.let { report ->
+            if (s is UiState.Registered && !locked) CrashConsentDialog(
+                onSend = {
+                    scope.launch { runCatching { session.submitBugReport("[CRASH]\n$report") } }
+                    CrashReporter.clear(context)
+                    crashReport = null
+                },
+                onDismiss = {
+                    CrashReporter.clear(context)
+                    crashReport = null
+                },
+            )
+        }
+
         // Thin progress strip at the very top while an update downloads — so
         // closing the dialog "minimizes" the download here instead of blocking.
         (updateDownload as? app.rcq.android.net.UpdateChecker.DownloadState.Active)?.let { a ->
@@ -426,6 +447,19 @@ private fun UpdateDialog(
     )
 }
 
+
+@Composable
+private fun CrashConsentDialog(onSend: () -> Unit, onDismiss: () -> Unit) {
+    val c = RcqTheme.colors
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = c.bgSecondary,
+        title = { Text(stringResource(R.string.crash_consent_title), color = c.textPrimary) },
+        text = { Text(stringResource(R.string.crash_consent_body), color = c.textSecondary, fontSize = 14.sp) },
+        confirmButton = { TextButton(onClick = onSend) { Text(stringResource(R.string.crash_consent_send), color = c.accent) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.crash_consent_dismiss), color = c.textSecondary) } },
+    )
+}
 
 @Composable
 private fun Registering() {

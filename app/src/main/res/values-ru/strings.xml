@@ -98,6 +98,10 @@
     <!-- Common -->
     <string name="common_cancel">Отмена</string>
     <string name="update_title">Доступно обновление · %1$s</string>
+    <string name="crash_consent_title">Отправить отчёт о сбое?</string>
+    <string name="crash_consent_body">В прошлый раз RCQ закрылся из-за ошибки. Отправить технический отчёт (только сама ошибка и модель устройства, без текста переписки), чтобы мы починили?</string>
+    <string name="crash_consent_send">Отправить</string>
+    <string name="crash_consent_dismiss">Не отправлять</string>
     <string name="update_now">Обновить</string>
     <string name="update_later">Позже</string>
     <string name="update_downloading">Загрузка…</string>

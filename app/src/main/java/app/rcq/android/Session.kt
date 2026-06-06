@@ -516,15 +516,10 @@ class Session(context: Context) {
             }
             _stealthActive.value = transport.isActive
             connectAndSync(uin, token)
-            // Auto-report a crash captured on the previous run (the website-
-            // distributed APK has no Play crash reporting). Best-effort through
-            // the normal bug-report channel; keep the file and retry next launch
-            // if it fails (e.g. offline). Never blocks the connect.
-            launch {
-                CrashReporter.pending(appCtx)?.let { report ->
-                    if (submitBugReport("[CRASH]\n$report")) CrashReporter.clear(appCtx)
-                }
-            }
+            // (Crash reports are NOT auto-sent. A captured crash is offered to
+            // the user on next launch via a consent dialog in MainActivity —
+            // sending technical data silently would clash with the privacy
+            // posture. See CrashReporter + RcqApp's crash-consent dialog.)
             // Pull a fresh signed relay list (direct mirrors) for NEXT launch —
             // best-effort, never blocks the connect. So a rotated relay is
             // picked up without an app update.

@@ -99,6 +99,10 @@
     <!-- Common -->
     <string name="common_cancel">Cancel</string>
     <string name="update_title">Update available · %1$s</string>
+    <string name="crash_consent_title">Send crash report?</string>
+    <string name="crash_consent_body">RCQ closed unexpectedly last time. Send a technical report (the error and your device model only, no message content) so we can fix it?</string>
+    <string name="crash_consent_send">Send</string>
+    <string name="crash_consent_dismiss">Don\'t send</string>
     <string name="update_now">Update</string>
     <string name="update_later">Later</string>
     <string name="update_downloading">Downloading…</string>
