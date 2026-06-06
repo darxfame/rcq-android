@@ -29,6 +29,7 @@ import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Autorenew
 import androidx.compose.material.icons.filled.DeleteForever
@@ -91,7 +92,7 @@ import app.rcq.android.net.RcqApi
 import kotlinx.coroutines.launch
 
 /** Sub-screens inside Settings (kept self-contained, no nav graph). */
-private enum class SettingsRoute { ROOT, PROFILE, PRIVACY, NOTIFICATIONS, BLOCKED, CUSTOM_SERVER, SOUNDS, LANGUAGE, PIN_CODES, DIAGNOSTICS, RECOVERY_PHRASE, UIN_SHOP }
+private enum class SettingsRoute { ROOT, PROFILE, PRIVACY, NOTIFICATIONS, BLOCKED, CUSTOM_SERVER, SOUNDS, LANGUAGE, APP_ICON, PIN_CODES, DIAGNOSTICS, RECOVERY_PHRASE, UIN_SHOP }
 
 @Composable
 internal fun SettingsScreen(session: Session, uin: Int, onBack: () -> Unit, onBurned: (Int?) -> Unit, onMigrated: (Int) -> Unit) {
@@ -116,6 +117,7 @@ internal fun SettingsScreen(session: Session, uin: Int, onBack: () -> Unit, onBu
         SettingsRoute.NOTIFICATIONS -> NotificationsScreen { route = SettingsRoute.ROOT }
         SettingsRoute.SOUNDS -> SoundsScreen { route = SettingsRoute.ROOT }
         SettingsRoute.LANGUAGE -> LanguageScreen { route = SettingsRoute.ROOT }
+        SettingsRoute.APP_ICON -> AppIconScreen { route = SettingsRoute.ROOT }
         SettingsRoute.BLOCKED -> BlockedUsersScreen(session) { route = SettingsRoute.ROOT }
         SettingsRoute.PIN_CODES -> PinCodesScreen(session) { route = SettingsRoute.ROOT }
         SettingsRoute.RECOVERY_PHRASE -> RecoveryPhraseScreen(session) { route = SettingsRoute.ROOT }
@@ -210,6 +212,8 @@ private fun SettingsRoot(
             val lang by LanguageManager.current.collectAsState()
             SettingsGroup {
                 SettingsRow(Icons.Filled.Language, stringResource(R.string.onboard_language), value = LanguageManager.displayName(lang)) { onOpen(SettingsRoute.LANGUAGE) }
+                Divider()
+                SettingsRow(Icons.Filled.Apps, stringResource(R.string.settings_row_app_icon)) { onOpen(SettingsRoute.APP_ICON) }
             }
 
             Spacer(Modifier.height(22.dp))
@@ -973,6 +977,54 @@ private fun CustomServerScreen(session: Session, onBack: () -> Unit, onSwitched:
 }
 
 // ── shared bits ──────────────────────────────────────────────────────
+
+@Composable
+private fun AppIconScreen(onBack: () -> Unit) {
+    val c = RcqTheme.colors
+    val context = LocalContext.current
+    var current by remember { mutableStateOf(AppIconManager.current(context)) }
+    Column(
+        Modifier
+            .fillMaxSize()
+            .background(c.bgPrimary)
+    ) {
+        SettingsTopBar(stringResource(R.string.settings_row_app_icon), onBack)
+        Column(
+            Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp)
+        ) {
+            Spacer(Modifier.height(12.dp))
+            SettingsGroup {
+                AppIconManager.options.forEachIndexed { index, opt ->
+                    if (index > 0) Divider()
+                    val selected = opt.alias == current.alias
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                AppIconManager.set(context, opt)
+                                current = opt
+                            }
+                            .padding(horizontal = 14.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            stringResource(opt.labelRes),
+                            color = c.textPrimary,
+                            modifier = Modifier.weight(1f),
+                        )
+                        if (selected) {
+                            Icon(Icons.Filled.Check, null, tint = c.accent, modifier = Modifier.size(20.dp))
+                        }
+                    }
+                }
+            }
+            SectionFooter(stringResource(R.string.app_icon_footer))
+        }
+    }
+}
 
 @Composable
 private fun SettingsTopBar(title: String, onBack: () -> Unit, trailing: @Composable (() -> Unit)? = null) {
