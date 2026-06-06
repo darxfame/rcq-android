@@ -52,19 +52,23 @@ import androidx.compose.ui.unit.sp
  * iOS couldn't render and iOS sent an emoticon name Android showed as text.
  */
 internal object Emoticons {
-    /** The six offered as message reactions (iOS MessageActionSheet parity). */
-    val reactions = listOf("smile", "biggrin", "shok", "cray", "good", "heart")
+    /** The six offered as message reactions (like/love/haha/wow/sad/angry).
+     *  Asset names match iOS exactly so a reaction renders identically. */
+    val reactions = listOf("good", "give_heart", "biggrin", "shok", "cray", "mad")
 
-    /** The composer palette: (asset, display name), in the exact iOS
-     *  `Emoticons.entries` order. Codes are the `:asset:` form. */
+    /** The composer palette: (asset, display name), Kolobok ICQ "set 14".
+     *  Codes are the `:asset:` form; must match the iOS `Emoticons.entries`. */
     val palette: List<Pair<String, String>> = listOf(
-        "smile" to "Happy", "sad" to "Sad", "wink" to "Winking", "blum" to "Tongue",
-        "tease" to "Joking", "cray" to "Crying", "air_kiss" to "Kissed", "kiss2" to "Kiss",
-        "blush" to "Embarrassed", "angel" to "Angel", "secret" to "Silent", "wacko" to "Confused",
-        "aggressive" to "Angry", "biggrin" to "Laughing", "nea" to "Pensive", "shok" to "Shocked",
-        "dirol" to "Cool", "dance" to "Headphones", "boredom" to "Yawning", "bad" to "Sick",
-        "stop" to "Stop", "kissing" to "Two Kissing", "diablo" to "Devil", "give_rose" to "Red Rose",
-        "bomb" to "Bomb", "good" to "Thumbs Up", "drinks" to "Drink", "heart" to "In Love",
+        "smile" to "Happy", "biggrin" to "Laughing", "lol" to "LOL", "rofl" to "ROFL",
+        "good" to "Thumbs Up", "give_heart" to "Heart", "man_in_love" to "In Love", "give_rose" to "Rose",
+        "kiss" to "Kiss", "kiss3" to "Smooch", "air_kiss" to "Air Kiss", "blush" to "Embarrassed",
+        "i_am_so_happy" to "So Happy", "dance" to "Dancing", "music" to "Music", "cool" to "Cool",
+        "gamer" to "Gamer", "drinks" to "Cheers", "hi" to "Hi", "bye2" to "Bye",
+        "blum1" to "Tongue", "mocking" to "Teasing", "crazy" to "Crazy", "wacko1" to "Wacko",
+        "nea" to "Pensive", "scratch_one-s_head" to "Thinking", "unknown" to "Dunno", "shok" to "Shocked",
+        "sad" to "Sad", "cray" to "Crying", "pardon" to "Pardon", "sorry" to "Sorry",
+        "mad" to "Angry", "ireful" to "Furious", "shout" to "Shouting", "bad" to "Sick",
+        "diablo" to "Devil", "bomb" to "Bomb", "girl_angel" to "Angel", "hang1" to "Hang",
     )
 
     /** Asset names that have a `:code:` (for tokenizing message bodies). */
