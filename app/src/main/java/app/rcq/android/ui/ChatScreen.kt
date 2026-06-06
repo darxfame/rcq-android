@@ -1500,8 +1500,9 @@ private fun MessageBubble(session: Session, m: ChatMessage, senderName: String?,
     val groupLinkId = if (m.kind == "text") GroupLinkParser.parse(m.body) else null
     Column(
         Modifier.fillMaxWidth()
-            .background(if (highlighted) c.accent.copy(alpha = 0.12f) else Color.Transparent)
-            .padding(vertical = 2.dp),
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (highlighted) c.accent.copy(alpha = 0.24f) else Color.Transparent)
+            .padding(vertical = 3.dp, horizontal = 2.dp),
         horizontalAlignment = if (m.fromMe) Alignment.End else Alignment.Start,
     ) {
         if (senderName != null) {

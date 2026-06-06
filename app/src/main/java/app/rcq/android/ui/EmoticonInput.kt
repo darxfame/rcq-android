@@ -89,10 +89,17 @@ private val spanBitmaps = HashMap<String, Bitmap?>()
 private fun emoticonBitmap(context: android.content.Context, asset: String, sizePx: Int): Bitmap? {
     val key = "$asset@$sizePx"
     synchronized(spanBitmaps) { if (spanBitmaps.containsKey(key)) return spanBitmaps[key] }
-    val bytes = Emoticons.bytes(context, asset)
-    val scaled = bytes?.let {
+    val src = Emoticons.bytes(context, asset)?.let {
         runCatching { BitmapFactory.decodeByteArray(it, 0, it.size) }.getOrNull()
-    }?.let { runCatching { Bitmap.createScaledBitmap(it, sizePx, sizePx, true) }.getOrNull() }
+    }
+    // Scale to fit sizePx on the LONGER side so the kolobok keeps its aspect
+    // ratio (they aren't square — forcing sizePx x sizePx squashed them).
+    val scaled = src?.let {
+        val s = sizePx.toFloat() / maxOf(it.width, it.height).coerceAtLeast(1)
+        val w = (it.width * s).toInt().coerceAtLeast(1)
+        val h = (it.height * s).toInt().coerceAtLeast(1)
+        runCatching { Bitmap.createScaledBitmap(it, w, h, true) }.getOrNull()
+    }
     synchronized(spanBitmaps) { spanBitmaps[key] = scaled }
     return scaled
 }
