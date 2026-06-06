@@ -204,7 +204,9 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
     // Draft survives leaving + re-entering the chat (tester #6): held per-thread
     // in a process-level map, not just transient composable state.
     val threadKey = if (isGroup) "g:$groupId" else "p:$peer"
-    var draft by remember(threadKey) { mutableStateOf(ChatDrafts.byThread[threadKey] ?: "") }
+    // NB: the composer draft lives INSIDE `Composer` now (not here), so typing
+    // a character doesn't recompose the whole ChatScreen (header + message
+    // LazyColumn). That recomposition-per-keystroke was the input-field lag.
     var actionMsg by remember { mutableStateOf<ChatMessage?>(null) }
     var editMsg by remember { mutableStateOf<ChatMessage?>(null) }
     var replyTarget by remember { mutableStateOf<ChatMessage?>(null) }
@@ -629,69 +631,22 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
             }
         }
 
-        // @-mention autocomplete (groups): an "@partial" at the input tail pops a
-        // member picker; tapping inserts "@nick ". iOS parity (activeMentionQuery).
-        if (isGroup && canPost) {
-            val members = group?.members ?: emptyList()
-            val q: Pair<Int, String>? = run {
-                var i = draft.length
-                while (i > 0) {
-                    val ch = draft[i - 1]
-                    if (ch == '@') {
-                        val partial = draft.substring(i)
-                        return@run if (partial.isNotEmpty()) (i - 1) to partial else null
-                    }
-                    if (ch.isWhitespace()) return@run null
-                    i--
-                }
-                null
-            }
-            val candidates = q?.let { (_, partial) ->
-                val p = partial.lowercase()
-                members.filter { it.uin != ownUin && it.nickname.lowercase().contains(p) }.take(8)
-            } ?: emptyList()
-            if (q != null && candidates.isNotEmpty()) {
-                val (mStart, mPartial) = q
-                Column(
-                    Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp)
-                        .heightIn(max = 220.dp).clip(RoundedCornerShape(12.dp)).background(c.bgSecondary),
-                ) {
-                    LazyColumn {
-                        items(candidates, key = { it.uin }) { mbr ->
-                            Row(
-                                Modifier.fillMaxWidth().clickable {
-                                    val newText = draft.substring(0, mStart) + "@" + mbr.nickname + " " +
-                                        draft.substring(mStart + 1 + mPartial.length)
-                                    draft = newText
-                                    ChatDrafts.byThread[threadKey] = newText
-                                }.padding(horizontal = 12.dp, vertical = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Text(mbr.nickname, color = c.textPrimary, fontSize = 14.sp, modifier = Modifier.weight(1f))
-                                Text("#${mbr.uin}", color = c.textMono, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
         if (!canPost) {
             Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
                 Text(stringResource(R.string.chat_owner_only), color = c.textSecondary, fontSize = 13.sp)
             }
         } else {
             Composer(
-                draft = draft,
+                threadKey = threadKey,
+                isGroup = isGroup,
+                members = group?.members ?: emptyList(),
+                ownUin = ownUin,
                 accentColor = c.accent,
-                onDraftChange = {
-                    draft = it
-                    if (it.isBlank()) ChatDrafts.byThread.remove(threadKey) else ChatDrafts.byThread[threadKey] = it
-                    if (!isGroup && !isSelf && peer != null) session.sendTyping(peer, it.isNotBlank())
-                },
                 onAttach = { attachMenu = true },
-                onSend = {
-                    val body = draft.trim(); draft = ""; ChatDrafts.byThread.remove(threadKey)
+                onTyping = { nonBlank ->
+                    if (!isGroup && !isSelf && peer != null) session.sendTyping(peer, nonBlank)
+                },
+                onSend = { body ->
                     val reply = replyTarget?.let { Reply(it.id, previewOf(it, context), authorName(it)) }
                     replyTarget = null
                     if (!isGroup && !isSelf && peer != null) session.sendTyping(peer, false)
@@ -895,11 +850,14 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
 
 @Composable
 private fun Composer(
-    draft: String,
+    threadKey: String,
+    isGroup: Boolean,
+    members: List<app.rcq.android.model.GroupMember>,
+    ownUin: Int,
     accentColor: Color,
-    onDraftChange: (String) -> Unit,
     onAttach: () -> Unit,
-    onSend: () -> Unit,
+    onTyping: (Boolean) -> Unit,
+    onSend: (String) -> Unit,
     recording: Boolean,
     recElapsed: Int,
     onMic: () -> Unit,
@@ -909,13 +867,67 @@ private fun Composer(
     val c = RcqTheme.colors
     val keyboard = LocalSoftwareKeyboardController.current
     var showEmoji by remember { mutableStateOf(false) }
+    // The draft lives HERE (not in ChatScreen) so a keystroke recomposes only
+    // the composer, not the header + message list. Seeded from / persisted to
+    // the process-lifetime ChatDrafts map, keyed by thread.
+    var draft by remember(threadKey) { mutableStateOf(ChatDrafts.byThread[threadKey] ?: "") }
+    val setDraft: (String) -> Unit = { v ->
+        draft = v
+        if (v.isBlank()) ChatDrafts.byThread.remove(threadKey) else ChatDrafts.byThread[threadKey] = v
+        onTyping(v.isNotBlank())
+    }
     // Hold-to-record: holding the mic records, releasing sends, sliding up past
     // the threshold cancels (WhatsApp/Telegram-style). The trailing button
     // stays mounted across the `recording` state so the pointer gesture isn't
     // torn out from under the finger mid-hold.
     var cancelArmed by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth()) {
-        if (showEmoji && !recording) EmoticonPanel(onPick = { onDraftChange(draft + it) })
+        // @-mention autocomplete (groups): an "@partial" at the input tail pops a
+        // member picker; tapping inserts "@nick ". iOS parity (activeMentionQuery).
+        if (isGroup) {
+            val q: Pair<Int, String>? = run {
+                var i = draft.length
+                while (i > 0) {
+                    val ch = draft[i - 1]
+                    if (ch == '@') {
+                        val partial = draft.substring(i)
+                        return@run if (partial.isNotEmpty()) (i - 1) to partial else null
+                    }
+                    if (ch.isWhitespace()) return@run null
+                    i--
+                }
+                null
+            }
+            val candidates = q?.let { (_, partial) ->
+                val p = partial.lowercase()
+                members.filter { it.uin != ownUin && it.nickname.lowercase().contains(p) }.take(8)
+            } ?: emptyList()
+            if (q != null && candidates.isNotEmpty()) {
+                val (mStart, mPartial) = q
+                Column(
+                    Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp)
+                        .heightIn(max = 220.dp).clip(RoundedCornerShape(12.dp)).background(c.bgSecondary),
+                ) {
+                    LazyColumn {
+                        items(candidates, key = { it.uin }) { mbr ->
+                            Row(
+                                Modifier.fillMaxWidth().clickable {
+                                    setDraft(
+                                        draft.substring(0, mStart) + "@" + mbr.nickname + " " +
+                                            draft.substring(mStart + 1 + mPartial.length),
+                                    )
+                                }.padding(horizontal = 12.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(mbr.nickname, color = c.textPrimary, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                                Text("#${mbr.uin}", color = c.textMono, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if (showEmoji && !recording) EmoticonPanel(onPick = { setDraft(draft + it) })
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
             verticalAlignment = Alignment.Bottom,
@@ -957,7 +969,7 @@ private fun Composer(
                     // the field (Compose BasicTextField can't draw inline images).
                     EmoticonInputField(
                         value = draft,
-                        onValueChange = onDraftChange,
+                        onValueChange = setDraft,
                         textColor = c.textPrimary,
                         modifier = Modifier.fillMaxWidth(),
                         onFocused = { showEmoji = false },
@@ -974,7 +986,12 @@ private fun Composer(
                 Modifier.size(40.dp).clip(CircleShape).background(trailingBg)
                     .then(
                         if (canSend) {
-                            Modifier.clickable(onClick = onSend)
+                            Modifier.clickable {
+                                val body = draft.trim()
+                                draft = ""
+                                ChatDrafts.byThread.remove(threadKey)
+                                onSend(body)
+                            }
                         } else {
                             // Hold the mic to record; release sends, slide up cancels.
                             Modifier.pointerInput(Unit) {
