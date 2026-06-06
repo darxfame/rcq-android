@@ -1046,6 +1046,7 @@ class Session(context: Context) {
                 status = it.status,
                 identityKey = it.identity_key ?: "",
                 signingKey = it.signing_key,
+                permissions = it.permissions,
             )
         },
         createdAt = parseIso(g.created_at),
@@ -1083,6 +1084,19 @@ class Session(context: Context) {
 
     suspend fun addGroupMember(id: Int, uin: Int) {
         runCatching { upsertGroup(mapGroup(api.addGroupMember(id, uin))) }
+    }
+
+    /** Owner: kick a member (same endpoint as self-leave). */
+    suspend fun removeGroupMember(id: Int, memberUin: Int) {
+        runCatching { api.leaveGroup(id, memberUin) }
+        // The server broadcasts group_membership_changed; refresh to reflect it.
+        runCatching { upsertGroup(mapGroup(api.groupInfo(id))) }
+    }
+
+    /** Owner: grant/revoke a member's moderator caps (subset of
+     *  delete|members|info). Updates local roster from the returned group. */
+    suspend fun setMemberPermissions(id: Int, memberUin: Int, permissions: List<String>) {
+        runCatching { upsertGroup(mapGroup(api.setMemberPermissions(id, memberUin, permissions))) }
     }
 
     /** Fetch a group invite-card snapshot (no membership needed). */
@@ -1304,9 +1318,19 @@ class Session(context: Context) {
                 )
                 is Envelope.Reaction -> env.asset?.let { addGroupReaction(groupId, env.targetId, it) }
                 is Envelope.Delete -> {
-                    // Author-only: match the deleter against the message's sender.
+                    // Honor the delete if the deleter is the message author OR a
+                    // group moderator: the owner, or a member the owner granted
+                    // the `delete` cap. We can check this because sealed sender
+                    // still reveals the decrypted deleter (dec.senderUin) and we
+                    // have the cached roster with everyone's permissions.
                     val t = _groupMessages.value[groupId]?.firstOrNull { it.id == env.targetId }
-                    if (t != null && t.senderUin == dec.senderUin) deleteInFlow(_groupMessages, groupId, env.targetId)
+                    if (t != null) {
+                        val g = group(groupId)
+                        val byAuthor = t.senderUin == dec.senderUin
+                        val byModerator = g?.members?.firstOrNull { it.uin == dec.senderUin }
+                            ?.canDelete(g.ownerUin) == true
+                        if (byAuthor || byModerator) deleteInFlow(_groupMessages, groupId, env.targetId)
+                    }
                 }
                 is Envelope.Edit -> {
                     val t = _groupMessages.value[groupId]?.firstOrNull { it.id == env.targetId }
@@ -1696,12 +1720,19 @@ class Session(context: Context) {
         }
     }
 
-    /** Retract [target] for everyone (iOS delete-for-everyone). Only the
-     *  author may; removes it locally and tells the other side(s). */
+    /** Retract [target] for everyone (iOS delete-for-everyone). Allowed for the
+     *  author, OR (in a group) a moderator: the owner / a member the owner
+     *  granted the `delete` cap. Recipients re-check the same rule on receipt. */
     suspend fun sendDeleteForEveryone(target: ChatMessage) {
-        if (!target.fromMe) return
+        val gid = target.groupId
+        val canModerate = gid != null && run {
+            val g = group(gid)
+            val me = store.uin
+            g != null && me != null && (g.members.firstOrNull { it.uin == me }?.canDelete(g.ownerUin) == true)
+        }
+        if (!target.fromMe && !canModerate) return
         val env = Envelope.delete(target.id)
-        if (target.groupId != null) fanOutControl(target.groupId, env)
+        if (gid != null) fanOutControl(gid, env)
         else sendControl(target.peerUin, env)
         deleteLocal(target)
     }

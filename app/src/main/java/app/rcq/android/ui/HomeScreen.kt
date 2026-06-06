@@ -202,6 +202,7 @@ internal fun HomeScreen(
     val offlineContacts = byRecency(nonArchived.filter { it.presence == UserStatus.OFFLINE })
     val archivedContacts = byRecency(contacts.filter { LocalStores.peerThread(it.uin) in archived })
     val visibleGroups = groups.filterNot { LocalStores.groupThread(it.id) in archived }
+    val archivedGroups = groups.filter { LocalStores.groupThread(it.id) in archived }
 
     // Local account roster for the switcher (live nick/UIN peeked per account).
     // Decoy-aware roster: in decoy mode only the decoy account is visible, so
@@ -316,7 +317,27 @@ internal fun HomeScreen(
 
                 contactSection(secOnline, onlineContacts, collapsedOnline, "on", unread, { collapsedOnline = !collapsedOnline }, onOpenChat, onLongPress = { previewContact = it })
                 contactSection(secOffline, offlineContacts, collapsedOffline, "off", unread, { collapsedOffline = !collapsedOffline }, onOpenChat, onLongPress = { previewContact = it })
-                contactSection(secArchive, archivedContacts, collapsedArchive, "arch", unread, { collapsedArchive = !collapsedArchive }, onOpenChat, onLongPress = { previewContact = it })
+                // Archive holds BOTH archived contacts AND archived groups.
+                // (Bug fix: an archived group was filtered out of the main list
+                // but never rendered here, so it vanished entirely and couldn't
+                // be un-archived. Now it shows here, long-press to unarchive.)
+                if (archivedContacts.isNotEmpty() || archivedGroups.isNotEmpty()) {
+                    val archUnread = archivedContacts.sumOf { unread[LocalStores.peerThread(it.uin)] ?: 0 } +
+                        archivedGroups.sumOf { unread[LocalStores.groupThread(it.id)] ?: 0 }
+                    item(key = "h_arch") {
+                        SectionHeader(secArchive, archivedContacts.size + archivedGroups.size, collapsedArchive, { collapsedArchive = !collapsedArchive }) {
+                            UnreadBadge(archUnread)
+                        }
+                    }
+                    if (!collapsedArchive) {
+                        items(archivedContacts, key = { "arch_${it.uin}" }) { ct ->
+                            ContactRowItem(ct, unread = unread[LocalStores.peerThread(ct.uin)] ?: 0, onClick = { onOpenChat(ct.uin) }, onLongPress = { previewContact = ct })
+                        }
+                        items(archivedGroups, key = { "archg_${it.id}" }) { g ->
+                            GroupRow(group = g, ownUin = uin, session = session, unread = unread[LocalStores.groupThread(g.id)] ?: 0, onClick = { onOpenGroup(g.id) }, onLongPress = { previewGroup = g })
+                        }
+                    }
+                }
 
                 item(key = "tail") { Spacer(Modifier.height(8.dp)) }
             }

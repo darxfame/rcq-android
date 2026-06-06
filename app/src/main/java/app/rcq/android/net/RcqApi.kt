@@ -414,6 +414,8 @@ class RcqApi(private val baseUrl: String = DEFAULT_BASE_URL) {
         val status: String?,
         val identity_key: String?,
         val signing_key: String?,
+        // Granular moderator caps the owner granted (subset of delete|members|info).
+        val permissions: List<String> = emptyList(),
     )
 
     data class GroupOut(
@@ -482,6 +484,15 @@ class RcqApi(private val baseUrl: String = DEFAULT_BASE_URL) {
     suspend fun deleteGroup(id: Int) = withContext(Dispatchers.IO) {
         sendNoResult("DELETE", "/groups/$id", null, authed = true)
     }
+
+    data class SetPermissionsBody(val permissions: List<String>)
+
+    /** Owner-only: grant/revoke a member's moderator caps (subset of
+     *  delete|members|info). Returns the updated group. */
+    suspend fun setMemberPermissions(id: Int, memberUin: Int, permissions: List<String>): GroupOut =
+        withContext(Dispatchers.IO) {
+            post("/groups/$id/members/$memberUin/permissions", gson.toJson(SetPermissionsBody(permissions)), authed = true, GroupOut::class.java)
+        }
 
     /** Partial group update (owner/admin). Only non-null fields are sent
      *  (Gson omits nulls by default), so a PATCH that only swaps the

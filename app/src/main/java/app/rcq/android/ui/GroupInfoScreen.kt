@@ -62,6 +62,22 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+/** A small toggle chip for one moderator capability (owner taps to grant/revoke). */
+@Composable
+private fun PermChip(label: String, on: Boolean, onClick: () -> Unit) {
+    val c = RcqTheme.colors
+    Text(
+        label,
+        color = if (on) c.bgPrimary else c.textSecondary,
+        fontSize = 11.sp,
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(if (on) c.accent else c.bgSecondary)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+    )
+}
+
 @Composable
 internal fun GroupInfoScreen(session: Session, groupId: Int, onBack: () -> Unit, onLeft: () -> Unit) {
     val c = RcqTheme.colors
@@ -177,18 +193,36 @@ internal fun GroupInfoScreen(session: Session, groupId: Int, onBack: () -> Unit,
         }
         LazyColumn(Modifier.weight(1f).fillMaxWidth()) {
             items(sortedMembers, key = { it.uin }) { m ->
-                Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    StatusIcon(m.presence, size = 26.dp)
-                    Column(Modifier.weight(1f)) {
-                        Text(m.nickname + if (m.uin == ownUin) stringResource(R.string.gi_you) else "", color = c.textPrimary, fontSize = 15.sp)
-                        Text("#${m.uin}", color = c.textMono, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
-                    }
-                    if (m.role == "owner") {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                            Icon(Icons.Filled.Star, null, tint = c.accent, modifier = Modifier.size(12.dp))
-                            Text(stringResource(R.string.gi_owner), color = c.textSecondary, fontSize = 11.sp)
+                Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 7.dp)) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        StatusIcon(m.presence, size = 26.dp)
+                        Column(Modifier.weight(1f)) {
+                            Text(m.nickname + if (m.uin == ownUin) stringResource(R.string.gi_you) else "", color = c.textPrimary, fontSize = 15.sp)
+                            Text("#${m.uin}", color = c.textMono, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
                         }
-                    } else if (m.role == "admin") Text(stringResource(R.string.gi_admin), color = c.textSecondary, fontSize = 11.sp)
+                        if (m.role == "owner") {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                                Icon(Icons.Filled.Star, null, tint = c.accent, modifier = Modifier.size(12.dp))
+                                Text(stringResource(R.string.gi_owner), color = c.textSecondary, fontSize = 11.sp)
+                            }
+                        } else if (m.permissions.isNotEmpty()) {
+                            Text(stringResource(R.string.gi_moderator), color = c.accent, fontSize = 11.sp)
+                        }
+                    }
+                    // Owner picks which rights this member gets. Tapping a chip
+                    // grants/revokes that cap (POST /permissions). Owner has all
+                    // implicitly, so no chips on the owner row or for yourself.
+                    if (isOwner && m.uin != ownUin && m.role != "owner") {
+                        val toggle: (String) -> Unit = { perm ->
+                            val next = if (perm in m.permissions) m.permissions - perm else m.permissions + perm
+                            scope.launch { runCatching { session.setMemberPermissions(group.id, m.uin, next) } }
+                        }
+                        Row(Modifier.padding(start = 36.dp, top = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            PermChip(stringResource(R.string.gi_perm_delete), "delete" in m.permissions) { toggle("delete") }
+                            PermChip(stringResource(R.string.gi_perm_members), "members" in m.permissions) { toggle("members") }
+                            PermChip(stringResource(R.string.gi_perm_info), "info" in m.permissions) { toggle("info") }
+                        }
+                    }
                 }
             }
         }

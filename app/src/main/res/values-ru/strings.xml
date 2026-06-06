@@ -543,6 +543,10 @@
     <string name="gi_members">УЧАСТНИКИ</string>
     <string name="gi_owner">владелец</string>
     <string name="gi_admin">админ</string>
+    <string name="gi_moderator">модератор</string>
+    <string name="gi_perm_delete">Удалять</string>
+    <string name="gi_perm_members">Участники</string>
+    <string name="gi_perm_info">Инфо</string>
     <string name="gi_you"> (вы)</string>
     <string name="gi_delete">Удалить группу</string>
     <string name="gi_leave">Покинуть группу</string>

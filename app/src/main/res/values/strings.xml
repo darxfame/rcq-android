@@ -544,6 +544,10 @@
     <string name="gi_members">MEMBERS</string>
     <string name="gi_owner">owner</string>
     <string name="gi_admin">admin</string>
+    <string name="gi_moderator">moderator</string>
+    <string name="gi_perm_delete">Delete</string>
+    <string name="gi_perm_members">Members</string>
+    <string name="gi_perm_info">Info</string>
     <string name="gi_you"> (you)</string>
     <string name="gi_delete">Delete group</string>
     <string name="gi_leave">Leave group</string>

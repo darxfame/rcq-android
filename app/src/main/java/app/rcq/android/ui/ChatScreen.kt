@@ -671,6 +671,11 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
     }
 
     actionMsg?.let { m ->
+        // "Delete for everyone" is offered for your own message, OR (in a group)
+        // when you're a moderator: the owner, or a member granted the `delete`
+        // cap. Recipients re-check the same rule on receipt.
+        val canDeleteAll = m.fromMe ||
+            (group != null && group.members.firstOrNull { it.uin == ownUin }?.canDelete(group.ownerUin) == true)
         AlertDialog(
             onDismissRequest = { actionMsg = null },
             containerColor = c.bgSecondary,
@@ -700,7 +705,7 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
                     if (m.fromMe && m.state == DeliveryState.FAILED) MessageAction(stringResource(R.string.chat_retry)) {
                         scope.launch { runCatching { session.resend(m) } }; actionMsg = null
                     }
-                    if (m.fromMe) MessageAction(stringResource(R.string.chat_delete_all), danger = true) {
+                    if (canDeleteAll) MessageAction(stringResource(R.string.chat_delete_all), danger = true) {
                         scope.launch { runCatching { session.sendDeleteForEveryone(m) } }; actionMsg = null
                     }
                     MessageAction(stringResource(R.string.chat_delete_me), danger = true) { session.deleteLocal(m); actionMsg = null }

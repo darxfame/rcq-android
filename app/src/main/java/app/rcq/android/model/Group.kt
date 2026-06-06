@@ -8,8 +8,13 @@ data class GroupMember(
     val status: String? = null,  // live presence
     val identityKey: String,     // base64 raw X25519 public — we encrypt to this
     val signingKey: String? = null,
+    // Granular moderator caps the owner granted (subset of delete|members|info).
+    // Owner implicitly has all; a non-owner with any cap is a moderator.
+    val permissions: List<String> = emptyList(),
 ) {
     val presence: UserStatus get() = UserStatus.from(status)
+    /** True if this member may delete anyone's message (owner OR `delete` cap). */
+    fun canDelete(ownerUin: Int): Boolean = uin == ownerUin || "delete" in permissions
 }
 
 /**
