@@ -130,6 +130,16 @@ internal object Emoticons {
 
     fun hasEmoticon(text: String): Boolean =
         text.contains(':') && TOKEN_RE.findAll(text).any { it.groupValues[1] in codes }
+
+    /** (start, endExclusive, asset) for every known `:code:` in [text] — used to
+     *  paint inline ImageSpans in the composer's native EditText. */
+    fun codeSpans(text: String): List<Triple<Int, Int, String>> {
+        if (!text.contains(':')) return emptyList()
+        return TOKEN_RE.findAll(text).mapNotNull { m ->
+            val a = m.groupValues[1]
+            if (a in codes) Triple(m.range.first, m.range.last + 1, a) else null
+        }.toList()
+    }
 }
 
 /** Render a bundled emoticon GIF by [name] — animated on API 28+, a frozen
@@ -277,7 +287,7 @@ internal fun EmoticonPanel(onPick: (String) -> Unit) {
             Box(
                 Modifier.size(46.dp).clip(RoundedCornerShape(8.dp)).clickable { onPick(":$asset:") },
                 contentAlignment = Alignment.Center,
-            ) { EmoticonGif(asset, Modifier.size(30.dp), animate = false) }
+            ) { EmoticonGif(asset, Modifier.size(30.dp), animate = true) }
         }
     }
 }

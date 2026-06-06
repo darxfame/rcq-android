@@ -953,14 +953,14 @@ private fun Composer(
                     contentAlignment = Alignment.CenterStart,
                 ) {
                     if (draft.isEmpty()) Text(stringResource(R.string.chat_input_hint), color = c.textSecondary, fontSize = 15.sp)
-                    BasicTextField(
+                    // Native EditText so emoticon :codes: render as inline GIFs in
+                    // the field (Compose BasicTextField can't draw inline images).
+                    EmoticonInputField(
                         value = draft,
                         onValueChange = onDraftChange,
-                        textStyle = TextStyle(color = c.textPrimary, fontSize = 15.sp),
-                        cursorBrush = SolidColor(accentColor),
-                        // Auto-capitalize the first letter of each sentence (tester #8).
-                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-                        modifier = Modifier.fillMaxWidth().onFocusChanged { if (it.isFocused) showEmoji = false },
+                        textColor = c.textPrimary,
+                        modifier = Modifier.fillMaxWidth(),
+                        onFocused = { showEmoji = false },
                     )
                 }
             }
