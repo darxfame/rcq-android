@@ -15,9 +15,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.delay
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
+import java.io.FileOutputStream
+import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 /**
@@ -85,9 +88,19 @@ object UpdateChecker {
 
     // Route through the censorship transport when it's engaged (the site may be
     // blocked on the same networks the transport exists to pierce).
+    //
+    // NB: NO callTimeout — that caps the WHOLE call, and a ~200MB APK pulled
+    // through a throttled relay easily exceeds any fixed budget (it was 120s,
+    // which aborted the download "at half"). We bound only the connect + the
+    // per-read GAP, so a slow-but-progressing stream is never killed; a real
+    // stall hits readTimeout and the resume/retry loop in downloadAndInstall
+    // picks up where it left off.
     private fun client(): OkHttpClient {
         val b = OkHttpClient.Builder()
-            .callTimeout(120, TimeUnit.SECONDS)
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
+            .writeTimeout(0, TimeUnit.SECONDS)
+            .retryOnConnectionFailure(true)
         SingBoxTransport.proxy()?.let { b.proxy(it) }
         return b.build()
     }
@@ -119,46 +132,70 @@ object UpdateChecker {
         update: Update,
         onProgress: (Float) -> Unit = {},
     ): Boolean = withContext(Dispatchers.IO) {
-        runCatching {
-            val dir = File(context.cacheDir, "files").apply { mkdirs() }
-            val apk = File(dir, "rcq-update-${update.versionCode}.apk")
-            val req = Request.Builder().url(update.apkUrl).build()
-            client().newCall(req).execute().use { resp ->
-                if (!resp.isSuccessful) return@withContext false
-                val body = resp.body!!
-                val total = body.contentLength()
-                body.byteStream().use { input ->
-                    apk.outputStream().use { out ->
-                        val buf = ByteArray(64 * 1024)
-                        var read = 0L
-                        var lastReported = -1
-                        onProgress(if (total > 0) 0f else -1f)
-                        while (true) {
-                            val n = input.read(buf)
-                            if (n < 0) break
-                            out.write(buf, 0, n)
-                            read += n
-                            if (total > 0) {
-                                // Throttle to whole-percent steps to avoid
-                                // hammering recomposition on every 64KB chunk.
-                                val pct = ((read * 100) / total).toInt()
-                                if (pct != lastReported) {
-                                    lastReported = pct
-                                    onProgress(pct / 100f)
+        val dir = File(context.cacheDir, "files").apply { mkdirs() }
+        val apk = File(dir, "rcq-update-${update.versionCode}.apk")
+        onProgress(if (apk.length() > 0) 0f else -1f)
+
+        // Resume-on-failure: each attempt requests the bytes we don't have yet
+        // (HTTP Range), appends to the partial file, and the loop retries on any
+        // drop. A flaky relay can never lose the whole download anymore — it
+        // just continues. Caddy serves Range (accept-ranges: bytes).
+        val maxAttempts = 8
+        for (attempt in 1..maxAttempts) {
+            val have = if (apk.exists()) apk.length() else 0L
+            val rb = Request.Builder().url(update.apkUrl)
+            if (have > 0) rb.header("Range", "bytes=$have-")
+            val done = runCatching {
+                client().newCall(rb.build()).execute().use { resp ->
+                    if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
+                    // 206 = our Range honoured (resume); anything else means we
+                    // got the whole body, so start the file over.
+                    val resuming = resp.code == 206 && have > 0
+                    val body = resp.body!!
+                    val total = if (resuming) have + body.contentLength() else body.contentLength()
+                    if (!resuming && have > 0) apk.delete()
+                    var written = if (resuming) have else 0L
+                    FileOutputStream(apk, resuming).use { out ->
+                        body.byteStream().use { input ->
+                            val buf = ByteArray(64 * 1024)
+                            var lastPct = -1
+                            while (true) {
+                                val n = input.read(buf)
+                                if (n < 0) break
+                                out.write(buf, 0, n)
+                                written += n
+                                if (total > 0) {
+                                    val pct = ((written * 100) / total).toInt()
+                                    if (pct != lastPct) { lastPct = pct; onProgress(pct / 100f) }
                                 }
                             }
+                            out.flush()
                         }
                     }
+                    // Complete only if we reached the expected size (a dropped
+                    // stream returns EOF early → written < total → we retry).
+                    total <= 0L || written >= total
                 }
+            }.getOrDefault(false)
+
+            if (done) {
+                onProgress(1f)
+                return@withContext install(context, apk)
             }
-            onProgress(1f)
-            val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", apk)
-            val intent = Intent(Intent.ACTION_VIEW).apply {
-                setDataAndType(uri, "application/vnd.android.package-archive")
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            context.startActivity(intent)
-            true
-        }.getOrDefault(false)
+            if (attempt < maxAttempts) delay(1500L * attempt) // backoff, then resume
+        }
+        false
     }
+
+    /** Hand the finished APK to the system package installer (the user still
+     *  confirms the sideload install). */
+    private fun install(context: Context, apk: File): Boolean = runCatching {
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", apk)
+        val intent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, "application/vnd.android.package-archive")
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        context.startActivity(intent)
+        true
+    }.getOrDefault(false)
 }
