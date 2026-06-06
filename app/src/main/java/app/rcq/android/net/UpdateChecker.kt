@@ -90,6 +90,22 @@ object UpdateChecker {
         if (_downloadState.value is DownloadState.Failed) _downloadState.value = DownloadState.Idle
     }
 
+    /** Delete leftover update APKs we no longer need — anything at or below the
+     *  version we are already running (a stale install package). These ~100-200MB
+     *  files piled up in the cache (founder: "Кэш 2гб") because the reuse path
+     *  keeps a downloaded APK; this prunes the OLD ones. A pending NEWER one is
+     *  left for reuse. Call on launch. */
+    fun cleanupOldApks(context: Context) {
+        runCatching {
+            File(context.cacheDir, "files").listFiles { f ->
+                f.name.startsWith("rcq-update-") && f.name.endsWith(".apk")
+            }?.forEach { f ->
+                val vc = f.name.removePrefix("rcq-update-").removeSuffix(".apk").toIntOrNull()
+                if (vc == null || vc <= BuildConfig.VERSION_CODE) f.delete()
+            }
+        }
+    }
+
     /** Stop the in-progress download. The partial file is KEPT on disk, so a
      *  later Download resumes from where it left off (HTTP Range) instead of
      *  starting over — answers "where did my previous download go?". */

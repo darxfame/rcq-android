@@ -331,7 +331,10 @@ private fun RcqApp(session: Session) {
         var update by remember { mutableStateOf<app.rcq.android.net.UpdateChecker.Update?>(null) }
         val updateDownload by app.rcq.android.net.UpdateChecker.downloadState.collectAsState()
         LaunchedEffect(s is UiState.Registered) {
-            if (s is UiState.Registered) update = app.rcq.android.net.UpdateChecker.check()
+            if (s is UiState.Registered) {
+                app.rcq.android.net.UpdateChecker.cleanupOldApks(context)
+                update = app.rcq.android.net.UpdateChecker.check()
+            }
         }
         update?.let { up ->
             if (s is UiState.Registered && !locked) UpdateDialog(
