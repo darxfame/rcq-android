@@ -22,8 +22,8 @@ android {
         applicationId = "app.rcq.android"
         minSdk = 26
         targetSdk = 36
-        versionCode = 10
-        versionName = "0.10"
+        versionCode = 11
+        versionName = "0.11"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // libsignal ships native .so for 4 ABIs; keep the real-device ones
         // (arm64-v8a, armeabi-v7a) + x86_64 for the emulator, drop 32-bit x86.
@@ -88,6 +88,14 @@ android {
             // libsignal_jni_testing.so is a ~80MB-per-ABI test-only native lib;
             // never ship it. (Halves the APK.)
             excludes += "**/libsignal_jni_testing.so"
+            // Compress the native libs INSIDE the apk. Modern AGP defaults to
+            // uncompressed (extractNativeLibs=false), which bloats the DOWNLOAD —
+            // and libsignal_jni.so ships ~74MB of debug symbols that squeeze hard.
+            // We distribute by direct sideload (no Play split-compression), and
+            // the download size is the pain for users behind the relay, so trade
+            // a little install footprint / first-load time for a much smaller
+            // download. System.loadLibrary still works (libs extract on install).
+            useLegacyPackaging = true
         }
     }
 }
