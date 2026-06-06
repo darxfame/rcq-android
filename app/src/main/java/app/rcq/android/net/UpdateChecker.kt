@@ -15,7 +15,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
+import okhttp3.Call
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
@@ -64,6 +67,7 @@ object UpdateChecker {
 
     private val downloadScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var downloadJob: Job? = null
+    @Volatile private var currentCall: Call? = null
     private val _downloadState = MutableStateFlow<DownloadState>(DownloadState.Idle)
     val downloadState: StateFlow<DownloadState> = _downloadState.asStateFlow()
 
@@ -84,6 +88,16 @@ object UpdateChecker {
     /** Reset a failed state (e.g. when the user dismisses the error). */
     fun clearDownloadError() {
         if (_downloadState.value is DownloadState.Failed) _downloadState.value = DownloadState.Idle
+    }
+
+    /** Stop the in-progress download. The partial file is KEPT on disk, so a
+     *  later Download resumes from where it left off (HTTP Range) instead of
+     *  starting over — answers "where did my previous download go?". */
+    fun cancelDownload() {
+        currentCall?.cancel()
+        downloadJob?.cancel()
+        downloadJob = null
+        _downloadState.value = DownloadState.Idle
     }
 
     // Route through the censorship transport when it's engaged (the site may be
@@ -132,52 +146,77 @@ object UpdateChecker {
         update: Update,
         onProgress: (Float) -> Unit = {},
     ): Boolean = withContext(Dispatchers.IO) {
+        val cs = this
         val dir = File(context.cacheDir, "files").apply { mkdirs() }
         val apk = File(dir, "rcq-update-${update.versionCode}.apk")
+
+        // Reuse an already-finished download: if the user cancelled the system
+        // install dialog and re-tapped, the APK is still on disk — install it
+        // again rather than re-download the whole thing (tester #40).
+        if (apk.exists()) {
+            val expected = headContentLength(update.apkUrl)
+            if (expected > 0) {
+                if (apk.length() == expected) { onProgress(1f); return@withContext install(context, apk) }
+                if (apk.length() > expected) apk.delete() // corrupt/overshoot → restart
+            }
+        }
         onProgress(if (apk.length() > 0) 0f else -1f)
 
-        // Resume-on-failure: each attempt requests the bytes we don't have yet
-        // (HTTP Range), appends to the partial file, and the loop retries on any
-        // drop. A flaky relay can never lose the whole download anymore — it
-        // just continues. Caddy serves Range (accept-ranges: bytes).
+        // Resume-on-failure: each attempt requests only the bytes we don't have
+        // yet (HTTP Range), appends to the partial file, and retries on a drop.
+        // A flaky relay can never lose the whole download — it just continues.
+        // Cancel (tester #39) stops the loop but KEEPS the partial for resume.
         val maxAttempts = 8
         for (attempt in 1..maxAttempts) {
+            cs.ensureActive()
             val have = if (apk.exists()) apk.length() else 0L
             val rb = Request.Builder().url(update.apkUrl)
             if (have > 0) rb.header("Range", "bytes=$have-")
-            val done = runCatching {
-                client().newCall(rb.build()).execute().use { resp ->
-                    if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
-                    // 206 = our Range honoured (resume); anything else means we
-                    // got the whole body, so start the file over.
-                    val resuming = resp.code == 206 && have > 0
-                    val body = resp.body!!
-                    val total = if (resuming) have + body.contentLength() else body.contentLength()
-                    if (!resuming && have > 0) apk.delete()
-                    var written = if (resuming) have else 0L
-                    FileOutputStream(apk, resuming).use { out ->
-                        body.byteStream().use { input ->
-                            val buf = ByteArray(64 * 1024)
-                            var lastPct = -1
-                            while (true) {
-                                val n = input.read(buf)
-                                if (n < 0) break
-                                out.write(buf, 0, n)
-                                written += n
-                                if (total > 0) {
-                                    val pct = ((written * 100) / total).toInt()
-                                    if (pct != lastPct) { lastPct = pct; onProgress(pct / 100f) }
+            val done = try {
+                val call = client().newCall(rb.build())
+                currentCall = call
+                call.execute().use { resp ->
+                    if (resp.code == 416 && have > 0) {
+                        true // Range past EOF → the file is already complete
+                    } else {
+                        if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}")
+                        // 206 = our Range honoured (resume); anything else means
+                        // we got the whole body, so start the file over.
+                        val resuming = resp.code == 206 && have > 0
+                        val body = resp.body!!
+                        val total = if (resuming) have + body.contentLength() else body.contentLength()
+                        if (!resuming && have > 0) apk.delete()
+                        var written = if (resuming) have else 0L
+                        FileOutputStream(apk, resuming).use { out ->
+                            body.byteStream().use { input ->
+                                val buf = ByteArray(64 * 1024)
+                                var lastPct = -1
+                                while (true) {
+                                    cs.ensureActive() // cooperative cancel mid-stream
+                                    val n = input.read(buf)
+                                    if (n < 0) break
+                                    out.write(buf, 0, n)
+                                    written += n
+                                    if (total > 0) {
+                                        val pct = ((written * 100) / total).toInt()
+                                        if (pct != lastPct) { lastPct = pct; onProgress(pct / 100f) }
+                                    }
                                 }
+                                out.flush()
                             }
-                            out.flush()
                         }
+                        // Complete only if we reached the expected size (a dropped
+                        // stream returns EOF early → written < total → we retry).
+                        total <= 0L || written >= total
                     }
-                    // Complete only if we reached the expected size (a dropped
-                    // stream returns EOF early → written < total → we retry).
-                    total <= 0L || written >= total
                 }
-            }.getOrDefault(false)
-
+            } catch (c: CancellationException) {
+                throw c // a cancel is not a retryable failure
+            } catch (e: Throwable) {
+                false
+            } finally {
+                currentCall = null
+            }
             if (done) {
                 onProgress(1f)
                 return@withContext install(context, apk)
@@ -186,6 +225,13 @@ object UpdateChecker {
         }
         false
     }
+
+    /** Content-Length of the APK via a cheap HEAD, or -1 if unknown. */
+    private fun headContentLength(url: String): Long = runCatching {
+        client().newCall(Request.Builder().url(url).head().build()).execute().use {
+            it.header("Content-Length")?.toLongOrNull() ?: -1L
+        }
+    }.getOrDefault(-1L)
 
     /** Hand the finished APK to the system package installer (the user still
      *  confirms the sideload install). */

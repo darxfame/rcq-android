@@ -108,6 +108,7 @@
     <string name="update_available_short">Доступно обновление: %1$s</string>
     <string name="update_install">Скачать и установить</string>
     <string name="update_bg_hint">Можно закрыть, загрузка продолжится в фоне. Установщик откроется, когда всё скачается.</string>
+    <string name="update_cancel">Отменить загрузку</string>
     <string name="update_failed">Не удалось скачать. Нажмите, чтобы повторить.</string>
     <string name="join_server_title">Подключиться к серверу</string>
     <string name="join_server_body">Создать новый аккаунт на %1$s?</string>

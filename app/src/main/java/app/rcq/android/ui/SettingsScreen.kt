@@ -385,6 +385,10 @@ private fun SettingsRoot(
                             else androidx.compose.material3.LinearProgressIndicator(progress = { active.progress }, color = c.accent, modifier = Modifier.fillMaxWidth())
                             Text(stringResource(R.string.update_downloading_pct, (active.progress.coerceAtLeast(0f) * 100).toInt()), color = c.textSecondary, fontSize = 13.sp)
                             Text(stringResource(R.string.update_bg_hint), color = c.textSecondary, fontSize = 11.sp)
+                            // Cancel keeps the partial download for a later resume (tester #39).
+                            TextButton(onClick = { app.rcq.android.net.UpdateChecker.cancelDownload() }, contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
+                                Text(stringResource(R.string.update_cancel), color = c.accent, fontSize = 13.sp)
+                            }
                         }
                         downloadState is app.rcq.android.net.UpdateChecker.DownloadState.Failed -> Text(
                             stringResource(R.string.update_failed),

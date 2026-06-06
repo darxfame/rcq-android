@@ -109,6 +109,7 @@
     <string name="update_available_short">Update available: %1$s</string>
     <string name="update_install">Download and install</string>
     <string name="update_bg_hint">You can close this, the download keeps going. The installer opens when it is ready.</string>
+    <string name="update_cancel">Cancel download</string>
     <string name="update_failed">Download failed. Tap to retry.</string>
     <string name="join_server_title">Join server</string>
     <string name="join_server_body">Create a new account on %1$s?</string>
