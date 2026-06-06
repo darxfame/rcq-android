@@ -70,7 +70,8 @@ class MessageDb(context: Context, accountId: String, dataKey: ByteArray) {
               lat        REAL,
               lng        REAL,
               spoiler    INTEGER NOT NULL DEFAULT 0,
-              album_id   TEXT
+              album_id   TEXT,
+              reply_to_id TEXT
             )
             """.trimIndent()
         )
@@ -109,6 +110,7 @@ class MessageDb(context: Context, accountId: String, dataKey: ByteArray) {
         }
         if (oldVersion < 12) db.execSQL("ALTER TABLE messages ADD COLUMN spoiler INTEGER NOT NULL DEFAULT 0")
         if (oldVersion < 13) db.execSQL("ALTER TABLE messages ADD COLUMN album_id TEXT")
+        if (oldVersion < 14) db.execSQL("ALTER TABLE messages ADD COLUMN reply_to_id TEXT")
     }
 
     /** Insert; returns true if it was new (false if the UUID already existed). */
@@ -138,6 +140,7 @@ class MessageDb(context: Context, accountId: String, dataKey: ByteArray) {
             put("lng", msg.lng)
             put("spoiler", if (msg.spoiler) 1 else 0)
             put("album_id", msg.albumId)
+            put("reply_to_id", msg.replyToId)
         }
         val rowId = db.insertWithOnConflict("messages", null, values, SQLiteDatabase.CONFLICT_IGNORE)
         return rowId != -1L
@@ -167,7 +170,7 @@ class MessageDb(context: Context, accountId: String, dataKey: ByteArray) {
     fun all(): List<ChatMessage> {
         val out = ArrayList<ChatMessage>()
         db.rawQuery(
-            "SELECT id, peer_uin, from_me, body, sent_at, state, kind, media_id, media_key, reply_snippet, reply_author, group_id, sender_uin, reactions, edited, file_name, file_mime, file_size, duration_sec, thumb_b64, lat, lng, spoiler, album_id FROM messages ORDER BY sent_at ASC", null,
+            "SELECT id, peer_uin, from_me, body, sent_at, state, kind, media_id, media_key, reply_snippet, reply_author, group_id, sender_uin, reactions, edited, file_name, file_mime, file_size, duration_sec, thumb_b64, lat, lng, spoiler, album_id, reply_to_id FROM messages ORDER BY sent_at ASC", null,
         ).use { c ->
             while (c.moveToNext()) {
                 out.add(
@@ -196,6 +199,7 @@ class MessageDb(context: Context, accountId: String, dataKey: ByteArray) {
                         lng = if (c.isNull(21)) null else c.getDouble(21),
                         spoiler = c.getInt(22) == 1,
                         albumId = c.getString(23),
+                        replyToId = c.getString(24),
                     )
                 )
             }
@@ -208,7 +212,7 @@ class MessageDb(context: Context, accountId: String, dataKey: ByteArray) {
         // Runs once when the class is first touched (constructor or migration).
         init { System.loadLibrary("sqlcipher") }
 
-        const val VERSION = 13
+        const val VERSION = 14
         private const val LEGACY_NAME = "rcq-messages.db"
         private val SIDECARS = listOf("", "-wal", "-shm", "-journal")
 

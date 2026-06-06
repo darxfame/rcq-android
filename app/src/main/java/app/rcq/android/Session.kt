@@ -1219,7 +1219,7 @@ class Session(context: Context) {
                 id = id, peerUin = 0, fromMe = true, body = body,
                 sentAt = System.currentTimeMillis(), state = DeliveryState.SENDING,
                 kind = kind, mediaId = mediaId, mediaKey = mediaKey,
-                replyToSnippet = replyTo?.snippet, replyToAuthor = replyTo?.authorName,
+                replyToSnippet = replyTo?.snippet, replyToAuthor = replyTo?.authorName, replyToId = replyTo?.id,
                 groupId = groupId, senderUin = me,
                 fileName = fileName, fileMime = fileMime, fileSize = fileSize,
                 durationSec = durationSec, thumbB64 = thumbB64, lat = lat, lng = lng,
@@ -1278,7 +1278,7 @@ class Session(context: Context) {
             val now = System.currentTimeMillis()
             when (val env = dec.envelope) {
                 is Envelope.Text -> storeGroup(
-                    ChatMessage(env.id, 0, false, env.text, now, kind = "text", groupId = groupId, senderUin = dec.senderUin, replyToSnippet = env.replyTo?.snippet, replyToAuthor = env.replyTo?.authorName)
+                    ChatMessage(env.id, 0, false, env.text, now, kind = "text", groupId = groupId, senderUin = dec.senderUin, replyToSnippet = env.replyTo?.snippet, replyToAuthor = env.replyTo?.authorName, replyToId = env.replyTo?.id)
                 )
                 is Envelope.Photo -> storeGroup(
                     ChatMessage(env.id, 0, false, env.caption ?: "", now, kind = "photo", mediaId = env.mediaId, mediaKey = env.mediaKey, groupId = groupId, senderUin = dec.senderUin, spoiler = env.spoiler, albumId = env.albumId)
@@ -1453,7 +1453,7 @@ class Session(context: Context) {
 
     suspend fun sendText(toUin: Int, text: String, replyTo: Reply? = null) {
         val env = Envelope.text(text, replyTo)
-        store(ChatMessage(env.id, toUin, fromMe = true, body = text, sentAt = System.currentTimeMillis(), state = DeliveryState.SENDING, replyToSnippet = replyTo?.snippet, replyToAuthor = replyTo?.authorName))
+        store(ChatMessage(env.id, toUin, fromMe = true, body = text, sentAt = System.currentTimeMillis(), state = DeliveryState.SENDING, replyToSnippet = replyTo?.snippet, replyToAuthor = replyTo?.authorName, replyToId = replyTo?.id))
         sendEnvelope(env, env.id, toUin)
     }
 
@@ -1821,7 +1821,7 @@ class Session(context: Context) {
             }
             when (val env = dec.envelope) {
                 is Envelope.Text ->
-                    store(ChatMessage(env.id, dec.senderUin, false, env.text, now, replyToSnippet = env.replyTo?.snippet, replyToAuthor = env.replyTo?.authorName))
+                    store(ChatMessage(env.id, dec.senderUin, false, env.text, now, replyToSnippet = env.replyTo?.snippet, replyToAuthor = env.replyTo?.authorName, replyToId = env.replyTo?.id))
                 is Envelope.Photo ->
                     store(ChatMessage(env.id, dec.senderUin, false, env.caption ?: "", now, kind = "photo", mediaId = env.mediaId, mediaKey = env.mediaKey, spoiler = env.spoiler, albumId = env.albumId))
                 is Envelope.File ->

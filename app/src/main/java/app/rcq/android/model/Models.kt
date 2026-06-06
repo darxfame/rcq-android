@@ -85,6 +85,7 @@ data class ChatMessage(
     val mediaKey: String? = null,
     val replyToSnippet: String? = null,
     val replyToAuthor: String? = null,
+    val replyToId: String? = null, // id of the message this replies to (jump-to-original)
     val groupId: Int? = null,     // non-null => this message belongs to a group thread
     val senderUin: Int? = null,   // group message author (for sender labels)
     val reactions: List<String> = emptyList(),  // emoji reacted onto this message

@@ -367,11 +367,6 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
     }
     fun cancelRecording() { recording = false; recorder.cancel() }
 
-    LaunchedEffect(messages.size) {
-        if (messages.isNotEmpty()) listState.animateScrollToItem(messages.size - 1)
-    }
-    // Keep the latest message visible when the keyboard opens (report #29).
-    KeyboardScrollEffect(listState, messages.size)
     // Mark this thread active+read while open; clear again on a new
     // message arriving here is handled in Session.bumpUnreadIfInbound.
     val thisThread = if (isGroup) app.rcq.android.data.LocalStores.groupThread(groupId!!) else app.rcq.android.data.LocalStores.peerThread(peer!!)
@@ -386,6 +381,50 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
     // A message can land while the chat is already open — re-clear so the
     // badge never lingers after the user has seen it.
     LaunchedEffect(messages.size) { app.rcq.android.data.LocalStores.clearUnread(thisThread) }
+
+    // Snapshot the unread count at open (before openThread clears it) so we can
+    // mark where reading left off — an "Unread messages" divider, Telegram-style.
+    val initialUnread = remember(target) { app.rcq.android.data.LocalStores.unread.value[thisThread] ?: 0 }
+    val firstUnreadIndex = remember(messages.size, initialUnread) {
+        if (initialUnread in 1..messages.size) messages.size - initialUnread else -1
+    }
+    val rows = remember(messages, firstUnreadIndex) { buildChatRows(messages, firstUnreadIndex) }
+    var didInitialScroll by remember(target) { mutableStateOf(false) }
+    var highlightId by remember(target) { mutableStateOf<String?>(null) }
+
+    // Initial position: at the first unread (or the bottom). INSTANT (no
+    // animation) — the old animateScroll-on-every-size-change was the "mota к
+    // последнему / eats resources" complaint (#1).
+    LaunchedEffect(rows.size) {
+        if (rows.isNotEmpty() && !didInitialScroll) {
+            didInitialScroll = true
+            val u = rows.indexOfFirst { it is ChatRow.Unread }
+            listState.scrollToItem((if (u >= 0) u else rows.lastIndex).coerceAtLeast(0))
+        }
+    }
+    // New message: stick to the bottom ONLY if the user is already near it
+    // (don't yank them up while reading, #5); an own send always follows.
+    LaunchedEffect(messages.lastOrNull()?.id) {
+        if (!didInitialScroll) return@LaunchedEffect
+        val last = messages.lastOrNull() ?: return@LaunchedEffect
+        val info = listState.layoutInfo
+        val nearBottom = (info.visibleItemsInfo.lastOrNull()?.index ?: 0) >= info.totalItemsCount - 3
+        if (last.fromMe || nearBottom) listState.animateScrollToItem(rows.lastIndex.coerceAtLeast(0))
+    }
+    // Keep the latest message visible when the keyboard opens (report #29).
+    KeyboardScrollEffect(listState, rows.size)
+
+    // Jump to (and briefly flash) the message a reply quotes — iOS parity (#3).
+    val onTapReply: (String) -> Unit = { rid ->
+        val idx = rows.indexOfFirst { r ->
+            (r is ChatRow.Single && r.m.id == rid) || (r is ChatRow.Album && r.items.any { it.id == rid })
+        }
+        if (idx >= 0) {
+            scope.launch { listState.animateScrollToItem(idx) }
+            highlightId = rid
+            scope.launch { kotlinx.coroutines.delay(1400); if (highlightId == rid) highlightId = null }
+        }
+    }
 
     Column(Modifier.fillMaxSize().background(c.bgPrimary).imePadding()) {
         // Header.
@@ -530,10 +569,21 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
             }
         }
 
-        val albumRows = remember(messages) { groupAlbumRows(messages) }
         LazyColumn(state = listState, modifier = Modifier.weight(1f).fillMaxWidth(), contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            items(albumRows, key = { row -> when (row) { is ChatRow.Single -> row.m.id; is ChatRow.Album -> "alb-${row.items.first().id}" } }) { row ->
+            items(
+                rows,
+                key = { row ->
+                    when (row) {
+                        is ChatRow.Single -> row.m.id
+                        is ChatRow.Album -> "alb-${row.items.first().id}"
+                        is ChatRow.DateLabel -> "date-${row.key}"
+                        ChatRow.Unread -> "unread-divider"
+                    }
+                },
+            ) { row ->
                 when (row) {
+                    is ChatRow.DateLabel -> DateDividerRow(row.label)
+                    ChatRow.Unread -> UnreadDividerRow()
                     is ChatRow.Single -> {
                         val m = row.m
                         if (m.kind == "call") {
@@ -551,6 +601,9 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
                                 mentionNick = mentionNick,
                                 onMentionClick = onMentionClick,
                                 mentionUin = mentionUin,
+                                highlighted = m.id == highlightId,
+                                onTapReply = onTapReply,
+                                onSenderClick = if (isGroup && !m.fromMe) ({ m.senderUin?.let { if (it != ownUin) onOpenPeerInfo(it) } }) else null,
                             )
                         }
                     }
@@ -558,6 +611,7 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
                         session, row.items,
                         senderName = if (isGroup && !row.items.first().fromMe) authorName(row.items.first()) else null,
                         onLongPress = { actionMsg = row.items.first() },
+                        onSenderClick = if (isGroup && !row.items.first().fromMe) ({ row.items.first().senderUin?.let { if (it != ownUin) onOpenPeerInfo(it) } }) else null,
                     )
                 }
             }
@@ -1196,6 +1250,10 @@ private fun MediaPreviewDialog(pending: PendingSend, onCancel: () -> Unit, onSen
 private sealed interface ChatRow {
     data class Single(val m: ChatMessage) : ChatRow
     data class Album(val id: String, val items: List<ChatMessage>) : ChatRow
+    /** A day separator between messages of different calendar dates (iOS parity). */
+    data class DateLabel(val label: String, val key: Long) : ChatRow
+    /** The "unread messages" marker, placed before the first unread message. */
+    object Unread : ChatRow
 }
 
 /** Pinned text -> AnnotatedString with tappable URLs + `#<uin>` member
@@ -1245,21 +1303,40 @@ private fun AnnotatedString.Builder.appendWithUrls(segment: String, accent: andr
     if (cursor < segment.length) append(segment.substring(cursor))
 }
 
-/** Collapse runs of consecutive same-album, same-sender photo/video messages
- *  into one Album row (iOS ChatViewModel album-collapse parity). A lone
- *  album-tagged message stays Single (renders as a normal bubble). */
-private fun groupAlbumRows(msgs: List<ChatMessage>): List<ChatRow> {
-    val out = ArrayList<ChatRow>(msgs.size)
+/** Day bucket (year*1000 + day-of-year) for grouping messages into date sections. */
+private fun dayKeyOf(ts: Long): Long {
+    val c = java.util.Calendar.getInstance()
+    c.timeInMillis = ts
+    return c.get(java.util.Calendar.YEAR) * 1000L + c.get(java.util.Calendar.DAY_OF_YEAR)
+}
+
+/** Human date label for a divider (iOS DateDivider parity: "EEE, d MMM"). */
+private fun dayLabelOf(ts: Long): String =
+    java.text.SimpleDateFormat("EEE, d MMM", java.util.Locale.getDefault()).format(java.util.Date(ts))
+
+/** Build the rendered row list: album-collapse (iOS parity) + date dividers
+ *  between calendar days + a single "unread messages" divider before the first
+ *  unread message ([firstUnreadIndex] = message index, or -1 for none). */
+private fun buildChatRows(msgs: List<ChatMessage>, firstUnreadIndex: Int): List<ChatRow> {
+    val out = ArrayList<ChatRow>(msgs.size + 8)
+    var lastDay = Long.MIN_VALUE
+    var unreadDone = firstUnreadIndex < 0
     var i = 0
     while (i < msgs.size) {
         val m = msgs[i]
+        val day = dayKeyOf(m.sentAt)
+        if (day != lastDay) { out.add(ChatRow.DateLabel(dayLabelOf(m.sentAt), day)); lastDay = day }
+        if (!unreadDone && i == firstUnreadIndex) { out.add(ChatRow.Unread); unreadDone = true }
+
         val alb = m.albumId
         if (alb != null && (m.kind == "photo" || m.kind == "video")) {
             var j = i
             val group = ArrayList<ChatMessage>()
             while (j < msgs.size) {
+                // Don't let an album swallow the unread boundary or cross a day.
+                if (!unreadDone && j == firstUnreadIndex && j != i) break
                 val n = msgs[j]
-                if (n.albumId == alb && (n.kind == "photo" || n.kind == "video") && n.fromMe == m.fromMe && n.senderUin == m.senderUin) {
+                if (n.albumId == alb && (n.kind == "photo" || n.kind == "video") && n.fromMe == m.fromMe && n.senderUin == m.senderUin && dayKeyOf(n.sentAt) == day) {
                     group.add(n); j++
                 } else break
             }
@@ -1270,17 +1347,43 @@ private fun groupAlbumRows(msgs: List<ChatMessage>): List<ChatRow> {
     return out
 }
 
+/** A centered day separator between messages of different dates. */
+@Composable
+private fun DateDividerRow(label: String) {
+    val c = RcqTheme.colors
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+        androidx.compose.foundation.layout.Box(Modifier.weight(1f).height(1.dp).background(c.divider))
+        Text(label, color = c.textSecondary, fontSize = 11.sp, fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace, modifier = Modifier.padding(horizontal = 8.dp))
+        androidx.compose.foundation.layout.Box(Modifier.weight(1f).height(1.dp).background(c.divider))
+    }
+}
+
+/** The "Unread messages" divider, accent-tinted so it reads as a marker. */
+@Composable
+private fun UnreadDividerRow() {
+    val c = RcqTheme.colors
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+        androidx.compose.foundation.layout.Box(Modifier.weight(1f).height(1.dp).background(c.accent.copy(alpha = 0.5f)))
+        Text(stringResource(R.string.chat_unread_divider), color = c.accent, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 8.dp))
+        androidx.compose.foundation.layout.Box(Modifier.weight(1f).height(1.dp).background(c.accent.copy(alpha = 0.5f)))
+    }
+}
+
 /** A collapsed media album: the tile grid + count pill, an optional caption,
  *  and a time/state footer. Long-press acts on the album's first message. */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun AlbumBubble(session: Session, items: List<ChatMessage>, senderName: String?, onLongPress: () -> Unit) {
+private fun AlbumBubble(session: Session, items: List<ChatMessage>, senderName: String?, onLongPress: () -> Unit, onSenderClick: (() -> Unit)? = null) {
     val c = RcqTheme.colors
     val first = items.first()
     val last = items.last()
     Column(Modifier.fillMaxWidth(), horizontalAlignment = if (first.fromMe) Alignment.End else Alignment.Start) {
         if (senderName != null) {
-            Text(senderName, color = c.accent, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 4.dp, bottom = 1.dp))
+            Text(
+                senderName, color = c.accent, fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(start = 4.dp, bottom = 1.dp)
+                    .then(if (onSenderClick != null) Modifier.clickable { onSenderClick() } else Modifier),
+            )
         }
         AlbumGrid(session, items, onLongPress)
         items.firstOrNull { it.body.isNotEmpty() }?.let { cap ->
@@ -1387,7 +1490,7 @@ private fun AlbumTile(session: Session, m: ChatMessage, w: Dp, h: Dp, onLongPres
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun MessageBubble(session: Session, m: ChatMessage, senderName: String?, onRetry: () -> Unit, onLongPress: () -> Unit, onOpenGroup: (Int) -> Unit = {}, onViewImage: (ByteArray) -> Unit = {}, mentionNick: ((Int) -> String?)? = null, onMentionClick: ((Int) -> Unit)? = null, mentionUin: ((String) -> Int?)? = null) {
+private fun MessageBubble(session: Session, m: ChatMessage, senderName: String?, onRetry: () -> Unit, onLongPress: () -> Unit, onOpenGroup: (Int) -> Unit = {}, onViewImage: (ByteArray) -> Unit = {}, mentionNick: ((Int) -> String?)? = null, onMentionClick: ((Int) -> Unit)? = null, mentionUin: ((String) -> Int?)? = null, highlighted: Boolean = false, onTapReply: ((String) -> Unit)? = null, onSenderClick: (() -> Unit)? = null) {
     val c = RcqTheme.colors
     val failed = m.state == DeliveryState.FAILED
     // Cap a bubble so a long message leaves a gap to the far edge — keeps the
@@ -1395,9 +1498,18 @@ private fun MessageBubble(session: Session, m: ChatMessage, senderName: String?,
     val maxW = (LocalConfiguration.current.screenWidthDp * 0.78f).dp
     // A text body that is just a group-invite URL renders as a join card.
     val groupLinkId = if (m.kind == "text") GroupLinkParser.parse(m.body) else null
-    Column(Modifier.fillMaxWidth(), horizontalAlignment = if (m.fromMe) Alignment.End else Alignment.Start) {
+    Column(
+        Modifier.fillMaxWidth()
+            .background(if (highlighted) c.accent.copy(alpha = 0.12f) else Color.Transparent)
+            .padding(vertical = 2.dp),
+        horizontalAlignment = if (m.fromMe) Alignment.End else Alignment.Start,
+    ) {
         if (senderName != null) {
-            Text(senderName, color = c.accent, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 4.dp, bottom = 1.dp))
+            Text(
+                senderName, color = c.accent, fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(start = 4.dp, bottom = 1.dp)
+                    .then(if (onSenderClick != null) Modifier.clickable { onSenderClick() } else Modifier),
+            )
         }
         if (groupLinkId != null) {
             GroupLinkBubble(session, groupLinkId, onOpenGroup, onLongPress)
@@ -1435,8 +1547,11 @@ private fun MessageBubble(session: Session, m: ChatMessage, senderName: String?,
                     .padding(horizontal = 12.dp, vertical = 8.dp),
             ) {
                 if (m.replyToSnippet != null) {
+                    val tappable = m.replyToId != null && onTapReply != null
                     Column(
-                        Modifier.padding(bottom = 4.dp).clip(RoundedCornerShape(6.dp)).background(c.accent.copy(alpha = 0.14f)).padding(horizontal = 8.dp, vertical = 4.dp),
+                        Modifier.padding(bottom = 4.dp).clip(RoundedCornerShape(6.dp)).background(c.accent.copy(alpha = 0.14f))
+                            .then(if (tappable) Modifier.clickable { onTapReply!!.invoke(m.replyToId!!) } else Modifier)
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
                     ) {
                         Text(m.replyToAuthor.orEmpty(), color = c.accent, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                         Text(m.replyToSnippet, color = c.textSecondary, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
