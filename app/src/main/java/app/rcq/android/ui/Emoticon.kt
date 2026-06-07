@@ -174,7 +174,7 @@ internal fun EmoticonGif(name: String, modifier: Modifier, animate: Boolean = tr
 @Composable
 internal fun ReactionChip(
     asset: String,
-    count: Int = 1,
+    count: Int? = null,   // null = no number (Radio/Hood chips); else always shown, even "1"
     mine: Boolean = false,
     onClick: (() -> Unit)? = null,
     onLongClick: (() -> Unit)? = null,
@@ -200,7 +200,7 @@ internal fun ReactionChip(
         // message-history emoticons did (the large-group OOM). See EmoticonText.
         if (isEmoticon) EmoticonGif(asset, Modifier.size(16.dp), animate = false)
         else Text(asset, fontSize = 13.sp, color = c.textPrimary)
-        if (count > 1) {
+        if (count != null) {
             Text("$count", fontSize = 11.sp, color = c.textPrimary,
                 fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
         }
