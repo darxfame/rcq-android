@@ -321,6 +321,17 @@ class RcqApi(private val baseUrl: String = DEFAULT_BASE_URL) {
             postNoContent("/link/$token", gson.toJson(LinkDepositBody(blob)), authed = true)
         }
 
+    data class LinkDeviceBody(val label: String)
+    data class LinkDeviceResponse(val device_id: String = "", val token: String = "")
+
+    /** Register a new linked web session and get its OWN session token (so the
+     *  web can be revoked independently of the phone). Registering also flips
+     *  the account to multi-device → the server serves v=1 to senders. */
+    suspend fun linkDevice(label: String): LinkDeviceResponse =
+        withContext(Dispatchers.IO) {
+            post("/devices/link", gson.toJson(LinkDeviceBody(label)), authed = true, LinkDeviceResponse::class.java)
+        }
+
     // ── offline queue drain (rcq-spec 6.3.1) ─────────────────────────
 
     data class QueuedEnvelope(

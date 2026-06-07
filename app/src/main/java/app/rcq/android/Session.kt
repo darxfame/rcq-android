@@ -1642,7 +1642,10 @@ class Session(context: Context) {
      *  MUST confirm with the user first — it hands web access to the account. */
     suspend fun linkWeb(token: String, webPubB64: String) {
         val uin = store.uin ?: error("not registered")
-        val jwt = store.token ?: error("no session token")
+        // Mint a SEPARATE session token for the web device (revocable on its
+        // own, and it flips the account to multi-device → server serves v=1).
+        // The web carries this, not the phone's token.
+        val jwt = api.linkDevice("Web").token.ifEmpty { error("device link failed") }
         val now = System.currentTimeMillis() / 1000
         val blob = com.google.gson.JsonObject().apply {
             addProperty("uin", uin)
