@@ -100,6 +100,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -214,6 +219,8 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
     // a character doesn't recompose the whole ChatScreen (header + message
     // LazyColumn). That recomposition-per-keystroke was the input-field lag.
     var actionMsg by remember { mutableStateOf<ChatMessage?>(null) }
+    // Long-pressing a reaction chip opens a "who reacted" sheet for that message.
+    var whoReactedMsg by remember { mutableStateOf<ChatMessage?>(null) }
     var editMsg by remember { mutableStateOf<ChatMessage?>(null) }
     var replyTarget by remember { mutableStateOf<ChatMessage?>(null) }
     var attachMenu by remember { mutableStateOf(false) }
@@ -612,6 +619,7 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
                                 highlighted = m.id == highlightId,
                                 onTapReply = onTapReply,
                                 onSenderClick = if (isGroup && !m.fromMe) ({ m.senderUin?.let { if (it != ownUin) onOpenPeerInfo(it) } }) else null,
+                                onShowReactors = { whoReactedMsg = it },
                             )
                         }
                     }
@@ -676,6 +684,44 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
         FullscreenImageViewer(bytes) { fullscreenImage = null }
     }
 
+    whoReactedMsg?.let { m ->
+        // Who reacted, grouped by reaction asset. Reactions = reactorUin -> asset.
+        val byAsset = remember(m.reactions) {
+            m.reactions.entries.groupBy { it.value }.entries.sortedByDescending { it.value.size }
+        }
+        AlertDialog(
+            onDismissRequest = { whoReactedMsg = null },
+            containerColor = c.bgSecondary,
+            title = { Text(stringResource(R.string.reactions_who_title), color = c.textPrimary) },
+            text = {
+                Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
+                    byAsset.forEach { (asset, entries) ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(top = 8.dp, bottom = 2.dp),
+                        ) {
+                            EmoticonGif(asset, Modifier.size(20.dp), animate = false)
+                            Spacer(Modifier.width(8.dp))
+                            Text("${entries.size}", color = c.textSecondary, fontSize = 12.sp)
+                        }
+                        entries.forEach { (uin, _) ->
+                            val name = group?.memberName(uin) ?: session.contactName(uin)
+                            Text(
+                                name, color = c.textPrimary, fontSize = 14.sp,
+                                modifier = Modifier.padding(start = 28.dp, top = 2.dp, bottom = 2.dp),
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { whoReactedMsg = null }) {
+                    Text(stringResource(R.string.common_done), color = c.accent)
+                }
+            },
+        )
+    }
+
     actionMsg?.let { m ->
         // "Delete for everyone" is offered for your own message, OR (in a group)
         // when you're a moderator: the owner, or a member granted the `delete`
@@ -690,7 +736,7 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
                 Column {
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                        modifier = Modifier.horizontalScroll(rememberScrollState()).padding(bottom = 8.dp),
                     ) {
                         Emoticons.reactions.forEach { asset ->
                             Box(
@@ -1518,7 +1564,7 @@ private fun AlbumTile(session: Session, m: ChatMessage, w: Dp, h: Dp, onLongPres
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun MessageBubble(session: Session, m: ChatMessage, senderName: String?, onRetry: () -> Unit, onLongPress: () -> Unit, onOpenGroup: (Int) -> Unit = {}, onViewImage: (ByteArray) -> Unit = {}, mentionNick: ((Int) -> String?)? = null, onMentionClick: ((Int) -> Unit)? = null, mentionUin: ((String) -> Int?)? = null, highlighted: Boolean = false, onTapReply: ((String) -> Unit)? = null, onSenderClick: (() -> Unit)? = null) {
+private fun MessageBubble(session: Session, m: ChatMessage, senderName: String?, onRetry: () -> Unit, onLongPress: () -> Unit, onOpenGroup: (Int) -> Unit = {}, onViewImage: (ByteArray) -> Unit = {}, mentionNick: ((Int) -> String?)? = null, onMentionClick: ((Int) -> Unit)? = null, mentionUin: ((String) -> Int?)? = null, highlighted: Boolean = false, onTapReply: ((String) -> Unit)? = null, onSenderClick: (() -> Unit)? = null, onShowReactors: (ChatMessage) -> Unit = {}) {
     val c = RcqTheme.colors
     val failed = m.state == DeliveryState.FAILED
     // Cap a bubble so a long message leaves a gap to the far edge — keeps the
@@ -1590,11 +1636,25 @@ private fun MessageBubble(session: Session, m: ChatMessage, senderName: String?,
             }
         }
         if (m.reactions.isNotEmpty()) {
+            val reactScope = rememberCoroutineScope()
+            val me = session.uin
+            // Group by asset -> count (reactions is reactorUin -> asset).
+            val grouped = remember(m.reactions) {
+                m.reactions.values.groupingBy { it }.eachCount().entries.sortedByDescending { it.value }
+            }
             Row(
                 horizontalArrangement = Arrangement.spacedBy(3.dp),
                 modifier = Modifier.padding(top = 2.dp, start = 4.dp, end = 4.dp),
             ) {
-                m.reactions.distinct().forEach { asset -> ReactionChip(asset) }
+                grouped.forEach { (asset, count) ->
+                    ReactionChip(
+                        asset = asset,
+                        count = count,
+                        mine = me != null && m.reactions[me] == asset,
+                        onClick = { reactScope.launch { runCatching { session.sendReaction(m, asset) } } },
+                        onLongClick = { onShowReactors(m) },
+                    )
+                }
             }
         }
         Row(

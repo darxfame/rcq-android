@@ -6,8 +6,10 @@ import android.os.Build
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -54,7 +56,10 @@ import androidx.compose.ui.unit.sp
 internal object Emoticons {
     /** The six offered as message reactions (like/love/haha/wow/sad/angry).
      *  Asset names match iOS exactly so a reaction renders identically. */
-    val reactions = listOf("good", "give_heart", "biggrin", "shok", "cray", "mad")
+    val reactions = listOf(
+        "good", "give_heart", "biggrin", "rofl", "shok", "cray",
+        "mad", "diablo", "cool", "kiss", "give_rose", "man_in_love",
+    )
 
     /** The composer palette: (asset, display name), Kolobok ICQ "set 14".
      *  Codes are the `:asset:` form; must match the iOS `Emoticons.entries`. */
@@ -165,17 +170,40 @@ internal fun EmoticonGif(name: String, modifier: Modifier, animate: Boolean = tr
 /** A reaction chip under a message bubble: a small emoticon GIF when the
  *  reaction is a known KOLOBOK asset, else the raw string (plain-emoji
  *  reactions from older clients still show). */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-internal fun ReactionChip(asset: String) {
+internal fun ReactionChip(
+    asset: String,
+    count: Int = 1,
+    mine: Boolean = false,
+    onClick: (() -> Unit)? = null,
+    onLongClick: (() -> Unit)? = null,
+) {
     val c = RcqTheme.colors
     val context = LocalContext.current
     val isEmoticon = remember(asset) { Emoticons.isEmoticon(context, asset) }
-    Box(
-        Modifier.clip(RoundedCornerShape(10.dp)).background(c.bgSecondary).padding(horizontal = 6.dp, vertical = 2.dp),
-        contentAlignment = Alignment.Center,
+    Row(
+        Modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(if (mine) c.accent.copy(alpha = 0.22f) else c.bgSecondary)
+            .let {
+                if (onClick != null || onLongClick != null) {
+                    it.combinedClickable(onClick = { onClick?.invoke() }, onLongClick = onLongClick)
+                } else it
+            }
+            .padding(horizontal = 6.dp, vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(3.dp),
     ) {
-        if (isEmoticon) EmoticonGif(asset, Modifier.size(18.dp))
+        // Static first frame: inline reaction chips persist in the message
+        // list, so animating them piles up GIF decoders the same way the
+        // message-history emoticons did (the large-group OOM). See EmoticonText.
+        if (isEmoticon) EmoticonGif(asset, Modifier.size(16.dp), animate = false)
         else Text(asset, fontSize = 13.sp, color = c.textPrimary)
+        if (count > 1) {
+            Text("$count", fontSize = 11.sp, color = c.textPrimary,
+                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold)
+        }
     }
 }
 

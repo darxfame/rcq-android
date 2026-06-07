@@ -88,7 +88,7 @@ data class ChatMessage(
     val replyToId: String? = null, // id of the message this replies to (jump-to-original)
     val groupId: Int? = null,     // non-null => this message belongs to a group thread
     val senderUin: Int? = null,   // group message author (for sender labels)
-    val reactions: List<String> = emptyList(),  // emoji reacted onto this message
+    val reactions: Map<Int, String> = emptyMap(),  // reactor UIN -> emoticon asset (one per user)
     val edited: Boolean = false,  // body was replaced by a later edit envelope
     val fileName: String? = null, // kind == "file": original name
     val fileMime: String? = null, // kind == "file": MIME type

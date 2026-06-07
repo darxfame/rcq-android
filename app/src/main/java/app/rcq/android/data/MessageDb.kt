@@ -6,7 +6,23 @@ import android.util.Log
 import app.rcq.android.model.ChatMessage
 import app.rcq.android.model.DeliveryState
 import net.zetetic.database.sqlcipher.SQLiteDatabase
+import org.json.JSONObject
 import java.io.File
+
+/** Reactions persist as a JSON object {"<uin>":"<asset>"}. Old rows (pre-0.18)
+ *  stored a ``-joined asset list with no reactor — those carried no UIN,
+ *  so on read they're dropped (a cosmetic one-time loss; the next reaction
+ *  repopulates). */
+private fun reactionsToJson(r: Map<Int, String>): String =
+    JSONObject().apply { r.forEach { (uin, asset) -> put(uin.toString(), asset) } }.toString()
+
+private fun reactionsFromJson(s: String?): Map<Int, String> {
+    if (s.isNullOrEmpty() || s.first() != '{') return emptyMap()
+    return runCatching {
+        val o = JSONObject(s)
+        buildMap { o.keys().forEach { k -> k.toIntOrNull()?.let { put(it, o.getString(k)) } } }
+    }.getOrDefault(emptyMap())
+}
 
 /**
  * Local message store, encrypted at rest with SQLCipher. The backend drains
@@ -129,7 +145,7 @@ class MessageDb(context: Context, accountId: String, dataKey: ByteArray) {
             put("reply_author", msg.replyToAuthor)
             put("group_id", msg.groupId)
             put("sender_uin", msg.senderUin)
-            put("reactions", msg.reactions.joinToString(REACTION_DELIM))
+            put("reactions", reactionsToJson(msg.reactions))
             put("edited", if (msg.edited) 1 else 0)
             put("file_name", msg.fileName)
             put("file_mime", msg.fileMime)
@@ -150,8 +166,8 @@ class MessageDb(context: Context, accountId: String, dataKey: ByteArray) {
         db.update("messages", ContentValues().apply { put("state", state.name) }, "id = ?", arrayOf(id))
     }
 
-    fun updateReactions(id: String, reactions: List<String>) {
-        db.update("messages", ContentValues().apply { put("reactions", reactions.joinToString(REACTION_DELIM)) }, "id = ?", arrayOf(id))
+    fun updateReactions(id: String, reactions: Map<Int, String>) {
+        db.update("messages", ContentValues().apply { put("reactions", reactionsToJson(reactions)) }, "id = ?", arrayOf(id))
     }
 
     /** Replace a message's body and mark it edited. */
@@ -188,7 +204,7 @@ class MessageDb(context: Context, accountId: String, dataKey: ByteArray) {
                         replyToAuthor = c.getString(10),
                         groupId = if (c.isNull(11)) null else c.getInt(11),
                         senderUin = if (c.isNull(12)) null else c.getInt(12),
-                        reactions = c.getString(13)?.split(REACTION_DELIM)?.filter { it.isNotEmpty() } ?: emptyList(),
+                        reactions = reactionsFromJson(c.getString(13)),
                         edited = c.getInt(14) == 1,
                         fileName = c.getString(15),
                         fileMime = c.getString(16),

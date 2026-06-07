@@ -1316,7 +1316,7 @@ class Session(context: Context) {
                 is Envelope.Poll -> storeGroup(
                     ChatMessage(env.id, 0, false, app.rcq.android.model.PollContent(env.pollId, env.question, env.options, env.singleChoice, env.anonymous).toJson(), now, kind = "poll", groupId = groupId, senderUin = dec.senderUin)
                 )
-                is Envelope.Reaction -> env.asset?.let { addGroupReaction(groupId, env.targetId, it) }
+                is Envelope.Reaction -> addGroupReaction(groupId, env.targetId, dec.senderUin, env.asset)
                 is Envelope.Delete -> {
                     // Honor the delete if the deleter is the message author OR a
                     // group moderator: the owner, or a member the owner granted
@@ -1710,12 +1710,16 @@ class Session(context: Context) {
      *  group. A reaction has no bubble or delivery state of its own, so it
      *  rides the best-effort control path, not [sendEnvelope]. */
     suspend fun sendReaction(target: ChatMessage, emoji: String) {
-        val env = Envelope.reaction(target.id, emoji)
+        val me = store.uin ?: return
+        // Toggle: re-tapping your current reaction clears it (asset = null =
+        // remove on the wire + on the peer). Otherwise set/replace yours.
+        val newAsset: String? = if (target.reactions[me] == emoji) null else emoji
+        val env = Envelope.reaction(target.id, newAsset)
         if (target.groupId != null) {
-            addGroupReaction(target.groupId, target.id, emoji)
+            addGroupReaction(target.groupId, target.id, me, newAsset)
             fanOutControl(target.groupId, env)
         } else {
-            addPeerReaction(target.peerUin, target.id, emoji)
+            addPeerReaction(target.peerUin, target.id, me, newAsset)
             sendControl(target.peerUin, env)
         }
     }
@@ -1867,7 +1871,7 @@ class Session(context: Context) {
                     store(ChatMessage(env.id, dec.senderUin, false, env.caption ?: "", now, kind = "video", mediaId = env.mediaId, mediaKey = env.mediaKey, durationSec = env.durationSec.toInt(), thumbB64 = env.thumbnailB64, spoiler = env.spoiler, albumId = env.albumId))
                 is Envelope.Location ->
                     store(ChatMessage(env.id, dec.senderUin, false, env.caption ?: "", now, kind = "location", lat = env.lat, lng = env.lng))
-                is Envelope.Reaction -> env.asset?.let { addPeerReaction(dec.senderUin, env.targetId, it) }
+                is Envelope.Reaction -> addPeerReaction(dec.senderUin, env.targetId, dec.senderUin, env.asset)
                 is Envelope.Delete -> {
                     // Author-only: a peer can only retract their own message.
                     val t = _messages.value[dec.senderUin]?.firstOrNull { it.id == env.targetId }
@@ -2160,19 +2164,21 @@ class Session(context: Context) {
         _groupMessages.value = cur
     }
 
-    /** Add [emoji] to a 1:1 message's reaction set (deduped), persisting +
-     *  publishing the change. No-op if the message isn't in the thread or
-     *  the emoji is already present. */
-    private fun addPeerReaction(peer: Int, targetId: String, emoji: String) {
+    /** Set/clear [reactorUin]'s reaction on a 1:1 message (one reaction per
+     *  user): [asset] null removes it. Persists + updates the flow. No-op if
+     *  the message isn't in the thread or the state is unchanged. */
+    private fun addPeerReaction(peer: Int, targetId: String, reactorUin: Int, asset: String?) {
         val cur = _messages.value.toMutableMap()
         val list = cur[peer] ?: return
         var changed = false
         val updated = list.map { m ->
-            if (m.id == targetId && !m.reactions.contains(emoji)) {
-                changed = true
-                val r = m.reactions + emoji
-                db.updateReactions(targetId, r)
-                m.copy(reactions = r)
+            if (m.id == targetId) {
+                val r = if (asset == null) m.reactions - reactorUin else m.reactions + (reactorUin to asset)
+                if (r != m.reactions) {
+                    changed = true
+                    db.updateReactions(targetId, r)
+                    m.copy(reactions = r)
+                } else m
             } else m
         }
         if (changed) { cur[peer] = updated; _messages.value = cur }
@@ -2200,16 +2206,18 @@ class Session(context: Context) {
     }
 
     /** Group analogue of [addPeerReaction]. */
-    private fun addGroupReaction(groupId: Int, targetId: String, emoji: String) {
+    private fun addGroupReaction(groupId: Int, targetId: String, reactorUin: Int, asset: String?) {
         val cur = _groupMessages.value.toMutableMap()
         val list = cur[groupId] ?: return
         var changed = false
         val updated = list.map { m ->
-            if (m.id == targetId && !m.reactions.contains(emoji)) {
-                changed = true
-                val r = m.reactions + emoji
-                db.updateReactions(targetId, r)
-                m.copy(reactions = r)
+            if (m.id == targetId) {
+                val r = if (asset == null) m.reactions - reactorUin else m.reactions + (reactorUin to asset)
+                if (r != m.reactions) {
+                    changed = true
+                    db.updateReactions(targetId, r)
+                    m.copy(reactions = r)
+                } else m
             } else m
         }
         if (changed) { cur[groupId] = updated; _groupMessages.value = cur }
