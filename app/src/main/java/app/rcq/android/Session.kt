@@ -577,6 +577,10 @@ class Session(context: Context) {
                     // already kicked the initial load.
                     if (everConnected) syncGraph()
                     everConnected = true
+                    // Connection is back — auto-resend anything stuck in FAILED
+                    // (transient network/relay death) so the user doesn't have to
+                    // tap each red error by hand.
+                    retryFailedSends()
                 }
             },
         )
@@ -1614,6 +1618,20 @@ class Session(context: Context) {
             Envelope.Poll(msg.id, it.pollId, it.question, it.options, it.singleChoice, it.anonymous)
         } ?: Envelope.Text(msg.id, msg.body)
         else -> Envelope.Text(msg.id, msg.body)
+    }
+
+    /** Auto-retry every message stuck in FAILED, fired on each (re)connect. A
+     *  send that died on a flaky/censored connection or a relay that was down
+     *  (the red "tap to try again") now recovers on its own when the channel
+     *  comes back, instead of waiting for a manual tap. Duplicate-safe: the
+     *  envelope UUID is stable, so the recipient dedups anything that already
+     *  half-landed. Sequential so a burst of stuck sends doesn't fan out at once. */
+    private fun retryFailedSends() {
+        scope.launch {
+            val failed = _messages.value.values.flatten()
+                .filter { it.fromMe && it.state == DeliveryState.FAILED }
+            for (m in failed) runCatching { resend(m) }
+        }
     }
 
     /** Retry a previously-failed outgoing message (same UUID, so no dup). */
