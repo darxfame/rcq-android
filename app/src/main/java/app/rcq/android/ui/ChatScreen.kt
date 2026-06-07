@@ -164,6 +164,12 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
     val context = LocalContext.current
     val ownUin = session.uin ?: 0
 
+    // Hide the soft keyboard when leaving the chat (any exit path disposes this
+    // composable) so it doesn't linger over the chat list — reported: exiting a
+    // chat with the keyboard up left it showing on the list.
+    val exitKeyboard = LocalSoftwareKeyboardController.current
+    DisposableEffect(Unit) { onDispose { exitKeyboard?.hide() } }
+
     val isGroup = target is ChatTarget.Group
     val groupId = (target as? ChatTarget.Group)?.id
     val peer = (target as? ChatTarget.Peer)?.uin
@@ -1597,9 +1603,9 @@ private fun MessageBubble(session: Session, m: ChatMessage, senderName: String?,
             modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
         ) {
             Text(formatTime(m.sentAt), color = c.textSecondary, fontSize = 10.sp)
-            if (m.edited) Text("edited", color = c.textSecondary, fontSize = 10.sp)
+            if (m.edited) Text(stringResource(R.string.chat_edited), color = c.textSecondary, fontSize = 10.sp)
             if (m.fromMe) {
-                if (failed) Text("failed · tap to retry", color = Color(0xFFE5484D), fontSize = 10.sp, modifier = Modifier.clickable(onClick = onRetry))
+                if (failed) Text(stringResource(R.string.chat_failed_retry), color = Color(0xFFE5484D), fontSize = 10.sp, modifier = Modifier.clickable(onClick = onRetry))
                 else Text(stateGlyph(m.state), color = if (m.state == DeliveryState.READ) c.accent else c.textSecondary, fontSize = 10.sp)
             }
         }
