@@ -72,10 +72,24 @@ object SingBoxTransport {
      *  auto-engage: a `false` here means the network is blocking RCQ, so we
      *  bring the tunnel up without the user touching anything (they couldn't
      *  reach Settings to flip the toggle anyway). Blocking — call off-main. */
-    fun probeDirect(host: String): Boolean = runCatching {
-        probeClient.newCall(Request.Builder().url("https://$host/health").get().build())
-            .execute().use { it.isSuccessful }
-    }.getOrElse { false }
+    fun probeDirect(host: String): Boolean {
+        // Retry before concluding the network is BLOCKING RCQ. A cold first
+        // connection (emulator boot, first DNS+TLS handshake) can exceed the
+        // 5s budget without the network being censored — a single-shot probe
+        // misread that as "blocked" and auto-engaged the (slow) tunnel, which
+        // is exactly the "login is slow + bypass turns on when it shouldn't"
+        // report. A real DPI block keeps timing out across all attempts, so it
+        // still auto-engages; a slow-but-working network succeeds on a warm
+        // retry and stays direct. Returns as soon as one attempt succeeds.
+        repeat(3) {
+            val ok = runCatching {
+                probeClient.newCall(Request.Builder().url("https://$host/health").get().build())
+                    .execute().use { it.isSuccessful }
+            }.getOrElse { false }
+            if (ok) return true
+        }
+        return false
+    }
 
     /** Reach the backend through whatever route is live RIGHT NOW — the tunnel
      *  if engaged, else direct. Used by the diagnostics screen. Blocking. */

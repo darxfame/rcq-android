@@ -377,7 +377,14 @@ private fun SettingsRoot(
             confirmButton = { TextButton(onClick = { showAbout = false }) { Text(stringResource(R.string.common_done), color = c.accent) } },
             title = { Text("RCQ", color = c.textPrimary) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                // Scrollable: the update notes can be a long bilingual
+                // paragraph that otherwise pushes the "Download and install"
+                // button below the (non-scrolling) AlertDialog viewport, so the
+                // user saw "update available" but never the install action.
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                ) {
                     Text(stringResource(R.string.cs_about_tagline), color = c.textSecondary, fontSize = 14.sp)
                     Text(stringResource(R.string.cs_about_version, appVersion(context)), color = c.textMono, fontSize = 13.sp, fontFamily = FontFamily.Monospace)
                     Text(stringResource(R.string.cs_about_features), color = c.textSecondary, fontSize = 12.sp)
