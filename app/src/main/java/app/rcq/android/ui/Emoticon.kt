@@ -30,6 +30,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
@@ -162,10 +163,24 @@ internal fun EmoticonGif(name: String, modifier: Modifier, animate: Boolean = tr
     if (animate && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
         AnimatedGif(b, modifier)
     } else {
-        val img = remember(b) { runCatching { BitmapFactory.decodeByteArray(b, 0, b.size)?.asImageBitmap() }.getOrNull() }
+        // Static first frame, decoded ONCE per asset and shared process-wide. The
+        // same `:code:` recurs across many history rows / reaction chips; without
+        // the cache each occurrence decoded its own bitmap (bytes were cached, the
+        // decode was not), piling up allocations in emoticon-dense groups.
+        val img = remember(name) { staticEmoticonBitmap(name, b) }
         if (img != null) Image(bitmap = img, contentDescription = null, modifier = modifier)
     }
 }
+
+private val staticEmoticonBitmaps = HashMap<String, ImageBitmap?>()
+
+/** Decoded static first frame for emoticon [name], cached process-wide. */
+private fun staticEmoticonBitmap(name: String, bytes: ByteArray): ImageBitmap? =
+    synchronized(staticEmoticonBitmaps) {
+        staticEmoticonBitmaps.getOrPut(name) {
+            runCatching { BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap() }.getOrNull()
+        }
+    }
 
 /** A reaction chip under a message bubble: a small emoticon GIF when the
  *  reaction is a known KOLOBOK asset, else the raw string (plain-emoji

@@ -1118,7 +1118,16 @@ private fun KeyboardScrollEffect(
     val density = LocalDensity.current
     val imeVisible = WindowInsets.ime.getBottom(density) > 0
     LaunchedEffect(imeVisible) {
-        if (imeVisible && itemCount > 0) listState.animateScrollToItem(itemCount - 1)
+        if (!imeVisible || itemCount == 0) return@LaunchedEffect
+        // Keep the newest messages above the keyboard — but JUMP, don't animate:
+        // an animated scroll ran concurrently with the imePadding() inset
+        // animation, so every frame both squeezed AND scrolled the list,
+        // composing/decoding rows on the way down. On weaker devices that stutter
+        // read as "tapping the field freezes everything". And only follow down
+        // when the latest messages are already on screen, so tapping the composer
+        // while reading history no longer yanks you to the bottom.
+        val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1
+        if (lastVisible >= itemCount - 2) listState.scrollToItem(itemCount - 1)
     }
 }
 
@@ -1693,11 +1702,15 @@ private fun PhotoBubble(session: Session, m: ChatMessage, onLongPress: () -> Uni
         when {
             b == null -> CircularProgressIndicator(color = c.accent, modifier = Modifier.size(22.dp))
             // Spoiler: render a heavily blurred copy until the viewer taps it.
+            // Decoded + blurred off the main thread (the full-res decode used to
+            // block the UI thread during composition).
             hidden -> {
-                val blurred = remember(b) {
-                    runCatching { BitmapFactory.decodeByteArray(b, 0, b.size)?.let { blurForSpoiler(it).asImageBitmap() } }.getOrNull()
+                val blurred by produceState<androidx.compose.ui.graphics.ImageBitmap?>(initialValue = null, b) {
+                    value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                        runCatching { decodeSampled(b, 360)?.let { blurForSpoiler(it).asImageBitmap() } }.getOrNull()
+                    }
                 }
-                if (blurred != null) Image(bitmap = blurred, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
+                blurred?.let { Image(bitmap = it, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize()) }
                 SpoilerOverlay()
             }
             // Animated GIF (same "photo" media path iOS uses, gated by magic
@@ -1705,7 +1718,10 @@ private fun PhotoBubble(session: Session, m: ChatMessage, onLongPress: () -> Uni
             b.isGif() && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P ->
                 AnimatedGif(b, Modifier.fillMaxSize())
             else -> {
-                val image = remember(b) { runCatching { BitmapFactory.decodeByteArray(b, 0, b.size)?.asImageBitmap() }.getOrNull() }
+                // Downsampled + decoded off the main thread — a full-res JPEG
+                // decode here stalled the UI thread when the row scrolled in
+                // (notably the keyboard-open auto-scroll → the "tap freezes" bug).
+                val image = rememberSampledBitmap(b)
                 if (image != null) Image(bitmap = image, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
                 else CircularProgressIndicator(color = c.accent, modifier = Modifier.size(22.dp))
             }
@@ -1767,9 +1783,9 @@ private fun FullscreenImageViewer(bytes: ByteArray, onDismiss: () -> Unit) {
             if (bytes.isGif() && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
                 AnimatedGif(bytes, Modifier.fillMaxWidth())
             } else {
-                val image = remember(bytes) {
-                    runCatching { BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap() }.getOrNull()
-                }
+                // Decode off the main thread, bounded to 2560px (ample for the
+                // 5x pinch-zoom) so opening a big photo never stalls the UI.
+                val image = rememberSampledBitmap(bytes, maxPx = 2560)
                 if (image != null) {
                     Image(
                         bitmap = image,

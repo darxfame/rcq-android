@@ -1,5 +1,6 @@
 package app.rcq.android.ui
 
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.ImageDecoder
 import android.graphics.drawable.AnimatedImageDrawable
@@ -7,9 +8,15 @@ import android.os.Build
 import android.widget.ImageView
 import androidx.annotation.RequiresApi
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.viewinterop.AndroidView
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.nio.ByteBuffer
 
 /** GIF magic bytes — "GIF8" (both 87a and 89a start with this). Lets the photo
@@ -52,4 +59,38 @@ internal fun AnimatedGif(bytes: ByteArray, modifier: Modifier) {
         },
         modifier = modifier,
     )
+}
+
+/**
+ * Decode [bytes] to a [Bitmap] downsampled so its longest side is about [maxPx]
+ * — full-resolution decodes of chat photos were a real freeze/OOM source: a
+ * 12MP JPEG is a ~48MB ARGB bitmap, and [PhotoBubble] only paints it ~220dp
+ * wide. Uses [BitmapFactory.Options.inSampleSize] (a bounds-only pre-pass to
+ * read the dimensions, then a power-of-two subsample). Caller runs this OFF the
+ * main thread. Null on a corrupt blob.
+ */
+internal fun decodeSampled(bytes: ByteArray, maxPx: Int): Bitmap? = runCatching {
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+    val longSide = maxOf(bounds.outWidth, bounds.outHeight).coerceAtLeast(1)
+    var sample = 1
+    while (longSide / (sample * 2) >= maxPx) sample *= 2
+    val opts = BitmapFactory.Options().apply { inSampleSize = sample }
+    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
+}.getOrNull()
+
+/**
+ * [decodeSampled] as an async Compose value: decodes on [Dispatchers.Default]
+ * (never the main thread) and returns null until ready. This is the fix for the
+ * "tapping the composer freezes everything" reports — the keyboard-open
+ * auto-scroll composed photo rows whose main-thread full-res decode stalled the
+ * UI thread mid-IME-animation. Re-decodes only when [bytes] or [maxPx] change.
+ */
+@Composable
+internal fun rememberSampledBitmap(bytes: ByteArray?, maxPx: Int = 1080): ImageBitmap? {
+    val img by produceState<ImageBitmap?>(initialValue = null, bytes, maxPx) {
+        value = if (bytes == null) null
+        else withContext(Dispatchers.Default) { decodeSampled(bytes, maxPx)?.asImageBitmap() }
+    }
+    return img
 }
