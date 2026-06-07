@@ -1025,14 +1025,20 @@ private fun Composer(
                     contentAlignment = Alignment.CenterStart,
                 ) {
                     if (draft.isEmpty()) Text(stringResource(R.string.chat_input_hint), color = c.textSecondary, fontSize = 15.sp)
-                    // Native EditText so emoticon :codes: render as inline GIFs in
-                    // the field (Compose BasicTextField can't draw inline images).
-                    EmoticonInputField(
+                    // Plain Compose field. Previously a native EditText (so emoticon
+                    // :codes: rendered as inline GIFs while typing), but that
+                    // AndroidView↔IME interop froze the app — up to a 20s ANR ("RCQ
+                    // isn't responding") — when tapping to type on some devices.
+                    // Codes now show as ":code:" text in the composer and still
+                    // render as GIFs once the message is sent/received.
+                    BasicTextField(
                         value = draft,
                         onValueChange = setDraft,
-                        textColor = c.textPrimary,
-                        modifier = Modifier.fillMaxWidth(),
-                        onFocused = { showEmoji = false },
+                        textStyle = androidx.compose.ui.text.TextStyle(color = c.textPrimary, fontSize = 15.sp),
+                        cursorBrush = androidx.compose.ui.graphics.SolidColor(c.accent),
+                        keyboardOptions = KeyboardOptions(capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Sentences),
+                        maxLines = 5,
+                        modifier = Modifier.fillMaxWidth().onFocusChanged { if (it.isFocused) showEmoji = false },
                     )
                 }
             }
