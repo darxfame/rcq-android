@@ -208,20 +208,33 @@ internal fun EmoticonText(
         Text(body, color = color, fontSize = fontSize, lineHeight = lineHeight, modifier = modifier)
         return
     }
-    val inline = HashMap<String, InlineTextContent>()
-    val annotated = buildAnnotatedString {
-        for (t in tokens) when (t) {
-            is Emoticons.Token.Text -> appendWithMentions(t.text, mentionNick, mentionUin, onMentionClick, accent)
-            is Emoticons.Token.Emo -> {
-                appendInlineContent(t.asset, t.code)
-                if (t.asset !in inline) {
-                    val asset = t.asset
-                    inline[asset] = InlineTextContent(
-                        Placeholder(width = 1.4.em, height = 1.4.em, placeholderVerticalAlign = PlaceholderVerticalAlign.TextCenter),
-                    ) { EmoticonGif(asset, Modifier.fillMaxSize()) }
+    // MEMOIZE the annotated string + inline-emoticon content. Without this,
+    // every recomposition rebuilt the inline map with FRESH composable lambdas,
+    // so each inline emoticon was recreated → re-read its GIF bytes + re-decoded
+    // a bitmap. The IME-show animation recomposes the message list every frame,
+    // so in an emoticon-dense large group (e.g. 832-member RCQ Beta) that meant
+    // dozens of GIFs re-decoded per frame → ~12MB/frame allocation → GC thrash →
+    // the composer froze on focus and OOM-crashed on weaker devices (couldn't
+    // even type). The resolvers are remember()'d by the caller, so this only
+    // rebuilds when the body or a resolver actually changes. animate=false also
+    // renders a static first frame (no AnimatedImageDrawable churn).
+    val (annotated, inline) = remember(body, mentionNick, mentionUin, onMentionClick, accent) {
+        val inlineMap = HashMap<String, InlineTextContent>()
+        val ann = buildAnnotatedString {
+            for (t in tokens) when (t) {
+                is Emoticons.Token.Text -> appendWithMentions(t.text, mentionNick, mentionUin, onMentionClick, accent)
+                is Emoticons.Token.Emo -> {
+                    appendInlineContent(t.asset, t.code)
+                    if (t.asset !in inlineMap) {
+                        val asset = t.asset
+                        inlineMap[asset] = InlineTextContent(
+                            Placeholder(width = 1.4.em, height = 1.4.em, placeholderVerticalAlign = PlaceholderVerticalAlign.TextCenter),
+                        ) { EmoticonGif(asset, Modifier.fillMaxSize(), animate = false) }
+                    }
                 }
             }
         }
+        ann to inlineMap
     }
     Text(annotated, color = color, fontSize = fontSize, lineHeight = lineHeight, inlineContent = inline, modifier = modifier)
 }
