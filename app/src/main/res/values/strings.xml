@@ -124,6 +124,12 @@
     <string name="weblink_confirm">Connect</string>
     <string name="weblink_done">Web connected. Your browser should log in now.</string>
     <string name="weblink_failed">Couldn\'t connect to web. The code may have expired — try again.</string>
+    <string name="settings_row_linked_devices">Linked devices</string>
+    <string name="linked_devices_hint">Browsers connected to your account. To connect one, open chat.rcq.app, choose Connect phone, and scan the code with your camera.</string>
+    <string name="linked_devices_empty">No browsers are connected.</string>
+    <string name="linked_devices_error">Couldn\'t load linked devices.</string>
+    <string name="linked_devices_disconnect">Disconnect</string>
+    <string name="linked_devices_connected">Connected %1$s</string>
     <string name="common_close">Close</string>
     <string name="common_done">Done</string>
     <string name="common_save">Save</string>

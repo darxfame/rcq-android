@@ -332,6 +332,20 @@ class RcqApi(private val baseUrl: String = DEFAULT_BASE_URL) {
             post("/devices/link", gson.toJson(LinkDeviceBody(label)), authed = true, LinkDeviceResponse::class.java)
         }
 
+    data class DeviceInfo(val device_id: String = "", val label: String = "", val created_at: String = "")
+
+    /** Linked web sessions for this account (the Linked Devices screen). */
+    suspend fun listDevices(): List<DeviceInfo> =
+        withContext(Dispatchers.IO) {
+            get("/devices", authed = true, Array<DeviceInfo>::class.java).toList()
+        }
+
+    /** Disconnect (revoke) a linked web session by its id. */
+    suspend fun revokeDevice(deviceId: String) =
+        withContext(Dispatchers.IO) {
+            deleteNoContent("/devices/$deviceId", authed = true)
+        }
+
     // ── offline queue drain (rcq-spec 6.3.1) ─────────────────────────
 
     data class QueuedEnvelope(
@@ -890,6 +904,15 @@ class RcqApi(private val baseUrl: String = DEFAULT_BASE_URL) {
         val builder = Request.Builder().url("$baseUrl$path").get()
         if (authed) token?.let { builder.header("Authorization", "Bearer $it") }
         return execute(builder.build(), type)
+    }
+
+    /** DELETE with no response body to parse (204 endpoints). Throws on !2xx. */
+    private fun deleteNoContent(path: String, authed: Boolean) {
+        val builder = Request.Builder().url("$baseUrl$path").delete()
+        if (authed) token?.let { builder.header("Authorization", "Bearer $it") }
+        client.newCall(builder.build()).execute().use { resp ->
+            if (!resp.isSuccessful) throw IOException("HTTP ${resp.code}: ${resp.body?.string()?.take(200)}")
+        }
     }
 
     /** Generic verb + JSON body → typed response. Used for PATCH/PUT. */

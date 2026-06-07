@@ -35,6 +35,8 @@ import androidx.compose.material.icons.filled.Autorenew
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Fingerprint
+import androidx.compose.material.icons.filled.Computer
+import androidx.compose.material.icons.filled.Devices
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Password
 import androidx.compose.material.icons.filled.Sell
@@ -92,7 +94,7 @@ import app.rcq.android.net.RcqApi
 import kotlinx.coroutines.launch
 
 /** Sub-screens inside Settings (kept self-contained, no nav graph). */
-private enum class SettingsRoute { ROOT, PROFILE, PRIVACY, NOTIFICATIONS, BLOCKED, CUSTOM_SERVER, SOUNDS, LANGUAGE, APP_ICON, PIN_CODES, DIAGNOSTICS, RECOVERY_PHRASE, UIN_SHOP }
+private enum class SettingsRoute { ROOT, PROFILE, PRIVACY, NOTIFICATIONS, BLOCKED, CUSTOM_SERVER, SOUNDS, LANGUAGE, APP_ICON, PIN_CODES, DIAGNOSTICS, RECOVERY_PHRASE, UIN_SHOP, LINKED_DEVICES }
 
 @Composable
 internal fun SettingsScreen(session: Session, uin: Int, onBack: () -> Unit, onBurned: (Int?) -> Unit, onMigrated: (Int) -> Unit) {
@@ -121,6 +123,7 @@ internal fun SettingsScreen(session: Session, uin: Int, onBack: () -> Unit, onBu
         SettingsRoute.BLOCKED -> BlockedUsersScreen(session) { route = SettingsRoute.ROOT }
         SettingsRoute.PIN_CODES -> PinCodesScreen(session) { route = SettingsRoute.ROOT }
         SettingsRoute.RECOVERY_PHRASE -> RecoveryPhraseScreen(session) { route = SettingsRoute.ROOT }
+        SettingsRoute.LINKED_DEVICES -> LinkedDevicesScreen(session) { route = SettingsRoute.ROOT }
         SettingsRoute.CUSTOM_SERVER -> CustomServerScreen(
             session,
             // Back returns to Privacy (its parent), not the Settings root (tester #1).
@@ -234,6 +237,8 @@ private fun SettingsRoot(
                 ) { onOpen(SettingsRoute.PIN_CODES) }
                 Divider()
                 SettingsRow(Icons.Filled.Key, stringResource(R.string.settings_row_recovery)) { onOpen(SettingsRoute.RECOVERY_PHRASE) }
+                Divider()
+                SettingsRow(Icons.Filled.Devices, stringResource(R.string.settings_row_linked_devices)) { onOpen(SettingsRoute.LINKED_DEVICES) }
             }
             SectionFooter(stringResource(R.string.settings_foot_privacy))
 
@@ -859,6 +864,75 @@ private fun BlockedUsersScreen(session: Session, onBack: () -> Unit) {
                         }
                         TextButton(onClick = { scope.launch { runCatching { session.toggleBlock(ct.uin) } } }) {
                             Text(stringResource(R.string.blocked_unblock), color = c.accent)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ── Linked devices ───────────────────────────────────────────────────
+
+/** Web sessions linked to this account (connect-to-web). Lists them and lets
+ *  the user disconnect any — removing the last one drops the account back to
+ *  single-device (and v=2 resumes). */
+@Composable
+private fun LinkedDevicesScreen(session: Session, onBack: () -> Unit) {
+    val c = RcqTheme.colors
+    val scope = rememberCoroutineScope()
+    var devices by remember { mutableStateOf<List<app.rcq.android.net.RcqApi.DeviceInfo>?>(null) } // null = loading
+    var failed by remember { mutableStateOf(false) }
+
+    suspend fun reload() {
+        failed = false
+        runCatching { session.listDevices() }
+            .onSuccess { devices = it }
+            .onFailure { failed = true; devices = emptyList() }
+    }
+    LaunchedEffect(Unit) { reload() }
+
+    Column(Modifier.fillMaxSize().background(c.bgPrimary)) {
+        SettingsTopBar(stringResource(R.string.settings_row_linked_devices), onBack)
+        Text(
+            stringResource(R.string.linked_devices_hint),
+            color = c.textSecondary, fontSize = 13.sp,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+        )
+        when (val list = devices) {
+            null -> Box(Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = c.accent, modifier = Modifier.size(28.dp))
+            }
+            else -> if (list.isEmpty()) {
+                Column(Modifier.fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Spacer(Modifier.height(40.dp))
+                    Icon(Icons.Filled.Devices, null, tint = c.textSecondary, modifier = Modifier.size(44.dp))
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        stringResource(if (failed) R.string.linked_devices_error else R.string.linked_devices_empty),
+                        color = c.textPrimary, fontSize = 15.sp,
+                    )
+                }
+            } else {
+                LazyColumn(Modifier.fillMaxSize()) {
+                    items(list, key = { it.device_id }) { d ->
+                        Row(
+                            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            Icon(Icons.Filled.Computer, null, tint = c.accent, modifier = Modifier.size(26.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(d.label.ifEmpty { "Web" }, color = c.textPrimary, fontSize = 15.sp)
+                                if (d.created_at.length >= 10) {
+                                    Text(stringResource(R.string.linked_devices_connected, d.created_at.take(10)), color = c.textSecondary, fontSize = 12.sp)
+                                }
+                            }
+                            TextButton(onClick = {
+                                scope.launch { runCatching { session.revokeDevice(d.device_id) }; reload() }
+                            }) {
+                                Text(stringResource(R.string.linked_devices_disconnect), color = Color(0xFFE5484D))
+                            }
                         }
                     }
                 }

@@ -1662,6 +1662,12 @@ class Session(context: Context) {
         api.depositLink(token, sealed)
     }
 
+    /** Linked web sessions for the Linked Devices screen. */
+    suspend fun listDevices(): List<RcqApi.DeviceInfo> = api.listDevices()
+
+    /** Disconnect (revoke) a linked web session. */
+    suspend fun revokeDevice(deviceId: String) = api.revokeDevice(deviceId)
+
     /** Retry a previously-failed outgoing message (same UUID, so no dup). */
     suspend fun resend(msg: ChatMessage) {
         if (!msg.fromMe || msg.state != DeliveryState.FAILED) return
