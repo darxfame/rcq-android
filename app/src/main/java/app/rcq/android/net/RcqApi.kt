@@ -311,6 +311,16 @@ class RcqApi(private val baseUrl: String = DEFAULT_BASE_URL) {
             )
         }
 
+    data class LinkDepositBody(val blob: String)
+
+    /** Connect-to-web: drop a sealed account [blob] into the one-time relay
+     *  slot [token] for a web client to collect. Authenticated (only a
+     *  logged-in client links a session). */
+    suspend fun depositLink(token: String, blob: String) =
+        withContext(Dispatchers.IO) {
+            postNoContent("/link/$token", gson.toJson(LinkDepositBody(blob)), authed = true)
+        }
+
     // ── offline queue drain (rcq-spec 6.3.1) ─────────────────────────
 
     data class QueuedEnvelope(

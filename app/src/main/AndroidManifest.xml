@@ -53,6 +53,14 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="rcq" android:host="server" />
             </intent-filter>
+            <!-- Connect-to-web deep link: scanning an rcq://link?t=<token>&k=<webEphPub>
+                 QR shown on chat.rcq.app opens the app into the link-web confirm. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="rcq" android:host="link" />
+            </intent-filter>
         </activity>
 
         <provider

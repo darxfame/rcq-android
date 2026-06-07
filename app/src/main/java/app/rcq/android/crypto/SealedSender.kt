@@ -41,6 +41,7 @@ object SealedSender {
 
     private val HKDF_INFO_V1 = "RCQ-1to1-v1".toByteArray(Charsets.UTF_8)
     private val HKDF_INFO_V2 = "RCQ-1to1-v2".toByteArray(Charsets.UTF_8)
+    private val HKDF_INFO_WEBLINK = "RCQ-weblink-v1".toByteArray(Charsets.UTF_8)
     private const val WIRE_V1 = 1
     private const val WIRE_V2 = 2
 
@@ -100,6 +101,35 @@ object SealedSender {
             addProperty("ct", b64(combined))
         }.toString().toByteArray(Charsets.UTF_8)
 
+        return b64(wire)
+    }
+
+    /** Seal [plaintext] to a web client's ephemeral X25519 pubkey for the
+     *  connect-to-web QR login. Same ECIES as [encryptV1] (ephemeral X25519 →
+     *  HKDF-SHA256(salt = ephPub || recipientPub, info = "RCQ-weblink-v1") →
+     *  ChaCha20-Poly1305, AAD = ephPub) but WITHOUT the inner envelope +
+     *  signature — it carries a raw blob (the account LinkBlob JSON), and
+     *  confidentiality (only the web's ephemeral privkey opens it) is all that's
+     *  needed. Wire = base64(JSON{ek, ct}) with ct = nonce(12) || ct || tag.
+     *  The web's `openLinkSeal` mirrors this byte-for-byte. */
+    fun sealForWebLink(plaintext: ByteArray, recipientWebPub: ByteArray): String {
+        val gen = X25519KeyPairGenerator().apply {
+            init(X25519KeyGenerationParameters(SecureRandom()))
+        }
+        val kp = gen.generateKeyPair()
+        val ephPriv = kp.private as X25519PrivateKeyParameters
+        val ephPub = (kp.public as X25519PublicKeyParameters).encoded
+
+        val aeadKey = deriveKey(
+            ephPriv, X25519PublicKeyParameters(recipientWebPub, 0),
+            ephPub, recipientWebPub, HKDF_INFO_WEBLINK,
+        )
+        val combined = aeadSeal(aeadKey, aad = ephPub, plaintext = plaintext)
+
+        val wire = JsonObject().apply {
+            addProperty("ek", b64(ephPub))
+            addProperty("ct", b64(combined))
+        }.toString().toByteArray(Charsets.UTF_8)
         return b64(wire)
     }
 

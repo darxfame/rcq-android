@@ -118,6 +118,11 @@
     <string name="join_server_body">Создать новый аккаунт на %1$s?</string>
     <string name="join_server_invite">По ссылке-приглашению</string>
     <string name="join_server_join">Подключиться</string>
+    <string name="weblink_title">Подключить веб?</string>
+    <string name="weblink_body">Сайт войдёт под вашим аккаунтом, чтобы можно было переписываться из браузера. Продолжайте, только если вы сами открыли это с QR-кода на chat.rcq.app.</string>
+    <string name="weblink_confirm">Подключить</string>
+    <string name="weblink_done">Веб подключён. Браузер должен войти.</string>
+    <string name="weblink_failed">Не удалось подключить веб. Код мог истечь — попробуйте снова.</string>
     <string name="common_close">Закрыть</string>
     <string name="common_done">Готово</string>
     <string name="common_save">Сохранить</string>

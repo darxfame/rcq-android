@@ -119,6 +119,11 @@
     <string name="join_server_body">Create a new account on %1$s?</string>
     <string name="join_server_invite">Using an invite link</string>
     <string name="join_server_join">Join</string>
+    <string name="weblink_title">Connect to web?</string>
+    <string name="weblink_body">This will log the website in as your account so you can chat from a browser. Only continue if you opened this from the QR code on chat.rcq.app yourself.</string>
+    <string name="weblink_confirm">Connect</string>
+    <string name="weblink_done">Web connected. Your browser should log in now.</string>
+    <string name="weblink_failed">Couldn\'t connect to web. The code may have expired — try again.</string>
     <string name="common_close">Close</string>
     <string name="common_done">Done</string>
     <string name="common_save">Save</string>

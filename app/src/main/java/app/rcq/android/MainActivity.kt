@@ -77,6 +77,22 @@ object ServerJoinLink {
     }
 }
 
+/** A pending connect-to-web from a scanned `rcq://link?t=<token>&k=<webEphPub>`
+ *  QR (shown on chat.rcq.app). Parsed from the VIEW intent like [ServerJoinLink];
+ *  RcqApp shows a confirm dialog, then seals this account into the relay slot so
+ *  the web logs in as the same identity. */
+object WebLinkRequest {
+    data class Req(val token: String, val webPub: String)
+    val pending = kotlinx.coroutines.flow.MutableStateFlow<Req?>(null)
+
+    fun fromUri(uri: android.net.Uri?): Req? {
+        if (uri == null || uri.scheme != "rcq" || uri.host != "link") return null
+        val token = uri.getQueryParameter("t")?.takeIf { it.isNotBlank() } ?: return null
+        val webPub = uri.getQueryParameter("k")?.takeIf { it.isNotBlank() } ?: return null
+        return Req(token, webPub)
+    }
+}
+
 // FragmentActivity (not the bare ComponentActivity) so BiometricPrompt can host
 // its dialog for the panic-PIN biometric unlock. FragmentActivity is itself a
 // ComponentActivity, so setContent / enableEdgeToEdge still apply.
@@ -90,11 +106,13 @@ class MainActivity : androidx.fragment.app.FragmentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         ServerJoinLink.fromUri(intent.data)?.let { ServerJoinLink.pending.value = it }
+        WebLinkRequest.fromUri(intent.data)?.let { WebLinkRequest.pending.value = it }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         ServerJoinLink.fromUri(intent?.data)?.let { ServerJoinLink.pending.value = it }
+        WebLinkRequest.fromUri(intent?.data)?.let { WebLinkRequest.pending.value = it }
         enableEdgeToEdge()
         app.rcq.android.data.LanguageManager.init(applicationContext)
         LocalStores.init(applicationContext)
@@ -397,7 +415,44 @@ private fun RcqApp(session: Session) {
                 onDismiss = { ServerJoinLink.pending.value = null },
             )
         }
+
+        // Connect-to-web from a scanned rcq://link?t=&k= QR (shown on
+        // chat.rcq.app). Only meaningful once registered. Confirm first — it
+        // hands web access to THIS account — then seal the account into the
+        // one-time relay slot for the web to pick up + log in.
+        val linkReq by WebLinkRequest.pending.collectAsState()
+        if (s is UiState.Registered && !locked) {
+            linkReq?.let { req ->
+                WebLinkDialog(
+                    onConfirm = {
+                        WebLinkRequest.pending.value = null
+                        scope.launch {
+                            val ok = runCatching { session.linkWeb(req.token, req.webPub) }.isSuccess
+                            Toast.makeText(
+                                context,
+                                context.getString(if (ok) R.string.weblink_done else R.string.weblink_failed),
+                                Toast.LENGTH_LONG,
+                            ).show()
+                        }
+                    },
+                    onDismiss = { WebLinkRequest.pending.value = null },
+                )
+            }
+        }
     }
+}
+
+@Composable
+private fun WebLinkDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    val c = RcqTheme.colors
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = c.bgSecondary,
+        title = { Text(stringResource(R.string.weblink_title), color = c.textPrimary) },
+        text = { Text(stringResource(R.string.weblink_body), color = c.textSecondary, fontSize = 14.sp) },
+        confirmButton = { TextButton(onClick = onConfirm) { Text(stringResource(R.string.weblink_confirm), color = c.accent) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel), color = c.textSecondary) } },
+    )
 }
 
 @Composable

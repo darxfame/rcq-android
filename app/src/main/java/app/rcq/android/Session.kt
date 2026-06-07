@@ -1634,6 +1634,31 @@ class Session(context: Context) {
         }
     }
 
+    /** Connect-to-web: seal THIS account into the one-time relay slot [token]
+     *  for the web client whose ephemeral X25519 pubkey is [webPubB64] (both
+     *  read from the scanned `rcq://link` QR). The web opens the sealed blob
+     *  with its ephemeral private key and logs in as this same identity. The
+     *  blob carries the recovery material (keys + session token), so the caller
+     *  MUST confirm with the user first — it hands web access to the account. */
+    suspend fun linkWeb(token: String, webPubB64: String) {
+        val uin = store.uin ?: error("not registered")
+        val jwt = store.token ?: error("no session token")
+        val now = System.currentTimeMillis() / 1000
+        val blob = com.google.gson.JsonObject().apply {
+            addProperty("uin", uin)
+            addProperty("jwt", jwt)
+            addProperty("api_base", "https://${serverHost()}")
+            addProperty("identity_priv", Base64.encodeToString(identityPriv(), Base64.NO_WRAP))
+            addProperty("identity_pub", Base64.encodeToString(identityPub(), Base64.NO_WRAP))
+            addProperty("signing_priv", Base64.encodeToString(signingPriv(), Base64.NO_WRAP))
+            addProperty("signing_pub", Base64.encodeToString(signingPub(), Base64.NO_WRAP))
+            addProperty("iat", now)
+        }.toString().toByteArray(Charsets.UTF_8)
+        val webPub = Base64.decode(webPubB64, Base64.NO_WRAP)
+        val sealed = SealedSender.sealForWebLink(blob, webPub)
+        api.depositLink(token, sealed)
+    }
+
     /** Retry a previously-failed outgoing message (same UUID, so no dup). */
     suspend fun resend(msg: ChatMessage) {
         if (!msg.fromMe || msg.state != DeliveryState.FAILED) return
