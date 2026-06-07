@@ -41,6 +41,12 @@ internal fun EmoticonInputField(
     // Guard so our own span-painting / programmatic setText doesn't re-enter the
     // TextWatcher and loop.
     val suppress = remember { booleanArrayOf(false) }
+    // Signature of the emoticon `:code:` runs currently painted. Repainting the
+    // ImageSpans rebuilds the EditText's StaticLayout, which gets pricier with
+    // every line — doing it on EVERY keystroke was the multi-line typing lag.
+    // We now only repaint when this signature actually changes (a code is
+    // completed/edited or its position shifts); plain typing leaves it untouched.
+    val lastSig = remember { arrayOf("") }
     val sizePx = with(LocalDensity.current) { 20.dp.toPx().toInt() }
 
     AndroidView(
@@ -63,10 +69,15 @@ internal fun EmoticonInputField(
                     override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
                     override fun afterTextChanged(s: Editable?) {
                         if (suppress[0]) return
-                        suppress[0] = true
-                        paintEmoticonSpans(context, this@apply.text, sizePx)
-                        suppress[0] = false
-                        onValueChange(s?.toString() ?: "")
+                        val text = s?.toString() ?: ""
+                        val sig = emoticonSig(text)
+                        if (sig != lastSig[0]) {
+                            suppress[0] = true
+                            paintEmoticonSpans(context, this@apply.text, sizePx)
+                            suppress[0] = false
+                            lastSig[0] = sig
+                        }
+                        onValueChange(text)
                     }
                 })
             }
@@ -78,9 +89,18 @@ internal fun EmoticonInputField(
                 paintEmoticonSpans(context, et.text, sizePx)
                 et.setSelection(et.text?.length ?: 0)
                 suppress[0] = false
+                lastSig[0] = emoticonSig(value)
             }
         },
     )
+}
+
+/** A cheap fingerprint of the emoticon `:code:` runs in [text] (positions +
+ *  asset). Empty when the text has no codes — the fast path that lets plain
+ *  multi-line typing skip the span repaint entirely. */
+private fun emoticonSig(text: String): String {
+    if (!text.contains(':')) return ""
+    return Emoticons.codeSpans(text).joinToString("|") { "${it.first}-${it.second}-${it.third}" }
 }
 
 // First-frame bitmaps, scaled to the field's line size, cached by asset@size.

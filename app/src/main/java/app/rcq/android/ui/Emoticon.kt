@@ -324,7 +324,13 @@ private fun AnnotatedString.Builder.appendWithMentions(
 }
 
 /** The composer smiley panel: a scrollable grid of the palette emoticons.
- *  Tapping one calls [onPick] with its `:asset:` code to splice into the draft. */
+ *  Tapping one calls [onPick] with its `:asset:` code to splice into the draft.
+ *
+ *  Rendered as STATIC first frames (animate=false): animating all ~40 palette
+ *  GIFs at once spins up dozens of AnimatedImageDrawables, which OOM-crashed the
+ *  app when the panel opened on low-RAM devices (e.g. Redmi Note 7 / Android 10)
+ *  — the "crashes when using smileys" report. Static frames share the cached
+ *  bitmap (see EmoticonGif) and don't pile up decoders. */
 @Composable
 internal fun EmoticonPanel(onPick: (String) -> Unit) {
     val c = RcqTheme.colors
@@ -343,7 +349,7 @@ internal fun EmoticonPanel(onPick: (String) -> Unit) {
             Box(
                 Modifier.size(46.dp).clip(RoundedCornerShape(8.dp)).clickable { onPick(":$asset:") },
                 contentAlignment = Alignment.Center,
-            ) { EmoticonGif(asset, Modifier.size(30.dp), animate = true) }
+            ) { EmoticonGif(asset, Modifier.size(30.dp), animate = false) }
         }
     }
 }

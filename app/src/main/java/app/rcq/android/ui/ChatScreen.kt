@@ -67,7 +67,10 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DoneAll
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Lock
@@ -1481,7 +1484,7 @@ private fun AlbumBubble(session: Session, items: List<ChatMessage>, senderName: 
             modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
         ) {
             Text(formatTime(last.sentAt), color = c.textSecondary, fontSize = 10.sp)
-            if (first.fromMe) Text(stateGlyph(last.state), color = if (last.state == DeliveryState.READ) c.accent else c.textSecondary, fontSize = 10.sp)
+            if (first.fromMe) DeliveryTicks(last.state)
         }
     }
 }
@@ -1675,7 +1678,7 @@ private fun MessageBubble(session: Session, m: ChatMessage, senderName: String?,
             if (m.edited) Text(stringResource(R.string.chat_edited), color = c.textSecondary, fontSize = 10.sp)
             if (m.fromMe) {
                 if (failed) Text(stringResource(R.string.chat_failed_retry), color = Color(0xFFE5484D), fontSize = 10.sp, modifier = Modifier.clickable(onClick = onRetry))
-                else Text(stateGlyph(m.state), color = if (m.state == DeliveryState.READ) c.accent else c.textSecondary, fontSize = 10.sp)
+                else DeliveryTicks(m.state)
             }
         }
     }
@@ -2110,10 +2113,29 @@ private fun compressImage(context: Context, uri: Uri): ByteArray? {
     return out.toByteArray()
 }
 
-private fun stateGlyph(s: DeliveryState): String = when (s) {
-    DeliveryState.SENDING -> "·"
-    DeliveryState.SENT -> "✓"
-    DeliveryState.DELIVERED -> "✓✓"
-    DeliveryState.READ -> "✓✓"
-    DeliveryState.FAILED -> "✕"
+/** Outbound delivery indicator built from SHAPE + FILL, not colour, so the
+ *  states stay legible on poor screens (founder request — a thin tinted tick is
+ *  hard to read): a clock while sending, ONE check once the server has it, TWO
+ *  checks once it reached the device, and TWO WHITE checks on a filled accent
+ *  pill once READ. The Signal-style fill for "read" reads unmistakably even when
+ *  you can't tell the colour, and never collides with the grey delivered ticks. */
+@Composable
+private fun DeliveryTicks(state: DeliveryState) {
+    val c = RcqTheme.colors
+    when (state) {
+        DeliveryState.SENDING ->
+            Icon(Icons.Filled.Schedule, null, tint = c.textSecondary, modifier = Modifier.size(12.dp))
+        DeliveryState.SENT ->
+            Icon(Icons.Filled.Check, null, tint = c.textSecondary, modifier = Modifier.size(14.dp))
+        DeliveryState.DELIVERED ->
+            Icon(Icons.Filled.DoneAll, null, tint = c.textSecondary, modifier = Modifier.size(15.dp))
+        DeliveryState.READ ->
+            Box(
+                Modifier.clip(RoundedCornerShape(percent = 50)).background(c.accent)
+                    .padding(horizontal = 3.dp, vertical = 1.dp),
+                contentAlignment = Alignment.Center,
+            ) { Icon(Icons.Filled.DoneAll, null, tint = Color.White, modifier = Modifier.size(12.dp)) }
+        DeliveryState.FAILED ->
+            Icon(Icons.Filled.Close, null, tint = Color(0xFFE5484D), modifier = Modifier.size(13.dp))
+    }
 }
