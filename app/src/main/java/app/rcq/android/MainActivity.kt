@@ -215,8 +215,10 @@ private fun RcqApp(session: Session) {
             )) || (s is UiState.Onboarding && showRestore)
         BackHandler(enabled = backPopsOverlay) {
             when {
-                groupInfoId != null -> groupInfoId = null
+                // peerInfo first to match the render precedence (a profile
+                // opened from group-info sits on top of it).
                 peerInfoUin != null -> peerInfoUin = null
+                groupInfoId != null -> groupInfoId = null
                 chatTarget != null -> chatTarget = null
                 showManageAccounts -> showManageAccounts = false
                 showNews -> showNews = false
@@ -236,15 +238,19 @@ private fun RcqApp(session: Session) {
                 onWiped = { resetNav(); state = UiState.Onboarding },
                 onAccountChanged = { newUin -> resetNav(); state = UiState.Registered(newUin) },
             )
-            s is UiState.Registered && infoId != null -> GroupInfoScreen(
-                session, infoId,
-                onBack = { groupInfoId = null },
-                onLeft = { groupInfoId = null; chatTarget = null },
-            )
+            // peerInfo is checked BEFORE groupInfo so that opening a member's
+            // profile FROM the group-info screen (which leaves groupInfoId set)
+            // shows the profile, and backing out of it returns to group-info.
             s is UiState.Registered && peerInfo != null -> ContactInfoScreen(
                 session, peerInfo,
                 onBack = { peerInfoUin = null },
                 onRemoved = { peerInfoUin = null; chatTarget = null },
+            )
+            s is UiState.Registered && infoId != null -> GroupInfoScreen(
+                session, infoId,
+                onBack = { groupInfoId = null },
+                onLeft = { groupInfoId = null; chatTarget = null },
+                onOpenPeerInfo = { peerInfoUin = it },
             )
             s is UiState.Registered && target != null -> ChatScreen(
                 session, target,

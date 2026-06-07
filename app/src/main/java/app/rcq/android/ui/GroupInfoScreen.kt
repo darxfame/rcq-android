@@ -4,6 +4,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -79,7 +81,7 @@ private fun PermChip(label: String, on: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-internal fun GroupInfoScreen(session: Session, groupId: Int, onBack: () -> Unit, onLeft: () -> Unit) {
+internal fun GroupInfoScreen(session: Session, groupId: Int, onBack: () -> Unit, onLeft: () -> Unit, onOpenPeerInfo: (Int) -> Unit) {
     val c = RcqTheme.colors
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -106,7 +108,7 @@ internal fun GroupInfoScreen(session: Session, groupId: Int, onBack: () -> Unit,
         return
     }
 
-    Column(Modifier.fillMaxSize().background(c.bgPrimary)) {
+    Column(Modifier.fillMaxSize().background(c.bgPrimary).verticalScroll(rememberScrollState())) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(12.dp)) {
             Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.common_back), tint = c.accent, modifier = Modifier.size(26.dp).clickable(onClick = onBack))
             Spacer(Modifier.width(12.dp))
@@ -191,10 +193,18 @@ internal fun GroupInfoScreen(session: Session, groupId: Int, onBack: () -> Unit,
         val sortedMembers = remember(group.members) {
             group.members.sortedBy { when (it.role) { "owner" -> 0; "admin" -> 1; else -> 2 } }
         }
-        LazyColumn(Modifier.weight(1f).fillMaxWidth()) {
-            items(sortedMembers, key = { it.uin }) { m ->
+        // Plain Column (not a weight(1f) LazyColumn): the whole screen is now
+        // verticalScroll-able, and a weight(1f) lazy list inside that got
+        // starved to ~0px by the tall owner-settings block + per-member perm
+        // chips, hiding the roster + delete button from the owner.
+        Column(Modifier.fillMaxWidth()) {
+            sortedMembers.forEach { m ->
                 Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 7.dp)) {
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(
+                        Modifier.fillMaxWidth().clickable(enabled = m.uin != ownUin) { onOpenPeerInfo(m.uin) },
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
                         StatusIcon(m.presence, size = 26.dp)
                         Column(Modifier.weight(1f)) {
                             Text(m.nickname + if (m.uin == ownUin) stringResource(R.string.gi_you) else "", color = c.textPrimary, fontSize = 15.sp)
@@ -228,7 +238,7 @@ internal fun GroupInfoScreen(session: Session, groupId: Int, onBack: () -> Unit,
         }
 
         Box(
-            Modifier.fillMaxWidth().padding(16.dp).clip(RoundedCornerShape(14.dp)).background(c.bgSecondary).clickable { confirmDestructive = true }.padding(vertical = 14.dp),
+            Modifier.fillMaxWidth().padding(16.dp).clip(RoundedCornerShape(14.dp)).background(Color(0x14E5484D)).clickable { confirmDestructive = true }.padding(vertical = 14.dp),
             contentAlignment = Alignment.Center,
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
