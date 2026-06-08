@@ -129,6 +129,8 @@
     <string name="linked_devices_empty">No browsers are connected.</string>
     <string name="linked_devices_error">Couldn\'t load linked devices.</string>
     <string name="linked_devices_disconnect">Disconnect</string>
+    <string name="linked_devices_connect">Connect a browser</string>
+    <string name="linked_devices_connect_steps">1. On your computer, open chat.rcq.app\n2. Choose \"Connect phone\"\n3. Point your phone\'s camera at the QR code shown there\n\nYour phone will ask you to confirm.</string>
     <string name="linked_devices_connected">Connected %1$s</string>
     <string name="common_close">Close</string>
     <string name="common_done">Done</string>

@@ -883,6 +883,7 @@ private fun LinkedDevicesScreen(session: Session, onBack: () -> Unit) {
     val scope = rememberCoroutineScope()
     var devices by remember { mutableStateOf<List<app.rcq.android.net.RcqApi.DeviceInfo>?>(null) } // null = loading
     var failed by remember { mutableStateOf(false) }
+    var showHow by remember { mutableStateOf(false) }
 
     suspend fun reload() {
         failed = false
@@ -892,6 +893,16 @@ private fun LinkedDevicesScreen(session: Session, onBack: () -> Unit) {
     }
     LaunchedEffect(Unit) { reload() }
 
+    if (showHow) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showHow = false },
+            containerColor = c.bgSecondary,
+            title = { Text(stringResource(R.string.linked_devices_connect), color = c.textPrimary) },
+            text = { Text(stringResource(R.string.linked_devices_connect_steps), color = c.textSecondary, fontSize = 14.sp) },
+            confirmButton = { TextButton(onClick = { showHow = false }) { Text(stringResource(R.string.common_close), color = c.accent) } },
+        )
+    }
+
     Column(Modifier.fillMaxSize().background(c.bgPrimary)) {
         SettingsTopBar(stringResource(R.string.settings_row_linked_devices), onBack)
         Text(
@@ -899,6 +910,14 @@ private fun LinkedDevicesScreen(session: Session, onBack: () -> Unit) {
             color = c.textSecondary, fontSize = 13.sp,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
         )
+        Box(
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp).clip(RoundedCornerShape(percent = 50))
+                .background(c.accent).clickable { showHow = true }.padding(vertical = 13.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(stringResource(R.string.linked_devices_connect), color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+        }
+        Spacer(Modifier.height(8.dp))
         when (val list = devices) {
             null -> Box(Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = c.accent, modifier = Modifier.size(28.dp))
