@@ -531,6 +531,8 @@
     <string name="csrv_intro">Add an account on an organisation\'s island or your own self-hosted RCQ server. Your current account stays on this device.</string>
     <string name="csrv_current">CURRENT SERVER</string>
     <string name="csrv_host">Server host</string>
+    <string name="csrv_invite">Invite code (optional)</string>
+    <string name="csrv_invite_hint">Only needed for closed servers that require an invite. Leave blank for open ones.</string>
     <string name="csrv_warning">This adds a new account on that server. Your current account stays on this device with all its chats and contacts; switch between them from the account menu.</string>
     <string name="csrv_reset_btn">Add a public-server account</string>
     <string name="csrv_switching">Adding…</string>

@@ -530,6 +530,8 @@
     <string name="csrv_intro">Добавьте аккаунт на острове организации или своём self-host сервере RCQ. Текущий аккаунт останется на этом устройстве.</string>
     <string name="csrv_current">ТЕКУЩИЙ СЕРВЕР</string>
     <string name="csrv_host">Хост сервера</string>
+    <string name="csrv_invite">Код-приглашение (необязательно)</string>
+    <string name="csrv_invite_hint">Нужен только для закрытых серверов с приглашением. Для открытых оставьте пустым.</string>
     <string name="csrv_warning">Это добавляет новый аккаунт на том сервере. Ваш текущий аккаунт остаётся на этом устройстве со всеми чатами и контактами, переключаться между ними можно в меню аккаунтов.</string>
     <string name="csrv_reset_btn">Добавить аккаунт на публичном сервере</string>
     <string name="csrv_switching">Добавление…</string>

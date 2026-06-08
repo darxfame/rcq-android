@@ -954,6 +954,7 @@ private fun CustomServerScreen(session: Session, onBack: () -> Unit, onSwitched:
     val context = LocalContext.current
     val current = session.currentServer
     var draft by remember { mutableStateOf(current) }
+    var invite by remember { mutableStateOf("") }
     var switching by remember { mutableStateOf(false) }
     var confirm by remember { mutableStateOf(false) }
     var resetting by remember { mutableStateOf(false) }
@@ -968,10 +969,10 @@ private fun CustomServerScreen(session: Session, onBack: () -> Unit, onSwitched:
     val isDirty = target != current
     val onCustom = current != RcqApi.DEFAULT_HOST
 
-    fun applySwitch(input: String?) {
+    fun applySwitch(input: String?, inviteCode: String?) {
         switching = true
         scope.launch {
-            val newUin = runCatching { session.registerNewAccount("user-${(1000..9999).random()}", input) }.getOrNull()
+            val newUin = runCatching { session.registerNewAccount("user-${(1000..9999).random()}", input, inviteCode) }.getOrNull()
             switching = false
             if (newUin != null) {
                 Toast.makeText(context, context.getString(R.string.csrv_connected, session.currentServer), Toast.LENGTH_LONG).show()
@@ -1002,6 +1003,11 @@ private fun CustomServerScreen(session: Session, onBack: () -> Unit, onSwitched:
             }
 
             Field(stringResource(R.string.csrv_host), draft) { draft = it }
+
+            // Invite token — required only for closed servers
+            // (REGISTRATION_POLICY=invite). Leave blank for open self-hosts.
+            Field(stringResource(R.string.csrv_invite), invite) { invite = it }
+            Text(stringResource(R.string.csrv_invite_hint), color = c.textSecondary, fontSize = 11.sp)
 
             // Destructive-switch warning.
             Row(
@@ -1042,7 +1048,7 @@ private fun CustomServerScreen(session: Session, onBack: () -> Unit, onSwitched:
             title = stringResource(R.string.csrv_confirm_title, target),
             body = stringResource(R.string.csrv_confirm_body, target, current),
             confirm = stringResource(R.string.common_switch), destructive = true,
-            onConfirm = { confirm = false; applySwitch(draft) },
+            onConfirm = { confirm = false; applySwitch(draft, invite.trim().ifBlank { null }) },
             onDismiss = { confirm = false },
         )
     }
@@ -1051,7 +1057,7 @@ private fun CustomServerScreen(session: Session, onBack: () -> Unit, onSwitched:
             title = stringResource(R.string.csrv_reset_title),
             body = stringResource(R.string.csrv_reset_body, RcqApi.DEFAULT_HOST, current),
             confirm = stringResource(R.string.common_reset), destructive = true,
-            onConfirm = { resetting = false; applySwitch(null) },
+            onConfirm = { resetting = false; applySwitch(null, null) },
             onDismiss = { resetting = false },
         )
     }
