@@ -1370,10 +1370,10 @@ private fun SearchOverlay(contacts: List<Contact>, onClose: () -> Unit, onSelect
                 value = query,
                 onValueChange = { query = it },
                 modifier = Modifier.weight(1f),
-                placeholder = { Text("Search contacts", color = c.textSecondary) },
+                placeholder = { Text(stringResource(R.string.home_search_contacts), color = c.textSecondary) },
                 singleLine = true,
             )
-            Text("Cancel", color = c.accent, modifier = Modifier.clickable(onClick = onClose).padding(12.dp))
+            Text(stringResource(R.string.common_cancel), color = c.accent, modifier = Modifier.clickable(onClick = onClose).padding(12.dp))
         }
         Spacer(Modifier.height(8.dp))
         LazyColumn(Modifier.weight(1f)) {

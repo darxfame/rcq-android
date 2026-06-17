@@ -106,6 +106,7 @@
     <string name="home_connecting_title">Connecting to server</string>
     <string name="home_connecting_body">Loading your chats…</string>
     <string name="home_empty_cta">Add a contact</string>
+    <string name="home_search_contacts">Search contacts</string>
     <string name="home_coming_soon_body">%1$s is coming to the Android app soon.</string>
 
     <!-- Common -->

@@ -105,6 +105,7 @@
     <string name="home_connecting_title">Соединение с сервером</string>
     <string name="home_connecting_body">Загружаем ваши чаты…</string>
     <string name="home_empty_cta">Добавить контакт</string>
+    <string name="home_search_contacts">Поиск контактов</string>
     <string name="home_coming_soon_body">%1$s скоро появится в приложении на Android.</string>
 
     <!-- Common -->
