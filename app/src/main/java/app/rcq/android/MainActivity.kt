@@ -137,6 +137,19 @@ object GroupJoinLink {
     }
 }
 
+object NotificationChatTarget {
+    const val EXTRA_PEER_UIN = "app.rcq.android.extra.PEER_UIN"
+    const val EXTRA_GROUP_ID = "app.rcq.android.extra.GROUP_ID"
+    val pending = kotlinx.coroutines.flow.MutableStateFlow<ChatTarget?>(null)
+
+    fun fromIntent(intent: android.content.Intent?): ChatTarget? {
+        val groupId = intent?.getIntExtra(EXTRA_GROUP_ID, 0)?.takeIf { it > 0 }
+        if (groupId != null) return ChatTarget.Group(groupId)
+        val peerUin = intent?.getIntExtra(EXTRA_PEER_UIN, 0)?.takeIf { it > 0 }
+        return peerUin?.let { ChatTarget.Peer(it) }
+    }
+}
+
 // FragmentActivity (not the bare ComponentActivity) so BiometricPrompt can host
 // its dialog for the panic-PIN biometric unlock. FragmentActivity is itself a
 // ComponentActivity, so setContent / enableEdgeToEdge still apply.
@@ -151,13 +164,19 @@ class MainActivity : androidx.fragment.app.FragmentActivity() {
         super.attachBaseContext(app.rcq.android.data.LanguageManager.wrap(newBase))
     }
 
+    private fun handleExternalIntent(intent: android.content.Intent?) {
+        val uri = intent?.data
+        ServerJoinLink.fromUri(uri)?.let { ServerJoinLink.pending.value = it }
+        WebLinkRequest.fromUri(uri)?.let { WebLinkRequest.pending.value = it }
+        ContactAddLink.fromUri(uri)?.let { ContactAddLink.pending.value = it }
+        GroupJoinLink.fromUri(uri)?.let { GroupJoinLink.pending.value = it }
+        NotificationChatTarget.fromIntent(intent)?.let { NotificationChatTarget.pending.value = it }
+    }
+
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        ServerJoinLink.fromUri(intent.data)?.let { ServerJoinLink.pending.value = it }
-        WebLinkRequest.fromUri(intent.data)?.let { WebLinkRequest.pending.value = it }
-        ContactAddLink.fromUri(intent.data)?.let { ContactAddLink.pending.value = it }
-        GroupJoinLink.fromUri(intent.data)?.let { GroupJoinLink.pending.value = it }
+        handleExternalIntent(intent)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -171,10 +190,7 @@ class MainActivity : androidx.fragment.app.FragmentActivity() {
         android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(
             { CrashReporter.launchComplete(applicationContext) }, 8_000,
         )
-        ServerJoinLink.fromUri(intent?.data)?.let { ServerJoinLink.pending.value = it }
-        WebLinkRequest.fromUri(intent?.data)?.let { WebLinkRequest.pending.value = it }
-        ContactAddLink.fromUri(intent?.data)?.let { ContactAddLink.pending.value = it }
-        GroupJoinLink.fromUri(intent?.data)?.let { GroupJoinLink.pending.value = it }
+        handleExternalIntent(intent)
         enableEdgeToEdge()
         app.rcq.android.data.LanguageManager.init(applicationContext)
         LocalStores.init(applicationContext)
@@ -338,6 +354,16 @@ private fun RcqApp(session: Session) {
     fun resetNav() {
         chatTarget = null; groupInfoId = null; peerInfoUin = null
         showSettings = false; settingsToDiagnostics = false; showProfile = false; showManageAccounts = false; showNews = false; showRandom = false; showAudioRooms = false; showNearby = false; showRadio = false; showRestore = false; showOutgoing = false
+    }
+
+    val notificationTarget by NotificationChatTarget.pending.collectAsState()
+    LaunchedEffect(notificationTarget, state, locked) {
+        val target = notificationTarget ?: return@LaunchedEffect
+        if (state is UiState.Registered && !locked) {
+            resetNav()
+            chatTarget = target
+            NotificationChatTarget.pending.value = null
+        }
     }
 
     // Kept for "Try again": retrying after a transient failure must re-use the

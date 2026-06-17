@@ -10,6 +10,7 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import app.rcq.android.MainActivity
+import app.rcq.android.NotificationChatTarget
 import app.rcq.android.R
 import app.rcq.android.call.IncomingCallActivity
 import app.rcq.android.call.IncomingCallStore
@@ -276,6 +277,7 @@ object Push {
 
         val groupName = str("group_name")
         val groupId = json.get("group_id")?.takeIf { !it.isJsonNull }?.asInt
+        val fromUin = json.get("from_uin")?.takeIf { !it.isJsonNull }?.asInt?.takeIf { it > 0 }
         val isGroup = groupName != null || groupId != null
         // Defense in depth: never wake for a group the active account muted, even
         // if the server's muted_group_ids sync was stale (the v0.63 class of bug).
@@ -290,12 +292,17 @@ object Push {
         val body = str("body") ?: ctx.getString(
             if (isGroup) R.string.push_new_group_message else R.string.push_new_message,
         )
+        // Distinct groups get their own notification; all 1:1 pushes collapse
+        // into one "New message" (the sealed wake may not reveal the sender).
+        val id = (str("group_id") ?: "dm").hashCode()
 
         val tap = Intent(ctx, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            groupId?.takeIf { it > 0 }?.let { putExtra(NotificationChatTarget.EXTRA_GROUP_ID, it) }
+            if (groupId == null) fromUin?.let { putExtra(NotificationChatTarget.EXTRA_PEER_UIN, it) }
         }
         val pi = PendingIntent.getActivity(
-            ctx, 0, tap,
+            ctx, id, tap,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         val notif = NotificationCompat.Builder(ctx, CHANNEL_MESSAGES)
@@ -307,9 +314,6 @@ object Push {
             .setCategory(NotificationCompat.CATEGORY_MESSAGE)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .build()
-        // Distinct groups get their own notification; all 1:1 pushes collapse
-        // into one "New message" (the sealed wake doesn't reveal the sender).
-        val id = (str("group_id") ?: "dm").hashCode()
         runCatching { NotificationManagerCompat.from(ctx).notify(id, notif) }
     }
 
