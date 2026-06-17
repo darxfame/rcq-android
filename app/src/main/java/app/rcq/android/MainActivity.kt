@@ -60,6 +60,7 @@ import app.rcq.android.ui.ManageAccountsScreen
 import app.rcq.android.ui.OnboardingScreen
 import app.rcq.android.ui.ProfileEditScreen
 import app.rcq.android.ui.RcqTheme
+import app.rcq.android.ui.RecoveryPhraseScreen
 import app.rcq.android.ui.SettingsScreen
 import androidx.compose.ui.platform.LocalContext
 import android.widget.Toast
@@ -313,6 +314,7 @@ private fun RcqApp(session: Session) {
     var showRadio by remember { mutableStateOf(false) }
     var showRestore by remember { mutableStateOf(false) }
     var showOutgoing by remember { mutableStateOf(false) }
+    var showRecoveryPhrasePrompt by remember { mutableStateOf(LocalStores.recoveryPhrasePromptPending()) }
 
     LaunchedEffect(state, locked) {
         // Only start (which opens the message DB) once unlocked.
@@ -356,6 +358,11 @@ private fun RcqApp(session: Session) {
         showSettings = false; settingsToDiagnostics = false; showProfile = false; showManageAccounts = false; showNews = false; showRandom = false; showAudioRooms = false; showNearby = false; showRadio = false; showRestore = false; showOutgoing = false
     }
 
+    fun finishRecoveryPhrasePrompt() {
+        LocalStores.setRecoveryPhrasePromptPending(false)
+        showRecoveryPhrasePrompt = false
+    }
+
     val notificationTarget by NotificationChatTarget.pending.collectAsState()
     LaunchedEffect(notificationTarget, state, locked) {
         val target = notificationTarget ?: return@LaunchedEffect
@@ -378,7 +385,10 @@ private fun RcqApp(session: Session) {
         state = UiState.Registering
         scope.launch {
             state = try {
-                UiState.Registered(session.registerNewAccount("user-${(1000..9999).random()}", server, invite))
+                val uin = session.registerNewAccount("user-${(1000..9999).random()}", server, invite)
+                LocalStores.setRecoveryPhrasePromptPending(true)
+                showRecoveryPhrasePrompt = true
+                UiState.Registered(uin)
             } catch (e: Exception) {
                 UiState.Failed(e.message ?: "Registration failed")
             }
@@ -396,7 +406,10 @@ private fun RcqApp(session: Session) {
         state = UiState.Registering
         scope.launch {
             state = try {
-                UiState.Registered(session.registerNewAccount("user-${(1000..9999).random()}", server, invite))
+                val uin = session.registerNewAccount("user-${(1000..9999).random()}", server, invite)
+                LocalStores.setRecoveryPhrasePromptPending(true)
+                showRecoveryPhrasePrompt = true
+                UiState.Registered(uin)
             } catch (e: Exception) {
                 Toast.makeText(context, e.message ?: "Couldn't add account", Toast.LENGTH_LONG).show()
                 current?.let { UiState.Registered(it) } ?: UiState.Onboarding
@@ -407,7 +420,11 @@ private fun RcqApp(session: Session) {
     fun switchAccount(id: String) {
         resetNav()
         state = UiState.Registering
-        scope.launch { state = UiState.Registered(session.switchToAccount(id)) }
+        scope.launch {
+            val uin = session.switchToAccount(id)
+            showRecoveryPhrasePrompt = LocalStores.recoveryPhrasePromptPending()
+            state = UiState.Registered(uin)
+        }
     }
 
     Box(
@@ -424,10 +441,11 @@ private fun RcqApp(session: Session) {
         val backPopsOverlay = (s is UiState.Registered && !locked && (
             groupInfoId != null || peerInfoUin != null || chatTarget != null ||
                 showManageAccounts || showNews || showOutgoing || showRandom ||
-                showAudioRooms || showNearby || showRadio || showProfile || showSettings || showRestore
+                showAudioRooms || showNearby || showRadio || showProfile || showSettings || showRestore || showRecoveryPhrasePrompt
             )) || (s is UiState.Onboarding && showRestore)
         BackHandler(enabled = backPopsOverlay) {
             when {
+                showRecoveryPhrasePrompt -> finishRecoveryPhrasePrompt()
                 // peerInfo first to match the render precedence (a profile
                 // opened from group-info sits on top of it).
                 peerInfoUin != null -> peerInfoUin = null
@@ -449,7 +467,11 @@ private fun RcqApp(session: Session) {
             s is UiState.Registered && locked -> app.rcq.android.ui.PinLockScreen(
                 session,
                 onWiped = { resetNav(); state = UiState.Onboarding },
-                onAccountChanged = { newUin -> resetNav(); state = UiState.Registered(newUin) },
+                onAccountChanged = { newUin ->
+                    resetNav()
+                    showRecoveryPhrasePrompt = LocalStores.recoveryPhrasePromptPending()
+                    state = UiState.Registered(newUin)
+                },
             )
             // Add an account by recovery phrase (from onboarding OR from the
             // account-management screen). recoverAccount() adds a NEW local
@@ -457,7 +479,11 @@ private fun RcqApp(session: Session) {
             !locked && showRestore -> app.rcq.android.ui.RestoreScreen(
                 session,
                 onBack = { showRestore = false },
-                onRestored = { uin -> resetNav(); state = UiState.Registered(uin) },
+                onRestored = { uin -> showRecoveryPhrasePrompt = false; resetNav(); state = UiState.Registered(uin) },
+            )
+            s is UiState.Registered && showRecoveryPhrasePrompt -> RecoveryPhraseScreen(
+                session,
+                onBack = ::finishRecoveryPhrasePrompt,
             )
             // peerInfo is checked BEFORE groupInfo so that opening a member's
             // profile FROM the group-info screen (which leaves groupInfoId set)

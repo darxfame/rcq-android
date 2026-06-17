@@ -334,6 +334,16 @@ object LocalStores {
     fun isMutedFor(accountId: String, thread: String): Boolean =
         ::prefs.isInitialized && prefs.getStringSet("$accountId.$K_MUTE", emptySet())!!.contains(thread)
 
+    fun recoveryPhrasePromptPending(): Boolean =
+        ::prefs.isInitialized && acct != null && prefs.getBoolean(pk(K_RECOVERY_PROMPT), false)
+
+    fun setRecoveryPhrasePromptPending(pending: Boolean) {
+        if (!::prefs.isInitialized || acct == null) return
+        val e = prefs.edit()
+        if (pending) e.putBoolean(pk(K_RECOVERY_PROMPT), true) else e.remove(pk(K_RECOVERY_PROMPT))
+        e.commit()
+    }
+
     fun isArchived(thread: String) = thread in _archived.value
     fun toggleArchive(thread: String) = toggle(_archived, K_ARCH, thread)
 
@@ -640,7 +650,7 @@ object LocalStores {
     fun clearAccount(accountId: String) {
         if (!::prefs.isInitialized) return
         val e = prefs.edit()
-        listOf(K_FAV, K_MUTE, K_MENTIONS, K_ARCH, K_LOCKED, K_REMOVED, K_BLOCKED, K_UNREAD, K_REACT_INBOX, K_REACTED_MSGS, K_MENTION_INBOX, K_MENTION_SEEN, K_PRIVACY_CACHE, K_CONTACTS_CACHE, K_GROUPS_CACHE).forEach { e.remove("$accountId.$it") }
+        listOf(K_FAV, K_MUTE, K_MENTIONS, K_ARCH, K_LOCKED, K_REMOVED, K_BLOCKED, K_UNREAD, K_REACT_INBOX, K_REACTED_MSGS, K_MENTION_INBOX, K_MENTION_SEEN, K_RECOVERY_PROMPT, K_PRIVACY_CACHE, K_CONTACTS_CACHE, K_GROUPS_CACHE).forEach { e.remove("$accountId.$it") }
         e.apply()
     }
 
@@ -663,6 +673,7 @@ object LocalStores {
     private const val K_REACTED_MSGS = "reacted_msg_ids"
     private const val K_MENTION_INBOX = "mention_inbox"
     private const val K_MENTION_SEEN = "mention_seen_at"
+    private const val K_RECOVERY_PROMPT = "recovery_phrase_prompt"
     private const val K_SND_MASTER = "sound_master"
     private const val K_SND_MSG = "sound_messages"
     private const val K_SND_PRES = "sound_presence"
