@@ -1,6 +1,5 @@
 package com.rcq.messenger.crypto
 
-import android.util.Base64
 import org.json.JSONObject
 import org.signal.libsignal.protocol.ecc.Curve
 import org.signal.libsignal.protocol.kem.KEMKeyPair
@@ -8,6 +7,7 @@ import org.signal.libsignal.protocol.kem.KEMKeyType
 import org.signal.libsignal.protocol.message.CiphertextMessage
 import org.signal.libsignal.protocol.message.PreKeySignalMessage
 import org.signal.libsignal.protocol.message.SignalMessage
+import java.util.Base64
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -23,10 +23,7 @@ class CryptoService @Inject constructor(
     fun encryptMessage(recipientUin: Long, text: String): EncryptedMessage {
         val ciphertext = sessionManager.encryptMessage(recipientUin, text)
         return EncryptedMessage(
-            ciphertext = Base64.encodeToString(
-                ciphertext.serialize(),
-                Base64.NO_WRAP
-            ),
+            ciphertext = Base64.getEncoder().encodeToString(ciphertext.serialize()),
             signalType = ciphertext.type
         )
     }
@@ -35,7 +32,7 @@ class CryptoService @Inject constructor(
      * Decrypt message using Signal Protocol Double Ratchet
      */
     fun decryptMessage(senderUin: Long, ciphertextBase64: String, signalType: Int): String {
-        val ciphertextBytes = Base64.decode(ciphertextBase64, Base64.NO_WRAP)
+        val ciphertextBytes = Base64.getDecoder().decode(ciphertextBase64)
 
         val ciphertext = when (signalType) {
             CiphertextMessage.PREKEY_TYPE -> PreKeySignalMessage(ciphertextBytes)
@@ -63,10 +60,7 @@ class CryptoService @Inject constructor(
      * Get our identity key for sharing with other users
      */
     fun getIdentityKey(): String {
-        return Base64.encodeToString(
-            keyStore.identityKeyPair.publicKey.serialize(),
-            Base64.NO_WRAP
-        )
+        return Base64.getEncoder().encodeToString(keyStore.identityKeyPair.publicKey.serialize())
     }
 
     /**
@@ -84,16 +78,14 @@ class CryptoService @Inject constructor(
      * Includes signed prekey, Kyber prekey, and one-time prekeys.
      */
     fun generateSignalBundle(): com.rcq.messenger.data.api.RegisterBundleRequest {
-        val identityKeyB64 = Base64.encodeToString(
-            keyStore.identityKeyPair.publicKey.serialize(), Base64.NO_WRAP
-        )
+        val identityKeyB64 = Base64.getEncoder().encodeToString(keyStore.identityKeyPair.publicKey.serialize())
         val registrationId = keyStore.getLocalRegistrationId()
 
         val signedPreKeyRecord = keyStore.generateSignedPreKey(1, keyStore.identityKeyPair)
         val signedPreKeyData = com.rcq.messenger.data.api.SignedPreKeyData(
             id = signedPreKeyRecord.id,
-            key = Base64.encodeToString(signedPreKeyRecord.keyPair.publicKey.serialize(), Base64.NO_WRAP),
-            signature = Base64.encodeToString(signedPreKeyRecord.signature, Base64.NO_WRAP)
+            key = Base64.getEncoder().encodeToString(signedPreKeyRecord.keyPair.publicKey.serialize()),
+            signature = Base64.getEncoder().encodeToString(signedPreKeyRecord.signature)
         )
 
         val kyberKeyPair = KEMKeyPair.generate(KEMKeyType.KYBER_1024)
@@ -102,15 +94,15 @@ class CryptoService @Inject constructor(
         )
         val kyberPreKeyData = com.rcq.messenger.data.api.KyberPreKeyData(
             id = 1,
-            key = Base64.encodeToString(kyberKeyPair.publicKey.serialize(), Base64.NO_WRAP),
-            signature = Base64.encodeToString(kyberSig, Base64.NO_WRAP)
+            key = Base64.getEncoder().encodeToString(kyberKeyPair.publicKey.serialize()),
+            signature = Base64.getEncoder().encodeToString(kyberSig)
         )
 
         val preKeyRecords = keyStore.generatePreKeys(1, 100)
         val oneTimePreKeys = preKeyRecords.map { pk ->
             com.rcq.messenger.data.api.PreKeyData(
                 id = pk.id,
-                key = Base64.encodeToString(pk.keyPair.publicKey.serialize(), Base64.NO_WRAP)
+                key = Base64.getEncoder().encodeToString(pk.keyPair.publicKey.serialize())
             )
         }
 
@@ -130,9 +122,9 @@ class CryptoService @Inject constructor(
     fun encryptWrapped(senderUin: Long, recipientUin: Long, text: String): EncryptedWrapped {
         val ciphertext = sessionManager.encryptMessage(recipientUin, text)
         val kind = if (ciphertext.type == CiphertextMessage.PREKEY_TYPE) "prekey" else "signal"
-        val msgB64 = Base64.encodeToString(ciphertext.serialize(), Base64.NO_WRAP)
+        val msgB64 = Base64.getEncoder().encodeToString(ciphertext.serialize())
         val inner = """{"v":0,"from":$senderUin,"kind":"$kind","msg":"$msgB64"}"""
-        val payload = Base64.encodeToString(inner.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
+        val payload = Base64.getEncoder().encodeToString(inner.toByteArray(Charsets.UTF_8))
         val envelopeType = if (ciphertext.type == CiphertextMessage.PREKEY_TYPE) "prekey_message" else "message"
         return EncryptedWrapped(payload = payload, envelopeType = envelopeType, signalType = ciphertext.type)
     }
@@ -143,7 +135,7 @@ class CryptoService @Inject constructor(
      */
     fun decryptWrapped(payload: String): DecryptedWrapped? {
         return runCatching {
-            val jsonStr = String(Base64.decode(payload, Base64.NO_WRAP), Charsets.UTF_8)
+            val jsonStr = String(Base64.getDecoder().decode(payload), Charsets.UTF_8)
             val obj = JSONObject(jsonStr)
             if (obj.optInt("v", -1) != 0) return null
             val senderUin = obj.getLong("from")

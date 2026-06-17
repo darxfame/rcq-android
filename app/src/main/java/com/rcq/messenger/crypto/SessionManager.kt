@@ -1,6 +1,5 @@
 package com.rcq.messenger.crypto
 
-import android.util.Base64
 import com.rcq.messenger.data.api.PreKeyBundleResponse
 import org.signal.libsignal.protocol.IdentityKey
 import org.signal.libsignal.protocol.SessionBuilder
@@ -14,6 +13,7 @@ import org.signal.libsignal.protocol.state.PreKeyBundle
 import org.signal.libsignal.protocol.state.PreKeyRecord
 import org.signal.libsignal.protocol.state.SignedPreKeyRecord
 import org.signal.libsignal.protocol.util.KeyHelper
+import java.util.Base64
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -62,11 +62,11 @@ class SessionManager @Inject constructor(
             bundle.registrationId,
             DEVICE_ID,
             bundle.preKey?.id ?: 0,
-            bundle.preKey?.let { Curve.decodePoint(Base64.decode(it.key, Base64.NO_WRAP), 0) },
+            bundle.preKey?.let { Curve.decodePoint(Base64.getDecoder().decode(it.key), 0) },
             bundle.signedPreKey.id,
-            Curve.decodePoint(Base64.decode(bundle.signedPreKey.key, Base64.NO_WRAP), 0),
-            Base64.decode(bundle.signedPreKey.signature, Base64.NO_WRAP),
-            IdentityKey(Base64.decode(bundle.identityKey, Base64.NO_WRAP), 0)
+            Curve.decodePoint(Base64.getDecoder().decode(bundle.signedPreKey.key), 0),
+            Base64.getDecoder().decode(bundle.signedPreKey.signature),
+            IdentityKey(Base64.getDecoder().decode(bundle.identityKey), 0)
         )
         SessionBuilder(signalKeyStore, address).process(preKeyBundle)
     }
@@ -84,7 +84,7 @@ class SessionManager @Inject constructor(
             PreKeyRecord(id, Curve.generateKeyPair())
         }
         return preKeys.map { preKey ->
-            Base64.encodeToString(preKey.serialize(), Base64.NO_WRAP)
+            Base64.getEncoder().encodeToString(preKey.serialize())
         }
     }
 
@@ -103,6 +103,6 @@ class SessionManager @Inject constructor(
             signedKeyPair,
             signature
         )
-        return Base64.encodeToString(signedPreKey.serialize(), Base64.NO_WRAP)
+        return Base64.getEncoder().encodeToString(signedPreKey.serialize())
     }
 }

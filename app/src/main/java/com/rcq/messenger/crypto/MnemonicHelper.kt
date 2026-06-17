@@ -1,7 +1,7 @@
 package com.rcq.messenger.crypto
 
-import android.util.Base64
 import java.security.SecureRandom
+import java.util.Base64
 import javax.crypto.Cipher
 import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.GCMParameterSpec
@@ -67,12 +67,12 @@ object MnemonicHelper {
         val iv = ByteArray(12).also { SecureRandom().nextBytes(it) }
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         cipher.init(Cipher.ENCRYPT_MODE, key, GCMParameterSpec(128, iv))
-        return Base64.encodeToString(iv + cipher.doFinal(plaintext), Base64.NO_WRAP)
+        return Base64.getEncoder().encodeToString(iv + cipher.doFinal(plaintext))
     }
 
     /** AES-256-GCM decrypt base64(IV || ciphertext+tag). */
     fun decrypt(encoded: String, key: SecretKeySpec): ByteArray {
-        val blob = Base64.decode(encoded, Base64.NO_WRAP)
+        val blob = Base64.getDecoder().decode(encoded)
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(128, blob, 0, 12))
         return cipher.doFinal(blob, 12, blob.size - 12)
