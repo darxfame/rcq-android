@@ -2207,43 +2207,42 @@ class Session(context: Context) {
     }
 
     /** Decrypt + store an inbound group message under its group thread. */
-    private fun ingestGroup(payloadB64: String, groupId: Int) {
+    private fun ingestGroup(payloadB64: String, groupId: Int): Boolean =
         runCatching {
-            val me = store.uin ?: return
+            val me = store.uin ?: return@runCatching false
             val dec = decryptInbound(payloadB64)
             when (val env = dec.envelope) {
                 // Sender-keys distribution / recovery (never rendered). SKDM binds
                 // the chain to its authenticated sender; SKNACK asks the kid owner
                 // to re-distribute. Both ride the per-member sealed path.
-                is Envelope.Skdm -> SenderKeyStore.acceptSkdm(me, env.kid, env.gid, dec.senderUin, SenderKeys.b64(dec.senderSigningPub), env.epoch, env.index, env.ck)
-                is Envelope.Sknack -> answerSknack(groupId, dec.senderUin, env)
-                else -> routeGroupEnvelope(env, groupId, dec.senderUin)
+                is Envelope.Skdm -> SenderKeyStore.acceptSkdm(me, env.kid, env.gid, dec.senderUin, SenderKeys.b64(dec.senderSigningPub), env.epoch, env.index, env.ck).let { true }
+                is Envelope.Sknack -> answerSknack(groupId, dec.senderUin, env).let { true }
+                else -> routeGroupEnvelope(env, groupId, dec.senderUin).let { true }
             }
-        }.onFailure { logDecryptFailure(payloadB64, it) }
-    }
+        }.onFailure { logDecryptFailure(payloadB64, it) }.getOrDefault(false)
 
     /** Decode a sender-keys `gmsg` broadcast via the stored chain and route the
      *  inner envelope. Drops my own echoed broadcast (carbon handles own
      *  multi-device sync), NACKs an unknown kid, and ignores an unverifiable or
      *  replayed message. */
-    private fun ingestGmsg(payloadB64: String, groupId: Int) {
+    private fun ingestGmsg(payloadB64: String, groupId: Int): Boolean =
         runCatching {
-            val me = store.uin ?: return
-            val hdr = SenderKeys.parseGmsgHeader(payloadB64) ?: return
-            if (SenderKeyStore.ownsKid(me, hdr.kid)) return // my own broadcast echoed back
+            val me = store.uin ?: return@runCatching false
+            val hdr = SenderKeys.parseGmsgHeader(payloadB64) ?: return@runCatching false
+            if (SenderKeyStore.ownsKid(me, hdr.kid)) return@runCatching true // my own broadcast echoed back
             val key = SenderKeyStore.deriveInbound(me, hdr.kid, hdr.epoch, hdr.index)
             if (key == null) {
                 if (!SenderKeyStore.knowsKid(me, hdr.kid)) sendSknack(groupId, hdr.kid)
-                return
+                return@runCatching false
             }
             val opened = SenderKeys.openGmsg(payloadB64, groupId, key.mk, key.spub)
             if (!opened.verified) {
                 android.util.Log.w("RCQgroup", "gmsg sig did not verify; dropping gid=$groupId kid=${hdr.kid}")
-                return
+                return@runCatching false
             }
             routeGroupEnvelope(opened.envelope, groupId, key.senderUin)
-        }.onFailure { logDecryptFailure(payloadB64, it) }
-    }
+            true
+        }.onFailure { logDecryptFailure(payloadB64, it) }.getOrDefault(false)
 
     /** Store a decoded group envelope under its thread. Shared by the legacy
      *  per-member path (ingestGroup) and the sender-keys broadcast (ingestGmsg);
@@ -3095,12 +3094,12 @@ class Session(context: Context) {
         return Base64.decode(keyB64, Base64.NO_WRAP).also { peerIdentityCache[uin] = it }
     }
 
-    private fun ingest(payloadB64: String) {
+    private fun ingest(payloadB64: String): Boolean =
         runCatching {
             val dec = decryptInbound(payloadB64)
             // Removed contacts are silently dropped — sealed sender means
             // the server can't filter by sender, so we gate on receipt.
-            if (LocalStores.isRemoved(dec.senderUin) || LocalStores.isBlocked(dec.senderUin)) return@runCatching
+            if (LocalStores.isRemoved(dec.senderUin) || LocalStores.isBlocked(dec.senderUin)) return@runCatching true
             // §5d cross-island call signaling rides sealed envelopes (kind
             // "call") — route to the call state machine, never the message
             // store, and never the request quarantine (signals are ephemeral).
@@ -3108,16 +3107,16 @@ class Session(context: Context) {
             // (old ts — offline-queue drains deliver hours-old rows) is filed
             // as a missed call instead of ringing.
             (dec.envelope as? Envelope.CallSignal)?.let { cs ->
-                val host = dec.senderHost ?: return@runCatching // same-island calls use the WS, not envelopes
-                if (host == serverHost()) return@runCatching
-                if (CrossIslandStore.get(dec.senderUin, host) == null) return@runCatching
+                val host = dec.senderHost ?: return@runCatching true // same-island calls use the WS, not envelopes
+                if (host == serverHost()) return@runCatching true
+                if (CrossIslandStore.get(dec.senderUin, host) == null) return@runCatching true
                 if (cs.sig == "call_offer" && System.currentTimeMillis() / 1000 - cs.ts > callOfferTtlSec) {
                     val media = appCtx.getString(
                         if (cs.data["media"] == "video") app.rcq.android.R.string.call_hist_video
                         else app.rcq.android.R.string.call_hist_voice,
                     )
                     logCallHistory(dec.senderUin, fromMe = false, text = "$media · ${appCtx.getString(app.rcq.android.R.string.call_out_missed)}")
-                    return@runCatching
+                    return@runCatching true
                 }
                 val sigObj = com.google.gson.JsonObject().apply {
                     addProperty("from_uin", dec.senderUin)
@@ -3125,7 +3124,7 @@ class Session(context: Context) {
                     cs.data.forEach { (k, v) -> addProperty(k, v) }
                 }
                 calls.onSignal(cs.sig, sigObj)
-                return@runCatching
+                return@runCatching true
             }
             // Federation gossip B1 self-push: a contact handed us their fresh
             // signed home-island record. Verify it's signed by the SAME key that
@@ -3134,7 +3133,7 @@ class Session(context: Context) {
             // the message store or the cross-island quarantine.
             (dec.envelope as? Envelope.HomeRecord)?.let { hr ->
                 Multihome.applyPushedRecord(dec.senderUin, dec.senderSigningPub, hr.rec)
-                return@runCatching
+                return@runCatching true
             }
             // Variant A consent: a 1:1 message from an un-accepted CROSS-ISLAND
             // sender (its from_host isn't ours and we haven't added them) is
@@ -3148,14 +3147,14 @@ class Session(context: Context) {
             ) {
                 CrossIslandRequestsStore.hold(meUin, dec.senderUin, ciHost, payloadB64, ciPreview(dec.envelope))
                 refreshCiRequests()
-                return@runCatching
+                return@runCatching true
             }
             val now = System.currentTimeMillis()
             // Random-chat peer: keep the conversation ephemeral (in-memory,
             // never persisted, never on Home). Text only for v=1.
             if (dec.senderUin == activeRandomPeer) {
                 (dec.envelope as? Envelope.Text)?.let { appendRandom(ChatMessage(it.id, dec.senderUin, fromMe = false, body = it.text, sentAt = now)) }
-                return@runCatching
+                return@runCatching true
             }
             when (val env = dec.envelope) {
                 is Envelope.Text ->
@@ -3210,8 +3209,8 @@ class Session(context: Context) {
                         store(ChatMessage(env.id, dec.senderUin, false, env.relay.toString(), now, kind = "relay"))
                 is Envelope.Unknown -> Unit
             }
-        }.onFailure { logDecryptFailure(payloadB64, it) }
-    }
+            true
+        }.onFailure { logDecryptFailure(payloadB64, it) }.getOrDefault(false)
 
     /** File a carbon's inner message as a fromMe row in its destination thread
      *  (group [gid] or peer [to]). Mirrors the incoming construction but marks
@@ -3244,14 +3243,20 @@ class Session(context: Context) {
 
     private suspend fun drainQueue() {
         CrashReporter.crumb(appCtx, "drain_queue")
-        api.drainQueue().forEach { q ->
+        val directIds = mutableListOf<Int>()
+        val groupIds = mutableListOf<Int>()
+        api.drainQueue(ack = true).forEach { q ->
             val payload = q.payload ?: return@forEach
-            when {
+            val ok = when {
                 q.envelope_type == "gmsg" && q.group_id != null -> ingestGmsg(payload, q.group_id)
                 q.group_id != null -> ingestGroup(payload, q.group_id)
                 else -> ingest(payload)
             }
+            if (ok) {
+                if (q.group_id == null) directIds += q.id else groupIds += q.id
+            }
         }
+        runCatching { api.ackQueue(directIds, groupIds) }
         CrashReporter.crumb(appCtx, "drain_done")
     }
 

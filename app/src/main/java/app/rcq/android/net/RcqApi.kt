@@ -385,8 +385,16 @@ class RcqApi(private val baseUrl: String = DEFAULT_BASE_URL) {
         val group_id: Int? = null,
     )
 
-    suspend fun drainQueue(): List<QueuedEnvelope> = withContext(Dispatchers.IO) {
-        get("/messages/queue", authed = true, Array<QueuedEnvelope>::class.java).toList()
+    suspend fun drainQueue(ack: Boolean = false): List<QueuedEnvelope> = withContext(Dispatchers.IO) {
+        get(if (ack) "/messages/queue?ack=1" else "/messages/queue", authed = true, Array<QueuedEnvelope>::class.java).toList()
+    }
+
+    data class QueueAckRequest(val direct_ids: List<Int>, val group_ids: List<Int>)
+    data class QueueAckResponse(val deleted: Int = 0)
+
+    suspend fun ackQueue(directIds: List<Int>, groupIds: List<Int>): QueueAckResponse = withContext(Dispatchers.IO) {
+        if (directIds.isEmpty() && groupIds.isEmpty()) QueueAckResponse()
+        else post("/messages/queue/ack", gson.toJson(QueueAckRequest(directIds, groupIds)), authed = true, QueueAckResponse::class.java)
     }
 
     // ── contacts (rcq-spec 4) ────────────────────────────────────────
