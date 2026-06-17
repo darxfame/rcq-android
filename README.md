@@ -27,6 +27,7 @@ Intentional non-scope for the Android baseline: games, marketplace, and pets.
 - Main site: <https://rcq.app>
 - iOS reference client: <https://github.com/rcq-messenger/rcq-ios>
 - Upstream Android repo: <https://github.com/rcq-messenger/rcq-android>
+- iOS parity notes: [docs/IOS_PARITY.md](docs/IOS_PARITY.md)
 - Reproducible builds: [docs/REPRODUCIBLE-BUILDS.md](docs/REPRODUCIBLE-BUILDS.md)
 
 ## Build
