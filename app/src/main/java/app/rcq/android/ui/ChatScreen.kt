@@ -78,6 +78,7 @@ import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.Campaign
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Description
@@ -268,7 +269,8 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
     var whoReactedMsg by remember { mutableStateOf<ChatMessage?>(null) }
     var editMsg by remember { mutableStateOf<ChatMessage?>(null) }
     var reportMsg by remember { mutableStateOf<ChatMessage?>(null) }
-    var forwardMsg by remember { mutableStateOf<ChatMessage?>(null) }
+    var forwardMsgs by remember { mutableStateOf<List<ChatMessage>>(emptyList()) }
+    var selectedIds by remember(target) { mutableStateOf<Set<String>>(emptySet()) }
     var replyTarget by remember { mutableStateOf<ChatMessage?>(null) }
     var attachMenu by remember { mutableStateOf(false) }
     var showPollComposer by remember { mutableStateOf(false) }
@@ -343,16 +345,26 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
             else -> false
         }
     }
+    fun toggleSelected(id: String) {
+        selectedIds = if (id in selectedIds) selectedIds - id else selectedIds + id
+    }
+    val selectedMessages = remember(messages, selectedIds) {
+        messages.filter { it.id in selectedIds }.sortedBy { it.sentAt }
+    }
+    val selectedCanForward = selectedMessages.isNotEmpty() && selectedMessages.all { canForward(it) }
     fun forwardAuthor(m: ChatMessage): String =
         m.senderUin?.let { if (it == ownUin) session.nickname else group?.memberName(it) ?: session.contactName(it) }
             ?: if (m.fromMe) session.nickname else peer?.let { session.contactName(it) }.orEmpty()
-    fun doForward(m: ChatMessage, toPeer: Int? = null, toGroup: Int? = null) {
-        val author = forwardAuthor(m).ifBlank { "#${m.senderUin ?: if (m.fromMe) ownUin else peer ?: ownUin}" }
+    fun doForward(ms: List<ChatMessage>, toPeer: Int? = null, toGroup: Int? = null) {
         scope.launch {
-            if (toPeer != null) session.forwardToPeer(m, toPeer, author)
-            else if (toGroup != null) session.forwardToGroup(m, toGroup, author)
+            ms.forEach { m ->
+                val author = forwardAuthor(m).ifBlank { "#${m.senderUin ?: if (m.fromMe) ownUin else peer ?: ownUin}" }
+                if (toPeer != null) session.forwardToPeer(m, toPeer, author)
+                else if (toGroup != null) session.forwardToGroup(m, toGroup, author)
+            }
         }
-        forwardMsg = null
+        forwardMsgs = emptyList()
+        selectedIds = emptySet()
     }
 
     // Per-conversation screen-secure mode (1:1 only) is NOTIFY-ONLY (iOS parity,
@@ -654,10 +666,44 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
     // of restarting the count back to the total. A newly arriving mention grows
     // the list past the cursor and brings the FAB back for that one.
     val mentionsLeft = (mentionIds.size - mentionCursor).coerceAtLeast(0)
+    BackHandler(enabled = selectedIds.isNotEmpty()) { selectedIds = emptySet() }
 
     Column(Modifier.fillMaxSize().background(c.bgPrimary).imePadding()) {
-        // Header.
-        Row(
+        if (selectedIds.isNotEmpty()) {
+            Row(
+                Modifier.fillMaxWidth().background(c.bgSecondary.copy(alpha = 0.6f)).padding(horizontal = 8.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    Icons.Filled.Close, stringResource(R.string.common_cancel), tint = c.accent,
+                    modifier = Modifier.size(26.dp).clip(CircleShape).clickable { selectedIds = emptySet() },
+                )
+                Spacer(Modifier.width(12.dp))
+                Text(
+                    stringResource(R.string.chat_selection_title, selectedMessages.size),
+                    color = c.textPrimary,
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f),
+                )
+                if (selectedCanForward) {
+                    Icon(
+                        Icons.Filled.Share, stringResource(R.string.chat_forward), tint = c.accent,
+                        modifier = Modifier.size(24.dp).clip(CircleShape).clickable { forwardMsgs = selectedMessages },
+                    )
+                    Spacer(Modifier.width(14.dp))
+                }
+                Icon(
+                    Icons.Filled.Delete, stringResource(R.string.chat_delete_me), tint = Color(0xFFE5484D),
+                    modifier = Modifier.size(24.dp).clip(CircleShape).clickable {
+                        selectedMessages.forEach { session.deleteLocal(it) }
+                        selectedIds = emptySet()
+                    },
+                )
+            }
+        } else {
+            // Header.
+            Row(
             Modifier.fillMaxWidth().background(c.bgSecondary.copy(alpha = 0.6f))
                 .clickable(enabled = !isSelf) { if (isGroup) groupId?.let(onOpenGroupInfo) else peer?.let(onOpenPeerInfo) }
                 .padding(horizontal = 8.dp, vertical = 8.dp),
@@ -744,6 +790,7 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
                 }
             }
         }
+        }
 
         // Pinned banner (groups). Single compact line that never reflows the
         // chat; tap opens the full scrollable sheet with clickable mentions/URLs
@@ -782,6 +829,7 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
                     ChatRow.Unread -> UnreadDividerRow(initialUnread)
                     is ChatRow.Single -> {
                         val m = row.m
+                        val selected = m.id in selectedIds
                         if (bubbleEligibleForViews(m) && groupId != null) {
                             LaunchedEffect(groupId, m.id) {
                                 val key = m.id.lowercase()
@@ -793,26 +841,37 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
                         } else if (m.kind == "system") {
                             SystemNoticeRow(m)
                         } else {
-                            MessageBubble(
-                                session, m,
-                                senderName = if (isGroup && !m.fromMe && row.showSender) authorName(m) else null,
-                                replyAuthorOverride = if (row.replyMine) youLabel else null,
-                                onRetry = { scope.launch { runCatching { session.resend(m) } } },
-                                onLongPress = { actionMsg = m },
-                                onOpenGroup = onOpenGroup,
-                                onViewImage = { fullscreenImage = it },
-                                mentionNick = mentionNick,
-                                onMentionClick = onMentionClick,
-                                mentionUin = mentionUin,
-                                highlighted = m.id == highlightId,
-                                onTapReply = onTapReply,
-                                onSenderClick = if (isGroup && !m.fromMe) ({ m.senderUin?.let { if (it != ownUin) onOpenPeerInfo(it) } }) else null,
-                                onShowReactors = { whoReactedMsg = it },
-                                viewCount = if (bubbleEligibleForViews(m)) groupViewCounts[m.id.lowercase()] else null,
-                            )
+                            Box(Modifier.fillMaxWidth()) {
+                                MessageBubble(
+                                    session, m,
+                                    senderName = if (isGroup && !m.fromMe && row.showSender) authorName(m) else null,
+                                    replyAuthorOverride = if (row.replyMine) youLabel else null,
+                                    onRetry = { scope.launch { runCatching { session.resend(m) } } },
+                                    onLongPress = { if (selectedIds.isNotEmpty()) toggleSelected(m.id) else actionMsg = m },
+                                    onOpenGroup = onOpenGroup,
+                                    onViewImage = { fullscreenImage = it },
+                                    mentionNick = mentionNick,
+                                    onMentionClick = onMentionClick,
+                                    mentionUin = mentionUin,
+                                    highlighted = m.id == highlightId || selected,
+                                    onTapReply = onTapReply,
+                                    onSenderClick = if (isGroup && !m.fromMe) ({ m.senderUin?.let { if (it != ownUin) onOpenPeerInfo(it) } }) else null,
+                                    onShowReactors = { whoReactedMsg = it },
+                                    viewCount = if (bubbleEligibleForViews(m)) groupViewCounts[m.id.lowercase()] else null,
+                                )
+                                if (selectedIds.isNotEmpty()) {
+                                    Box(
+                                        Modifier.matchParentSize().combinedClickable(
+                                            onClick = { toggleSelected(m.id) },
+                                            onLongClick = { toggleSelected(m.id) },
+                                        ),
+                                    )
+                                }
+                            }
                         }
                     }
                     is ChatRow.Album -> {
+                        val first = row.items.first()
                         if (groupId != null) {
                             row.items.filter { bubbleEligibleForViews(it) }.forEach { m ->
                                 LaunchedEffect(groupId, m.id) {
@@ -821,12 +880,22 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
                                 }
                             }
                         }
-                        AlbumBubble(
-                            session, row.items,
-                            senderName = if (isGroup && !row.items.first().fromMe && row.showSender) authorName(row.items.first()) else null,
-                            onLongPress = { actionMsg = row.items.first() },
-                            onSenderClick = if (isGroup && !row.items.first().fromMe) ({ row.items.first().senderUin?.let { if (it != ownUin) onOpenPeerInfo(it) } }) else null,
-                        )
+                        Box(Modifier.fillMaxWidth()) {
+                            AlbumBubble(
+                                session, row.items,
+                                senderName = if (isGroup && !first.fromMe && row.showSender) authorName(first) else null,
+                                onLongPress = { if (selectedIds.isNotEmpty()) toggleSelected(first.id) else actionMsg = first },
+                                onSenderClick = if (isGroup && !first.fromMe) ({ first.senderUin?.let { if (it != ownUin) onOpenPeerInfo(it) } }) else null,
+                            )
+                            if (selectedIds.isNotEmpty()) {
+                                Box(
+                                    Modifier.matchParentSize().combinedClickable(
+                                        onClick = { toggleSelected(first.id) },
+                                        onLongClick = { toggleSelected(first.id) },
+                                    ),
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -1112,9 +1181,13 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
                     }
                     if (canForward(m)) {
                         MessageAction(stringResource(R.string.chat_forward)) {
-                            forwardMsg = m
+                            forwardMsgs = listOf(m)
                             actionMsg = null
                         }
+                    }
+                    MessageAction(stringResource(R.string.chat_select)) {
+                        selectedIds = setOf(m.id)
+                        actionMsg = null
                     }
                     if (m.fromMe && m.kind == "text") MessageAction(stringResource(R.string.chat_edit)) { editMsg = m; actionMsg = null }
                     if (m.fromMe && m.state == DeliveryState.FAILED) MessageAction(stringResource(R.string.chat_retry)) {
@@ -1165,22 +1238,22 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
         }
     }
 
-    forwardMsg?.let { m ->
-        val media = m.kind != "text"
+    forwardMsgs.takeIf { it.isNotEmpty() }?.let { ms ->
+        val media = ms.any { it.kind != "text" }
         val peerTargets = contacts.filter { it.uin != ownUin && (!media || it.host == null) }
         val groupTargets = groups.filter { it.canPost(ownUin) && (!media || it.host == null) }
         AlertDialog(
-            onDismissRequest = { forwardMsg = null },
+            onDismissRequest = { forwardMsgs = emptyList() },
             containerColor = c.bgSecondary,
             title = { Text(stringResource(R.string.forward_title), color = c.textPrimary) },
             text = {
                 Column(Modifier.verticalScroll(rememberScrollState())) {
-                    if (ownUin != 0) MessageAction(stringResource(R.string.chat_saved_title)) { doForward(m, toPeer = ownUin) }
+                    if (ownUin != 0) MessageAction(stringResource(R.string.chat_saved_title)) { doForward(ms, toPeer = ownUin) }
                     peerTargets.forEach { ct ->
-                        MessageAction(ct.nickname) { doForward(m, toPeer = ct.uin) }
+                        MessageAction(ct.nickname) { doForward(ms, toPeer = ct.uin) }
                     }
                     groupTargets.forEach { g ->
-                        MessageAction(g.name) { doForward(m, toGroup = g.id) }
+                        MessageAction(g.name) { doForward(ms, toGroup = g.id) }
                     }
                     if (ownUin == 0 && peerTargets.isEmpty() && groupTargets.isEmpty()) {
                         Text(stringResource(R.string.forward_no_targets), color = c.textSecondary, fontSize = 14.sp)
@@ -1188,7 +1261,7 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
                 }
             },
             confirmButton = {},
-            dismissButton = { TextButton(onClick = { forwardMsg = null }) { Text(stringResource(R.string.common_cancel), color = c.textSecondary) } },
+            dismissButton = { TextButton(onClick = { forwardMsgs = emptyList() }) { Text(stringResource(R.string.common_cancel), color = c.textSecondary) } },
         )
     }
 
