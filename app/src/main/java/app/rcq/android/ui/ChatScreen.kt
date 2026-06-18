@@ -242,6 +242,24 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
     // Draft survives leaving + re-entering the chat (tester #6): held per-thread
     // in a process-level map, not just transient composable state.
     val threadKey = if (isGroup) "g:$groupId" else "p:$peer"
+    val broadcastViewIds = remember(group, messages) {
+        val g = group
+        if (g?.postPolicy != "owner_only") emptyList()
+        else messages.filter { it.senderUin == g.ownerUin }.map { it.id.lowercase() }.distinct()
+    }
+    var groupViewCounts by remember(threadKey) { mutableStateOf<Map<String, Int>>(emptyMap()) }
+    val pingedGroupViews = remember(threadKey) { mutableSetOf<String>() }
+    fun bubbleEligibleForViews(m: ChatMessage): Boolean =
+        group?.let { it.postPolicy == "owner_only" && m.senderUin == it.ownerUin } == true
+    LaunchedEffect(group?.id, group?.postPolicy, broadcastViewIds) {
+        val gid = group?.id
+        if (gid == null || broadcastViewIds.isEmpty()) {
+            groupViewCounts = emptyMap()
+            return@LaunchedEffect
+        }
+        val fresh = session.groupViewCounts(gid, broadcastViewIds)
+        groupViewCounts = broadcastViewIds.associateWith { fresh[it] ?: 0 }
+    }
     // NB: the composer draft lives INSIDE `Composer` now (not here), so typing
     // a character doesn't recompose the whole ChatScreen (header + message
     // LazyColumn). That recomposition-per-keystroke was the input-field lag.
@@ -743,6 +761,12 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
                     ChatRow.Unread -> UnreadDividerRow(initialUnread)
                     is ChatRow.Single -> {
                         val m = row.m
+                        if (bubbleEligibleForViews(m) && groupId != null) {
+                            LaunchedEffect(groupId, m.id) {
+                                val key = m.id.lowercase()
+                                if (pingedGroupViews.add(key)) session.markGroupMessageViewed(groupId, key)
+                            }
+                        }
                         if (m.kind == "call") {
                             CallHistoryRow(m)
                         } else if (m.kind == "system") {
@@ -763,15 +787,26 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
                                 onTapReply = onTapReply,
                                 onSenderClick = if (isGroup && !m.fromMe) ({ m.senderUin?.let { if (it != ownUin) onOpenPeerInfo(it) } }) else null,
                                 onShowReactors = { whoReactedMsg = it },
+                                viewCount = if (bubbleEligibleForViews(m)) groupViewCounts[m.id.lowercase()] else null,
                             )
                         }
                     }
-                    is ChatRow.Album -> AlbumBubble(
-                        session, row.items,
-                        senderName = if (isGroup && !row.items.first().fromMe && row.showSender) authorName(row.items.first()) else null,
-                        onLongPress = { actionMsg = row.items.first() },
-                        onSenderClick = if (isGroup && !row.items.first().fromMe) ({ row.items.first().senderUin?.let { if (it != ownUin) onOpenPeerInfo(it) } }) else null,
-                    )
+                    is ChatRow.Album -> {
+                        if (groupId != null) {
+                            row.items.filter { bubbleEligibleForViews(it) }.forEach { m ->
+                                LaunchedEffect(groupId, m.id) {
+                                    val key = m.id.lowercase()
+                                    if (pingedGroupViews.add(key)) session.markGroupMessageViewed(groupId, key)
+                                }
+                            }
+                        }
+                        AlbumBubble(
+                            session, row.items,
+                            senderName = if (isGroup && !row.items.first().fromMe && row.showSender) authorName(row.items.first()) else null,
+                            onLongPress = { actionMsg = row.items.first() },
+                            onSenderClick = if (isGroup && !row.items.first().fromMe) ({ row.items.first().senderUin?.let { if (it != ownUin) onOpenPeerInfo(it) } }) else null,
+                        )
+                    }
                 }
             }
         }
@@ -2285,7 +2320,7 @@ private fun AlbumTile(session: Session, m: ChatMessage, w: Dp, h: Dp, onLongPres
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun MessageBubble(session: Session, m: ChatMessage, senderName: String?, onRetry: () -> Unit, onLongPress: () -> Unit, onOpenGroup: (Int) -> Unit = {}, onViewImage: (ByteArray) -> Unit = {}, mentionNick: ((Int) -> String?)? = null, onMentionClick: ((Int) -> Unit)? = null, mentionUin: ((String) -> Int?)? = null, highlighted: Boolean = false, onTapReply: ((String) -> Unit)? = null, onSenderClick: (() -> Unit)? = null, onShowReactors: (ChatMessage) -> Unit = {}, replyAuthorOverride: String? = null) {
+private fun MessageBubble(session: Session, m: ChatMessage, senderName: String?, onRetry: () -> Unit, onLongPress: () -> Unit, onOpenGroup: (Int) -> Unit = {}, onViewImage: (ByteArray) -> Unit = {}, mentionNick: ((Int) -> String?)? = null, onMentionClick: ((Int) -> Unit)? = null, mentionUin: ((String) -> Int?)? = null, highlighted: Boolean = false, onTapReply: ((String) -> Unit)? = null, onSenderClick: (() -> Unit)? = null, onShowReactors: (ChatMessage) -> Unit = {}, replyAuthorOverride: String? = null, viewCount: Int? = null) {
     val c = RcqTheme.colors
     val failed = m.state == DeliveryState.FAILED
     // When a chat wallpaper is set, the time/ticks row sits on the wallpaper
@@ -2304,6 +2339,10 @@ private fun MessageBubble(session: Session, m: ChatMessage, senderName: String?,
     val isPlainText = groupLinkId == null &&
         m.kind !in listOf("photo", "poll", "file", "video", "voice", "location", "relay")
     val meta: @Composable () -> Unit = {
+        if (viewCount != null) {
+            Icon(Icons.Filled.Visibility, null, tint = c.textSecondary, modifier = Modifier.size(13.dp))
+            Text("$viewCount", color = c.textSecondary, fontSize = 10.sp)
+        }
         Text(formatTime(m.sentAt), color = c.textSecondary, fontSize = 10.sp)
         if (m.edited) Text(stringResource(R.string.chat_edited), color = c.textSecondary, fontSize = 10.sp)
         if (m.fromMe) {

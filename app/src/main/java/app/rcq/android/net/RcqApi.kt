@@ -635,6 +635,25 @@ class RcqApi(private val baseUrl: String = DEFAULT_BASE_URL) {
             )
         }
 
+    data class GroupViewCountsBody(val message_ids: List<String>)
+    data class GroupViewCountsResp(val counts: Map<String, Int> = emptyMap())
+
+    suspend fun markGroupMessageViewed(groupId: Int, messageId: String): Unit =
+        withContext(Dispatchers.IO) {
+            postNoContent("/groups/$groupId/messages/${messageId.lowercase()}/viewed", "{}", authed = true)
+        }
+
+    suspend fun groupViewCounts(groupId: Int, messageIds: List<String>): Map<String, Int> =
+        withContext(Dispatchers.IO) {
+            if (messageIds.isEmpty()) return@withContext emptyMap()
+            post(
+                "/groups/$groupId/view-counts",
+                gson.toJson(GroupViewCountsBody(messageIds.map { it.lowercase() })),
+                authed = true,
+                GroupViewCountsResp::class.java,
+            ).counts
+        }
+
     data class CapabilitiesBody(val sender_keys: Boolean)
 
     /** Advertise this client's capabilities (fire-and-forget at start). */

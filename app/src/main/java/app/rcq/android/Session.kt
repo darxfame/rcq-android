@@ -1848,6 +1848,16 @@ class Session(context: Context) {
     fun group(id: Int): RcqGroup? = _groups.value.firstOrNull { it.id == id }
     fun groupName(id: Int): String = group(id)?.name ?: "Group $id"
 
+    suspend fun markGroupMessageViewed(groupId: Int, messageId: String) {
+        val ctx = groupCtx(groupId)
+        runCatching { ctx.api.markGroupMessageViewed(ctx.gid, messageId) }
+    }
+
+    suspend fun groupViewCounts(groupId: Int, messageIds: List<String>): Map<String, Int> {
+        val ctx = groupCtx(groupId)
+        return runCatching { ctx.api.groupViewCounts(ctx.gid, messageIds) }.getOrDefault(emptyMap())
+    }
+
     suspend fun createGroup(name: String, memberUins: List<Int>): RcqGroup {
         val g = mapGroup(api.createGroup(name, memberUins))
         upsertGroup(g)
