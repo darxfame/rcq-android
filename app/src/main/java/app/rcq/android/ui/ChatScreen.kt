@@ -106,6 +106,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -1355,17 +1356,17 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
         MediaPreviewDialog(
             pending = ps,
             onCancel = { pendingSend = null },
-            onSend = { spoiler ->
+            onSend = { spoiler, caption ->
                 pendingSend = null
                 scope.launch {
                     runCatching {
                         when (ps) {
                             is PendingSend.Photo ->
-                                if (isGroup) session.sendGroupPhoto(groupId!!, ps.bytes, null, spoiler)
-                                else session.sendPhoto(peer!!, ps.bytes, null, spoiler)
+                                if (isGroup) session.sendGroupPhoto(groupId!!, ps.bytes, caption, spoiler)
+                                else session.sendPhoto(peer!!, ps.bytes, caption, spoiler)
                             is PendingSend.Video ->
-                                if (isGroup) session.sendGroupVideo(groupId!!, ps.v.bytes, ps.v.thumbB64, ps.v.durationSec, null, spoiler)
-                                else session.sendVideo(peer!!, ps.v.bytes, ps.v.thumbB64, ps.v.durationSec, null, spoiler)
+                                if (isGroup) session.sendGroupVideo(groupId!!, ps.v.bytes, ps.v.thumbB64, ps.v.durationSec, caption, spoiler)
+                                else session.sendVideo(peer!!, ps.v.bytes, ps.v.thumbB64, ps.v.durationSec, caption, spoiler)
                         }
                     }
                 }
@@ -2168,11 +2169,12 @@ private sealed interface PendingSend {
 }
 
 /** Pre-send preview for a picked photo/video: tap the thumbnail to toggle a
- *  spoiler blur, then Send. [onSend] receives the chosen spoiler flag. */
+ *  spoiler blur, then Send. [onSend] receives spoiler + optional caption. */
 @Composable
-private fun MediaPreviewDialog(pending: PendingSend, onCancel: () -> Unit, onSend: (Boolean) -> Unit) {
+private fun MediaPreviewDialog(pending: PendingSend, onCancel: () -> Unit, onSend: (Boolean, String?) -> Unit) {
     val c = RcqTheme.colors
     var spoiler by remember { mutableStateOf(false) }
+    var caption by remember { mutableStateOf("") }
     val isVideo = pending is PendingSend.Video
     val base = remember(pending) {
         when (pending) {
@@ -2218,9 +2220,17 @@ private fun MediaPreviewDialog(pending: PendingSend, onCancel: () -> Unit, onSen
                     stringResource(if (spoiler) R.string.chat_spoiler_on_hint else R.string.chat_spoiler_off_hint),
                     color = c.textSecondary, fontSize = 12.sp, textAlign = TextAlign.Center,
                 )
+                Spacer(Modifier.height(10.dp))
+                OutlinedTextField(
+                    value = caption,
+                    onValueChange = { caption = it.take(1024) },
+                    placeholder = { Text(stringResource(R.string.chat_media_caption_hint), color = c.textSecondary) },
+                    singleLine = false,
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
         },
-        confirmButton = { TextButton(onClick = { onSend(spoiler) }) { Text(stringResource(R.string.chat_send), color = c.accent) } },
+        confirmButton = { TextButton(onClick = { onSend(spoiler, caption.trim().takeIf { it.isNotEmpty() }) }) { Text(stringResource(R.string.chat_send), color = c.accent) } },
         dismissButton = { TextButton(onClick = onCancel) { Text(stringResource(R.string.common_cancel), color = c.textSecondary) } },
     )
 }

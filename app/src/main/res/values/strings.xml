@@ -838,6 +838,7 @@
     <string name="chat_recording">Recording  %1$s</string>
     <string name="chat_send">Send</string>
     <string name="chat_media_preview_title">Send media</string>
+    <string name="chat_media_caption_hint">Add a caption</string>
     <string name="chat_spoiler_off_hint">Tap the preview to hide it as a spoiler.</string>
     <string name="chat_spoiler_on_hint">Hidden. The recipient taps to reveal it.</string>
     <string name="chat_spoiler_reveal">Tap to view</string>
