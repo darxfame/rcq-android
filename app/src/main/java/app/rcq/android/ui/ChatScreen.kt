@@ -1,6 +1,7 @@
 package app.rcq.android.ui
 
 import android.Manifest
+import android.content.ActivityNotFoundException
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -1025,6 +1026,12 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
                         cm.setPrimaryClip(ClipData.newPlainText("message", m.body))
                         actionMsg = null
                     }
+                    if (m.kind == "text" && canTranslateMessage(context, m.body)) {
+                        MessageAction(stringResource(R.string.chat_translate)) {
+                            translateMessage(context, m.body)
+                            actionMsg = null
+                        }
+                    }
                     if (m.fromMe && m.kind == "text") MessageAction(stringResource(R.string.chat_edit)) { editMsg = m; actionMsg = null }
                     if (m.fromMe && m.state == DeliveryState.FAILED) MessageAction(stringResource(R.string.chat_retry)) {
                         scope.launch { runCatching { session.resend(m) } }; actionMsg = null
@@ -1438,6 +1445,24 @@ private fun MessageAction(label: String, danger: Boolean = false, onClick: () ->
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 12.dp),
     )
 }
+
+private fun canTranslateMessage(context: Context, text: String): Boolean =
+    text.isNotBlank() && translateIntent(text).resolveActivity(context.packageManager) != null
+
+private fun translateMessage(context: Context, text: String) {
+    try {
+        context.startActivity(Intent.createChooser(translateIntent(text), context.getString(R.string.chat_translate)))
+    } catch (_: ActivityNotFoundException) {
+        android.widget.Toast.makeText(context, R.string.chat_translate_unavailable, android.widget.Toast.LENGTH_SHORT).show()
+    }
+}
+
+private fun translateIntent(text: String): Intent =
+    // ponytail: platform guard; hide the action when Android has no ACTION_TRANSLATE handler.
+    Intent(Intent.ACTION_TRANSLATE)
+        .setType("text/plain")
+        .putExtra(Intent.EXTRA_TEXT, text)
+        .putExtra(Intent.EXTRA_TITLE, "RCQ")
 
 private fun previewOf(m: ChatMessage, context: android.content.Context): String = when (m.kind) {
     "photo" -> context.getString(R.string.chat_prev_photo)

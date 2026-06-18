@@ -761,6 +761,8 @@
     <string name="chat_a_message">Message</string>
     <string name="chat_reply">Reply</string>
     <string name="chat_copy">Copy</string>
+    <string name="chat_translate">Translate</string>
+    <string name="chat_translate_unavailable">No translator available</string>
     <string name="media_share">Share</string>
     <string name="media_save">Save</string>
     <string name="media_saved">Saved</string>

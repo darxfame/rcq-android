@@ -1,6 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.TRANSLATE" />
+            <data android:mimeType="text/plain" />
+        </intent>
+    </queries>
+
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- In-app update: hand the freshly-downloaded APK to the system package
          installer (the user still confirms the install). -->
