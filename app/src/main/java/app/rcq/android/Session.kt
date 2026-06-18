@@ -2018,6 +2018,7 @@ class Session(context: Context) {
             gender_visibility = net.gender_visibility ?: cached?.gender_visibility,
             profile_visibility = net.profile_visibility ?: cached?.profile_visibility,
             group_invite_policy = net.group_invite_policy ?: cached?.group_invite_policy,
+            call_policy = net.call_policy ?: cached?.call_policy,
             read_receipts_visibility = net.read_receipts_visibility ?: cached?.read_receipts_visibility,
             hof_opt_in = net.hof_opt_in ?: cached?.hof_opt_in,
             hof_avatar = net.hof_avatar ?: cached?.hof_avatar,

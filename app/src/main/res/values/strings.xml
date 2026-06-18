@@ -539,6 +539,8 @@
     <string name="pv_gender_desc">Who can see your gender on your profile.</string>
     <string name="pv_invite">Who can add me to groups</string>
     <string name="pv_invite_desc">Who is allowed to add you to a group.</string>
+    <string name="pv_calls">Who can call me</string>
+    <string name="pv_calls_desc">Who is allowed to start voice or video calls with you.</string>
     <string name="pv_receipts">Read receipts</string>
     <string name="pv_receipts_desc">Who sees your blue ticks. Turning this off hides theirs too.</string>
     <string name="pv_screen_security">Block screenshots</string>

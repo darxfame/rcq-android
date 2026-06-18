@@ -740,6 +740,7 @@ private fun PrivacyScreen(session: Session, onBack: () -> Unit) {
     var genderVis by remember { mutableStateOf(cached?.gender_visibility ?: "nobody") }
     var profileVis by remember { mutableStateOf(cached?.profile_visibility ?: "everyone") }
     var invitePolicy by remember { mutableStateOf(cached?.group_invite_policy ?: "everyone") }
+    var callPolicy by remember { mutableStateOf(cached?.call_policy ?: "everyone") }
     var receipts by remember { mutableStateOf(cached?.read_receipts_visibility ?: "everyone") }
     var presencePersistent by remember { mutableStateOf(cached?.presence_persistent ?: false) }
     var presenceTtl by remember { mutableStateOf(cached?.presence_ttl_minutes ?: 1440) }
@@ -770,6 +771,7 @@ private fun PrivacyScreen(session: Session, onBack: () -> Unit) {
             genderVis = p.gender_visibility ?: "nobody"
             profileVis = p.profile_visibility ?: "everyone"
             invitePolicy = p.group_invite_policy ?: "everyone"
+            callPolicy = p.call_policy ?: "everyone"
             receipts = p.read_receipts_visibility ?: "everyone"
             presencePersistent = p.presence_persistent ?: false
             presenceTtl = p.presence_ttl_minutes ?: 1440
@@ -828,6 +830,7 @@ private fun PrivacyScreen(session: Session, onBack: () -> Unit) {
             VisibilityPicker(stringResource(R.string.pv_profile_card), profileVis, listOf("everyone", "contacts", "nobody"), stringResource(R.string.pv_profile_card_desc)) { profileVis = it; save(RcqApi.UpdateMeBody(profile_visibility = it)) }
             VisibilityPicker(stringResource(R.string.common_gender), genderVis, listOf("everyone", "contacts", "nobody"), stringResource(R.string.pv_gender_desc)) { genderVis = it; save(RcqApi.UpdateMeBody(gender_visibility = it)) }
             VisibilityPicker(stringResource(R.string.pv_invite), invitePolicy, listOf("everyone", "contacts", "nobody"), stringResource(R.string.pv_invite_desc)) { invitePolicy = it; save(RcqApi.UpdateMeBody(group_invite_policy = it)) }
+            VisibilityPicker(stringResource(R.string.pv_calls), callPolicy, listOf("everyone", "contacts", "nobody"), stringResource(R.string.pv_calls_desc)) { callPolicy = it; save(RcqApi.UpdateMeBody(call_policy = it)) }
             VisibilityPicker(stringResource(R.string.pv_receipts), receipts, listOf("everyone", "contacts", "nobody"), stringResource(R.string.pv_receipts_desc)) { receipts = it; save(RcqApi.UpdateMeBody(read_receipts_visibility = it)) }
 
             // Block screenshots (device-local; FLAG_SECURE applied by MainActivity).

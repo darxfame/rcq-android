@@ -538,6 +538,8 @@
     <string name="pv_gender_desc">Кто видит ваш пол в профиле.</string>
     <string name="pv_invite">Кто может добавлять меня в группы</string>
     <string name="pv_invite_desc">Кому разрешено добавлять вас в группу.</string>
+    <string name="pv_calls">Кто может мне звонить</string>
+    <string name="pv_calls_desc">Кому разрешено начинать с вами голосовые или видеозвонки.</string>
     <string name="pv_receipts">Отчёты о прочтении</string>
     <string name="pv_receipts_desc">Кто видит ваши галочки прочтения. Если выключить, вы не увидите чужие.</string>
     <string name="pv_screen_security">Запрет скриншотов</string>
