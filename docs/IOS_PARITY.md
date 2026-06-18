@@ -25,3 +25,16 @@ delivery:
 
 Skipped: rich push plaintext previews. Add only if users need previews more than
 the simpler, safer delivery path.
+
+## Premium media paywall
+
+Decision: Android keeps media upload free (`pay_jetons=0`) and does not expose a
+premium photo/video paywall yet.
+
+iOS currently has leftover strings and key-wrap helpers for this flow, but the
+active attachment sheet has no premium action and the codebase has no live
+`/premium/contents` compose/unlock path. Shipping Android-only paid media now
+would invent product behavior instead of matching iOS.
+
+Skipped: paid media compose/unlock. Add only after iOS/backend ship the real
+premium content API and UX.
