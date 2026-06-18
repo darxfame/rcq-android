@@ -765,6 +765,10 @@
     <string name="chat_copy">Копировать</string>
     <string name="chat_translate">Перевести</string>
     <string name="chat_translate_unavailable">Переводчик недоступен</string>
+    <string name="chat_forward">Переслать</string>
+    <string name="chat_forwarded_from">Переслано от %1$s</string>
+    <string name="forward_title">Переслать…</string>
+    <string name="forward_no_targets">Нет доступных получателей</string>
     <string name="media_share">Поделиться</string>
     <string name="media_save">Сохранить</string>
     <string name="media_saved">Сохранено</string>

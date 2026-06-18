@@ -2067,6 +2067,41 @@ class Session(context: Context) {
         sendGroupEnvelope(groupId, env, env.id, text, kind = "text", replyTo = replyTo)
     }
 
+    suspend fun forwardToPeer(source: ChatMessage, toUin: Int, authorName: String) {
+        val env = forwardEnvelope(source, authorName) ?: return
+        val id = when (env) {
+            is Envelope.Text -> env.id
+            is Envelope.Photo -> env.id
+            is Envelope.Video -> env.id
+            else -> return
+        }
+        val now = System.currentTimeMillis()
+        when (env) {
+            is Envelope.Text -> store(ChatMessage(env.id, toUin, true, env.text, now, DeliveryState.SENDING, kind = "text", forwardedFromName = env.forwardedFromName))
+            is Envelope.Photo -> store(ChatMessage(env.id, toUin, true, env.caption ?: "", now, DeliveryState.SENDING, kind = "photo", mediaId = env.mediaId, mediaKey = env.mediaKey, spoiler = env.spoiler, forwardedFromName = env.forwardedFromName))
+            is Envelope.Video -> store(ChatMessage(env.id, toUin, true, env.caption ?: "", now, DeliveryState.SENDING, kind = "video", mediaId = env.mediaId, mediaKey = env.mediaKey, durationSec = env.durationSec.toInt(), thumbB64 = env.thumbnailB64, spoiler = env.spoiler, forwardedFromName = env.forwardedFromName))
+            else -> return
+        }
+        sendEnvelope(env, id, toUin)
+    }
+
+    suspend fun forwardToGroup(source: ChatMessage, groupId: Int, authorName: String) {
+        val env = forwardEnvelope(source, authorName) ?: return
+        when (env) {
+            is Envelope.Text -> sendGroupEnvelope(groupId, env, env.id, env.text, kind = "text", forwardedFromName = env.forwardedFromName)
+            is Envelope.Photo -> sendGroupEnvelope(groupId, env, env.id, env.caption ?: "", kind = "photo", mediaId = env.mediaId, mediaKey = env.mediaKey, spoiler = env.spoiler, forwardedFromName = env.forwardedFromName)
+            is Envelope.Video -> sendGroupEnvelope(groupId, env, env.id, env.caption ?: "", kind = "video", mediaId = env.mediaId, mediaKey = env.mediaKey, durationSec = env.durationSec.toInt(), thumbB64 = env.thumbnailB64, spoiler = env.spoiler, forwardedFromName = env.forwardedFromName)
+            else -> Unit
+        }
+    }
+
+    private fun forwardEnvelope(source: ChatMessage, authorName: String): Envelope? = when (source.kind) {
+        "text" -> source.body.takeIf { it.isNotBlank() }?.let { Envelope.text(it, forwardedFromName = authorName) }
+        "photo" -> source.mediaId?.let { mid -> source.mediaKey?.let { key -> Envelope.photo(mid, key, source.body.ifBlank { null }, source.spoiler, forwardedFromName = authorName) } }
+        "video" -> source.mediaId?.let { mid -> source.mediaKey?.let { key -> Envelope.video(mid, key, source.thumbB64.orEmpty(), source.durationSec?.toDouble() ?: 0.0, source.body.ifBlank { null }, source.spoiler, forwardedFromName = authorName) } }
+        else -> null
+    }
+
     suspend fun sendGroupPhoto(groupId: Int, jpeg: ByteArray, caption: String?, spoiler: Boolean = false, albumId: String? = null) {
         val key = MediaCrypto.newKey()
         val blob = MediaCrypto.seal(jpeg, key)
@@ -2123,6 +2158,7 @@ class Session(context: Context) {
         lng: Double? = null,
         spoiler: Boolean = false,
         albumId: String? = null,
+        forwardedFromName: String? = null,
     ) {
         val me = store.uin ?: return
         storeGroup(
@@ -2134,7 +2170,7 @@ class Session(context: Context) {
                 groupId = groupId, senderUin = me,
                 fileName = fileName, fileMime = fileMime, fileSize = fileSize,
                 durationSec = durationSec, thumbB64 = thumbB64, lat = lat, lng = lng,
-                spoiler = spoiler, albumId = albumId,
+                spoiler = spoiler, albumId = albumId, forwardedFromName = forwardedFromName,
             )
         )
         fanOutGroup(groupId, env, id)
@@ -2267,10 +2303,10 @@ class Session(context: Context) {
         val now = System.currentTimeMillis()
         when (val env = envelope) {
                 is Envelope.Text -> storeGroup(
-                    ChatMessage(env.id, 0, false, env.text, now, kind = "text", groupId = groupId, senderUin = dec.senderUin, replyToSnippet = env.replyTo?.snippet, replyToAuthor = env.replyTo?.authorName, replyToId = env.replyTo?.id)
+                    ChatMessage(env.id, 0, false, env.text, now, kind = "text", groupId = groupId, senderUin = dec.senderUin, replyToSnippet = env.replyTo?.snippet, replyToAuthor = env.replyTo?.authorName, replyToId = env.replyTo?.id, forwardedFromName = env.forwardedFromName)
                 )
                 is Envelope.Photo -> storeGroup(
-                    ChatMessage(env.id, 0, false, env.caption ?: "", now, kind = "photo", mediaId = env.mediaId, mediaKey = env.mediaKey, groupId = groupId, senderUin = dec.senderUin, spoiler = env.spoiler, albumId = env.albumId)
+                    ChatMessage(env.id, 0, false, env.caption ?: "", now, kind = "photo", mediaId = env.mediaId, mediaKey = env.mediaKey, groupId = groupId, senderUin = dec.senderUin, spoiler = env.spoiler, albumId = env.albumId, forwardedFromName = env.forwardedFromName)
                 )
                 is Envelope.File -> storeGroup(
                     ChatMessage(env.id, 0, false, env.caption ?: "", now, kind = "file", mediaId = env.mediaId, mediaKey = env.mediaKey, fileName = env.fileName, fileMime = env.mime, fileSize = env.sizeBytes, groupId = groupId, senderUin = dec.senderUin)
@@ -2279,7 +2315,7 @@ class Session(context: Context) {
                     ChatMessage(env.id, 0, false, "", now, kind = "voice", mediaId = env.mediaId, mediaKey = env.mediaKey, durationSec = env.durationSec.toInt(), groupId = groupId, senderUin = dec.senderUin)
                 )
                 is Envelope.Video -> storeGroup(
-                    ChatMessage(env.id, 0, false, env.caption ?: "", now, kind = "video", mediaId = env.mediaId, mediaKey = env.mediaKey, durationSec = env.durationSec.toInt(), thumbB64 = env.thumbnailB64, groupId = groupId, senderUin = dec.senderUin, spoiler = env.spoiler, albumId = env.albumId)
+                    ChatMessage(env.id, 0, false, env.caption ?: "", now, kind = "video", mediaId = env.mediaId, mediaKey = env.mediaKey, durationSec = env.durationSec.toInt(), thumbB64 = env.thumbnailB64, groupId = groupId, senderUin = dec.senderUin, spoiler = env.spoiler, albumId = env.albumId, forwardedFromName = env.forwardedFromName)
                 )
                 is Envelope.Location -> storeGroup(
                     ChatMessage(env.id, 0, false, env.caption ?: "", now, kind = "location", lat = env.lat, lng = env.lng, groupId = groupId, senderUin = dec.senderUin)
@@ -3173,15 +3209,15 @@ class Session(context: Context) {
             }
             when (val env = dec.envelope) {
                 is Envelope.Text ->
-                    store(ChatMessage(env.id, dec.senderUin, false, env.text, now, replyToSnippet = env.replyTo?.snippet, replyToAuthor = env.replyTo?.authorName, replyToId = env.replyTo?.id))
+                    store(ChatMessage(env.id, dec.senderUin, false, env.text, now, replyToSnippet = env.replyTo?.snippet, replyToAuthor = env.replyTo?.authorName, replyToId = env.replyTo?.id, forwardedFromName = env.forwardedFromName))
                 is Envelope.Photo ->
-                    store(ChatMessage(env.id, dec.senderUin, false, env.caption ?: "", now, kind = "photo", mediaId = env.mediaId, mediaKey = env.mediaKey, spoiler = env.spoiler, albumId = env.albumId))
+                    store(ChatMessage(env.id, dec.senderUin, false, env.caption ?: "", now, kind = "photo", mediaId = env.mediaId, mediaKey = env.mediaKey, spoiler = env.spoiler, albumId = env.albumId, forwardedFromName = env.forwardedFromName))
                 is Envelope.File ->
                     store(ChatMessage(env.id, dec.senderUin, false, env.caption ?: "", now, kind = "file", mediaId = env.mediaId, mediaKey = env.mediaKey, fileName = env.fileName, fileMime = env.mime, fileSize = env.sizeBytes))
                 is Envelope.Voice ->
                     store(ChatMessage(env.id, dec.senderUin, false, "", now, kind = "voice", mediaId = env.mediaId, mediaKey = env.mediaKey, durationSec = env.durationSec.toInt()))
                 is Envelope.Video ->
-                    store(ChatMessage(env.id, dec.senderUin, false, env.caption ?: "", now, kind = "video", mediaId = env.mediaId, mediaKey = env.mediaKey, durationSec = env.durationSec.toInt(), thumbB64 = env.thumbnailB64, spoiler = env.spoiler, albumId = env.albumId))
+                    store(ChatMessage(env.id, dec.senderUin, false, env.caption ?: "", now, kind = "video", mediaId = env.mediaId, mediaKey = env.mediaKey, durationSec = env.durationSec.toInt(), thumbB64 = env.thumbnailB64, spoiler = env.spoiler, albumId = env.albumId, forwardedFromName = env.forwardedFromName))
                 is Envelope.Location ->
                     store(ChatMessage(env.id, dec.senderUin, false, env.caption ?: "", now, kind = "location", lat = env.lat, lng = env.lng))
                 is Envelope.Reaction -> applyReactionByTargetId(env.targetId, dec.senderUin, env.asset)
@@ -3235,21 +3271,21 @@ class Session(context: Context) {
         val me = store.uin ?: return
         if (gid != null) {
             when (inner) {
-                is Envelope.Text -> storeGroup(ChatMessage(inner.id, 0, true, inner.text, now, kind = "text", groupId = gid, senderUin = me, replyToSnippet = inner.replyTo?.snippet, replyToAuthor = inner.replyTo?.authorName, replyToId = inner.replyTo?.id))
-                is Envelope.Photo -> storeGroup(ChatMessage(inner.id, 0, true, inner.caption ?: "", now, kind = "photo", mediaId = inner.mediaId, mediaKey = inner.mediaKey, groupId = gid, senderUin = me, spoiler = inner.spoiler, albumId = inner.albumId))
+                is Envelope.Text -> storeGroup(ChatMessage(inner.id, 0, true, inner.text, now, kind = "text", groupId = gid, senderUin = me, replyToSnippet = inner.replyTo?.snippet, replyToAuthor = inner.replyTo?.authorName, replyToId = inner.replyTo?.id, forwardedFromName = inner.forwardedFromName))
+                is Envelope.Photo -> storeGroup(ChatMessage(inner.id, 0, true, inner.caption ?: "", now, kind = "photo", mediaId = inner.mediaId, mediaKey = inner.mediaKey, groupId = gid, senderUin = me, spoiler = inner.spoiler, albumId = inner.albumId, forwardedFromName = inner.forwardedFromName))
                 is Envelope.File -> storeGroup(ChatMessage(inner.id, 0, true, inner.caption ?: "", now, kind = "file", mediaId = inner.mediaId, mediaKey = inner.mediaKey, fileName = inner.fileName, fileMime = inner.mime, fileSize = inner.sizeBytes, groupId = gid, senderUin = me))
                 is Envelope.Voice -> storeGroup(ChatMessage(inner.id, 0, true, "", now, kind = "voice", mediaId = inner.mediaId, mediaKey = inner.mediaKey, durationSec = inner.durationSec.toInt(), groupId = gid, senderUin = me))
-                is Envelope.Video -> storeGroup(ChatMessage(inner.id, 0, true, inner.caption ?: "", now, kind = "video", mediaId = inner.mediaId, mediaKey = inner.mediaKey, durationSec = inner.durationSec.toInt(), thumbB64 = inner.thumbnailB64, groupId = gid, senderUin = me, spoiler = inner.spoiler, albumId = inner.albumId))
+                is Envelope.Video -> storeGroup(ChatMessage(inner.id, 0, true, inner.caption ?: "", now, kind = "video", mediaId = inner.mediaId, mediaKey = inner.mediaKey, durationSec = inner.durationSec.toInt(), thumbB64 = inner.thumbnailB64, groupId = gid, senderUin = me, spoiler = inner.spoiler, albumId = inner.albumId, forwardedFromName = inner.forwardedFromName))
                 is Envelope.Location -> storeGroup(ChatMessage(inner.id, 0, true, inner.caption ?: "", now, kind = "location", lat = inner.lat, lng = inner.lng, groupId = gid, senderUin = me))
                 else -> Unit
             }
         } else if (to != null) {
             when (inner) {
-                is Envelope.Text -> store(ChatMessage(inner.id, to, true, inner.text, now, replyToSnippet = inner.replyTo?.snippet, replyToAuthor = inner.replyTo?.authorName, replyToId = inner.replyTo?.id))
-                is Envelope.Photo -> store(ChatMessage(inner.id, to, true, inner.caption ?: "", now, kind = "photo", mediaId = inner.mediaId, mediaKey = inner.mediaKey, spoiler = inner.spoiler, albumId = inner.albumId))
+                is Envelope.Text -> store(ChatMessage(inner.id, to, true, inner.text, now, replyToSnippet = inner.replyTo?.snippet, replyToAuthor = inner.replyTo?.authorName, replyToId = inner.replyTo?.id, forwardedFromName = inner.forwardedFromName))
+                is Envelope.Photo -> store(ChatMessage(inner.id, to, true, inner.caption ?: "", now, kind = "photo", mediaId = inner.mediaId, mediaKey = inner.mediaKey, spoiler = inner.spoiler, albumId = inner.albumId, forwardedFromName = inner.forwardedFromName))
                 is Envelope.File -> store(ChatMessage(inner.id, to, true, inner.caption ?: "", now, kind = "file", mediaId = inner.mediaId, mediaKey = inner.mediaKey, fileName = inner.fileName, fileMime = inner.mime, fileSize = inner.sizeBytes))
                 is Envelope.Voice -> store(ChatMessage(inner.id, to, true, "", now, kind = "voice", mediaId = inner.mediaId, mediaKey = inner.mediaKey, durationSec = inner.durationSec.toInt()))
-                is Envelope.Video -> store(ChatMessage(inner.id, to, true, inner.caption ?: "", now, kind = "video", mediaId = inner.mediaId, mediaKey = inner.mediaKey, durationSec = inner.durationSec.toInt(), thumbB64 = inner.thumbnailB64, spoiler = inner.spoiler, albumId = inner.albumId))
+                is Envelope.Video -> store(ChatMessage(inner.id, to, true, inner.caption ?: "", now, kind = "video", mediaId = inner.mediaId, mediaKey = inner.mediaKey, durationSec = inner.durationSec.toInt(), thumbB64 = inner.thumbnailB64, spoiler = inner.spoiler, albumId = inner.albumId, forwardedFromName = inner.forwardedFromName))
                 is Envelope.Location -> store(ChatMessage(inner.id, to, true, inner.caption ?: "", now, kind = "location", lat = inner.lat, lng = inner.lng))
                 else -> Unit
             }

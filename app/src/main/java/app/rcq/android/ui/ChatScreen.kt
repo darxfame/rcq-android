@@ -268,6 +268,7 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
     var whoReactedMsg by remember { mutableStateOf<ChatMessage?>(null) }
     var editMsg by remember { mutableStateOf<ChatMessage?>(null) }
     var reportMsg by remember { mutableStateOf<ChatMessage?>(null) }
+    var forwardMsg by remember { mutableStateOf<ChatMessage?>(null) }
     var replyTarget by remember { mutableStateOf<ChatMessage?>(null) }
     var attachMenu by remember { mutableStateOf(false) }
     var showPollComposer by remember { mutableStateOf(false) }
@@ -333,6 +334,25 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
             val msg = if (ok) context.getString(R.string.media_saved_to, where) else saveFailToast
             android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
         }
+    }
+    fun canForward(m: ChatMessage): Boolean {
+        val foreignGroupMedia = m.groupId?.let { session.groupHost(it) } != null && m.kind != "text"
+        return !foreignGroupMedia && when (m.kind) {
+            "text" -> m.body.isNotBlank()
+            "photo", "video" -> m.mediaId != null && m.mediaKey != null
+            else -> false
+        }
+    }
+    fun forwardAuthor(m: ChatMessage): String =
+        m.senderUin?.let { if (it == ownUin) session.nickname else group?.memberName(it) ?: session.contactName(it) }
+            ?: if (m.fromMe) session.nickname else peer?.let { session.contactName(it) }.orEmpty()
+    fun doForward(m: ChatMessage, toPeer: Int? = null, toGroup: Int? = null) {
+        val author = forwardAuthor(m).ifBlank { "#${m.senderUin ?: if (m.fromMe) ownUin else peer ?: ownUin}" }
+        scope.launch {
+            if (toPeer != null) session.forwardToPeer(m, toPeer, author)
+            else if (toGroup != null) session.forwardToGroup(m, toGroup, author)
+        }
+        forwardMsg = null
     }
 
     // Per-conversation screen-secure mode (1:1 only) is NOTIFY-ONLY (iOS parity,
@@ -1090,6 +1110,12 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
                             actionMsg = null
                         }
                     }
+                    if (canForward(m)) {
+                        MessageAction(stringResource(R.string.chat_forward)) {
+                            forwardMsg = m
+                            actionMsg = null
+                        }
+                    }
                     if (m.fromMe && m.kind == "text") MessageAction(stringResource(R.string.chat_edit)) { editMsg = m; actionMsg = null }
                     if (m.fromMe && m.state == DeliveryState.FAILED) MessageAction(stringResource(R.string.chat_retry)) {
                         scope.launch { runCatching { session.resend(m) } }; actionMsg = null
@@ -1137,6 +1163,33 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
                 dismissButton = { TextButton(onClick = { reportMsg = null }) { Text(stringResource(R.string.common_cancel), color = c.textSecondary) } },
             )
         }
+    }
+
+    forwardMsg?.let { m ->
+        val media = m.kind != "text"
+        val peerTargets = contacts.filter { it.uin != ownUin && (!media || it.host == null) }
+        val groupTargets = groups.filter { it.canPost(ownUin) && (!media || it.host == null) }
+        AlertDialog(
+            onDismissRequest = { forwardMsg = null },
+            containerColor = c.bgSecondary,
+            title = { Text(stringResource(R.string.forward_title), color = c.textPrimary) },
+            text = {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    if (ownUin != 0) MessageAction(stringResource(R.string.chat_saved_title)) { doForward(m, toPeer = ownUin) }
+                    peerTargets.forEach { ct ->
+                        MessageAction(ct.nickname) { doForward(m, toPeer = ct.uin) }
+                    }
+                    groupTargets.forEach { g ->
+                        MessageAction(g.name) { doForward(m, toGroup = g.id) }
+                    }
+                    if (ownUin == 0 && peerTargets.isEmpty() && groupTargets.isEmpty()) {
+                        Text(stringResource(R.string.forward_no_targets), color = c.textSecondary, fontSize = 14.sp)
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = { TextButton(onClick = { forwardMsg = null }) { Text(stringResource(R.string.common_cancel), color = c.textSecondary) } },
+        )
     }
 
     editMsg?.let { m ->
@@ -2402,6 +2455,7 @@ private fun MessageBubble(session: Session, m: ChatMessage, senderName: String?,
                     .then(if (onSenderClick != null) Modifier.clickable { onSenderClick() } else Modifier),
             )
         }
+        m.forwardedFromName?.takeIf { it.isNotBlank() }?.let { if (!isPlainText) ForwardedLabel(it) }
         if (groupLinkId != null) {
             GroupLinkBubble(session, groupLinkId, onOpenGroup, onLongPress)
         } else if (m.kind == "photo") {
@@ -2447,6 +2501,7 @@ private fun MessageBubble(session: Session, m: ChatMessage, senderName: String?,
                             .then(if (onSenderClick != null) Modifier.clickable { onSenderClick() } else Modifier),
                     )
                 }
+                m.forwardedFromName?.takeIf { it.isNotBlank() }?.let { ForwardedLabel(it) }
                 if (m.replyToSnippet != null) {
                     val tappable = m.replyToId != null && onTapReply != null
                     Column(
@@ -2526,6 +2581,17 @@ private fun MessageBubble(session: Session, m: ChatMessage, senderName: String?,
             ) { meta() }
         }
     }
+}
+
+@Composable
+private fun ForwardedLabel(name: String) {
+    Text(
+        stringResource(R.string.chat_forwarded_from, name),
+        color = RcqTheme.colors.textSecondary,
+        fontSize = 11.sp,
+        fontWeight = FontWeight.SemiBold,
+        modifier = Modifier.padding(start = 4.dp, bottom = 3.dp),
+    )
 }
 
 @OptIn(ExperimentalFoundationApi::class)

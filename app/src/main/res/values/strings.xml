@@ -766,6 +766,10 @@
     <string name="chat_copy">Copy</string>
     <string name="chat_translate">Translate</string>
     <string name="chat_translate_unavailable">No translator available</string>
+    <string name="chat_forward">Forward</string>
+    <string name="chat_forwarded_from">Forwarded from %1$s</string>
+    <string name="forward_title">Forward to…</string>
+    <string name="forward_no_targets">No available destinations</string>
     <string name="media_share">Share</string>
     <string name="media_save">Save</string>
     <string name="media_saved">Saved</string>
