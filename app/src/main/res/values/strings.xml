@@ -783,6 +783,7 @@
     <string name="chat_failed_retry">failed · tap to retry</string>
     <string name="chat_attach">Attach</string>
     <string name="chat_emoticons">Emoticons</string>
+    <string name="chat_attach_camera">Camera</string>
     <string name="chat_attach_photo">Photo</string>
     <string name="chat_attach_video">Video</string>
     <string name="chat_attach_album">Album</string>

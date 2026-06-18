@@ -345,6 +345,27 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
             if (data != null) pendingSend = PendingSend.Photo(data)
         }
     }
+    var cameraUri by remember { mutableStateOf<Uri?>(null) }
+    val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { ok ->
+        val uri = cameraUri
+        cameraUri = null
+        if (ok && uri != null) scope.launch {
+            val data = withContext(Dispatchers.IO) { readImageForSend(context, uri) }
+            if (data != null) pendingSend = PendingSend.Photo(data)
+        }
+    }
+    fun launchCamera() {
+        val uri = cameraCaptureUri(context) ?: return
+        cameraUri = uri
+        cameraLauncher.launch(uri)
+    }
+    val cameraPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) launchCamera()
+    }
+    fun openCamera() {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) launchCamera()
+        else cameraPermission.launch(Manifest.permission.CAMERA)
+    }
 
     // OpenDocument (ACTION_OPEN_DOCUMENT / SAF DocumentsUI) shows EVERY file
     // type incl. APKs/docs; the old GetContent (ACTION_GET_CONTENT) is
@@ -1085,6 +1106,7 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
             title = { Text(stringResource(R.string.chat_attach), color = c.textPrimary) },
             text = {
                 Column {
+                    MessageAction(stringResource(R.string.chat_attach_camera)) { attachMenu = false; openCamera() }
                     MessageAction(stringResource(R.string.chat_attach_photo)) { attachMenu = false; picker.launch("image/*") }
                     MessageAction(stringResource(R.string.chat_attach_video)) { attachMenu = false; videoPicker.launch("video/*") }
                     MessageAction(stringResource(R.string.chat_attach_album)) {
@@ -2995,6 +3017,13 @@ private fun openFile(context: Context, bytes: ByteArray, fileName: String, mime:
         context.startActivity(Intent.createChooser(view, fileName).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
     }
 }
+
+private fun cameraCaptureUri(context: Context): Uri? = runCatching {
+    val dir = java.io.File(context.cacheDir, "files").apply { mkdirs() }
+    val f = java.io.File(dir, "camera-${System.currentTimeMillis()}.jpg")
+    f.createNewFile()
+    FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", f)
+}.getOrNull()
 
 private fun formatFileSize(bytes: Long): String = when {
     bytes >= 1_000_000 -> "%.1f MB".format(bytes / 1_000_000.0)

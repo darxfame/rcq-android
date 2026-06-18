@@ -782,6 +782,7 @@
     <string name="chat_failed_retry">не отправлено · нажмите, чтобы повторить</string>
     <string name="chat_attach">Вложение</string>
     <string name="chat_emoticons">Смайлы</string>
+    <string name="chat_attach_camera">Камера</string>
     <string name="chat_attach_photo">Фото</string>
     <string name="chat_attach_video">Видео</string>
     <string name="chat_attach_album">Альбом</string>
