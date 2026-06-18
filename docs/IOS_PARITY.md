@@ -52,3 +52,16 @@ local chat history across UIN migration instead of wiping it.
 Skipped: UIN auction, owned-UIN activation, and sell/remove inventory actions.
 Add only after the backend and iOS app expose those flows as real product
 surfaces.
+
+## Trades, jeton gifts, and paid reactions
+
+Decision: Android ships the existing free message reactions only. It keeps the
+server push-preference fields for trade notifications, but does not expose
+trade offers, token gifts, wallet actions, or paid reactions.
+
+iOS currently has many monetization strings, but this checkout found no live
+trade/jeton/wallet service or view files in the app. Adding Android-only token
+transfers would create payment behavior without a confirmed product surface.
+
+Skipped: trades, jeton gifts, wallet balance UI, and paid message reactions. Add
+only after the iOS app and backend expose the actual endpoints and UX.
