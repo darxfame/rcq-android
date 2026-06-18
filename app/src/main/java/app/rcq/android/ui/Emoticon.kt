@@ -88,6 +88,14 @@ internal object Emoticons {
         "viannen_09", "viannen_35", "viannen_48", "viannen_76", "viannen_88",
     )
 
+    /** Kolobki QIP 2005 expansion requested from the Telegram emoji set. These
+     *  are bundled local GIFs from the old Android port; no Telegram runtime/API. */
+    val qip2005Koloboks = listOf(
+        "aggressive", "angel", "blum", "boredom", "dirol", "heart",
+        "i-m_so_happy", "kiss2", "kissing", "mega_chok", "pleasantry",
+        "secret", "stop", "tease", "wacko", "wink", "yahoo!",
+    )
+
     /** The original composer palette: (asset, display name), Kolobok ICQ "set 14".
      *  Codes are the `:asset:` form; must match the iOS `Emoticons.entries`. */
     val palette: List<Pair<String, String>> = listOf(
@@ -103,9 +111,8 @@ internal object Emoticons {
         "diablo" to "Devil", "bomb" to "Bomb", "girl_angel" to "Angel", "hang1" to "Hang",
     )
 
-    /** The full pickable set the customise sheet offers: the original palette
-     *  plus the extra koloboks. Order = palette first, then extras. */
-    val fullSet: List<String> = palette.map { it.first } + extraKoloboks
+    /** The full pickable set the customise sheet offers. */
+    val fullSet: List<String> = palette.map { it.first } + extraKoloboks + qip2005Koloboks
 
     /** Asset names that have a `:code:` (for tokenizing message bodies) — the
      *  WHOLE bundled set, so a `:viannen_03:` from a peer renders too. */
