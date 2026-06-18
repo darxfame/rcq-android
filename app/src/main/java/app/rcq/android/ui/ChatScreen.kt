@@ -271,6 +271,7 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
     var reportMsg by remember { mutableStateOf<ChatMessage?>(null) }
     var forwardMsgs by remember { mutableStateOf<List<ChatMessage>>(emptyList()) }
     var selectedIds by remember(target) { mutableStateOf<Set<String>>(emptySet()) }
+    var deleteSelectionPrompt by remember { mutableStateOf(false) }
     var replyTarget by remember { mutableStateOf<ChatMessage?>(null) }
     var attachMenu by remember { mutableStateOf(false) }
     var showPollComposer by remember { mutableStateOf(false) }
@@ -345,6 +346,8 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
             else -> false
         }
     }
+    fun canDeleteForEveryone(m: ChatMessage): Boolean =
+        m.fromMe || (group != null && group.members.firstOrNull { it.uin == ownUin }?.canDelete(group.ownerUin) == true)
     fun toggleSelected(id: String) {
         selectedIds = if (id in selectedIds) selectedIds - id else selectedIds + id
     }
@@ -352,6 +355,7 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
         messages.filter { it.id in selectedIds }.sortedBy { it.sentAt }
     }
     val selectedCanForward = selectedMessages.isNotEmpty() && selectedMessages.all { canForward(it) }
+    val selectedCanDeleteForEveryone = selectedMessages.isNotEmpty() && selectedMessages.all { canDeleteForEveryone(it) }
     fun forwardAuthor(m: ChatMessage): String =
         m.senderUin?.let { if (it == ownUin) session.nickname else group?.memberName(it) ?: session.contactName(it) }
             ?: if (m.fromMe) session.nickname else peer?.let { session.contactName(it) }.orEmpty()
@@ -695,10 +699,7 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
                 }
                 Icon(
                     Icons.Filled.Delete, stringResource(R.string.chat_delete_me), tint = Color(0xFFE5484D),
-                    modifier = Modifier.size(24.dp).clip(CircleShape).clickable {
-                        selectedMessages.forEach { session.deleteLocal(it) }
-                        selectedIds = emptySet()
-                    },
+                    modifier = Modifier.size(24.dp).clip(CircleShape).clickable { deleteSelectionPrompt = true },
                 )
             }
         } else {
@@ -1123,12 +1124,39 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
         )
     }
 
+    if (deleteSelectionPrompt) {
+        val ms = selectedMessages
+        AlertDialog(
+            onDismissRequest = { deleteSelectionPrompt = false },
+            containerColor = c.bgSecondary,
+            title = { Text(stringResource(R.string.chat_selection_delete_title, ms.size), color = c.textPrimary) },
+            text = {
+                Column {
+                    MessageAction(stringResource(R.string.chat_delete_me), danger = true) {
+                        ms.forEach { session.deleteLocal(it) }
+                        selectedIds = emptySet()
+                        deleteSelectionPrompt = false
+                    }
+                    if (selectedCanDeleteForEveryone) {
+                        MessageAction(stringResource(R.string.chat_delete_all), danger = true) {
+                            val snapshot = ms
+                            selectedIds = emptySet()
+                            deleteSelectionPrompt = false
+                            scope.launch { snapshot.forEach { runCatching { session.sendDeleteForEveryone(it) } } }
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = { TextButton(onClick = { deleteSelectionPrompt = false }) { Text(stringResource(R.string.common_cancel), color = c.textSecondary) } },
+        )
+    }
+
     actionMsg?.let { m ->
         // "Delete for everyone" is offered for your own message, OR (in a group)
         // when you're a moderator: the owner, or a member granted the `delete`
         // cap. Recipients re-check the same rule on receipt.
-        val canDeleteAll = m.fromMe ||
-            (group != null && group.members.firstOrNull { it.uin == ownUin }?.canDelete(group.ownerUin) == true)
+        val canDeleteAll = canDeleteForEveryone(m)
         val reportUin = if (m.groupId != null) m.senderUin else peer
         AlertDialog(
             onDismissRequest = { actionMsg = null },

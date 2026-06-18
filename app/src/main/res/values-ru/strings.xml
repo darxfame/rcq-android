@@ -769,6 +769,7 @@
     <string name="chat_forwarded_from">Переслано от %1$s</string>
     <string name="chat_select">Выбрать</string>
     <string name="chat_selection_title">Выбрано: %1$d</string>
+    <string name="chat_selection_delete_title">Удалить выбранные: %1$d?</string>
     <string name="forward_title">Переслать…</string>
     <string name="forward_no_targets">Нет доступных получателей</string>
     <string name="media_share">Поделиться</string>

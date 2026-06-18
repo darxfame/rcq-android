@@ -770,6 +770,7 @@
     <string name="chat_forwarded_from">Forwarded from %1$s</string>
     <string name="chat_select">Select</string>
     <string name="chat_selection_title">%1$d selected</string>
+    <string name="chat_selection_delete_title">Delete %1$d selected?</string>
     <string name="forward_title">Forward to…</string>
     <string name="forward_no_targets">No available destinations</string>
     <string name="media_share">Share</string>
