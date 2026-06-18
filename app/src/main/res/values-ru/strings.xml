@@ -774,6 +774,11 @@
     <string name="chat_pinned_media">📎 Вложение</string>
     <string name="chat_edit">Изменить</string>
     <string name="chat_retry">Повторить</string>
+    <string name="chat_report_content">Пожаловаться</string>
+    <string name="chat_report_title">Пожаловаться на сообщение?</string>
+    <string name="chat_report_body">Отправим превью этого сообщения вместе с жалобой:\n%1$s</string>
+    <string name="chat_report_sent">Жалоба отправлена</string>
+    <string name="chat_report_failed">Не удалось отправить жалобу</string>
     <string name="chat_delete_all">Удалить у всех</string>
     <string name="chat_delete_me">Удалить у меня</string>
     <string name="chat_edit_title">Изменить сообщение</string>

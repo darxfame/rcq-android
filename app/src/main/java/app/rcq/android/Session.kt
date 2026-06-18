@@ -1458,9 +1458,8 @@ class Session(context: Context) {
         runCatching { refreshContacts() }
     }
 
-    suspend fun report(uin: Int, reason: String) {
-        runCatching { api.report(uin, reason) }
-    }
+    suspend fun report(uin: Int, reason: String, context: String = ""): Boolean =
+        runCatching { api.report(uin, reason, context) }.isSuccess
 
     /** Fetch another user's profile card (GET /users/{uin}/info). The
      *  server returns only the fields that user's privacy settings allow

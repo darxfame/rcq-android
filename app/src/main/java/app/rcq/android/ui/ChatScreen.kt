@@ -267,6 +267,7 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
     // Long-pressing a reaction chip opens a "who reacted" sheet for that message.
     var whoReactedMsg by remember { mutableStateOf<ChatMessage?>(null) }
     var editMsg by remember { mutableStateOf<ChatMessage?>(null) }
+    var reportMsg by remember { mutableStateOf<ChatMessage?>(null) }
     var replyTarget by remember { mutableStateOf<ChatMessage?>(null) }
     var attachMenu by remember { mutableStateOf(false) }
     var showPollComposer by remember { mutableStateOf(false) }
@@ -1039,6 +1040,7 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
         // cap. Recipients re-check the same rule on receipt.
         val canDeleteAll = m.fromMe ||
             (group != null && group.members.firstOrNull { it.uin == ownUin }?.canDelete(group.ownerUin) == true)
+        val reportUin = if (m.groupId != null) m.senderUin else peer
         AlertDialog(
             onDismissRequest = { actionMsg = null },
             containerColor = c.bgSecondary,
@@ -1092,6 +1094,12 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
                     if (m.fromMe && m.state == DeliveryState.FAILED) MessageAction(stringResource(R.string.chat_retry)) {
                         scope.launch { runCatching { session.resend(m) } }; actionMsg = null
                     }
+                    if (!m.fromMe && reportUin != null) {
+                        MessageAction(stringResource(R.string.chat_report_content), danger = true) {
+                            reportMsg = m
+                            actionMsg = null
+                        }
+                    }
                     if (canDeleteAll) MessageAction(stringResource(R.string.chat_delete_all), danger = true) {
                         scope.launch { runCatching { session.sendDeleteForEveryone(m) } }; actionMsg = null
                     }
@@ -1101,6 +1109,34 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
             confirmButton = {},
             dismissButton = { TextButton(onClick = { actionMsg = null }) { Text(stringResource(R.string.common_cancel), color = c.textSecondary) } },
         )
+    }
+
+    reportMsg?.let { m ->
+        val targetUin = if (m.groupId != null) m.senderUin else peer
+        val preview = previewOf(m, context).take(180)
+        if (targetUin != null) {
+            AlertDialog(
+                onDismissRequest = { reportMsg = null },
+                containerColor = c.bgSecondary,
+                title = { Text(stringResource(R.string.chat_report_title), color = c.textPrimary) },
+                text = { Text(stringResource(R.string.chat_report_body, preview), color = c.textSecondary, fontSize = 14.sp) },
+                confirmButton = {
+                    TextButton(onClick = {
+                        reportMsg = null
+                        scope.launch {
+                            val ctx = "message_id=${m.id}\nkind=${m.kind}\nthread=$threadKey\npreview=${previewOf(m, context).take(500)}"
+                            val ok = session.report(targetUin, "message_content", ctx)
+                            android.widget.Toast.makeText(
+                                context,
+                                if (ok) R.string.chat_report_sent else R.string.chat_report_failed,
+                                android.widget.Toast.LENGTH_SHORT,
+                            ).show()
+                        }
+                    }) { Text(stringResource(R.string.home_report_submit), color = Color(0xFFE5484D)) }
+                },
+                dismissButton = { TextButton(onClick = { reportMsg = null }) { Text(stringResource(R.string.common_cancel), color = c.textSecondary) } },
+            )
+        }
     }
 
     editMsg?.let { m ->
