@@ -1340,7 +1340,7 @@ internal fun ChatScreen(session: Session, target: ChatTarget, onBack: () -> Unit
                     }
                     MessageAction(stringResource(R.string.chat_attach_file)) { attachMenu = false; filePicker.launch(arrayOf("*/*")) }
                     MessageAction(stringResource(R.string.chat_attach_location)) { attachMenu = false; shareLocation() }
-                    MessageAction(stringResource(R.string.chat_attach_group)) { attachMenu = false; showGroupPicker = true }
+                    if (!isGroup) MessageAction(stringResource(R.string.chat_attach_group)) { attachMenu = false; showGroupPicker = true }
                     if (isGroup) MessageAction(stringResource(R.string.poll_create)) { attachMenu = false; showPollComposer = true }
                     MessageAction(stringResource(R.string.relay_share_attach)) { attachMenu = false; showRelayPicker = true }
                 }
