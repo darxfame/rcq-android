@@ -440,6 +440,7 @@
     <string name="uin_shop_confirm_body">Перенесём аккаунт на этот UIN. Контакты, группы и история чатов переедут с тобой, старый UIN освободится.</string>
     <string name="uin_shop_confirm_cta">Купить</string>
     <string name="uin_shop_error_taken">Кто-то перехватил. Попробуй другой UIN.</string>
+    <string name="uin_shop_error_cooldown">Слишком часто. Попробуй позже.</string>
     <string name="uin_shop_error_generic">Не удалось купить. Попробуй ещё раз.</string>
     <string name="settings_foot_appearance">Светлая, тёмная или как в системе.</string>
     <string name="settings_text_size">Размер текста</string>

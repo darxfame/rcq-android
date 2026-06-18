@@ -38,3 +38,17 @@ would invent product behavior instead of matching iOS.
 
 Skipped: paid media compose/unlock. Add only after iOS/backend ship the real
 premium content API and UX.
+
+## UIN shop and auctions
+
+Decision: Android follows the supported direct UIN shop flow (`/uin/quote` and
+`/uin/purchase`) and does not add UIN auctions or owned-UIN inventory.
+
+iOS has the same direct UIN shop plus auction/inventory localization leftovers
+and a generic banner target, but no auction view/service files or live auction
+API calls in the app. The current Android behavior also intentionally preserves
+local chat history across UIN migration instead of wiping it.
+
+Skipped: UIN auction, owned-UIN activation, and sell/remove inventory actions.
+Add only after the backend and iOS app expose those flows as real product
+surfaces.

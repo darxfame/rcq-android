@@ -441,6 +441,7 @@
     <string name="uin_shop_confirm_body">We\'ll migrate your account onto this UIN. Contacts, groups and your chat history move with you; the old UIN frees up.</string>
     <string name="uin_shop_confirm_cta">Buy</string>
     <string name="uin_shop_error_taken">Someone grabbed it first. Try a different UIN.</string>
+    <string name="uin_shop_error_cooldown">Too soon. Try again later.</string>
     <string name="uin_shop_error_generic">Purchase failed. Try again.</string>
     <string name="settings_foot_appearance">Choose light, dark, or follow the system theme.</string>
     <string name="settings_text_size">Text size</string>

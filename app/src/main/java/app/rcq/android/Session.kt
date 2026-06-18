@@ -2452,13 +2452,17 @@ class Session(context: Context) {
      *  local handling is identical — history survives (peer-keyed),
      *  contacts/groups re-sync. A 409 (someone grabbed it first between quote
      *  and purchase) maps to [PurchaseResult.Taken] so the shop can prompt for
-     *  a different number; other failures bubble up as [PurchaseResult.Other]. */
+     *  a different number; a 429 maps to [PurchaseResult.Cooldown]. */
     suspend fun purchaseUin(uin: Int, receipt: String): PurchaseResult {
         val resp = try {
             api.purchaseUin(uin, receipt)
         } catch (e: Exception) {
             val msg = e.message ?: ""
-            return if (msg.contains("HTTP 409")) PurchaseResult.Taken else PurchaseResult.Other(msg)
+            return when {
+                msg.contains("HTTP 409") -> PurchaseResult.Taken
+                msg.contains("HTTP 429") -> PurchaseResult.Cooldown
+                else -> PurchaseResult.Other(msg)
+            }
         }
         applyMigration(resp)
         return PurchaseResult.Success(resp.new_uin)
@@ -2467,6 +2471,7 @@ class Session(context: Context) {
     sealed class PurchaseResult {
         data class Success(val newUin: Int) : PurchaseResult()
         object Taken : PurchaseResult()
+        object Cooldown : PurchaseResult()
         data class Other(val message: String?) : PurchaseResult()
     }
 

@@ -71,6 +71,7 @@ fun UinShopScreen(session: Session, onBack: () -> Unit, onMigrated: (Int) -> Uni
     var error by remember { mutableStateOf<String?>(null) }
     // Resolved here (composable scope) so the purchase callback can use them.
     val takenMsg = stringResource(R.string.uin_shop_error_taken)
+    val cooldownMsg = stringResource(R.string.uin_shop_error_cooldown)
     val genericMsg = stringResource(R.string.uin_shop_error_generic)
 
     val isValidLength = typed.length in 3..9
@@ -117,6 +118,10 @@ fun UinShopScreen(session: Session, onBack: () -> Unit, onMigrated: (Int) -> Uni
                     buying = false
                     quote = null
                     error = takenMsg
+                }
+                is Session.PurchaseResult.Cooldown -> {
+                    buying = false
+                    error = cooldownMsg
                 }
                 is Session.PurchaseResult.Other -> {
                     buying = false
